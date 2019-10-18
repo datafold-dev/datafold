@@ -3,7 +3,7 @@
 import numpy as np
 import scipy
 
-from pcmanifold.distance import compute_distance_matrix
+from datafold.pcfold.distance import compute_distance_matrix
 
 # --------------------------------------------------
 # people who contributed code
