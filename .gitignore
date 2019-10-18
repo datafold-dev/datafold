@@ -1,0 +1,15 @@
+# IDE 
+.idea/
+
+
+# Install files
+dist/
+build/
+datafold.egg-info/
+
+# Python files
+*.p
+*.pyc
+__pycache__/
+.mypy_cache/
+
