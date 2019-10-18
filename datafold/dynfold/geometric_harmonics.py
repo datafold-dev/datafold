@@ -15,9 +15,9 @@ from sklearn.base import MultiOutputMixin, RegressorMixin
 from sklearn.metrics.regression import mean_squared_error
 from sklearn.model_selection import train_test_split
 
-import pcmanifold
-from pydmap.kernel import KernelMethod, DmapKernelFixed
-from pydmap.utils import to_ndarray
+import datafold.pcfold as pcfold
+from datafold.dynfold.kernel import DmapKernelFixed, KernelMethod
+from datafold.dynfold.utils import to_ndarray
 
 
 class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMixin):
@@ -49,8 +49,8 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         if self.y.ndim == 1:
             self.y = np.atleast_2d(y).T  # TODO: use scikit learn functions
 
-        self.X = pcmanifold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
-                                       dist_backend=self.dist_backend, **self.dist_backend_kwargs)
+        self.X = pcfold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
+                                   dist_backend=self.dist_backend, **self.dist_backend_kwargs)
 
         self._kernel_matrix, self._basis_change_matrix = self.X.compute_kernel_matrix()
         self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(self._kernel_matrix,
@@ -111,7 +111,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         """
         X = self._check_X(X)
 
-        Y = pcmanifold.PCManifold(X, kernel=self.X.kernel, cut_off=self.X.cut_off, dist_backend=self.X.dist_backend)
+        Y = pcfold.PCManifold(X, kernel=self.X.kernel, cut_off=self.X.cut_off, dist_backend=self.X.dist_backend)
 
         kernel_matrix, basis_change_matrix = Y.compute_kernel_matrix(Y=self.X)  # TODO: maybe be "the wrong way around"
 
@@ -158,7 +158,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
 
         # TODO: see issue #54 the to_ndarray() kills memory, when many points (xi.shape[0]) are requested
         # TODO: this way is not so nice..., also should use a transfer kernel method in PCM
-        Y = pcmanifold.PCManifold(X, self.X.kernel, self.X.cut_off, self.X.dist_backend, **self.dist_backend_kwargs)
+        Y = pcfold.PCManifold(X, self.X.kernel, self.X.cut_off, self.X.dist_backend, **self.dist_backend_kwargs)
 
         kernel_matrix, basis_change_matrix = Y.compute_kernel_matrix(self.X)
         assert basis_change_matrix is None   # TODO: catch this case before computing...
@@ -199,8 +199,8 @@ class GeometricHarmonicsFunctionBasis(GeometricHarmonicsInterpolator):
     def fit(self, X, y=None) -> "GeometricHarmonicsFunctionBasis":
         assert y is None  # y is only there to provide the same function from the base, but y is never needed...
 
-        self.X = pcmanifold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
-                                       dist_backend=self.dist_backend, **self.dist_backend_kwargs)
+        self.X = pcfold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
+                                   dist_backend=self.dist_backend, **self.dist_backend_kwargs)
 
         self._kernel_matrix, self._basis_change_matrix = self.X.compute_kernel_matrix()
 

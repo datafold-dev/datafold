@@ -76,9 +76,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         points = make_points(100, -4, -4, 4, 4)
 
-        with Clock() as c:
-            values = ghi(points)
-        logging.debug(f"Evaluation of geometric harmonics done ({c} seconds).")
+        values = ghi(points)
 
         residual = values - f(points)
         self.assertLess(np.max(np.abs(residual)), 7.5e-2)
@@ -284,6 +282,7 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
     # the case.
 
     def setUp(self):
+        np.random.seed(1)
         self.data, _ = make_swiss_roll(n_samples=1000, noise=0, random_state=1)
 
         dim_red_eps = 1.25
@@ -310,7 +309,8 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
                                             cut_off=np.inf,
                                             normalize_kernel=False)
 
-        setting = {"epsilon": eps_interp, "num_eigenpairs": num_eigenpairs, "cut_off": 1E100}
+        setting = {"epsilon": eps_interp, "num_eigenpairs": num_eigenpairs, "cut_off": 1E100}  # "dist_backend": "scipy.kdtree"
+        setting2 = {"epsilon": eps_interp, "num_eigenpairs": num_eigenpairs, "cut_off": 1E100, "dist_backend": "scipy.kdtree"}
 
         actual_phi0 = GeometricHarmonicsInterpolator(**setting).fit(self.data_train, self.phi_train[:, 0])
         actual_phi1 = GeometricHarmonicsInterpolator(**setting).fit(self.data_train, self.phi_train[:, 1])

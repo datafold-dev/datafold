@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pydmap import DiffusionMaps
+from datafold.dynfold.diffusion_maps import DiffusionMaps
 
 
 def _get_rows_and_columns(num_plots: int) -> Tuple[int, int]:

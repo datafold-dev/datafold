@@ -184,8 +184,8 @@ class RDist(DistanceAlgorithm):
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)
 
-        _rdist = rdist.Rdist(X, **backend_options)
-        distance_matrix = _rdist.sparse_cdist(req_points=Y, r=max_distance, rtype="radius", **self._get_dist_options())
+        _rdist = rdist.Rdist(Y, **backend_options)
+        distance_matrix = _rdist.sparse_cdist(req_points=X, r=max_distance, rtype="radius", **self._get_dist_options())
 
         if self.metric == "euclidean":
             distance_matrix.data = np.sqrt(distance_matrix.data)
@@ -279,6 +279,7 @@ class GuessOptimalDist(DistanceAlgorithm):
         else:
             if IS_IMPORTED_RDIST and self.metric in ["euclidean", "sqeuclidean"]:
                 backend_str = RDist.NAME
+                backend_str = ScipyKdTreeDist.NAME
             elif self.metric in ["euclidean", "sqeuclidean"]:
                 backend_str = ScipyKdTreeDist.NAME
             else:
@@ -291,7 +292,7 @@ class GuessOptimalDist(DistanceAlgorithm):
         return self._guess_optimal_backend(cut_off).pdist(X, cut_off, **backend_options)
 
     def cdist(self, X, Y, cut_off=None, **backend_options):
-        return self._guess_optimal_backend(cut_off).cdist(X, cut_off, **backend_options)
+        return self._guess_optimal_backend(cut_off).cdist(X, Y, cut_off, **backend_options)
 
 
 def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):

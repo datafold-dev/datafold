@@ -17,9 +17,9 @@ import scipy.sparse.linalg
 import scipy.spatial
 from sklearn.base import TransformerMixin
 
-import pcmanifold
-from pydmap.kernel import KernelMethod, DmapKernelFixed, DmapKernelVariable
-from pydmap.utils import downsample
+import datafold.pcfold as pcfold
+from datafold.dynfold.kernel import KernelMethod, DmapKernelFixed, DmapKernelVariable
+from datafold.dynfold.utils import downsample
 
 
 class DiffusionMapsVariable(KernelMethod, TransformerMixin):
@@ -60,8 +60,8 @@ class DiffusionMapsVariable(KernelMethod, TransformerMixin):
 
     def fit(self, X, y=None, **fit_params):
 
-        pcm = pcmanifold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
-                                    dist_backend=self.dist_backend, **self.dist_backend_kwargs)
+        pcm = pcfold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
+                                dist_backend=self.dist_backend, **self.dist_backend_kwargs)
 
         # basis_change_matrix is None if not required
         # save kernel_matrix for now to use it for testing, but it may not be necessary for lage problems
@@ -126,8 +126,8 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
             Same DiffusionMaps object (self).
         """
 
-        pcm = pcmanifold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
-                                    dist_backend=self.dist_backend, **self.dist_backend_kwargs)
+        pcm = pcfold.PCManifold(X, kernel=self.kernel_, cut_off=self.cut_off,
+                                dist_backend=self.dist_backend, **self.dist_backend_kwargs)
 
         # basis_change_matrix is None if not required
         # save kernel_matrix for now to use it for testing, but it may not be necessary for large problems

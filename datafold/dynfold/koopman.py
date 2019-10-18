@@ -2,7 +2,7 @@ import numpy as np
 import scipy.sparse
 from sklearn.base import TransformerMixin
 
-import pcmanifold.timeseries as ts
+import datafold.pcfold.timeseries as ts
 
 #  TODO: make EDMDEco (computationally economic version using the the SVD, see DMD book)
 #      a reminder to substract (optionally) the mean of the data to center it

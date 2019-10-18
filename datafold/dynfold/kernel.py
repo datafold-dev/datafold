@@ -13,8 +13,8 @@ from sklearn.base import BaseEstimator
 from sklearn.gaussian_process.kernels import Kernel, StationaryKernelMixin
 from sklearn.preprocessing import normalize
 
-from pcmanifold.distance import compute_distance_matrix
-from pcmanifold.kernels import PCManifoldKernelMixin, RadialBasisKernel
+from datafold.pcfold.distance import compute_distance_matrix
+from datafold.pcfold.kernels import PCManifoldKernelMixin, RadialBasisKernel
 
 gpu_eigsolve: Optional[Callable]  # optional because GPU/CUDA code may not be available
 
