@@ -109,11 +109,12 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         X : np.ndarray
             Out-of-sample points to interpolate. The points are expected to lie on a manifold.
         """
+        if self.y.ndim == 1:
+            X = np.atleast_2d(X).T
+
         X = self._check_X(X)
 
-        Y = pcfold.PCManifold(X, kernel=self.X.kernel, cut_off=self.X.cut_off, dist_backend=self.X.dist_backend)
-
-        kernel_matrix, basis_change_matrix = Y.compute_kernel_matrix(Y=self.X)  # TODO: maybe be "the wrong way around"
+        kernel_matrix, basis_change_matrix = self.X.compute_kernel_matrix(Y=X)
 
         # TODO: catch this case before computation:
         assert basis_change_matrix is None  # this is a cdist case, the symmetrize_kernel only works for the pdist case
@@ -138,6 +139,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         np.ndarray
             Gradients for each point (row-wise) for the requested points `xi`.
         """
+
         # TODO: generalize to all columns (if required...). Note that this will be a tensor then.
 
         X = self._check_X(X)
@@ -156,13 +158,10 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         else:
             values = self.y[:, 0]
 
-        # TODO: see issue #54 the to_ndarray() kills memory, when many points (xi.shape[0]) are requested
-        # TODO: this way is not so nice..., also should use a transfer kernel method in PCM
-        Y = pcfold.PCManifold(X, self.X.kernel, self.X.cut_off, self.X.dist_backend, **self.dist_backend_kwargs)
-
-        kernel_matrix, basis_change_matrix = Y.compute_kernel_matrix(self.X)
+        kernel_matrix, basis_change_matrix = self.X.compute_kernel_matrix(X)
         assert basis_change_matrix is None   # TODO: catch this case before computing...
 
+        # TODO: see issue #54 the to_ndarray() kills memory, when many points (xi.shape[0]) are requested
         kernel_matrix = to_ndarray(kernel_matrix)
 
         # Gradient computation
