@@ -9,7 +9,7 @@ import datafold
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/
 
 AUTHOR = "The datafold development team"
-EMAIL = None  # TODO: maybe provide here once a mailing-list email (send email to all group members)
+EMAIL = None
 
 
 setup(name='datafold',
@@ -35,10 +35,6 @@ setup(name='datafold',
       classifiers=["Intended Audience :: Science/Research",
                    "License :: OSI Approved :: MIT License",
                    "Operating System :: OS Independent",
-                   "Programming Language :: C",
-                   "Programming Language :: C++",
-                   "Programming Language :: Python :: 3.6",
                    "Programming Language :: Python :: 3 :: Only",
-                   "Topic :: Scientific/Engineering",
-                   "Topic :: Software Development :: Version Control"]
+                   "Topic :: Scientific/Engineering"]
       )
