@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from trajds import TSCDataFrame
+from datafold.pcfold.timeseries import TSCDataFrame
 
 
 class TestTimeSeriesCollectionPlots(unittest.TestCase):

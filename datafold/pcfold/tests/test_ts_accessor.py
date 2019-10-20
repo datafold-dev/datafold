@@ -5,8 +5,8 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from pcmanifold.timeseries.collection import TSCDataFrame
-from pcmanifold.timeseries.accessor import TakensEmbedding
+from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold.timeseries.accessor import TakensEmbedding
 
 
 class TestTimeSeriesCollectionMethods(unittest.TestCase):

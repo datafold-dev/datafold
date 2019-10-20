@@ -30,4 +30,15 @@ setup(name='datafold',
       extras_require={
           'plotting': ['matplotlib', 'ipywidgets'],
           'cuda': ['numba'],
-          'documenation': ['Sphinx']})
+          'documenation': ['Sphinx']},
+      # taken from list https://pypi.org/pypi?%3Aaction=list_classifiers
+      classifiers=["Intended Audience :: Science/Research",
+                   "License :: OSI Approved :: MIT License",
+                   "Operating System :: OS Independent",
+                   "Programming Language :: C",
+                   "Programming Language :: C++",
+                   "Programming Language :: Python :: 3.6",
+                   "Programming Language :: Python :: 3 :: Only",
+                   "Topic :: Scientific/Engineering",
+                   "Topic :: Software Development :: Version Control"]
+      )

@@ -5,7 +5,8 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from pcmanifold.timeseries.collection import TSCDataFrame, TimeSeriesCollectionError
+from datafold.pcfold.timeseries.collection import TSCDataFrame, TimeSeriesCollectionError
+
 
 class TestTSCDataFrame(unittest.TestCase):
 
