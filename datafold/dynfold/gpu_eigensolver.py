@@ -14,8 +14,7 @@ import numba.cuda as cuda
 import numpy as np
 import scipy.sparse
 
-import pydmap.gpu_cusparse as cs
-from pydmap import clock
+import datafold.dynfold.gpu_cusparse as cs
 
 DeviceNDArray = cuda.cudadrv.devicearray.DeviceNDArray
 
@@ -242,8 +241,6 @@ def eigensolver(matrix: scipy.sparse.csr_matrix,
     logging.debug('Running Arnoldi iteration with tolerance {:g}...'
                   .format(tol.value))
 
-    clk = clock.Clock()
-    clk.tic()
     for itr in range(maxitr.value):
         dnaupd(byref(ido), bmat, byref(n), which, byref(nev), byref(tol),
                resid, byref(ncv), v, byref(ldv), iparam, ipntr, workd, workl,
@@ -266,25 +263,19 @@ def eigensolver(matrix: scipy.sparse.csr_matrix,
         # workdnp[idx_sol:idx_sol+N] = sol
         sol = MVP.product(cuda.to_device(rhs.astype(np.float64)))
         workdnp[idx_sol:idx_sol + N] = sol.copy_to_host()  # XXX pin memory
-    clk.toc()
 
-    logging.debug('Done with Arnoldi iteration after {} steps. '
-                  'Elapsed time: {} seconds'.format(itr, clk))
-
+    logging.debug('Done with Arnoldi iteration after {} steps. '.format(itr))
     logging.debug('Running post-processing step...')
 
-    clk.tic()
     d0 = byref(d, 0)
     d1 = byref(d, maxncv * sizeof(c_double))
     dneupd(byref(rvec), byref(howmny), select, d0, d1, v, byref(ldv),
            byref(sigmar), byref(sigmai), workev, byref(bmat), byref(n),
            which, byref(nev), byref(tol), resid, byref(ncv), v, byref(ldv),
            iparam, ipntr, workd, workl, byref(lworkl), byref(ierr))
-    clk.toc()
 
-    logging.debug('Done with postprocessing step after {} seconds. '
-                  'Status: {}'.format(clk, ('OK' if ierr.value == 0
-                                            else 'FAIL')))
+    logging.debug('Done with postprocessing step. '
+                  'Status: {}'.format(('OK' if ierr.value == 0 else 'FAIL')))
 
     if ierr.value != 0:
         raise ArpackError(dneupd_messages[ierr.value])

@@ -8,8 +8,8 @@ import ipywidgets as widgets
 import numpy as np
 from IPython.display import display
 
-from pydmap import DiffusionMaps
-from pydmap.plot import (
+from datafold.dynfold.diffusion_maps import DiffusionMaps
+from datafold.dynfold.plot import (
     LookupDmapsEpsilon, LookupKernelMatsEpsilon, plot_diffusion_maps, plot_l_vs_epsilon, plot_results)
 
 

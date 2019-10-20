@@ -76,6 +76,7 @@ def plot_data_colored_by_diffusion_maps(data: np.ndarray, eigenvectors: np.ndarr
     num_eigenvectors = max(eigenvectors.shape[0] - 1, 10)
     plt.figure(2)
     rows, cols = _get_rows_and_columns(num_eigenvectors)
+
     for k in range(1, eigenvectors.shape[0]):
         plt.subplot(rows, cols, k)
         plt.scatter(x, y, c=eigenvectors[k, :], cmap='RdBu_r', rasterized=True)
