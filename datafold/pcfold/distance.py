@@ -87,6 +87,36 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         else:
             return np.inf
 
+    def _set_zeros_sparse_diagonal(self, distance_matrix):
+        # This function sets the diagonal to zero of a sparse matrix.
+
+        # Some algorithms don't store the zeros on the diagonal for the pdist case. However, this is critical if
+        # afterwards the kernel is applied kernel(distance_matrix).
+        #   -> kernel(distance)=0 but correct is kernel(distance)=1 (for a stationary kernel)
+        # The issue is:
+        # * We neglect not zeros but large values (e.g. cut_off=100 we ignore larger values and do not store them)
+        # * The sparse matrix formats see the "not stored values" equal to zero, however, there are also "true zeros"
+        #   for duplicates. We HAVE to store these zero values, otherwise the kernel values are wrong on the
+        #   opposite extreme end (i.e. 0 instead of 1, for stationary kernels).
+
+        assert scipy.sparse.issparse(distance_matrix) and distance_matrix.shape[0] == distance_matrix.shape[1]
+
+        # distances cannot be negative, therefore choose an easy to identify negative value
+        invalid_value = -999.0
+
+        # in case there are duplicate rows -> set to invalid_value
+        distance_matrix.data[distance_matrix.data == 0] = invalid_value
+
+        # convert to lil-format, because it is more efficient to set the diag=0
+        distance_matrix = distance_matrix.tolil()
+        distance_matrix.setdiag(invalid_value)
+
+        # turn back to csr and set the invalid to "true zeros"
+        distance_matrix = distance_matrix.tocsr()
+        distance_matrix.data[distance_matrix.data == invalid_value] = 0
+
+        return distance_matrix
+
     @abc.abstractmethod
     def pdist(self, X, cut_off=None, **backend_options):
         """Computes the distance matrix pairwise from the dataset. From this follows always that the matrix is square
@@ -94,7 +124,8 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def cdist(self, X, Y, cut_off=None, **backend_options):
-        """Computes the distance matrix componentwise between two point clouds (points are row-wise in X and Y). """
+        """Computes the distance matrix componentwise between two point clouds X and Y. Important:
+        the query points are in rows (i) and the reference points in columns (j)."""
 
 
 class BruteForceDist(DistanceAlgorithm):
@@ -118,7 +149,7 @@ class BruteForceDist(DistanceAlgorithm):
 
         distance_matrix = radius_neighbors_graph(X, radius=radius, mode="distance", metric=self.metric,
                                                  metric_params=metric_params, include_self=True, **backend_options)
-
+        distance_matrix = self._set_zeros_sparse_diagonal(distance_matrix)
         return distance_matrix
 
     def cdist(self, X, Y, cut_off=None, **backend_options):
@@ -133,8 +164,8 @@ class BruteForceDist(DistanceAlgorithm):
             metric_params["V"] = np.cov(X, rowvar=False)  # add inverse covariance matrix
 
         method = NearestNeighbors(radius=radius, algorithm="auto", metric=self.metric, **backend_options)
-        method = method.fit(Y)  # Fit to Y first, so that in the rows are the query and X in columns
-        distance_matrix = method.radius_neighbors_graph(X, mode="distance")
+        method = method.fit(X)  # Fit to Y first, so that in the rows are the query and reference are in columns
+        distance_matrix = method.radius_neighbors_graph(Y, mode="distance")
 
         return distance_matrix
 
@@ -177,20 +208,20 @@ class RDist(DistanceAlgorithm):
         if self.metric == "euclidean":
             distance_matrix.data = np.sqrt(distance_matrix.data)
 
-        return distance_matrix.tocsr()
+        return distance_matrix
 
     def cdist(self, X, Y, cut_off=None, **backend_options):
 
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)
 
-        _rdist = rdist.Rdist(Y, **backend_options)
-        distance_matrix = _rdist.sparse_cdist(req_points=X, r=max_distance, rtype="radius", **self._get_dist_options())
+        _rdist = rdist.Rdist(X, **backend_options)
+        distance_matrix = _rdist.sparse_cdist(req_points=Y, r=max_distance, rtype="radius", **self._get_dist_options())
 
         if self.metric == "euclidean":
             distance_matrix.data = np.sqrt(distance_matrix.data)
 
-        return distance_matrix.tocsr()
+        return distance_matrix
 
 
 class ScipyKdTreeDist(DistanceAlgorithm):
@@ -234,7 +265,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         kdtree_x = scipy.spatial.cKDTree(X, **backend_options)
         kdtree_y = scipy.spatial.cKDTree(Y, **backend_options)
 
-        dist_matrix = kdtree_x.sparse_distance_matrix(kdtree_y, max_distance=max_distance, output_type="coo_matrix")
+        dist_matrix = kdtree_y.sparse_distance_matrix(kdtree_x, max_distance=max_distance, output_type="coo_matrix")
 
         if self.metric == "sqeuclidean":
             dist_matrix.data = np.square(dist_matrix.data)
@@ -249,19 +280,42 @@ class SklearnBalltreeDist(DistanceAlgorithm):
     def __init__(self, metric):
         super(SklearnBalltreeDist, self).__init__(metric=metric)
 
+    def _map_metric_and_cut_off(self, cut_off):
+        if self.metric == "sqeuclidean":
+            if cut_off is not None:
+                cut_off = np.sqrt(cut_off)
+            return "euclidean", cut_off
+        else:
+            return self.metric, cut_off
+
     def pdist(self, X, cut_off=None, **backend_options):
-        # TODO: there are also metric params
+
+        metric, cut_off = self._map_metric_and_cut_off(cut_off)
+
         max_distance = self._numeric_cut_off(cut_off)
-        nn = NearestNeighbors(radius=max_distance, algorithm="ball_tree", metric=self.metric, **backend_options)
+        nn = NearestNeighbors(radius=max_distance, algorithm="ball_tree", metric=metric, **backend_options)
         nn.fit(X)
         distance_matrix = nn.radius_neighbors_graph(mode="distance")
+
+        if self.metric == "sqeuclidean":
+            distance_matrix.data = np.square(distance_matrix.data, out=distance_matrix.data)
+
+        distance_matrix = self._set_zeros_sparse_diagonal(distance_matrix)
+
         return distance_matrix
 
     def cdist(self, X, Y, cut_off=None, **backend_options):
+
+        metric, cut_off = self._map_metric_and_cut_off(cut_off)
+
         max_distance = self._numeric_cut_off(cut_off)
-        nn = NearestNeighbors(radius=max_distance, algorithm="ball_tree", metric=self.metric, **backend_options)
+        nn = NearestNeighbors(radius=max_distance, algorithm="ball_tree", metric=metric, **backend_options)
         nn.fit(X)
         distance_matrix = nn.radius_neighbors_graph(Y, mode="distance")
+
+        if self.metric == "sqeuclidean":
+            distance_matrix.data = np.square(distance_matrix.data, out=distance_matrix.data)
+
         return distance_matrix
 
 
@@ -279,7 +333,7 @@ class GuessOptimalDist(DistanceAlgorithm):
         else:
             if IS_IMPORTED_RDIST and self.metric in ["euclidean", "sqeuclidean"]:
                 backend_str = RDist.NAME
-                backend_str = ScipyKdTreeDist.NAME
+                #backend_str = ScipyKdTreeDist.NAME
             elif self.metric in ["euclidean", "sqeuclidean"]:
                 backend_str = ScipyKdTreeDist.NAME
             else:
@@ -326,13 +380,8 @@ def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):
     return distance_matrix
 
 
-def get_backend_distance_algorithm(backend):
-
+def all_available_distance_algorithm():
     all_backends = DistanceAlgorithm.__subclasses__()
-
-    # This is the case if a user chose the backend by object instead of "NAME"
-    if backend in all_backends:
-        return backend
 
     # This is the case if backend is given as a str, now we look for the matching DistanceAlgorithm.NAME
     for b in all_backends:
@@ -341,6 +390,17 @@ def get_backend_distance_algorithm(backend):
             b.NAME
         except AttributeError:
             raise NotImplementedError(f"class {type(b)} has no NAME attribute. Check implementation.")
+
+    return all_backends
+
+
+def get_backend_distance_algorithm(backend):
+
+    all_backends = all_available_distance_algorithm()
+
+    # This is the case if a user chose the backend by object instead of "NAME"
+    if backend in all_backends:
+        return backend
 
     for b in all_backends:
         # look up for the backend algorithm with the name implemented
@@ -406,25 +466,6 @@ def compute_distance_matrix(X, Y=None, metric="euclidean", cut_off=None, kmin=0,
     if kmin > 0:
         logger.info("apply continuous nearest neighbor on distance matrix")
         distance_matrix = apply_continuous_nearest_neighbor(distance_matrix, kmin, tol)
-
-    if scipy.sparse.issparse(distance_matrix) and is_pdist:  # sparse pdist case
-        # NOTE: this is required because we set large distances (e.g. dist=100) to zero in order to save storage
-        # however, "true zeros" have to be treated extra and need to be stored. Otherwise, the kernel values
-        # would be zero but correct is 1 (for a stationary kernel).
-
-        # distances cannot be negative, therefore choose an easy to identify negative value
-        invalid_value = -999.0
-
-        # in case there are duplicate rows -> set to invalid_value
-        distance_matrix.data[distance_matrix.data == 0] = invalid_value
-
-        # convert to lil-format, because it is more efficient to set the diag=0
-        distance_matrix = distance_matrix.tolil()
-        distance_matrix.setdiag(invalid_value)
-
-        # turn back to csr and set the invalid to "true zeros"
-        distance_matrix = distance_matrix.tocsr()
-        distance_matrix.data[distance_matrix.data == invalid_value] = 0
 
     if scipy.sparse.issparse(distance_matrix):
         if not isinstance(distance_matrix, scipy.sparse.csr_matrix):

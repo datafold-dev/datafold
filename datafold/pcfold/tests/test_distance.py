@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
 import unittest
+
 import numpy.testing as nptest
+from scipy.spatial.distance import cdist, pdist, squareform
 
 from datafold.pcfold.distance import *
 
 
-class TestDistance(unittest.TestCase):
+class TestContinuousDistance(unittest.TestCase):
 
     def setUp(self) -> None:
         np.random.seed(1)
@@ -138,7 +140,163 @@ class TestDistance(unittest.TestCase):
         nptest.assert_array_equal(distance_matrix_expected.toarray(), distance_matrix_actual.toarray())
 
 
+class TestDistAlgorithms(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.data_X = np.random.rand(500, 100)
+        self.data_Y = np.random.rand(300, 100)
+
+        self.algos = all_available_distance_algorithm()
+
+    def test_pdist_dense(self):
+        backend_options = {}
+        expected = squareform(pdist(self.data_X))
+
+        for metric in ["euclidean", "sqeuclidean"]:
+
+            if metric == "sqeuclidean":
+                expected = np.square(expected)
+
+            for algo in self.algos:
+
+                actual = compute_distance_matrix(X=self.data_X, metric=metric, cut_off=None, kmin=0, tol=1,
+                                                 backend=algo.NAME, **backend_options)
+
+                try:
+                    self.assertIsInstance(actual, np.ndarray)
+                    nptest.assert_allclose(actual, expected, atol=1E-15, rtol=1E-14)
+                except AssertionError as e:
+                    print(f"{algo.NAME} failed for metric {metric}")
+                    raise e
+
+    def test_cdist_dense(self):
+        backend_options = {}
+
+        # NOTE: first Y and then X because, the Y (query points) should be in rows, the X (reference points) in columns
+        # This turned out to be a better handling for equations (e.g. in geometric harmonics).
+        expected = cdist(self.data_Y, self.data_X)
+
+        for metric in ["euclidean", "sqeuclidean"]:
+
+            if metric == "sqeuclidean":
+                expected = np.square(expected)
+
+            for algo in self.algos:
+
+                actual = compute_distance_matrix(X=self.data_X, Y=self.data_Y, metric=metric, cut_off=None, kmin=0,
+                                                 tol=1, backend=algo.NAME, **backend_options)
+                try:
+                    self.assertIsInstance(actual, np.ndarray)
+                    nptest.assert_allclose(actual, expected, atol=1E-15, rtol=1E-14)
+                except AssertionError as e:
+                    print(f"{algo.NAME} failed for metric {metric}")
+                    raise e
+
+    def test_pdist_sparse(self):
+        backend_options = {}
+        expected = squareform(pdist(self.data_X))
+        cut_off = np.median(expected)
+
+        expected[expected > cut_off] = 0
+
+        for metric in ["euclidean", "sqeuclidean"]:
+
+            if metric == "sqeuclidean":
+                expected = np.square(expected)
+
+            for algo in self.algos:
+
+                actual = compute_distance_matrix(X=self.data_X, metric=metric, cut_off=cut_off, kmin=0, tol=1,
+                                                 backend=algo.NAME, **backend_options)
+                try:
+                    self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+                    nptest.assert_allclose(actual.toarray(), expected, atol=1E-15, rtol=1E-14)
+                except AssertionError as e:
+                    print(f"{algo.NAME} failed for metric {metric}")
+                    raise e
+
+    def test_cdist_sparse(self):
+        backend_options = {}
+        expected = cdist(self.data_Y, self.data_X)  # See also comment in 'test_cdist_dense'
+        cut_off = np.median(expected)
+
+        expected[expected > cut_off] = 0
+
+        for metric in ["euclidean", "sqeuclidean"]:
+
+            if metric == "sqeuclidean":
+                expected = np.square(expected)
+
+            for algo in self.algos:
+                actual = compute_distance_matrix(X=self.data_X, Y=self.data_Y, metric=metric, cut_off=cut_off, kmin=0,
+                                                 tol=1, backend=algo.NAME, **backend_options)
+                try:
+                    self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+                    nptest.assert_allclose(actual.toarray(), expected, atol=1E-15, rtol=1E-14)
+                except AssertionError as e:
+                    print(f"{algo.NAME} failed")
+                    raise e
+
+    def test_pdist_sparse_zeros(self):
+        backend_options = {}
+        expected = squareform(pdist(self.data_X))
+        cut_off = np.median(expected)
+
+        expected[expected > cut_off] = 0
+        expected = scipy.sparse.csr_matrix(expected)
+        expected.eliminate_zeros()
+        expected.setdiag(0)
+        expected.sort_indices()
+
+        for metric in ["euclidean", "sqeuclidean"]:
+
+            if metric == "sqeuclidean":
+                expected.data = np.square(expected.data)
+
+            for algo in self.algos:
+
+                actual = compute_distance_matrix(X=self.data_X, metric=metric, cut_off=cut_off, kmin=0, tol=1,
+                                                 backend=algo.NAME, **backend_options)
+                try:
+                    self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+                    nptest.assert_allclose(expected.data, actual.data, atol=1E-15, rtol=1E-14)
+                except AssertionError as e:
+                    print(f"{algo.NAME} failed for metric {metric}")
+                    raise e
+
+    def test_cdist_sparse_zeros(self):
+        backend_options = {}
+
+        data_Y = self.data_Y.copy()  # make copy to manipulate values
+        data_Y[0:3, :] = self.data_X[0:3, :]  # make duplicate values
+        expected = cdist(data_Y, self.data_X)
+        cut_off = np.median(expected)
+        expected[expected > cut_off] = 0
+
+        expected = scipy.sparse.csr_matrix(expected)
+        expected[0, 0] = 0
+        expected[1, 1] = 0
+        expected[2, 2] = 0
+        expected.sort_indices()
+
+        for metric in ["euclidean", "sqeuclidean"]:
+
+            if metric == "sqeuclidean":
+                expected.data = np.square(expected.data)
+
+            for algo in self.algos:
+
+                actual = compute_distance_matrix(X=self.data_X, Y=data_Y, metric=metric, cut_off=cut_off, kmin=0, tol=1,
+                                                 backend=algo.NAME, **backend_options)
+                try:
+                    self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+                    nptest.assert_allclose(actual.data, expected.data, atol=1E-15, rtol=1E-14)
+                except AssertionError as e:
+                    print(f"{algo.NAME} failed for metric {metric}")
+                    raise e
+
+
 if __name__ == "__main__":
-    td = TestDistance()
+    td = TestDistAlgorithms()
     td.setUp()
-    td.test_continuous_nn()
+    td.test_pdist_sparse_zeros()
