@@ -7,6 +7,7 @@
 __version__ = "2019.6.6"  # YYYY.[1]M.[2-3]D
 
 from datafold.dynfold.diffusion_maps import *
+from datafold.dynfold.gpr import *
 from datafold.dynfold.geometric_harmonics import *
 from datafold.dynfold.koopman import *
 from datafold.dynfold.plot import *

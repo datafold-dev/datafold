@@ -114,8 +114,7 @@ class PCMGPRegression(object):
             distance_matrix = compute_distance_matrix(X=self._pcm, Y=new_points + noise,
                                                       metric=metric,
                                                       cut_off=self._pcm.cut_off,
-                                                      backend=self._pcm.dist_backend,
-                                                      njobs=1)
+                                                      backend=self._pcm.dist_backend)
 
             # distance_matrix = self._pcm.sparse_distance_matrix(Y=new_points + noise, metric=metric)
         else:
