@@ -51,7 +51,7 @@ class EDMDBase(TransformerMixin):
 
 
 class EDMDExact(EDMDBase):
-
+    # TODO: maybe rename EDMDExact to EDMDFull, to not confuse it with the DMDexact method.
     def __init__(self):
         super(EDMDExact, self).__init__()
 
@@ -59,6 +59,27 @@ class EDMDExact(EDMDBase):
         shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="row")
         return np.linalg.lstsq(shift_start, shift_end, rcond=1E-14)[0]  # TODO: check the residual
 
+
+@NotImplementedError  # moved and adapted from SCCS presentation, finish implementation if required!)
+class EDMDEco(EDMDBase):
+
+    def __init__(self, k):
+        self.k = k
+        super(EDMDEco, self).__init__()
+
+    def _compute_koopman_matrix(self, X: ts.TSCDataFrame):
+        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="column")
+        U, S, Vh = np.linalg.svd(X.to_numpy(), full_matrices=False)
+        V = Vh.T
+
+        U = U[:, :self.k]
+        S = np.diag(S[:self.k])  # TODO: can be improved
+        V = V[:, :self.k]
+
+        Atilde = U.T @ shift_end @ V @ np.linalg.inv(S)  # TODO improve with S
+        eigs, W = np.linalg.eig(Atilde)
+
+        return shift_end @ V @ np.linalg.inv(S) @ W
 
 class PCMKoopman(object):
     """

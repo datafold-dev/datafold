@@ -472,10 +472,18 @@ class TestTSCDataFrame(unittest.TestCase):
         with self.assertRaises(AttributeError):
             tsc.insert_ts(new_ts, None)
 
+    def test_build_from_single_timeseries(self):
+        df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0,-1), columns=["A"])
+        tsc = TSCDataFrame.from_single_timeseries(df)
+
+        self.assertIsInstance(tsc, TSCDataFrame)
+
+
+
 if __name__ == '__main__':
     test = TestTSCDataFrame()
     test.setUp()
-    test.test_from_same_indices_as()
+    test.test_build_from_single_timeseries()
 
     exit()
     unittest.main()

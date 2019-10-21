@@ -83,6 +83,19 @@ class TSCDataFrame(pd.DataFrame):
 
         return cls(pd.DataFrame(data=values, index=index, columns=columns))
 
+    @classmethod
+    def from_single_timeseries(cls, df):
+        """Requires only 1-dim index (time). The time series gets the ID=0."""
+
+        if df.index.ndim != 1:
+            raise ValueError("Only single time index (without ID) are allowed.")
+
+        df[cls.ID_NAME] = 0
+        df.set_index(cls.ID_NAME, append=True, inplace=True)
+        df = df.reorder_levels([cls.ID_NAME, df.index.names[0]])
+
+        return cls(df)
+
     @property
     def _constructor(self):
         return TSCDataFrame
