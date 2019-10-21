@@ -57,8 +57,27 @@ class EDMDExact(EDMDBase):
 
     def _compute_koopman_matrix(self, X):
         shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="row")
-        return np.linalg.lstsq(shift_start, shift_end, rcond=1E-14)[0]  # TODO: check the residual
 
+        # The easier to read version is:
+        # np.linalg.lstsq(shift_start, shift_end, rcond=1E-14)[0]
+        # K^T shift_start^T = shift_end^T (from the classical Koopman operator view on observables).
+        # i.e. solve the Koopman with a least square problem and the two matrices shift_start and shift_end
+        #
+        # However, it is much more efficient to multiply shift_start from left
+        # K^T (shift_start^T * shift_start) = (shift_end^T * shift_start)
+        # K^T G = G'
+        # This is because (shift_start^T * shift_start) is a smaller matrix and faster to solve.
+        # For further info, see Williams et al. Extended DMD and DMD book, Kutz et al. (book page 168).
+
+        if shift_start.shape[1] > shift_start.shape[0]:
+            import warnings
+            warnings.warn("There are more observables than snapshots. The current implementation favors more snapshots"
+                          "than obserables. This may result in a bad computational performance.")
+
+
+        G = shift_start.T @ shift_start
+        G_d = (shift_start.T @ shift_end)
+        return np.linalg.lstsq(G, G_d, rcond=1E-14)[0]  # TODO: check the residual
 
 @NotImplementedError  # moved and adapted from SCCS presentation, finish implementation if required!)
 class EDMDEco(EDMDBase):
