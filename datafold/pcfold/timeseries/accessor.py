@@ -27,11 +27,11 @@ class TSCollectionMethods(object):
         convert_times = self._tsc_df.index.get_level_values(1)
         min_time, _ = self._tsc_df.time_interval()
 
-        if not self._tsc_df.is_const_frequency():
-            raise TimeSeriesCollectionError("To normalize the time index it is required that the time frequency is "
+        if not self._tsc_df.is_const_dt():
+            raise TimeSeriesCollectionError("To normalize the time index it is required that the time time delta is "
                                             "constant.")
 
-        convert_times = np.array((convert_times / self._tsc_df.frequency) - min_time, dtype=np.int)
+        convert_times = np.array((convert_times / self._tsc_df.dt) - min_time, dtype=np.int)
         convert_times = pd.Index(convert_times, name=self._tsc_df.index.names[1])
 
         converted_time_multi_index = pd.MultiIndex.from_arrays([self._tsc_df.index.get_level_values(0), convert_times])
@@ -41,9 +41,9 @@ class TSCollectionMethods(object):
 
     def shift_matrices(self, snapshot_orientation="column"):
 
-        if not self._tsc_df.is_const_frequency():
+        if not self._tsc_df.is_const_dt():
             raise TimeSeriesCollectionError("Cannot compute shift matrices: Time series are required to have the same "
-                                            "time frequency.")
+                                            "time delta.")
 
         ts_counts = self._tsc_df.lengths_time_series
         if isinstance(ts_counts, int):

@@ -217,26 +217,26 @@ class TSCDataFrame(pd.DataFrame):
         return LocHandler(self)
 
     @property
-    def frequency(self) -> Union[pd.Series, float]:
-        """Returns float if all frequencies are identical, else returns Series."""
+    def dt(self) -> Union[pd.Series, float]:
+        """Returns float if all time deltas are identical, else returns Series."""
 
-        frequency = pd.Series(np.nan, index=self.ids, name="frequency")
+        dt = pd.Series(np.nan, index=self.ids, name="dt")
 
         for i, ts in self.itertimeseries():
 
             if ts.shape[0] == 1:
-                raise TimeSeriesCollectionError("Cannot compute frequency because time series of length 1 exist.")
+                raise TimeSeriesCollectionError("Cannot compute time delta because time series of length 1 exist.")
 
             time_diffs = np.unique(np.diff(ts.index))
             if len(time_diffs) == 1:
-                frequency.loc[i] = time_diffs[0]
+                dt.loc[i] = time_diffs[0]
 
-        nr_frequencies = len(np.unique(frequency))
+        nr_different_dt = len(np.unique(dt))
 
-        if nr_frequencies == 1:
-            return float(frequency.iloc[0])
+        if nr_different_dt == 1:
+            return float(dt.iloc[0])
         else:
-            return frequency
+            return dt
 
     def itertimeseries(self):
         for i, ts in self.groupby(level=self.ID_NAME):
@@ -249,13 +249,8 @@ class TSCDataFrame(pd.DataFrame):
     def is_equal_length(self) -> bool:
         return len(np.unique(self.lengths_time_series)) == 1
 
-    def is_const_frequency(self) -> bool:
-        freqency = self.frequency
-
-        if isinstance(freqency, float):
-            return True
-        else:
-            return False
+    def is_const_dt(self) -> bool:
+        return isinstance(self.dt, float)
 
     def is_same_ts_length(self):
         return isinstance(self.lengths_time_series, int)
@@ -280,10 +275,10 @@ class TSCDataFrame(pd.DataFrame):
     def is_normalized_time(self):
         """Normalized time is defined as:
         * first time record is zero, in any of the time series
-        * constant time frequency of 1"""
-        if not self.is_const_frequency():
+        * constant time delta of 1"""
+        if not self.is_const_dt():
             return False
-        return self.time_interval()[0] == 0 and self.frequency == 1
+        return self.time_interval()[0] == 0 and self.dt == 1
 
     def is_contain_nans(self):
         return np.any(np.isnan(self))
@@ -321,12 +316,12 @@ class TSCDataFrame(pd.DataFrame):
 
         return time_values.min(), time_values.max()
 
-    def time_indices(self, require_const_freq=False, unique_values=False):
+    def time_indices(self, require_const_dt=False, unique_values=False):
 
         time_indices = self.index.levels[1].to_numpy()
 
-        if require_const_freq:
-            if not self.is_const_frequency():
+        if require_const_dt:
+            if not self.is_const_dt():
                 raise TimeSeriesCollectionError
 
         if unique_values:
@@ -335,13 +330,13 @@ class TSCDataFrame(pd.DataFrame):
             return time_indices
 
     def time_index_fill(self):
-        """Creates an time array over the entire interval and also fills potential gaps. Requires const frequency. """
+        """Creates an time array over the entire interval and also fills potential gaps. Requires const time delta. """
 
-        if not self.is_const_frequency():
-            raise TimeSeriesCollectionError("Frequency is required to be constant.")
+        if not self.is_const_dt():
+            raise TimeSeriesCollectionError("Time delta is required to be constant.")
 
         start, end = self.time_interval()
-        return np.arange(start, np.nextafter(end, np.finfo(np.float).max), self.frequency)
+        return np.arange(start, np.nextafter(end, np.finfo(np.float).max), self.dt)
 
     def qoi_to_ndarray(self, qoi: str):
 

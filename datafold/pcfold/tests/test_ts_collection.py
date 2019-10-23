@@ -171,8 +171,8 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = True
         self.assertEqual(actual, expected)
 
-    def test_is_const_frequency(self):
-        actual = TSCDataFrame(self.simple_df).is_const_frequency()
+    def test_is_const_dt(self):
+        actual = TSCDataFrame(self.simple_df).is_const_dt()
         expected = True
 
         self.assertEqual(actual, expected)
@@ -192,7 +192,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(actual)
 
     def test_is_normalized_time2(self):
-        # not const time frequency
+        # not const time time delta
         simple_df = self.simple_df.copy(deep=True)
         simple_df.loc[pd.IndexSlice[99, 1], :] = [1, 2]
         simple_df.loc[pd.IndexSlice[99, 5], :] = [1, 2]
@@ -201,7 +201,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertFalse(actual)
 
         with self.assertRaises(TimeSeriesCollectionError):
-            # to normalize time we need a const frequency
+            # to normalize time we need a const time delta
             TSCDataFrame(simple_df).tsc.normalize_time()
 
     def test_is_normalized_time3(self):
@@ -217,7 +217,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(actual)
 
     def test_is_normalized_time4(self):
-        # time frequency is not 1
+        # time delta is not 1
         simple_df = self.simple_df.copy(deep=True)
         simple_df.index = pd.MultiIndex.from_arrays([simple_df.index.get_level_values(0),
                                                      simple_df.index.get_level_values(1) * 3])
@@ -291,24 +291,25 @@ class TestTSCDataFrame(unittest.TestCase):
 
         pdtest.assert_frame_equal(expected, actual)
 
-    def test_time_frequency(self):
-        actual = TSCDataFrame(self.simple_df).frequency
+    def test_time_delta(self):
+        actual = TSCDataFrame(self.simple_df).dt
         expected = 1.0
         self.assertEqual(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # "destroy" existing frequency of id 45
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # "destroy" existing time delta of id 45
 
-        actual = TSCDataFrame(simple_df).frequency
+        actual = TSCDataFrame(simple_df).dt
         expected = pd.Series(data=[1, 1, 1, np.nan],
                              index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.ID_NAME),
-                             name="frequency")
+                             name="dt")
 
         pdtest.assert_series_equal(actual, expected)
 
         simple_df = simple_df.drop(labels=45)
-        simple_df.loc[pd.IndexSlice[45, 1], :] = [1, 2]  # id 45 now has only 1 time point (Frequency cannot be computed)
 
+        # id 45 now has only 1 time point (time delta cannot be computed)
+        simple_df.loc[pd.IndexSlice[45, 1], :] = [1, 2]
 
     def test_time_array(self):
         actual = TSCDataFrame(self.simple_df).time_indices()
@@ -316,7 +317,7 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const frequency...
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const time delta
 
         actual = TSCDataFrame(self.simple_df).time_indices()
         expected = np.unique(self.simple_df.index.levels[1].to_numpy())
@@ -328,7 +329,7 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const frequency...
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const time delta
         # ... should raise error
         with self.assertRaises(TimeSeriesCollectionError):
             TSCDataFrame(simple_df).time_index_fill()
@@ -481,9 +482,9 @@ class TestTSCDataFrame(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    test = TestTSCDataFrame()
-    test.setUp()
-    test.test_build_from_single_timeseries()
-
-    exit()
+    # test = TestTSCDataFrame()
+    # test.setUp()
+    # test.test_build_from_single_timeseries()
+    #
+    # exit()
     unittest.main()
