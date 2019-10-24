@@ -14,3 +14,5 @@ __pycache__/
 .mypy_cache/
 .ipynb_checkpoints/
 
+# General files
+*.mat
