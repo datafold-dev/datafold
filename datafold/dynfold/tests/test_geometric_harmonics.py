@@ -276,6 +276,33 @@ class GeometricHarmonicsTest(unittest.TestCase):
         #   * the previous assert makes sure that the kernel_matrix is *exactly* the same
         nptest.assert_allclose(actual_interp(data), expected_interp(data), rtol=1E-5, atol=1E-15)
 
+    def test_different_backends(self):
+
+        data = make_swiss_roll(1000)
+        data_train, data_test = train_test_split(data, test_size=1/3, train_size=2/3)
+
+        from datafold.pcfold.distance import IS_IMPORTED_RDIST
+
+        if not IS_IMPORTED_RDIST:
+            return
+
+        eps_interp = 100  # in this case much larger compared to 1.25 for dim. reduction
+        num_eigenpairs = 50
+
+        setting = {"epsilon": eps_interp, "num_eigenpairs": num_eigenpairs, "cut_off": 1E100, "dist_backend": "rdist"}
+        setting2 = {"epsilon": eps_interp, "num_eigenpairs": num_eigenpairs, "cut_off": 1E100,
+                    "dist_backend": "scipy.kdtree"}
+
+        actual_phi_rdist = GeometricHarmonicsInterpolator(**setting).fit(self.data_train, self.phi_train[:, 0])
+        actual_phi_kdtree = GeometricHarmonicsInterpolator(**setting2).fit(self.data_train, self.phi_train[:, 0])
+
+        nptest.assert_allclose(actual_phi_rdist.eigenvalues_, actual_phi_kdtree.eigenvalues_, atol=1E-14, rtol=1E-14)
+        cmp_eigenvectors(actual_phi_rdist.eigenvectors_, actual_phi_kdtree.eigenvectors_)
+
+        result_rdist = actual_phi_rdist(self.data)
+        result_kdtree = actual_phi_kdtree(self.data)
+        nptest.assert_allclose(result_rdist, result_kdtree, atol=1E-14, rtol=1E-14)
+
     def test_gradient(self):
         xx, yy = np.meshgrid(np.linspace(0, 10, 20), np.linspace(0, 100, 20))
         zz = xx + np.sin(yy)
@@ -445,24 +472,6 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
 
         self.assertEqual(gh.kernel_, actual)
 
-    def test_backend_rdist_kdtree(self):
-
-        eps_interp = 100  # in this case much larger compared to 1.25 for dim. reduction
-        num_eigenpairs = 50
-
-        setting = {"epsilon": eps_interp, "num_eigenpairs": num_eigenpairs, "cut_off": 1E100, "dist_backend": "rdist"}  #
-        setting2 = {"epsilon": eps_interp, "num_eigenpairs": num_eigenpairs, "cut_off": 1E100, "dist_backend": "scipy.kdtree"}
-
-        actual_phi_rdist = GeometricHarmonicsInterpolator(**setting).fit(self.data_train, self.phi_train[:, 0])
-        actual_phi_kdtree = GeometricHarmonicsInterpolator(**setting2).fit(self.data_train, self.phi_train[:, 0])
-
-        nptest.assert_allclose(actual_phi_rdist.eigenvalues_, actual_phi_kdtree.eigenvalues_, atol=1E-14, rtol=1E-14)
-        cmp_eigenvectors(actual_phi_rdist.eigenvectors_, actual_phi_kdtree.eigenvectors_)
-
-        result_rdist = actual_phi_rdist(self.data)
-        result_kdtree = actual_phi_kdtree(self.data)
-        nptest.assert_allclose(result_rdist, result_kdtree, atol=1E-14, rtol=1E-14)
-
 
 if __name__ == '__main__':
 
@@ -475,10 +484,10 @@ if __name__ == '__main__':
 
     # unittest.main()
 
-    t = GeometricHarmonicsTest()
-    t.setUp()
-    t.test_gradient()
-
-    # t = GeometricHarmonicsLegacyTest()
+    # t = GeometricHarmonicsTest()
     # t.setUp()
-    # t.test_backend_rdist_kdtree()
+    # t.test_gradient()
+
+    t = GeometricHarmonicsLegacyTest()
+    t.setUp()
+    t.test_backend_rdist_kdtree()
