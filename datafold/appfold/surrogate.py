@@ -76,11 +76,22 @@ class KoopmanSumo(object):
 
         return self
 
-    def _compute_sumo_timeseries_alt(self, initial_condition: np.ndarray, eval_normtime):
+    def _compute_sumo_timeseries_alt(self, initial_condition_gh: np.ndarray, eval_normtime):
+        """ This function requires only the one eigenvector set (not left and rigth)! """
+
         nr_qoi = len(self._qoi_columns)
 
+        eigenvectors = self.edmd_.eigenvectors_left_
+
+        # NOTE: there are many transposes that seem the be not avoidable
+        # This basically solves:
+        # left_eigenvectors^T * b = initial_condition_gh^T
+        # in lstsq the first argument has to be the coefficient matrix. The initial_condition_gh are row-wise,
+        # whereas the lstsq is columns-wise.
+        initial_condition = np.linalg.lstsq(eigenvectors.T, initial_condition_gh.T, rcond=1E-15)[0].T
+
         if initial_condition.ndim == 1:
-            initial_condition_gh = initial_condition[np.newaxis, :]
+            initial_condition = initial_condition[np.newaxis, :]
 
         # This indexing is for C-aligned arrays
         # index order for "tensor[depth, row, column]"
@@ -89,12 +100,22 @@ class KoopmanSumo(object):
         #     3) column = qoi
         time_series_tensor = np.zeros([initial_condition.shape[0], eval_normtime.shape[0], nr_qoi])
 
-        # This loop solves the linear dynamical system with:
-        # QoI_state_{k} = initial_condition vector in GH space @ (Koopman_matrix)^k @ back transformation to QoI space
+        dt = 1  #  TODO: should come from data (provided in time series collection!)
+        omegas = np.log(self.edmd_.eigenvalues_) / dt
 
-        for k, t in enumerate(eval_normtime):
-            koopman_t = self.edmd_.eigenvectors_right_ @ initial_condition * np.expand_dims(self.edmd_.eigenvalues_, axis=1) * t
-            time_series_tensor[:, k, :] = np.real(koopman_t @ self.gh_coeff_)
+        # See: https://imgur.com/a/n4M7G2k  for equations -->TODO: explain properly in documentation!
+
+        # # better readable code form, optimized below
+        # for k, ic in enumerate(range(initial_condition.shape[0])):
+        #     for j, t in enumerate(eval_normtime):
+        #         koopman_t = initial_condition[k, :] @ np.diag(np.exp(omegas * t)) @ eigenvectors
+        #         time_series_tensor[k, j, :] = np.real(koopman_t @ self.gh_coeff_)
+
+        for j, t in enumerate(eval_normtime):
+            # rowwise elementwise multiplication instead of (with full diagonal matrix) n^3 -> n complexity
+            #   initial_condition @ np.diag(np.exp(omegas * t)) @ eigenvectors
+            koopman_t = initial_condition * np.exp(omegas * t) @ eigenvectors
+            time_series_tensor[:, j, :] = np.real(koopman_t @ self.gh_coeff_)
 
         eval_usertime = eval_normtime * self._normalize_frequency + self._normalize_shift
         result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns, time_index=eval_usertime)
@@ -102,9 +123,7 @@ class KoopmanSumo(object):
         return result_tc
 
     def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, eval_normtime):
-        if True:
-            initial_condition = np.linalg.lstsq(self.edmd_.eigenvectors_right_, initial_condition_gh.T, rcond=1E-15)[0]
-            return self._compute_sumo_timeseries_alt(initial_condition=initial_condition, eval_normtime=eval_normtime)
+        """ This function requires both Koopman eigenvector sets (left and right) for diagonalization. """
 
         nr_qoi = len(self._qoi_columns)
 

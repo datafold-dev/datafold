@@ -10,6 +10,18 @@ import datafold.pcfold.timeseries as ts
 
 
 class EDMDBase(TransformerMixin):
+    """For all subclasses the Koopman matrix K is defined:
+
+        K * Phi_k = Phi_{k+1}
+
+    where Phi has snapshots row-wise. Note in the DMD book, the snapshots are column-wise!
+
+    The column orientation for the Koopman operator is:
+
+        Phi_k^T K^T = Phi_{k+1}^T
+
+    i.e. K^T can be used, if the snapshots are column-wise.
+    """
 
     def __init__(self):
 
@@ -48,7 +60,6 @@ class EDMDBase(TransformerMixin):
         evec_left = np.linalg.solve(evec_right @ np.diag(evals), self.koopman_matrix_)
 
         return evals, evec_left, evec_right
-
 
 class EDMDExact(EDMDBase):
     # TODO: maybe rename EDMDExact to EDMDFull, to not confuse it with the DMDexact method.
