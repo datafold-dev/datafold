@@ -5,7 +5,7 @@ from sklearn import metrics
 
 import datafold.dynfold.geometric_harmonics as gh
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import EDMDExact
+from datafold.dynfold.koopman import EDMDEco
 
 
 class KoopmanSumo(object):
@@ -39,8 +39,8 @@ class KoopmanSumo(object):
 
         self.dict_data = ts.TSCDataFrame.from_same_indices_as(indices_from=X, values=gh_values, except_columns=columns)
 
-        self.edmd_ = EDMDExact()
-        self.edmd_ = self.edmd_.fit(self.dict_data, diagonalize=True)
+        self.edmd_ = EDMDEco(k=50)
+        self.edmd_ = self.edmd_.fit(self.dict_data)
 
     def _gh_coeff_with_least_square(self, X):
         # TODO: check residual somehow, user info, check etc.
@@ -76,6 +76,14 @@ class KoopmanSumo(object):
 
         return self
 
+    def _create_time_series_tensor(self, nr_initial_condition, nr_timesteps, nr_qoi):
+        # This indexing is for C-aligned arrays
+        # index order for "tensor[depth, row, column]"
+        #     1) depth = timeseries (i.e. for respective initial condition),
+        #     2) row = time step [k],
+        #     3) column = qoi
+        return np.zeros([nr_initial_condition, nr_timesteps, nr_qoi])
+
     def _compute_sumo_timeseries_alt(self, initial_condition_gh: np.ndarray, eval_normtime):
         """ This function requires only the one eigenvector set (not left and rigth)! """
 
@@ -93,18 +101,14 @@ class KoopmanSumo(object):
         if initial_condition.ndim == 1:
             initial_condition = initial_condition[np.newaxis, :]
 
-        # This indexing is for C-aligned arrays
-        # index order for "tensor[depth, row, column]"
-        #     1) depth = timeseries (i.e. for respective initial condition),
-        #     2) row = time step [k],
-        #     3) column = qoi
-        time_series_tensor = np.zeros([initial_condition.shape[0], eval_normtime.shape[0], nr_qoi])
-
         dt = 1  #  TODO: should come from data (provided in time series collection!)
         omegas = np.log(self.edmd_.eigenvalues_) / dt
 
-        # See: https://imgur.com/a/n4M7G2k  for equations -->TODO: explain properly in documentation!
+        time_series_tensor = self._create_time_series_tensor(nr_initial_condition=initial_condition_gh.shape[0],
+                                                             nr_timesteps=eval_normtime.shape[0],
+                                                             nr_qoi=nr_qoi)
 
+        # See: https://imgur.com/a/n4M7G2k  for equations -->TODO: explain properly in documentation!
         # # better readable code form, optimized below
         # for k, ic in enumerate(range(initial_condition.shape[0])):
         #     for j, t in enumerate(eval_normtime):
@@ -130,16 +134,12 @@ class KoopmanSumo(object):
         if initial_condition_gh.ndim == 1:
             initial_condition_gh = initial_condition_gh[np.newaxis, :]
 
-        # This indexing is for C-aligned arrays
-        # index order for "tensor[depth, row, column]"
-        #     1) depth = timeseries (i.e. for respective initial condition),
-        #     2) row = time step [k],
-        #     3) column = qoi
-        time_series_tensor = np.zeros([initial_condition_gh.shape[0], eval_normtime.shape[0], nr_qoi])
+        time_series_tensor = self._create_time_series_tensor(nr_initial_condition=initial_condition_gh.shape[0],
+                                                             nr_timesteps=eval_normtime.shape[0],
+                                                             nr_qoi=nr_qoi)
 
         # This loop solves the linear dynamical system with:
         # QoI_state_{k} = initial_condition vector in GH space @ (Koopman_matrix)^k @ back transformation to QoI space
-
         aux = initial_condition_gh @ self.edmd_.eigenvectors_right_  # can pre-compute
 
         for k, t in enumerate(eval_normtime):
