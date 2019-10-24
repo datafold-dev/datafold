@@ -60,7 +60,6 @@ class EDMDExact(EDMDBase):
         return np.linalg.lstsq(shift_start, shift_end, rcond=1E-14)[0]  # TODO: check the residual
 
 
-@NotImplementedError  # moved and adapted from SCCS presentation, finish implementation if required!)
 class EDMDEco(EDMDBase):
 
     def __init__(self, k):
@@ -68,18 +67,30 @@ class EDMDEco(EDMDBase):
         super(EDMDEco, self).__init__()
 
     def _compute_koopman_matrix(self, X: ts.TSCDataFrame):
+        # TODO: different orientations are good for different cases:
+        #  1 more snapshots than quantities
+        #  2 more quantities than snapshots
+        #  Currently it is optimized for the case 2.
+
         shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="column")
-        U, S, Vh = np.linalg.svd(X.to_numpy(), full_matrices=False)
+        U, S, Vh = np.linalg.svd(shift_start, full_matrices=False)  # (1.18)
         V = Vh.T
 
         U = U[:, :self.k]
         S = np.diag(S[:self.k])  # TODO: can be improved
         V = V[:, :self.k]
 
-        Atilde = U.T @ shift_end @ V @ np.linalg.inv(S)  # TODO improve with S
-        eigs, W = np.linalg.eig(Atilde)
+        koopman_matrix_low_rank = U.T @ shift_end @ V @ np.linalg.inv(S)  # (1.20)
 
-        return shift_end @ V @ np.linalg.inv(S) @ W
+        # transposed, because we view snapshots in rows
+        self.eigenvalues_, eigenvector = np.linalg.eig(koopman_matrix_low_rank)  # (1.22)
+
+        # As noted in the resource, there is also an alternative way
+        # self.eigenvectors_right_ = U @ W
+        self.eigenvectors_left_ = shift_end @ V @ np.linalg.inv(S) @ eigenvector  # (1.23)
+
+        return koopman_matrix_low_rank
+
 
 class PCMKoopman(object):
     """

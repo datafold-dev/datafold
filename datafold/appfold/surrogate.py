@@ -49,13 +49,13 @@ class KoopmanSumo(object):
         self.gh_coeff_, res = np.linalg.lstsq(self.dict_data, X, rcond=1E-14)[:2]
 
     def _set_X_info(self, X):
-        if not X.is_const_frequency():
+        if not X.is_const_dt():
             raise ValueError("Only data with const. frequency is supported.")
 
         self._qoi_columns = X.columns
 
         self._time_interval = X.time_interval()
-        self._normalize_frequency = X.frequency
+        self._normalize_frequency = X.dt
         self._normalize_shift = self._time_interval[0]
         assert (self._time_interval[1] - self._normalize_shift) / self._normalize_frequency % 1 == 0
         self._max_normtime = int((self._time_interval[1] - self._normalize_shift) / self._normalize_frequency)
@@ -76,7 +76,36 @@ class KoopmanSumo(object):
 
         return self
 
+    def _compute_sumo_timeseries_alt(self, initial_condition: np.ndarray, eval_normtime):
+        nr_qoi = len(self._qoi_columns)
+
+        if initial_condition.ndim == 1:
+            initial_condition_gh = initial_condition[np.newaxis, :]
+
+        # This indexing is for C-aligned arrays
+        # index order for "tensor[depth, row, column]"
+        #     1) depth = timeseries (i.e. for respective initial condition),
+        #     2) row = time step [k],
+        #     3) column = qoi
+        time_series_tensor = np.zeros([initial_condition.shape[0], eval_normtime.shape[0], nr_qoi])
+
+        # This loop solves the linear dynamical system with:
+        # QoI_state_{k} = initial_condition vector in GH space @ (Koopman_matrix)^k @ back transformation to QoI space
+
+        for k, t in enumerate(eval_normtime):
+            koopman_t = self.edmd_.eigenvectors_right_ @ initial_condition * np.expand_dims(self.edmd_.eigenvalues_, axis=1) * t
+            time_series_tensor[:, k, :] = np.real(koopman_t @ self.gh_coeff_)
+
+        eval_usertime = eval_normtime * self._normalize_frequency + self._normalize_shift
+        result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns, time_index=eval_usertime)
+
+        return result_tc
+
     def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, eval_normtime):
+        if True:
+            initial_condition = np.linalg.lstsq(self.edmd_.eigenvectors_right_, initial_condition_gh.T, rcond=1E-15)[0]
+            return self._compute_sumo_timeseries_alt(initial_condition=initial_condition, eval_normtime=eval_normtime)
+
         nr_qoi = len(self._qoi_columns)
 
         if initial_condition_gh.ndim == 1:
@@ -171,6 +200,7 @@ class KoopmanSumo(object):
             X_ic = X_ic.to_numpy()
 
         initial_condition_gh = self.gh_interpolator_(X_ic)
+
         return self._compute_sumo_timeseries(initial_condition_gh, normtime)
 
     @staticmethod
