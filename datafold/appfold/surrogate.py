@@ -1,11 +1,10 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn import metrics
 
 import datafold.dynfold.geometric_harmonics as gh
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import EDMDEco
+from datafold.dynfold.koopman import EDMDEco, EDMDExact, evolve_linear_system
 
 
 class KoopmanSumo(object):
@@ -39,8 +38,8 @@ class KoopmanSumo(object):
 
         self.dict_data = ts.TSCDataFrame.from_same_indices_as(indices_from=X, values=gh_values, except_columns=columns)
 
-        self.edmd_ = EDMDEco(k=50)
-        self.edmd_ = self.edmd_.fit(self.dict_data)
+        self.edmd_ = EDMDExact()
+        self.edmd_ = self.edmd_.fit(self.dict_data, diagonalize=True)
 
     def _gh_coeff_with_least_square(self, X):
         # TODO: check residual somehow, user info, check etc.
@@ -84,117 +83,38 @@ class KoopmanSumo(object):
         #     3) column = qoi
         return np.zeros([nr_initial_condition, nr_timesteps, nr_qoi])
 
-    def _compute_sumo_timeseries_alt(self, initial_condition_gh: np.ndarray, eval_normtime):
-        """ This function requires only the one eigenvector set (not left and rigth)! """
-
-        nr_qoi = len(self._qoi_columns)
-
-        eigenvectors = self.edmd_.eigenvectors_left_
-
-        # NOTE: there are many transposes that seem the be not avoidable
-        # This basically solves:
-        # left_eigenvectors^T * b = initial_condition_gh^T
-        # in lstsq the first argument has to be the coefficient matrix. The initial_condition_gh are row-wise,
-        # whereas the lstsq is columns-wise.
-        initial_condition = np.linalg.lstsq(eigenvectors.T, initial_condition_gh.T, rcond=1E-15)[0].T
-
-        if initial_condition.ndim == 1:
-            initial_condition = initial_condition[np.newaxis, :]
-
-        dt = 1  #  TODO: should come from data (provided in time series collection!)
-        omegas = np.log(self.edmd_.eigenvalues_) / dt
-
-        time_series_tensor = self._create_time_series_tensor(nr_initial_condition=initial_condition_gh.shape[0],
-                                                             nr_timesteps=eval_normtime.shape[0],
-                                                             nr_qoi=nr_qoi)
-
-        # See: https://imgur.com/a/n4M7G2k  for equations -->TODO: explain properly in documentation!
-        # # better readable code form, optimized below
-        # for k, ic in enumerate(range(initial_condition.shape[0])):
-        #     for j, t in enumerate(eval_normtime):
-        #         koopman_t = initial_condition[k, :] @ np.diag(np.exp(omegas * t)) @ eigenvectors
-        #         time_series_tensor[k, j, :] = np.real(koopman_t @ self.gh_coeff_)
-
-        for j, t in enumerate(eval_normtime):
-            # rowwise elementwise multiplication instead of (with full diagonal matrix) n^3 -> n complexity
-            #   initial_condition @ np.diag(np.exp(omegas * t)) @ eigenvectors
-            koopman_t = initial_condition * np.exp(omegas * t) @ eigenvectors
-            time_series_tensor[:, j, :] = np.real(koopman_t @ self.gh_coeff_)
-
-        eval_usertime = eval_normtime * self._normalize_frequency + self._normalize_shift
-        result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns, time_index=eval_usertime)
-
-        return result_tc
-
     def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, eval_normtime):
-        """ This function requires both Koopman eigenvector sets (left and right) for diagonalization. """
+        """This function requires only the one eigenvector set (not left and right)! """
 
-        nr_qoi = len(self._qoi_columns)
+        evolve_lin_system = ["diagonalized", "ic_evec_representation"][0]
 
-        if initial_condition_gh.ndim == 1:
-            initial_condition_gh = initial_condition_gh[np.newaxis, :]
+        if evolve_lin_system == "diagonalized":
+            # requires both eigenvectors (left and right)
+            ic = initial_condition_gh @ self.edmd_.eigenvectors_right_
 
-        time_series_tensor = self._create_time_series_tensor(nr_initial_condition=initial_condition_gh.shape[0],
-                                                             nr_timesteps=eval_normtime.shape[0],
-                                                             nr_qoi=nr_qoi)
+        elif evolve_lin_system == "ic_evec_representation":
+            # needs to solve a linear system but only requires left eigenvectors
 
-        # This loop solves the linear dynamical system with:
-        # QoI_state_{k} = initial_condition vector in GH space @ (Koopman_matrix)^k @ back transformation to QoI space
-        aux = initial_condition_gh @ self.edmd_.eigenvectors_right_  # can pre-compute
+            # NOTE: there are many transposes that seem the be not avoidable
+            # This basically solves:
+            # left_eigenvectors^T * b = initial_condition_gh^T
+            # in lstsq the first argument has to be the coefficient matrix. The initial_condition_gh are row-wise,
+            # whereas the lstsq is columns-wise.
+            ic = np.linalg.lstsq(self.edmd_.eigenvectors_left_.T, initial_condition_gh.T, rcond=1E-15)[0].T
+        else:
+            raise ValueError("strategy not known")
 
-        for k, t in enumerate(eval_normtime):
-            koopman_t = (aux * np.power(self.edmd_.eigenvalues_, t)) @ self.edmd_.eigenvectors_left_
+        # Integrate the linear transformation back to the physical space (via gh coefficients) into the dynamical matrix
+        # of the linear dynamical system.
+        dynmatrix = self.edmd_.eigenvectors_left_ @ self.gh_coeff_
 
-            # TODO: need to check for too large imaginary part (the part is dropped here!)
-            time_series_tensor[:, k, :] = np.real(koopman_t @ self.gh_coeff_)
+        time_series_tensor = evolve_linear_system(ic=ic,
+                                                  edmd=self.edmd_,
+                                                  eval_normtime=eval_normtime,
+                                                  dynmatrix=dynmatrix)
 
         eval_usertime = eval_normtime * self._normalize_frequency + self._normalize_shift
         result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns, time_index=eval_usertime)
-
-        return result_tc
-
-    @DeprecationWarning
-    def _compute_sumo_timeseries_old(self, initial_condition_gh: np.ndarray, time_series_length: int):
-        # This is efficient, but harder to read and extensible for different time values.
-        # Maybe use later on again if required  -- for now use '_compute_sumo_timeseries'
-
-        nr_qoi = len(self._qoi_columns)
-
-        if initial_condition_gh.ndim == 1:
-            initial_condition_gh = initial_condition_gh[np.newaxis, :]
-
-        # This indexing is for C-aligned arrays
-        # index order for "tensor[depth, row, column]"
-        #     1) depth = timeseries (i.e. for respective initial condition),
-        #     2) row = time step [k],
-        #     3) column = qoi
-        time_series_tensor = np.zeros([initial_condition_gh.shape[0], time_series_length, nr_qoi])
-
-        # evec_right_incl_powered_evals stores the current right_koopman_eigenvec * koopman_eigenvalues^k
-        # This is used to speed up the computation:
-        # Koopman_matrix^k = (evec_right @ eval^k) @ evec_left
-        #   -- where the part in brackets are stored in evec_right_incl_powered_evals
-        evec_right_incl_powered_evals = np.copy(self.edmd_.eigenvectors_right_)
-
-        # This loop solves the linear dynamical system with:
-        # QoI_state_{k} = initial_condition vector in GH space @ (Koopman_matrix)^k @ back transformation to QoI space
-        for k in range(time_series_length):
-            koopman_matrix_k = evec_right_incl_powered_evals @ self.edmd_.eigenvectors_left_
-
-            # k -> k+1 on the right Koopman eigenvectors
-            if k != time_series_length-1:  # multiplication is not required for the last iteration
-                evec_right_incl_powered_evals = np.multiply(evec_right_incl_powered_evals, self.edmd_.eigenvalues_,
-                                                            out=evec_right_incl_powered_evals)
-
-            koopman_matrix_k = np.real(koopman_matrix_k)
-
-            # self.gh_coeff -- back transformation to QoI space
-            # koopman_matrix_k -- Koopman matrix to the power of k
-            # initial_condition_gh -- initial_condition vector in GH space
-            time_series_tensor[:, k, :] = initial_condition_gh @ koopman_matrix_k @ self.gh_coeff_
-
-        result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns)
-        result_tc = result_tc.tsc.normalize_time()  # TODO: check if this is required here...
 
         return result_tc
 

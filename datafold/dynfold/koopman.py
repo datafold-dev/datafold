@@ -218,3 +218,47 @@ class PCMKoopman(object):
 
         # project back
         return result_dt
+
+
+def _create_time_series_tensor(nr_initial_condition, nr_timesteps, nr_qoi):
+    # This indexing is for C-aligned arrays
+    # index order for "tensor[depth, row, column]"
+    #     1) depth = timeseries (i.e. for respective initial condition),
+    #     2) row = time step [k],
+    #     3) column = qoi
+    return np.zeros([nr_initial_condition, nr_timesteps, nr_qoi])
+
+
+def evolve_linear_system(ic, edmd, eval_normtime, dynmatrix=None):
+
+    if dynmatrix is None:
+        # To set the dynmatrix allows for generalization
+        dynmatrix = edmd.eigenvectors_left_
+
+    nr_qoi = dynmatrix.shape[1]
+
+    if ic.ndim == 1:
+        ic = ic[np.newaxis, :]
+
+    # edmd.dt_  # TODO: dt_ should be in EDMD, for
+    omegas = np.log(edmd.eigenvalues_) / 1  # divide by edmd.dt_
+
+    time_series_tensor = _create_time_series_tensor(nr_initial_condition=ic.shape[0],
+                                                    nr_timesteps=eval_normtime.shape[0],
+                                                    nr_qoi=nr_qoi)
+
+    # See: https://imgur.com/a/n4M7G2k  for equations -->TODO: explain properly in documentation!
+    # # better readable code form, optimized below
+    # for k, ic in enumerate(range(ic.shape[0])):
+    #     for j, t in enumerate(eval_normtime):
+    #         koopman_t = ic[k, :] @ np.diag(np.exp(omegas * t)) @ eigenvectors
+    #         time_series_tensor[k, j, :] = np.real(koopman_t @ self.gh_coeff_)
+
+    for j, t in enumerate(eval_normtime):
+        # rowwise elementwise multiplication instead of (with full diagonal matrix) n^3 -> n complexity
+        #   ic @ np.diag(np.exp(omegas * t)) @ eigenvectors
+        time_series_tensor[:, j, :] = np.real(ic * np.exp(omegas * t) @ dynmatrix)
+
+    return time_series_tensor
+
+
