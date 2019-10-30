@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.sparse
+import scipy.linalg
 from sklearn.base import TransformerMixin
+
 
 import datafold.pcfold.timeseries as ts
 
@@ -23,48 +25,60 @@ class EDMDBase(TransformerMixin):
     i.e. K^T can be used, if the snapshots are column-wise.
     """
 
-    def __init__(self):
+    def __init__(self, is_diagonalize):
 
-        self.koopman_matrix_ = None
+        self.is_diagonalize = is_diagonalize
+
+        self.koopman_matrix_ = None  # TODO: maybe no need to save the koopman matrix?
         self.eigenvalues_ = None
         self.eigenvectors_left_ = None
         self.eigenvectors_right_ = None
 
     def fit(self, X, y=None, **fit_params):
-        is_diagonalize = fit_params.pop("diagonalize", False)
         self.koopman_matrix_ = self._compute_koopman_matrix(X)
 
-        if is_diagonalize:
-            self.eigenvalues_, self.eigenvectors_left_, self.eigenvectors_right_ = self._diagonalize_koopman_matrix()
+        self._compute_left_eigenpairs()
+
+        if self.is_diagonalize:
+            self._diagonalize_koopman_matrix()
+
         return self
 
     def fit_transform(self, X, y=None, **fit_params):
-        is_diagonalize = fit_params.pop("diagonalize", False)
         self.fit(X, y, **fit_params)
-
-        if is_diagonalize:
-            return self.eigenvalues_, self.eigenvectors_left_, self.eigenvectors_right_
-        else:
-            return self.koopman_matrix_
+        return self.koopman_matrix_
 
     def _compute_koopman_matrix(self, X: ts.TSCDataFrame):
         raise NotImplementedError("Base class")
 
+    def _compute_left_eigenpairs(self):
+        # TODO: need to clarify exact eigenvector definitions:
+        #  * Are the left and right eigenvectors both columns or left=rows, right=columns?
+        #  * Use equations used for clarification
+        #  * Currently, also many transposes are required, due to Koopman definition... maybe there is a way to avoid
+        #    this?
+
+        # TODO: try to align with scipy.linalg.eig -- as this needs both
+        self.eigenvalues_, self.eigenvectors_left_ = np.linalg.eig(self.koopman_matrix_.T)
+        self.eigenvectors_left_ = self.eigenvectors_left_.T
+
+        # TODO: sorting of eigenpairs could be included in a helpers function (in utils)
+        # Sort eigenvectors accordingly:
+        idx = self.eigenvalues_.argsort()[::-1]
+        self.eigenvalues_ = self.eigenvalues_[idx]
+        self.eigenvectors_left_ = self.eigenvectors_left_[idx, :]
+
     def _diagonalize_koopman_matrix(self):
         """Approximate eigenvalues, -functions and modes of Koopman operator, given the data snapshots."""
-        evals, evec_right = np.linalg.eig(self.koopman_matrix_)
+        #lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_left_).T
+        lhs_matrix = (self.eigenvectors_left_ * self.eigenvalues_).T
+        self.eigenvectors_right_ = np.linalg.solve(lhs_matrix, self.koopman_matrix_.T).T
 
-        # TODO: instead of solving for the left eigenvectors, check if SVD obtains the left and right eigenvectors
-        #  immediately, however, singular values have to be translated into eigenvalues.
-        # TODO: speed up eigenvectors * diag
-        evec_left = np.linalg.solve(evec_right @ np.diag(evals), self.koopman_matrix_)
-
-        return evals, evec_left, evec_right
 
 class EDMDExact(EDMDBase):
     # TODO: maybe rename EDMDExact to EDMDFull, to not confuse it with the DMDexact method.
-    def __init__(self):
-        super(EDMDExact, self).__init__()
+    def __init__(self, is_diagonalize=False):
+        super(EDMDExact, self).__init__(is_diagonalize)
 
     def _compute_koopman_matrix(self, X):
         shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="row")
@@ -89,6 +103,7 @@ class EDMDExact(EDMDBase):
         G = shift_start.T @ shift_start
         G_d = (shift_start.T @ shift_end)
         return np.linalg.lstsq(G, G_d, rcond=1E-14)[0]  # TODO: check the residual
+
 
 class EDMDEco(EDMDBase):
 

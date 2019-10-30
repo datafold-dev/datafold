@@ -38,7 +38,7 @@ class KoopmanSumo(object):
 
         self.dict_data = ts.TSCDataFrame.from_same_indices_as(indices_from=X, values=gh_values, except_columns=columns)
 
-        self.edmd_ = EDMDExact()
+        self.edmd_ = EDMDExact(is_diagonalize=True)
         self.edmd_ = self.edmd_.fit(self.dict_data, diagonalize=True)
 
     def _gh_coeff_with_least_square(self, X):
@@ -89,6 +89,9 @@ class KoopmanSumo(object):
         evolve_lin_system = ["diagonalized", "ic_evec_representation"][0]
 
         if evolve_lin_system == "diagonalized":
+            if self.edmd_.eigenvectors_right_ is None:
+                raise ValueError("EDMD requires the right eigenvectors. Use is_diagonalize=True in EDMD.")
+
             # requires both eigenvectors (left and right)
             ic = initial_condition_gh @ self.edmd_.eigenvectors_right_
 
