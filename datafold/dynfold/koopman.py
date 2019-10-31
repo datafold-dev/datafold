@@ -1,14 +1,9 @@
 import numpy as np
-import scipy.sparse
 import scipy.linalg
+import scipy.sparse
 from sklearn.base import TransformerMixin
 
-
 import datafold.pcfold.timeseries as ts
-
-#  TODO: make EDMDEco (computationally economic version using the the SVD, see DMD book)
-#      a reminder to substract (optionally) the mean of the data to center it
-#      go to pdfp. 21 and take the equation 1.19 - 1.23
 
 
 class EDMDBase(TransformerMixin):
@@ -34,32 +29,25 @@ class EDMDBase(TransformerMixin):
         self.eigenvectors_left_ = None
         self.eigenvectors_right_ = None
 
-    def fit(self, X, y=None, **fit_params):
-        self.koopman_matrix_ = self._compute_koopman_matrix(X)
+    def _set_X_info(self, X):
 
-        self._compute_left_eigenpairs()
+        if not X.is_const_dt():
+            raise ValueError("Only data with const. frequency is supported.")
 
-        if self.is_diagonalize:
-            self._diagonalize_koopman_matrix()
+        self.dt_ = X.dt
+        self._qoi_columns = X.columns
 
-        return self
+        self._time_interval = X.time_interval()
+        self._normalize_shift = self._time_interval[0]
+        assert (self._time_interval[1] - self._normalize_shift) / self.dt_ % 1 == 0
+        self._max_normtime = int((self._time_interval[1] - self._normalize_shift) / self.dt_)
 
-    def fit_transform(self, X, y=None, **fit_params):
-        self.fit(X, y, **fit_params)
-        return self.koopman_matrix_
-
-    def _compute_koopman_matrix(self, X: ts.TSCDataFrame):
-        raise NotImplementedError("Base class")
+    def fit(self, X, y, **fit_params):
+        self._set_X_info(X)
 
     def _compute_left_eigenpairs(self):
-        # TODO: need to clarify exact eigenvector definitions:
-        #  * Are the left and right eigenvectors both columns or left=rows, right=columns?
-        #  * Use equations used for clarification
-        #  * Currently, also many transposes are required, due to Koopman definition... maybe there is a way to avoid
-        #    this?
-
-        # TODO: try to align with scipy.linalg.eig -- as this needs both
         self.eigenvalues_, self.eigenvectors_left_ = np.linalg.eig(self.koopman_matrix_.T)
+        # transpose here, such that the eigenvectors are in rows (according to definition of left eigenvectors):
         self.eigenvectors_left_ = self.eigenvectors_left_.T
 
         # TODO: sorting of eigenpairs could be included in a helpers function (in utils)
@@ -68,17 +56,33 @@ class EDMDBase(TransformerMixin):
         self.eigenvalues_ = self.eigenvalues_[idx]
         self.eigenvectors_left_ = self.eigenvectors_left_[idx, :]
 
-    def _diagonalize_koopman_matrix(self):
-        """Approximate eigenvalues, -functions and modes of Koopman operator, given the data snapshots."""
+    def _diagonalize_right_eigenvectors(self):
+        """Compute right eigenvectors (not normed) such that
+             Koopman matrix = right_eigenvectors @ diag(eigenvalues) @ left_eigenvectors ."""
         #lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_left_).T
         lhs_matrix = (self.eigenvectors_left_ * self.eigenvalues_).T
         self.eigenvectors_right_ = np.linalg.solve(lhs_matrix, self.koopman_matrix_.T).T
 
 
-class EDMDExact(EDMDBase):
-    # TODO: maybe rename EDMDExact to EDMDFull, to not confuse it with the DMDexact method.
+class EDMDFull(EDMDBase):
+
     def __init__(self, is_diagonalize=False):
-        super(EDMDExact, self).__init__(is_diagonalize)
+        super(EDMDFull, self).__init__(is_diagonalize)
+
+    def fit(self, X, y=None, **fit_params):
+        super(EDMDFull, self).fit(X, y, **fit_params)
+
+        self.koopman_matrix_ = self._compute_koopman_matrix(X)
+        self._compute_left_eigenpairs()
+
+        if self.is_diagonalize:
+            self._diagonalize_right_eigenvectors()
+
+        return self
+
+    def fit_transform(self, X, y=None, **fit_params):
+        self.fit(X, y, **fit_params)
+        return self.koopman_matrix_
 
     def _compute_koopman_matrix(self, X):
         shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="row")
@@ -99,7 +103,6 @@ class EDMDExact(EDMDBase):
             warnings.warn("There are more observables than snapshots. The current implementation favors more snapshots"
                           "than obserables. This may result in a bad computational performance.")
 
-
         G = shift_start.T @ shift_start
         G_d = (shift_start.T @ shift_end)
         return np.linalg.lstsq(G, G_d, rcond=1E-14)[0]  # TODO: check the residual
@@ -107,11 +110,25 @@ class EDMDExact(EDMDBase):
 
 class EDMDEco(EDMDBase):
 
-    def __init__(self, k):
+    def __init__(self, k=10, is_diagonalize=False):
         self.k = k
-        super(EDMDEco, self).__init__()
+        super(EDMDEco, self).__init__(is_diagonalize=is_diagonalize)
 
-    def _compute_koopman_matrix(self, X: ts.TSCDataFrame):
+    def fit(self, X, y=None, **fit_params):
+        super(EDMDEco, self).fit(X, y, **fit_params)
+
+        self._compute_internals(X)
+
+        if self.is_diagonalize:
+            self._diagonalize_right_eigenvectors()
+
+        return self
+
+    def fit_transform(self, X, y=None, **fit_params):
+        self.fit(X, y, **fit_params)
+        return self.koopman_matrix_
+
+    def _compute_internals(self, X: ts.TSCDataFrame):
         # TODO: different orientations are good for different cases:
         #  1 more snapshots than quantities
         #  2 more quantities than snapshots
@@ -127,12 +144,12 @@ class EDMDEco(EDMDBase):
 
         koopman_matrix_low_rank = U.T @ shift_end @ V @ np.linalg.inv(S)  # (1.20)
 
-        # transposed, because we view snapshots in rows
         self.eigenvalues_, eigenvector = np.linalg.eig(koopman_matrix_low_rank)  # (1.22)
 
         # As noted in the resource, there is also an alternative way
-        # self.eigenvectors_right_ = U @ W
+        # self.eigenvectors = U @ W
         self.eigenvectors_left_ = shift_end @ V @ np.linalg.inv(S) @ eigenvector  # (1.23)
+        self.eigenvectors_left_ = self.eigenvectors_left_.T
 
         return koopman_matrix_low_rank
 
@@ -244,7 +261,7 @@ def _create_time_series_tensor(nr_initial_condition, nr_timesteps, nr_qoi):
     return np.zeros([nr_initial_condition, nr_timesteps, nr_qoi])
 
 
-def evolve_linear_system(ic, edmd, eval_normtime, dynmatrix=None):
+def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, qoi_columns=None):
 
     if dynmatrix is None:
         # To set the dynmatrix allows for generalization
@@ -252,14 +269,21 @@ def evolve_linear_system(ic, edmd, eval_normtime, dynmatrix=None):
 
     nr_qoi = dynmatrix.shape[1]
 
+    if qoi_columns is None and dynmatrix is None:
+        qoi_columns = edmd._qoi_columns
+    elif qoi_columns is None and dynmatrix is not None:
+        qoi_columns = np.arange(nr_qoi)
+
+    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
+
+    assert len(qoi_columns) == nr_qoi
+
     if ic.ndim == 1:
         ic = ic[np.newaxis, :]
 
-    # edmd.dt_  # TODO: dt_ should be in EDMD, for
-    omegas = np.log(edmd.eigenvalues_) / 1  # divide by edmd.dt_
-
+    omegas = np.log(edmd.eigenvalues_) / edmd.dt_  # divide by edmd.dt_
     time_series_tensor = _create_time_series_tensor(nr_initial_condition=ic.shape[0],
-                                                    nr_timesteps=eval_normtime.shape[0],
+                                                    nr_timesteps=time_samples.shape[0],
                                                     nr_qoi=nr_qoi)
 
     # See: https://imgur.com/a/n4M7G2k  for equations -->TODO: explain properly in documentation!
@@ -269,11 +293,9 @@ def evolve_linear_system(ic, edmd, eval_normtime, dynmatrix=None):
     #         koopman_t = ic[k, :] @ np.diag(np.exp(omegas * t)) @ eigenvectors
     #         time_series_tensor[k, j, :] = np.real(koopman_t @ self.gh_coeff_)
 
-    for j, t in enumerate(eval_normtime):
+    for j, time in enumerate(norm_time_samples):
         # rowwise elementwise multiplication instead of (with full diagonal matrix) n^3 -> n complexity
         #   ic @ np.diag(np.exp(omegas * t)) @ eigenvectors
-        time_series_tensor[:, j, :] = np.real(ic * np.exp(omegas * t) @ dynmatrix)
+        time_series_tensor[:, j, :] = np.real(ic * np.exp(omegas * time) @ dynmatrix)
 
-    return time_series_tensor
-
-
+    return ts.TSCDataFrame.from_tensor(time_series_tensor, columns=qoi_columns, time_index=time_samples)

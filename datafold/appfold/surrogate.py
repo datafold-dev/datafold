@@ -4,7 +4,7 @@ from sklearn import metrics
 
 import datafold.dynfold.geometric_harmonics as gh
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import EDMDEco, EDMDExact, evolve_linear_system
+from datafold.dynfold.koopman import EDMDEco, EDMDFull, evolve_linear_system
 
 
 class KoopmanSumo(object):
@@ -12,7 +12,7 @@ class KoopmanSumo(object):
     def __init__(self, gh_options=None, gh_exist=None):
         # TODO: proper errors
 
-        if (gh_options is None) + (gh_exist is None) != 1:  # ^ --> XOR
+        if (gh_options is None) + (gh_exist is None) != 1:
             raise ValueError("TODO: write error")  # TODO
 
         if gh_options is not None:
@@ -35,33 +35,21 @@ class KoopmanSumo(object):
         gh_values = self.gh_interpolator_.eigenvectors_.T
 
         columns = [f"phi{i}" for i in range(gh_values.shape[1])]
-
         self.dict_data = ts.TSCDataFrame.from_same_indices_as(indices_from=X, values=gh_values, except_columns=columns)
 
-        self.edmd_ = EDMDExact(is_diagonalize=True)
-        self.edmd_ = self.edmd_.fit(self.dict_data, diagonalize=True)
+        self.edmd_ = EDMDFull(is_diagonalize=True)
+        self.edmd_ = self.edmd_.fit(self.dict_data)
 
     def _gh_coeff_with_least_square(self, X):
-        # TODO: check residual somehow, user info, check etc.
+        # TODO: check residual somehow, user info etc.
         # Phi * C = D
         # obs_basis * data_coeff = data
         self.gh_coeff_, res = np.linalg.lstsq(self.dict_data, X, rcond=1E-14)[:2]
 
-    def _set_X_info(self, X):
-        if not X.is_const_dt():
-            raise ValueError("Only data with const. frequency is supported.")
-
-        self._qoi_columns = X.columns
-
-        self._time_interval = X.time_interval()
-        self._normalize_frequency = X.dt
-        self._normalize_shift = self._time_interval[0]
-        assert (self._time_interval[1] - self._normalize_shift) / self._normalize_frequency % 1 == 0
-        self._max_normtime = int((self._time_interval[1] - self._normalize_shift) / self._normalize_frequency)
-
     def fit(self, X_ts: ts.TSCDataFrame):
 
-        self._set_X_info(X_ts)
+        self._fit_time_index = X_ts.time_indices(unique_values=True)  # is required to evaluate time
+        self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via GH-function basis
         # TODO: not call this if gh_interpolator was already fitted! --> Check
@@ -75,15 +63,7 @@ class KoopmanSumo(object):
 
         return self
 
-    def _create_time_series_tensor(self, nr_initial_condition, nr_timesteps, nr_qoi):
-        # This indexing is for C-aligned arrays
-        # index order for "tensor[depth, row, column]"
-        #     1) depth = timeseries (i.e. for respective initial condition),
-        #     2) row = time step [k],
-        #     3) column = qoi
-        return np.zeros([nr_initial_condition, nr_timesteps, nr_qoi])
-
-    def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, eval_normtime):
+    def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, time_samples):
         """This function requires only the one eigenvector set (not left and right)! """
 
         evolve_lin_system = ["diagonalized", "ic_evec_representation"][0]
@@ -111,13 +91,11 @@ class KoopmanSumo(object):
         # of the linear dynamical system.
         dynmatrix = self.edmd_.eigenvectors_left_ @ self.gh_coeff_
 
-        time_series_tensor = evolve_linear_system(ic=ic,
-                                                  edmd=self.edmd_,
-                                                  eval_normtime=eval_normtime,
-                                                  dynmatrix=dynmatrix)
-
-        eval_usertime = eval_normtime * self._normalize_frequency + self._normalize_shift
-        result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns, time_index=eval_usertime)
+        result_tc = evolve_linear_system(ic=ic,
+                                         time_samples=time_samples,
+                                         edmd=self.edmd_,
+                                         dynmatrix=dynmatrix,
+                                         qoi_columns=self._fit_qoi_columns)
 
         return result_tc
 
@@ -125,15 +103,11 @@ class KoopmanSumo(object):
         return self.predict_timeseries(X_ic, t)
 
     def predict_timeseries(self, X_ic, t=None):
-        # TODO: check if initial_condition values are inside the training data range (manifold)
 
         if t is None:
-            normtime = np.arange(0, self._max_normtime+1)
+            time_samples = self._fit_time_index
         elif isinstance(t, (float, int)):
-            t = (t - self._normalize_shift) / self._normalize_frequency
-            normtime = np.arange(0, t + 1)
-        elif isinstance(t, np.ndarray):
-            normtime = (t - self._normalize_shift) / self._normalize_frequency
+            time_samples = np.arange(0, t + 1)
         else:
             raise TypeError("")
 
@@ -143,7 +117,7 @@ class KoopmanSumo(object):
 
         initial_condition_gh = self.gh_interpolator_(X_ic)
 
-        return self._compute_sumo_timeseries(initial_condition_gh, normtime)
+        return self._compute_sumo_timeseries(initial_condition_gh, time_samples)
 
     @staticmethod
     def _compare_train_data(sumo, Y_ts, use_exact_initial_condition=True):
