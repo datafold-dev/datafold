@@ -1,10 +1,12 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import pandas as pd
 from sklearn import metrics
 
 import datafold.dynfold.geometric_harmonics as gh
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import EDMDEco, EDMDFull, evolve_linear_system
+from datafold.dynfold.koopman import EDMDFull, evolve_linear_system
 
 
 class KoopmanSumo(object):
@@ -66,7 +68,7 @@ class KoopmanSumo(object):
     def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, time_samples):
         """This function requires only the one eigenvector set (not left and right)! """
 
-        evolve_lin_system = ["diagonalized", "ic_evec_representation"][0]
+        evolve_lin_system = ["diagonalized", "ic_evec_representation"][1]
 
         if evolve_lin_system == "diagonalized":
             if self.edmd_.eigenvectors_right_ is None:
