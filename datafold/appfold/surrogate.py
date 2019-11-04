@@ -110,12 +110,14 @@ class KoopmanSumo(object):
             time_samples = self._fit_time_index
         elif isinstance(t, (float, int)):
             time_samples = np.arange(0, t + 1)
+        elif isinstance(t, np.ndarray):
+            time_samples = t
         else:
             raise TypeError("")
 
         if isinstance(X_ic, (pd.Series, pd.DataFrame)):
-            # TODO: Here should be a correct sorting (like in the data) and a check that the columns are identical
-            X_ic = X_ic.to_numpy()
+            assert len(X_ic.columns) == len(self._fit_qoi_columns)
+            X_ic = X_ic[self._fit_qoi_columns].to_numpy()  # fails if the columns do not match
 
         initial_condition_gh = self.gh_interpolator_(X_ic)
 

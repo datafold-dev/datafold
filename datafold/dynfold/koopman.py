@@ -181,7 +181,7 @@ class PCMKoopman(object):
 
         kernel_base = self._pcm.compute_kernel_matrix() + regularizer_strength ** 2 * scipy.sparse.identity(
             self._pcm.shape[0])
-        kernel_base.eliminate_zeros()  # has o be sparse matrix
+        kernel_base.eliminate_zeros()  # has to be sparse matrix
 
         invdiag = scipy.sparse.diags(1.0 / (self._rcond + kernel_base.sum(axis=1).A.ravel()))
         kernel_base = invdiag @ kernel_base
