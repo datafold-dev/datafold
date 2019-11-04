@@ -20,9 +20,7 @@ class EDMDBase(TransformerMixin):
     i.e. K^T can be used, if the snapshots are column-wise.
     """
 
-    def __init__(self, is_diagonalize):
-
-        self.is_diagonalize = is_diagonalize
+    def __init__(self):
 
         self.koopman_matrix_ = None  # TODO: maybe no need to save the koopman matrix?
         self.eigenvalues_ = None
@@ -56,18 +54,13 @@ class EDMDBase(TransformerMixin):
         self.eigenvalues_ = self.eigenvalues_[idx]
         self.eigenvectors_left_ = self.eigenvectors_left_[idx, :]
 
-    def _diagonalize_right_eigenvectors(self):
-        """Compute right eigenvectors (not normed) such that
-             Koopman matrix = right_eigenvectors @ diag(eigenvalues) @ left_eigenvectors ."""
-        #lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_left_).T
-        lhs_matrix = (self.eigenvectors_left_ * self.eigenvalues_).T
-        self.eigenvectors_right_ = np.linalg.solve(lhs_matrix, self.koopman_matrix_.T).T
-
 
 class EDMDFull(EDMDBase):
 
     def __init__(self, is_diagonalize=False):
-        super(EDMDFull, self).__init__(is_diagonalize)
+        super(EDMDFull, self).__init__()
+
+        self.is_diagonalize = is_diagonalize
 
     def fit(self, X, y=None, **fit_params):
         super(EDMDFull, self).fit(X, y, **fit_params)
@@ -83,6 +76,13 @@ class EDMDFull(EDMDBase):
     def fit_transform(self, X, y=None, **fit_params):
         self.fit(X, y, **fit_params)
         return self.koopman_matrix_
+
+    def _diagonalize_right_eigenvectors(self):
+        """Compute right eigenvectors (not normed) such that
+             Koopman matrix = right_eigenvectors @ diag(eigenvalues) @ left_eigenvectors ."""
+        #lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_left_).T
+        lhs_matrix = (self.eigenvectors_left_ * self.eigenvalues_).T
+        self.eigenvectors_right_ = np.linalg.solve(lhs_matrix, self.koopman_matrix_.T).T
 
     def _compute_koopman_matrix(self, X):
         shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="row")
@@ -110,18 +110,14 @@ class EDMDFull(EDMDBase):
 
 class EDMDEco(EDMDBase):
 
-    def __init__(self, k=10, is_diagonalize=False):
+    def __init__(self, k=10):
         self.k = k
-        super(EDMDEco, self).__init__(is_diagonalize=is_diagonalize)
+        super(EDMDEco, self).__init__()
 
     def fit(self, X, y=None, **fit_params):
         super(EDMDEco, self).fit(X, y, **fit_params)
 
         self._compute_internals(X)
-
-        if self.is_diagonalize:
-            self._diagonalize_right_eigenvectors()
-
         return self
 
     def fit_transform(self, X, y=None, **fit_params):
