@@ -14,5 +14,9 @@ __pycache__/
 .mypy_cache/
 .ipynb_checkpoints/
 
+# Sphinx files 
+build/
+
+
 # General files
 *.mat
