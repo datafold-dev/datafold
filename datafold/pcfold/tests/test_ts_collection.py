@@ -21,7 +21,7 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(tc.loc[0, :], self.simple_df.loc[0, :])
         pdtest.assert_frame_equal(tc.loc[1, :], self.simple_df.loc[1, :])
 
-    def test_nr_trajectories(self):
+    def test_nr_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.nr_timeseries, 4)
 
@@ -33,13 +33,13 @@ class TestTSCDataFrame(unittest.TestCase):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))
 
-    def test_nelements_trajectory(self):
+    def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         pdtest.assert_series_equal(tc.lengths_time_series,
                                    pd.Series([2, 2, 2, 3], index=pd.Index([0, 1, 15, 45], name="ID"), name="counts"))
 
         simple_df = self.simple_df.copy()
-        simple_df = simple_df.drop(labels=[45])  # is the only one which has trajectory length 4
+        simple_df = simple_df.drop(labels=[45])  # is the only one which has time series length 4
         actual = TSCDataFrame(simple_df).lengths_time_series
         expected = 2
 
@@ -98,7 +98,7 @@ class TestTSCDataFrame(unittest.TestCase):
         simple_df = self.simple_df.copy()
         simple_df = simple_df.drop(labels=[45])
 
-        expected_shape = (3, 2)  # 3 trajectories a 2 time steps
+        expected_shape = (3, 2)  # 3 time series a 2 time steps
 
         for i in range(simple_df.shape[1]):
             qoi = simple_df.columns[i]
@@ -109,7 +109,7 @@ class TestTSCDataFrame(unittest.TestCase):
             nptest.assert_equal(actual, expected)
 
     def test_from_timeseries_tensor(self):
-        matrix = np.zeros([3, 2, 2])  # 1st: traj ID, 2nd: time, 3rd: qoi
+        matrix = np.zeros([3, 2, 2])  # 1st: time series ID, 2nd: time, 3rd: qoi
         matrix[0, :, :] = 1
         matrix[1, :, :] = 2
         matrix[2, :, :] = 3
@@ -127,7 +127,7 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_from_timeseries_tensor_time_index(self):
-        matrix = np.zeros([3, 2, 2])  # 1st: traj ID, 2nd: time, 3rd: qoi
+        matrix = np.zeros([3, 2, 2])  # 1st: time series ID, 2nd: time, 3rd: qoi
         matrix[0, :, :] = 1
         matrix[1, :, :] = 2
         matrix[2, :, :] = 3
@@ -171,8 +171,8 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = True
         self.assertEqual(actual, expected)
 
-    def test_is_const_frequency(self):
-        actual = TSCDataFrame(self.simple_df).is_const_frequency()
+    def test_is_const_dt(self):
+        actual = TSCDataFrame(self.simple_df).is_const_dt()
         expected = True
 
         self.assertEqual(actual, expected)
@@ -192,7 +192,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(actual)
 
     def test_is_normalized_time2(self):
-        # not const time frequency
+        # not const time time delta
         simple_df = self.simple_df.copy(deep=True)
         simple_df.loc[pd.IndexSlice[99, 1], :] = [1, 2]
         simple_df.loc[pd.IndexSlice[99, 5], :] = [1, 2]
@@ -201,7 +201,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertFalse(actual)
 
         with self.assertRaises(TimeSeriesCollectionError):
-            # to normalize time we need a const frequency
+            # to normalize time we need a const time delta
             TSCDataFrame(simple_df).tsc.normalize_time()
 
     def test_is_normalized_time3(self):
@@ -217,7 +217,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(actual)
 
     def test_is_normalized_time4(self):
-        # time frequency is not 1
+        # time delta is not 1
         simple_df = self.simple_df.copy(deep=True)
         simple_df.index = pd.MultiIndex.from_arrays([simple_df.index.get_level_values(0),
                                                      simple_df.index.get_level_values(1) * 3])
@@ -258,9 +258,9 @@ class TestTSCDataFrame(unittest.TestCase):
         tc = TSCDataFrame(self.simple_df)
         counter = 0
 
-        for i, traj in tc.itertimeseries():
+        for i, ts in tc.itertimeseries():
             # Test 1 - frame has to be equal to original DF
-            pdtest.assert_frame_equal(traj, self.simple_df.loc[i, :])
+            pdtest.assert_frame_equal(ts, self.simple_df.loc[i, :])
 
             # Test 2 - id has to be in the id index level
             self.assertTrue(i in self.simple_df.index.levels[0])
@@ -269,7 +269,7 @@ class TestTSCDataFrame(unittest.TestCase):
         # Test 3 - the number of iterations has to match
         self.assertEqual(counter, len(self.simple_df.index.levels[0]))
 
-    def test_trajectory_starts(self):
+    def test_timeseries_starts(self):
         expected = TSCDataFrame(self.simple_df).initial_states_df()
 
         idx = pd.MultiIndex.from_arrays([[0, 1, 15, 45], [0, 0, 0, 17]], names=["ID", "initial_time"])
@@ -280,7 +280,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
         pdtest.assert_frame_equal(expected, actual)
 
-    def test_trajectory_ends(self):
+    def test_timeseries_ends(self):
         expected = TSCDataFrame(self.simple_df).final_states_df()
 
         idx = pd.MultiIndex.from_arrays([[0, 1, 15, 45], [1, 1, 1, 19]], names=["ID", "final_time"])
@@ -291,24 +291,25 @@ class TestTSCDataFrame(unittest.TestCase):
 
         pdtest.assert_frame_equal(expected, actual)
 
-    def test_time_frequency(self):
-        actual = TSCDataFrame(self.simple_df).frequency
+    def test_time_delta(self):
+        actual = TSCDataFrame(self.simple_df).dt
         expected = 1.0
         self.assertEqual(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # "destroy" existing frequency of id 45
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # "destroy" existing time delta of id 45
 
-        actual = TSCDataFrame(simple_df).frequency
+        actual = TSCDataFrame(simple_df).dt
         expected = pd.Series(data=[1, 1, 1, np.nan],
                              index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.ID_NAME),
-                             name="frequency")
+                             name="dt")
 
         pdtest.assert_series_equal(actual, expected)
 
         simple_df = simple_df.drop(labels=45)
-        simple_df.loc[pd.IndexSlice[45, 1], :] = [1, 2]  # id 45 now has only 1 time point (Frequency cannot be computed)
 
+        # id 45 now has only 1 time point (time delta cannot be computed)
+        simple_df.loc[pd.IndexSlice[45, 1], :] = [1, 2]
 
     def test_time_array(self):
         actual = TSCDataFrame(self.simple_df).time_indices()
@@ -316,7 +317,7 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const frequency...
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const time delta
 
         actual = TSCDataFrame(self.simple_df).time_indices()
         expected = np.unique(self.simple_df.index.levels[1].to_numpy())
@@ -328,7 +329,7 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const frequency...
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const time delta
         # ... should raise error
         with self.assertRaises(TimeSeriesCollectionError):
             TSCDataFrame(simple_df).time_index_fill()
@@ -472,10 +473,18 @@ class TestTSCDataFrame(unittest.TestCase):
         with self.assertRaises(AttributeError):
             tsc.insert_ts(new_ts, None)
 
-if __name__ == '__main__':
-    test = TestTSCDataFrame()
-    test.setUp()
-    test.test_from_same_indices_as()
+    def test_build_from_single_timeseries(self):
+        df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0,-1), columns=["A"])
+        tsc = TSCDataFrame.from_single_timeseries(df)
 
-    exit()
+        self.assertIsInstance(tsc, TSCDataFrame)
+
+
+
+if __name__ == '__main__':
+    # test = TestTSCDataFrame()
+    # test.setUp()
+    # test.test_build_from_single_timeseries()
+    #
+    # exit()
     unittest.main()

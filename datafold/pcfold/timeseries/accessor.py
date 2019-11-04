@@ -27,11 +27,11 @@ class TSCollectionMethods(object):
         convert_times = self._tsc_df.index.get_level_values(1)
         min_time, _ = self._tsc_df.time_interval()
 
-        if not self._tsc_df.is_const_frequency():
-            raise TimeSeriesCollectionError("To normalize the time index it is required that the time frequency is "
+        if not self._tsc_df.is_const_dt():
+            raise TimeSeriesCollectionError("To normalize the time index it is required that the time time delta is "
                                             "constant.")
 
-        convert_times = np.array((convert_times / self._tsc_df.frequency) - min_time, dtype=np.int)
+        convert_times = np.array((convert_times / self._tsc_df.dt) - min_time, dtype=np.int)
         convert_times = pd.Index(convert_times, name=self._tsc_df.index.names[1])
 
         converted_time_multi_index = pd.MultiIndex.from_arrays([self._tsc_df.index.get_level_values(0), convert_times])
@@ -41,9 +41,9 @@ class TSCollectionMethods(object):
 
     def shift_matrices(self, snapshot_orientation="column"):
 
-        if not self._tsc_df.is_const_frequency():
+        if not self._tsc_df.is_const_dt():
             raise TimeSeriesCollectionError("Cannot compute shift matrices: Time series are required to have the same "
-                                            "time frequency.")
+                                            "time delta.")
 
         ts_counts = self._tsc_df.lengths_time_series
         if isinstance(ts_counts, int):
@@ -205,42 +205,42 @@ class TakensEmbedding(object):
     def _expand_single_dela_column(self, cols, delay_idx):
             return list(map(lambda q: "d".join([q, str(delay_idx)]), cols))
 
-    def _setup_delayed_traj_collection(self, traj_collection):
-        data = np.zeros([traj_collection.shape[0], traj_collection.shape[1] * (self.delays + 1)])
-        columns = self._expand_all_delay_columns(traj_collection.columns)
+    def _setup_delayed_timeseries_collection(self, tsc):
+        data = np.zeros([tsc.shape[0], tsc.shape[1] * (self.delays + 1)])
+        columns = self._expand_all_delay_columns(tsc.columns)
 
-        delayed_trajectories = TSCDataFrame(pd.DataFrame(data, traj_collection.index, columns),
+        delayed_timeseries = TSCDataFrame(pd.DataFrame(data, tsc.index, columns),
                                             qoi_name="time_delayed_qoi")
 
-        delayed_trajectories.loc[:, traj_collection.columns] = traj_collection
-        return delayed_trajectories
+        delayed_timeseries.loc[:, tsc.columns] = tsc
+        return delayed_timeseries
 
-    def _shift_trajectory(self, traj, delay_idx):
+    def _shift_timeseries(self, timeseries, delay_idx):
         if self.time_direction == "backward":
-            shifted_traj = traj.shift(delay_idx, fill_value=np.nan).copy()
+            shifted_timeseries = timeseries.shift(delay_idx, fill_value=np.nan).copy()
         elif self.time_direction == "forward":
-            shifted_traj = traj.shift(-1 * delay_idx, fill_value=np.nan).copy()
+            shifted_timeseries = timeseries.shift(-1 * delay_idx, fill_value=np.nan).copy()
         else:
             raise ValueError(f"time_direction={self.time_direction} not known.")
 
-        columns = self._expand_single_dela_column(traj.columns, delay_idx)
-        shifted_traj.columns = columns
+        columns = self._expand_single_dela_column(timeseries.columns, delay_idx)
+        shifted_timeseries.columns = columns
 
-        return shifted_traj
+        return shifted_timeseries
 
     def apply(self, tsc: TSCDataFrame):
 
         if (tsc.lengths_time_series <= self.delay_indices.max()).any():
             raise TimeSeriesCollectionError(
-                f"Mismatch of delay and trajectory length. Shortest time series has length "
+                f"Mismatch of delay and time series length. Shortest time series has length "
                 f"{np.array(tsc.lengths_time_series).min()} and maximum delay is {self.delay_indices.max()}")
 
-        delayed_tsc = self._setup_delayed_traj_collection(tsc)
+        delayed_tsc = self._setup_delayed_timeseries_collection(tsc)
 
-        for i, traj in tsc.itertimeseries():
+        for i, ts in tsc.itertimeseries():
             for delay_idx in self.delay_indices:
-                shifted_traj = self._shift_trajectory(traj, delay_idx)
-                delayed_tsc.loc[i, shifted_traj.columns] = shifted_traj.values
+                shifted_timeseries = self._shift_timeseries(ts, delay_idx)
+                delayed_tsc.loc[i, shifted_timeseries.columns] = shifted_timeseries.values
 
         #delayed_tsc = delayed_tsc.sort_index(axis=1)
         return delayed_tsc
@@ -262,15 +262,15 @@ class TimeFiniteDifference(object):
     def _finite_difference_backward(self):
         pass
 
-    def _finite_difference_forward(self, traj_collection):
+    def _finite_difference_forward(self, tsc):
         pass
 
     def _finite_difference_centered(self):
         pass
 
-    def apply(self, traj_collection: TSCDataFrame):
+    def apply(self, tsc: TSCDataFrame):
 
-        for i, traj in traj_collection:
+        for i, traj in tsc:
             pass
 
 

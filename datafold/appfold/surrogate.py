@@ -1,11 +1,12 @@
-import matplotlib.pyplot as plt
+#!/usr/bin/env python3
+
 import numpy as np
 import pandas as pd
 from sklearn import metrics
 
 import datafold.dynfold.geometric_harmonics as gh
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import EDMDExact
+from datafold.dynfold.koopman import EDMDFull, evolve_linear_system
 
 
 class KoopmanSumo(object):
@@ -13,14 +14,14 @@ class KoopmanSumo(object):
     def __init__(self, gh_options=None, gh_exist=None):
         # TODO: proper errors
 
-        if (gh_options is None) + (gh_exist is None) != 1:  # ^ --> XOR
-            raise ValueError("TODO: write error")  # TODO
+        if (gh_options is None) + (gh_exist is None) != 1:
+            raise ValueError("Either provide argument 'gh_options' or 'gh_exist'")
 
         if gh_options is not None:
             if gh_options.get("is_stochastic", False):  # defaults to "not True" if not present
                 import warnings
                 warnings.warn("Currently it is not recommended to use is_stochastic=True, because the "
-                              "out-of-sample does not work!")
+                              "out-of-sample (__call__) does not work!")
 
             self.gh_interpolator_ = gh.GeometricHarmonicsFunctionBasis(**gh_options)
         else:
@@ -36,33 +37,21 @@ class KoopmanSumo(object):
         gh_values = self.gh_interpolator_.eigenvectors_.T
 
         columns = [f"phi{i}" for i in range(gh_values.shape[1])]
-
         self.dict_data = ts.TSCDataFrame.from_same_indices_as(indices_from=X, values=gh_values, except_columns=columns)
 
-        self.edmd_ = EDMDExact()
-        self.edmd_ = self.edmd_.fit(self.dict_data, diagonalize=True)
+        self.edmd_ = EDMDFull(is_diagonalize=True)
+        self.edmd_ = self.edmd_.fit(self.dict_data)
 
     def _gh_coeff_with_least_square(self, X):
-        # TODO: check residual somehow, user info, check etc.
+        # TODO: check residual somehow, user info etc.
         # Phi * C = D
         # obs_basis * data_coeff = data
         self.gh_coeff_, res = np.linalg.lstsq(self.dict_data, X, rcond=1E-14)[:2]
 
-    def _set_X_info(self, X):
-        if not X.is_const_frequency():
-            raise ValueError("Only data with const. frequency is supported.")
-
-        self._qoi_columns = X.columns
-
-        self._time_interval = X.time_interval()
-        self._normalize_frequency = X.frequency
-        self._normalize_shift = self._time_interval[0]
-        assert (self._time_interval[1] - self._normalize_shift) / self._normalize_frequency % 1 == 0
-        self._max_normtime = int((self._time_interval[1] - self._normalize_shift) / self._normalize_frequency)
-
     def fit(self, X_ts: ts.TSCDataFrame):
 
-        self._set_X_info(X_ts)
+        self._fit_time_index = X_ts.time_indices(unique_values=True)  # is required to evaluate time
+        self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via GH-function basis
         # TODO: not call this if gh_interpolator was already fitted! --> Check
@@ -76,77 +65,17 @@ class KoopmanSumo(object):
 
         return self
 
-    def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, eval_normtime):
-        nr_qoi = len(self._qoi_columns)
+    def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, time_samples):
 
-        if initial_condition_gh.ndim == 1:
-            initial_condition_gh = initial_condition_gh[np.newaxis, :]
+        # Integrate the linear transformation back to the physical space (via gh coefficients) into the dynamical matrix
+        # of the linear dynamical system.
+        dynmatrix = self.edmd_.eigenvectors_left_ @ self.gh_coeff_
 
-        # This indexing is for C-aligned arrays
-        # index order for "tensor[depth, row, column]"
-        #     1) depth = timeseries (i.e. for respective initial condition),
-        #     2) row = time step [k],
-        #     3) column = qoi
-        time_series_tensor = np.zeros([initial_condition_gh.shape[0], eval_normtime.shape[0], nr_qoi])
-
-        # This loop solves the linear dynamical system with:
-        # QoI_state_{k} = initial_condition vector in GH space @ (Koopman_matrix)^k @ back transformation to QoI space
-
-        aux = initial_condition_gh @ self.edmd_.eigenvectors_right_  # can pre-compute
-
-        for k, t in enumerate(eval_normtime):
-            koopman_t = (aux * np.power(self.edmd_.eigenvalues_, t)) @ self.edmd_.eigenvectors_left_
-
-            # TODO: need to check for too large imaginary part (the part is dropped here!)
-            time_series_tensor[:, k, :] = np.real(koopman_t @ self.gh_coeff_)
-
-        eval_usertime = eval_normtime * self._normalize_frequency + self._normalize_shift
-        result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns, time_index=eval_usertime)
-
-        return result_tc
-
-    @DeprecationWarning
-    def _compute_sumo_timeseries_old(self, initial_condition_gh: np.ndarray, time_series_length: int):
-        # This is efficient, but harder to read and extensible for different time values.
-        # Maybe use later on again if required  -- for now use '_compute_sumo_timeseries'
-
-        nr_qoi = len(self._qoi_columns)
-
-        if initial_condition_gh.ndim == 1:
-            initial_condition_gh = initial_condition_gh[np.newaxis, :]
-
-        # This indexing is for C-aligned arrays
-        # index order for "tensor[depth, row, column]"
-        #     1) depth = timeseries (i.e. for respective initial condition),
-        #     2) row = time step [k],
-        #     3) column = qoi
-        time_series_tensor = np.zeros([initial_condition_gh.shape[0], time_series_length, nr_qoi])
-
-        # evec_right_incl_powered_evals stores the current right_koopman_eigenvec * koopman_eigenvalues^k
-        # This is used to speed up the computation:
-        # Koopman_matrix^k = (evec_right @ eval^k) @ evec_left
-        #   -- where the part in brackets are stored in evec_right_incl_powered_evals
-        evec_right_incl_powered_evals = np.copy(self.edmd_.eigenvectors_right_)
-
-        # This loop solves the linear dynamical system with:
-        # QoI_state_{k} = initial_condition vector in GH space @ (Koopman_matrix)^k @ back transformation to QoI space
-        for k in range(time_series_length):
-            koopman_matrix_k = evec_right_incl_powered_evals @ self.edmd_.eigenvectors_left_
-
-            # k -> k+1 on the right Koopman eigenvectors
-            if k != time_series_length-1:  # multiplication is not required for the last iteration
-                evec_right_incl_powered_evals = np.multiply(evec_right_incl_powered_evals, self.edmd_.eigenvalues_,
-                                                            out=evec_right_incl_powered_evals)
-
-            koopman_matrix_k = np.real(koopman_matrix_k)
-
-            # self.gh_coeff -- back transformation to QoI space
-            # koopman_matrix_k -- Koopman matrix to the power of k
-            # initial_condition_gh -- initial_condition vector in GH space
-            time_series_tensor[:, k, :] = initial_condition_gh @ koopman_matrix_k @ self.gh_coeff_
-
-        result_tc = ts.TSCDataFrame.from_tensor(time_series_tensor, columns=self._qoi_columns)
-        result_tc = result_tc.tsc.normalize_time()  # TODO: check if this is required here...
+        result_tc = evolve_linear_system(ic=initial_condition_gh,
+                                         time_samples=time_samples,
+                                         edmd=self.edmd_,
+                                         dynmatrix=dynmatrix,
+                                         qoi_columns=self._fit_qoi_columns)
 
         return result_tc
 
@@ -154,24 +83,23 @@ class KoopmanSumo(object):
         return self.predict_timeseries(X_ic, t)
 
     def predict_timeseries(self, X_ic, t=None):
-        # TODO: check if initial_condition values are inside the training data range (manifold)
 
         if t is None:
-            normtime = np.arange(0, self._max_normtime+1)
+            time_samples = self._fit_time_index
         elif isinstance(t, (float, int)):
-            t = (t - self._normalize_shift) / self._normalize_frequency
-            normtime = np.arange(0, t + 1)
+            time_samples = np.arange(0, t + 1)
         elif isinstance(t, np.ndarray):
-            normtime = (t - self._normalize_shift) / self._normalize_frequency
+            time_samples = t
         else:
             raise TypeError("")
 
         if isinstance(X_ic, (pd.Series, pd.DataFrame)):
-            # TODO: Here should be a correct sorting (like in the data) and a check that the columns are identical
-            X_ic = X_ic.to_numpy()
+            assert len(X_ic.columns) == len(self._fit_qoi_columns)
+            X_ic = X_ic[self._fit_qoi_columns].to_numpy()  # fails if the columns do not match
 
         initial_condition_gh = self.gh_interpolator_(X_ic)
-        return self._compute_sumo_timeseries(initial_condition_gh, normtime)
+
+        return self._compute_sumo_timeseries(initial_condition_gh, time_samples)
 
     @staticmethod
     def _compare_train_data(sumo, Y_ts, use_exact_initial_condition=True):
