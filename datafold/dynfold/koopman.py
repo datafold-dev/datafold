@@ -263,6 +263,22 @@ def _create_time_series_tensor(nr_initial_condition, nr_timesteps, nr_qoi):
 
 def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, qoi_columns=None):
 
+    if hasattr(edmd, "eigenvectors_right_") and \
+            (edmd.eigenvectors_right_ is not None and edmd.eigenvectors_left_ is not None):
+        # uses both eigenvectors (left and right). Used if is_diagonalize=True
+        ic = ic @ edmd.eigenvectors_right_
+    elif hasattr(edmd, "eigenvectors_left_") and edmd.eigenvectors_left_ is not None:
+        # needs to solve a least-squares problem but only requires left eigenvectors
+
+        # NOTE: there are many transposes that seem to be not avoidable (TODO: See issue #25)
+        # This basically solves:
+        # left_eigenvectors^T * b = initial_condition_gh^T
+        # in lstsq the first argument has to be the coefficient matrix. The initial_condition_gh are row-wise,
+        # whereas the lstsq is columns-wise.
+        ic = np.linalg.lstsq(edmd.eigenvectors_left_.T, ic.T, rcond=1E-15)[0].T
+    else:
+        raise RuntimeError("EDMD is not properly set.")
+
     if dynmatrix is None:
         # To set the dynmatrix allows for generalization
         dynmatrix = edmd.eigenvectors_left_

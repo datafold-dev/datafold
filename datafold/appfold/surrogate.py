@@ -15,13 +15,13 @@ class KoopmanSumo(object):
         # TODO: proper errors
 
         if (gh_options is None) + (gh_exist is None) != 1:
-            raise ValueError("TODO: write error")  # TODO
+            raise ValueError("Either provide argument 'gh_options' or 'gh_exist'")
 
         if gh_options is not None:
             if gh_options.get("is_stochastic", False):  # defaults to "not True" if not present
                 import warnings
                 warnings.warn("Currently it is not recommended to use is_stochastic=True, because the "
-                              "out-of-sample does not work!")
+                              "out-of-sample (__call__) does not work!")
 
             self.gh_interpolator_ = gh.GeometricHarmonicsFunctionBasis(**gh_options)
         else:
@@ -66,34 +66,12 @@ class KoopmanSumo(object):
         return self
 
     def _compute_sumo_timeseries(self, initial_condition_gh: np.ndarray, time_samples):
-        """This function requires only the one eigenvector set (not left and right)! """
-
-        evolve_lin_system = ["diagonalized", "ic_evec_representation"][1]
-
-        if evolve_lin_system == "diagonalized":
-            if self.edmd_.eigenvectors_right_ is None:
-                raise ValueError("EDMD requires the right eigenvectors. Use is_diagonalize=True in EDMD.")
-
-            # requires both eigenvectors (left and right)
-            ic = initial_condition_gh @ self.edmd_.eigenvectors_right_
-
-        elif evolve_lin_system == "ic_evec_representation":
-            # needs to solve a linear system but only requires left eigenvectors
-
-            # NOTE: there are many transposes that seem the be not avoidable
-            # This basically solves:
-            # left_eigenvectors^T * b = initial_condition_gh^T
-            # in lstsq the first argument has to be the coefficient matrix. The initial_condition_gh are row-wise,
-            # whereas the lstsq is columns-wise.
-            ic = np.linalg.lstsq(self.edmd_.eigenvectors_left_.T, initial_condition_gh.T, rcond=1E-15)[0].T
-        else:
-            raise ValueError("strategy not known")
 
         # Integrate the linear transformation back to the physical space (via gh coefficients) into the dynamical matrix
         # of the linear dynamical system.
         dynmatrix = self.edmd_.eigenvectors_left_ @ self.gh_coeff_
 
-        result_tc = evolve_linear_system(ic=ic,
+        result_tc = evolve_linear_system(ic=initial_condition_gh,
                                          time_samples=time_samples,
                                          edmd=self.edmd_,
                                          dynmatrix=dynmatrix,
