@@ -223,11 +223,12 @@ class TSCDataFrame(pd.DataFrame):
         dt = pd.Series(np.nan, index=self.ids, name="dt")
 
         for i, ts in self.itertimeseries():
-
             if ts.shape[0] == 1:
                 raise TimeSeriesCollectionError("Cannot compute time delta because time series of length 1 exist.")
 
-            time_diffs = np.unique(np.diff(ts.index))
+            # the rounding to 15 decimals (~ double precision) is required as diff can create numerical noise which
+            # can result in a larger set of "unique values"
+            time_diffs = np.unique(np.around(np.diff(ts.index), decimals=15))
             if len(time_diffs) == 1:
                 dt.loc[i] = time_diffs[0]
 

@@ -37,7 +37,8 @@ class EDMDBase(TransformerMixin):
 
         self._time_interval = X.time_interval()
         self._normalize_shift = self._time_interval[0]
-        assert (self._time_interval[1] - self._normalize_shift) / self.dt_ % 1 == 0
+
+        assert np.around((self._time_interval[1] - self._normalize_shift) / self.dt_ , decimals=14) % 1 == 0
         self._max_normtime = int((self._time_interval[1] - self._normalize_shift) / self.dt_)
 
     def fit(self, X, y, **fit_params):
