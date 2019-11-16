@@ -319,7 +319,9 @@ class TSCDataFrame(pd.DataFrame):
 
     def time_indices(self, require_const_dt=False, unique_values=False):
 
-        time_indices = self.index.levels[1].to_numpy()
+        # The comment-out line does not work, because levels are not update for DF slices:
+        # time_indices = self.index.levels[1].to_numpy()
+        time_indices = np.unique(self.index.get_level_values(1))
 
         if require_const_dt:
             if not self.is_const_dt():

@@ -258,7 +258,7 @@ def _create_time_series_tensor(nr_initial_condition, nr_timesteps, nr_qoi):
     return np.zeros([nr_initial_condition, nr_timesteps, nr_qoi])
 
 
-def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, qoi_columns=None):
+def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, time_invariant=True, qoi_columns=None):
 
     if hasattr(edmd, "eigenvectors_right_") and \
             (edmd.eigenvectors_right_ is not None and edmd.eigenvectors_left_ is not None):
@@ -287,14 +287,20 @@ def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, qoi_columns=Non
     elif qoi_columns is None and dynmatrix is not None:
         qoi_columns = np.arange(nr_qoi)
 
-    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
+    if len(qoi_columns) != nr_qoi:
+        raise ValueError(f"len(qoi_columns)={qoi_columns} != nr_qoi={nr_qoi}")
 
-    assert len(qoi_columns) == nr_qoi
+    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
+    if (norm_time_samples < 0).any():
+        raise ValueError("Normalized time cannot be negative!")
+
+    if time_invariant:
+        norm_time_samples = norm_time_samples - norm_time_samples.min()
 
     if ic.ndim == 1:
         ic = ic[np.newaxis, :]
 
-    omegas = np.log(edmd.eigenvalues_) / edmd.dt_  # divide by edmd.dt_
+    omegas = np.log(edmd.eigenvalues_.astype(np.complex)) / edmd.dt_  # divide by edmd.dt_
     time_series_tensor = _create_time_series_tensor(nr_initial_condition=ic.shape[0],
                                                     nr_timesteps=time_samples.shape[0],
                                                     nr_qoi=nr_qoi)

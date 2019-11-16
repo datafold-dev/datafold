@@ -1,7 +1,6 @@
 # IDE 
 .idea/
 
-
 # Install files
 dist/
 build/
@@ -14,5 +13,8 @@ __pycache__/
 .mypy_cache/
 .ipynb_checkpoints/
 
-# General files
+# General files and folders
 *.mat
+*.zip
+*.csv
+examples/untracked/
