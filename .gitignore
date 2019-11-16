@@ -14,9 +14,12 @@ __pycache__/
 .mypy_cache/
 .ipynb_checkpoints/
 
-# Sphinx files 
+# General files and folders
+# Sphinx files
 build/
-
 
 # General files
 *.mat
+*.zip
+*.csv
+examples/untracked/

@@ -223,11 +223,12 @@ class TSCDataFrame(pd.DataFrame):
         dt = pd.Series(np.nan, index=self.ids, name="dt")
 
         for i, ts in self.itertimeseries():
-
             if ts.shape[0] == 1:
                 raise TimeSeriesCollectionError("Cannot compute time delta because time series of length 1 exist.")
 
-            time_diffs = np.unique(np.diff(ts.index))
+            # the rounding to 15 decimals (~ double precision) is required as diff can create numerical noise which
+            # can result in a larger set of "unique values"
+            time_diffs = np.unique(np.around(np.diff(ts.index), decimals=15))
             if len(time_diffs) == 1:
                 dt.loc[i] = time_diffs[0]
 
@@ -318,7 +319,9 @@ class TSCDataFrame(pd.DataFrame):
 
     def time_indices(self, require_const_dt=False, unique_values=False):
 
-        time_indices = self.index.levels[1].to_numpy()
+        # The comment-out line does not work, because levels are not update for DF slices:
+        # time_indices = self.index.levels[1].to_numpy()
+        time_indices = np.unique(self.index.get_level_values(1))
 
         if require_const_dt:
             if not self.is_const_dt():
