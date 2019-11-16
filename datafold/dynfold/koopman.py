@@ -44,21 +44,19 @@ class EDMDBase(TransformerMixin):
         self._set_X_info(X)
 
     def _compute_right_eigenpairs(self):
-        self.eigenvalues_, self.eigenvectors_right_ = np.linalg.eig(self.koopman_matrix_.T)
-        # transpose here, such that the eigenvectors are in rows (according to definition of right #TODO eigenvectors):
-        self.eigenvectors_right_ = self.eigenvectors_right_.T
+        self.eigenvalues_, self.eigenvectors_right_ = np.linalg.eig(self.koopman_matrix_)
 
         # TODO: sorting of eigenpairs could be included in a helpers function (in utils)
         # Sort eigenvectors accordingly:
         idx = self.eigenvalues_.argsort()[::-1]
         self.eigenvalues_ = self.eigenvalues_[idx]
-        self.eigenvectors_right_ = self.eigenvectors_right_[idx, :]
+        self.eigenvectors_right_ = self.eigenvectors_right_[:, idx]
 
 
 class EDMDFull(EDMDBase):
 
     def __init__(self, is_diagonalize=False):
-        is_diagonalize = False  # TODO: refactor
+        is_diagonalize = True  # TODO: refactor
         super(EDMDFull, self).__init__()
 
         self.is_diagonalize = is_diagonalize
@@ -81,17 +79,20 @@ class EDMDFull(EDMDBase):
     def _diagonalize_left_eigenvectors(self):
         """Compute right eigenvectors (not normed) such that
              Koopman matrix = right_eigenvectors @ diag(eigenvalues) @ left_eigenvectors ."""
-        #lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_left_).T
-        lhs_matrix = (self.eigenvectors_right_ * self.eigenvalues_).T
-        self.eigenvectors_right_ = np.linalg.solve(lhs_matrix, self.koopman_matrix_.T).T
+
+        # lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_right_)
+        lhs_matrix = self.eigenvectors_right_ * self.eigenvalues_
+        self.eigenvectors_left_ = np.linalg.solve(lhs_matrix, self.koopman_matrix_)
 
     def _compute_koopman_matrix(self, X):
-        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="row")
+
+        # It is more suitable to get the shift_start and end in row orientation as this is closer to the
+        # normal least squares parameter definition
+        shift_start_transposed, shift_end_transposed = X.tsc.shift_matrices(snapshot_orientation="row")
 
         # The easier to read version is:
-        # koopman_matrix = np.linalg.lstsq(shift_start, shift_end, rcond=1E-14)[0]
-        # K^T shift_start^T = shift_end^T (from the classical Koopman operator view on observables).
-        # i.e. solve the Koopman with a least square problem and the two matrices shift_start and shift_end
+        # koopman_matrix shift_start_transposed = shift_end_transposed
+        # koopman_matrix.T = np.linalg.lstsq(shift_start_transposed, shift_end_transposed, rcond=1E-14)[0]
         #
         # However, it is much more efficient to multiply shift_start from right
         # K^T (shift_start^T * shift_start) = (shift_end^T * shift_start)
@@ -99,16 +100,21 @@ class EDMDFull(EDMDBase):
         # This is because (shift_start^T * shift_start) is a smaller matrix and faster to solve.
         # For further info, see Williams et al. Extended DMD and DMD book, Kutz et al. (book page 168).
 
-        if shift_start.shape[1] > shift_start.shape[0]:
+        if shift_start_transposed.shape[1] > shift_start_transposed.shape[0]:
             import warnings
             warnings.warn("There are more observables than snapshots. The current implementation favors more snapshots"
                           "than obserables. This may result in a bad computational performance.")
 
-        G = shift_start.T @ shift_start
-        G_d = (shift_start.T @ shift_end)
+        G = shift_start_transposed.T @ shift_start_transposed
+        G_d = (shift_start_transposed.T @ shift_end_transposed)
 
-        koopman_matrix = np.linalg.lstsq(G, G_d, rcond=1E-14)[0]  # TODO: check the residual
-        #koopman_matrix = koopman_matrix.T
+        # TODO: check the residual
+        koopman_matrix = np.linalg.lstsq(G, G_d, rcond=1E-14)[0]
+
+        # The reason why it is tranposed:
+        # K * X_k = X_{k+1}
+        # (X_k)^T * K = X_{k+1}^T  (therefore the snapshot orientation
+        koopman_matrix = koopman_matrix.T
         return koopman_matrix
 
 
@@ -262,45 +268,48 @@ def _create_time_series_tensor(nr_initial_condition, nr_timesteps, nr_qoi):
 
 
 def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, qoi_columns=None):
+    """
+
+    :param ic: initial condition - IMPORTANT: the initial conditions are columns-wise.
+    :param time_samples:
+    :param edmd:
+    :param dynmatrix:
+    :param qoi_columns:
+    :return:
+    """
 
     if hasattr(edmd, "eigenvectors_left_") and \
             (edmd.eigenvectors_left_ is not None and edmd.eigenvectors_right_ is not None):
-        # uses both eigenvectors (left and right). Used if is_diagonalize=True
-        ic = ic @ edmd.eigenvectors_left_
-
-    # TODO: make this closer to scikit-learn (a "is_fit" function)
+        # uses both eigenvectors (left and right). Used if is_diagonalize=True in EDMDFull
+        ic = edmd.eigenvectors_left_ @ ic
     elif hasattr(edmd, "eigenvectors_right_") and edmd.eigenvectors_right_ is not None:
-        # needs to solve a least-squares problem but only requires left eigenvectors
-
-        # NOTE: there are many transposes that seem to be not avoidable (TODO: See issue #25)
-        # This basically solves:
-        # left_eigenvectors^T * b = initial_condition_gh^T
-        # in lstsq the first argument has to be the coefficient matrix. The initial_condition_gh are row-wise,
-        # whereas the lstsq is columns-wise.
-        ic = np.linalg.lstsq(edmd.eigenvectors_right_.T, ic.T, rcond=1E-15)[0].T
+        # represent the initial condition in terms of right eigenvectors (by solving a least-squares problem)
+        # -- only the right eigenvectors are required
+        ic = np.linalg.lstsq(edmd.eigenvectors_right_, ic, rcond=1E-15)[0]
     else:
+        # TODO: make this closer to scikit-learn (a "is_fit" function)
         raise RuntimeError("EDMD is not properly fit.")
 
     if dynmatrix is None:
         # To set the dynmatrix allows for generalization
         dynmatrix = edmd.eigenvectors_right_
 
-    nr_qoi = dynmatrix.shape[1]
+    nr_qoi = dynmatrix.shape[0]
 
     if qoi_columns is None and dynmatrix is None:
         qoi_columns = edmd._qoi_columns
     elif qoi_columns is None and dynmatrix is not None:
         qoi_columns = np.arange(nr_qoi)
 
-    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
-
     assert len(qoi_columns) == nr_qoi
 
+    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
+
     if ic.ndim == 1:
-        ic = ic[np.newaxis, :]
+        ic = ic[:, np.newaxis]
 
     omegas = np.log(edmd.eigenvalues_) / edmd.dt_  # divide by edmd.dt_
-    time_series_tensor = _create_time_series_tensor(nr_initial_condition=ic.shape[0],
+    time_series_tensor = _create_time_series_tensor(nr_initial_condition=ic.shape[1],
                                                     nr_timesteps=time_samples.shape[0],
                                                     nr_qoi=nr_qoi)
 
@@ -313,7 +322,7 @@ def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, qoi_columns=Non
 
     for j, time in enumerate(norm_time_samples):
         # rowwise elementwise multiplication instead of (with full diagonal matrix) n^3 -> n complexity
-        #   ic @ np.diag(np.exp(omegas * t)) @ eigenvectors
-        time_series_tensor[:, j, :] = np.real(ic * np.exp(omegas * time) @ dynmatrix)
+        #   dynmatrix @ np.diag(np.exp(omegas * time)) @ ic
+        time_series_tensor[:, j, :] = np.real(dynmatrix @ np.diag(np.exp(omegas * time)) @ ic).T
 
     return ts.TSCDataFrame.from_tensor(time_series_tensor, columns=qoi_columns, time_index=time_samples)
