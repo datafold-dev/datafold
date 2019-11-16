@@ -69,7 +69,7 @@ class KoopmanSumo(object):
 
         # Integrate the linear transformation back to the physical space (via gh coefficients) into the dynamical matrix
         # of the linear dynamical system.
-        dynmatrix = self.edmd_.eigenvectors_left_ @ self.gh_coeff_
+        dynmatrix = self.edmd_.eigenvectors_right_ @ self.gh_coeff_
 
         result_tc = evolve_linear_system(ic=initial_condition_gh,
                                          time_samples=time_samples,
