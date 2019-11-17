@@ -38,9 +38,14 @@ master_doc = "index"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc',
+extensions = [  # See build_full.sh file to execture sphinx-apidoc which fetches the documentation automatically.
+              'sphinx.ext.autodoc',
+              # See below for configuration
               "sphinx.ext.todo",
+              # See below for configuration
               "sphinx.ext.imgmath",
+              # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html
+              "sphinxcontrib.bibtex",
               # 'napoleon' allows NumPy and Google style documentation (no external Sphinx package required)
               #  -> https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
               # numpydoc docstring guide
@@ -66,7 +71,7 @@ todo_emit_warnings = False
 
 imgmath_image_format = "png"  # default "png", other option "svg"
 imgmath_add_tooltips = True  # add the LaTeX code as an “alt” attribute for math images -- (like on Wikipedia equations)
-imgmath_font_size = 12
+imgmath_font_size = 12  # default=12
 
 # command name with which to invoke LaTeX. The default is 'latex';   # TODO raise error if not found?
 # you may need to set this to a full path if latex is not in the executable search path

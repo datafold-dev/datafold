@@ -7,7 +7,7 @@ build/
 datafold.egg-info/
 
 doc/build/
-doc/source/apidoc_/
+doc/source/_apidoc/
 
 # Python files
 *.p
