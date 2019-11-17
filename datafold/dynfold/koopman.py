@@ -57,7 +57,6 @@ class EDMDBase(TransformerMixin):
 class EDMDFull(EDMDBase):
 
     def __init__(self, is_diagonalize=False):
-        is_diagonalize = True  # TODO: refactor
         super(EDMDFull, self).__init__()
 
         self.is_diagonalize = is_diagonalize
@@ -155,8 +154,7 @@ class EDMDEco(EDMDBase):
 
         # As noted in the resource, there is also an alternative way
         # self.eigenvectors = U @ W
-        self.eigenvectors_left_ = shift_end @ V @ np.linalg.inv(S) @ eigenvector  # (1.23)
-        self.eigenvectors_left_ = self.eigenvectors_left_.T
+        self.eigenvectors_right_ = shift_end @ V @ np.linalg.inv(S) @ eigenvector  # (1.23)
 
         return koopman_matrix_low_rank
 
@@ -275,8 +273,11 @@ def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, time_invariant=
     :param time_samples:
     :param edmd:
     :param dynmatrix:
+    :param time_invariant:
     :param qoi_columns:
     :return:
+
+    # TODO: explain all steps properly in documentation!
     """
 
     if hasattr(edmd, "eigenvectors_left_") and \
@@ -322,16 +323,10 @@ def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, time_invariant=
                                                     nr_timesteps=time_samples.shape[0],
                                                     nr_qoi=nr_qoi)
 
-    # See: https://imgur.com/a/n4M7G2k  for equations -->TODO: explain properly in documentation!
-    # # better readable code form, optimized below
-    # for k, ic in enumerate(range(ic.shape[0])):
-    #     for j, t in enumerate(eval_normtime):
-    #         koopman_t = ic[k, :] @ np.diag(np.exp(omegas * t)) @ eigenvectors
-    #         time_series_tensor[k, j, :] = np.real(koopman_t @ self.gh_coeff_)
-
     for j, time in enumerate(norm_time_samples):
         # rowwise elementwise multiplication instead of (with full diagonal matrix) n^3 -> n complexity
         #   dynmatrix @ np.diag(np.exp(omegas * time)) @ ic
+        # TODO: performance can be improved by avoiding the diag matrix
         time_series_tensor[:, j, :] = np.real(dynmatrix @ np.diag(np.exp(omegas * time)) @ ic).T
 
     return ts.TSCDataFrame.from_tensor(time_series_tensor, columns=qoi_columns, time_index=time_samples)
