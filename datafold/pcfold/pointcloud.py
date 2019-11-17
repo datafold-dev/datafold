@@ -10,6 +10,11 @@ from datafold.pcfold.distance import compute_distance_matrix, get_backend_distan
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 from datafold.pcfold.kernels import Kernel, RadialBasisKernel
 
+# TODO: Consider to have a separate Methods section in documentation for the methods that are only for PCManifold
+#   source: https://numpydoc.readthedocs.io/en/latest/format.html#class-docstring
+#   > In some cases, however, a class may have a great many methods, of which only a few are relevant (e.g.,
+#   > subclasses of ndarray). Then, it becomes useful to have an additional "Methods" section.
+
 
 class PCManifold(np.ndarray):
     # See https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html

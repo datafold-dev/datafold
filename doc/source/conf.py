@@ -40,7 +40,7 @@ master_doc = "index"
 # ones.
 extensions = ['sphinx.ext.autodoc',
               "sphinx.ext.todo",
-
+              "sphinx.ext.imgmath",
               # 'napoleon' allows NumPy and Google style documentation (no external Sphinx package required)
               #  -> https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
               # numpydoc docstring guide
@@ -57,6 +57,22 @@ todo_include_todos = True
 
 # If this is True, todo emits a warning for each TODO entry. The default is False.
 todo_emit_warnings = False
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# sphinx.ext.imgmath -- only the image version allows to include full latex functionality
+# MathJax has other advantages (such as copying the equations in latex format) but does only support basic functionality
+# https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.imgmath
+
+imgmath_image_format = "png"  # default "png", other option "svg"
+imgmath_add_tooltips = True  # add the LaTeX code as an “alt” attribute for math images -- (like on Wikipedia equations)
+imgmath_font_size = 12
+
+# command name with which to invoke LaTeX. The default is 'latex';   # TODO raise error if not found?
+# you may need to set this to a full path if latex is not in the executable search path
+imgmath_latex = "latex"
+imgmath_latex_args = []
+imgmath_latex_preamble = r"\usepackage{amsmath,amstext}"
 
 # ---------------------------------------------------------------------------------------------------------------
 # napoleon (see full list of available options:

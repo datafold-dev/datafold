@@ -10,17 +10,34 @@ from datafold.utils.math import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpair
 
 
 class EDMDBase(TransformerMixin):
-    """For all subclasses the Koopman matrix K is defined:
+    r"""Extended Dynamic Mode Decomposition (EDMD) approximates the Koopman operator with a matrix :math:`K`.
 
-        K * Phi_k = Phi_{k+1}
+    The Koopman matrix :math:`K` defines a linear dynamical system of the form
 
-    where Phi has snapshots row-wise. Note in the DMD book, the snapshots are column-wise!
+    .. math::
+        K x_k = x_{k+1} \\
+        K^k x_0 = x_k
 
-    The column orientation for the Koopman operator is:
+    where :math:`x_k` is the (column) state vector of the system at time :math:`k`. All subclasses should provide the
+    right eigenvectors :math:`\Psi_r` and corresponding eigenvalues :math:`\omega` of the Koopman matrix to
+    efficiently evolve the linear system TODO: link to method
 
-        Phi_k^T K^T = Phi_{k+1}^T
+    Evolving the linear system over many time steps is expensive due to the matrix power:
 
-    i.e. K^T can be used, if the snapshots are column-wise.
+    .. math::
+        K^k x_0 &= x_k
+
+    Therefore, the (right) eigenpairs (:math:`\omega, \Psi_r`) of the Koopman matrix is computed and the initial
+    condition is written in terms of the eigenvectors in a least-squares sense.
+
+    .. math::
+        K^k \Psi_r &= \Psi_r \Omega \\
+        \Psi_r b &= x_0 \\
+        K^k \Psi_r b &= x_k \\
+        \Psi_r \Omega^k b &= x_k
+
+    where the eigenproblem is stated in matrix form for all computed eigenpairs. Because
+    :math:`\Omega` is a a diagonal matrix the power is very cheap compared to the generally full matrix :math:`K^k`.
     """
 
     def __init__(self):
@@ -45,12 +62,19 @@ class EDMDBase(TransformerMixin):
     def fit(self, X, y, **fit_params):
         self._set_X_info(X)
 
-    def _compute_right_eigenpairs(self):
-        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(*np.linalg.eig(self.koopman_matrix_))
-
 
 class EDMDFull(EDMDBase):
+    r"""Full (i.e. using entire data matrix) EDMD method.
 
+    The Koopman matrix is approximated
+
+    .. math::
+        K X &= X' \\
+        K &= X' X^{\dagger},
+
+    where :math:`\dagger` defines the Moore–Penrose inverse.
+
+    """
     def __init__(self, is_diagonalize=False):
         super(EDMDFull, self).__init__()
         self.is_diagonalize = is_diagonalize
@@ -69,6 +93,9 @@ class EDMDFull(EDMDBase):
     def fit_transform(self, X, y=None, **fit_params):
         self.fit(X, y, **fit_params)
         return self.koopman_matrix_
+
+    def _compute_right_eigenpairs(self):
+        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(*np.linalg.eig(self.koopman_matrix_))
 
     def _diagonalize_left_eigenvectors(self):
         """Compute right eigenvectors (not normed) such that
@@ -113,7 +140,35 @@ class EDMDFull(EDMDBase):
 
 
 class EDMDEco(EDMDBase):
+    r"""Approximates the Koopman matrix economically (compared to EDMDFull). It computes the principal components of
+    the input data and computes the Koopman matrix there. Finally, it reconstructs the eigenpairs of the original
+    system.
 
+    1. Compute the singular value decomposition of the data and use the leading `k` singular values and corresponding
+       vectors in :math:`U` and :math:`V`.
+
+    .. math::
+        X \approx U \Sigma V^*
+
+    2. Compute the Koopman matrix on the PCA coordinates:
+
+    .. math::
+        K = U^T X' V \Sigma^{-1}
+
+    3. Compute the eigenpairs (stated in matrix form):
+
+    .. math::
+        K W_r = W_r \Omega
+
+    4. Reconstruct the (exact) eigendecomposition of :math:`K`
+
+    .. math::
+        \Psi_r = X' V \Sigma^{-1} W
+
+    .. note::
+        The eigenvectors in step 4 can also be computed with :math:`\Psi_r = U W`, which is then referred to the
+        projected reconstruction.  # TODO: cite Tu, 2014
+    """
     def __init__(self, k=10):
         self.k = k
         super(EDMDEco, self).__init__()
@@ -259,15 +314,29 @@ def evolve_linear_system(ic: np.ndarray,
                          edmd: EDMDBase,
                          dynmatrix: Optional[None] = None,
                          time_invariant: bool = True,
-                         qoi_columns: Optional[Union[list, np.ndarray]] = None):
+                         qoi_columns: Optional[Union[list, np.ndarray]] = None) -> TSCDataFrame:
     """
-    :param ic: initial condition - IMPORTANT: the initial conditions must be columns-wise oriented.
-    :param time_samples:
-    :param edmd:
-    :param dynmatrix:
-    :param time_invariant:
-    :param qoi_columns:
-    :return:
+    Parameters
+    ----------
+    ic
+        Initial conditions corresponding to :math:`x_0`
+    time_samples
+        Array of times where the dynamical system should be evaluated.
+    edmd
+        A EDMD object that was fit with data.
+    dynmatrix
+        Matrix for the linear system. If `None`, attributes from EDMD are used.
+        .. note:: In the `dynmatrix` the (linear) backtransformation can be contained.
+    time_invariant
+        If `True` the time at the initial condition is zero; ff `False` the time starts corresponds to the time_samples.
+    qoi_columns
+        List of quantity of interest names that are set in the TSCDataFrame returned.
+
+    Returns
+    -------
+    time_series : TSCDataFrame
+        The resulting time series for each initial condition collected in a DataFrame
+
     """
 
     if hasattr(edmd, "eigenvectors_left_") and \
