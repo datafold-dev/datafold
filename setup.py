@@ -4,7 +4,6 @@ from setuptools import find_packages, setup
 
 import datafold
 
-
 # see documentation
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/
 
@@ -13,24 +12,23 @@ EMAIL = None
 
 
 setup(name='datafold',
-      maintainer=AUTHOR,
+      author=AUTHOR,
       version=datafold.__version__,
       description="Python package to deal with dynamical systems represented by manifold data.",
-      long_description="TODO: provide long description",
-      license='MIT License',
-      author=AUTHOR,
+      long_description="TODO: provide long description",  # TODO:
+      license='MIT',
       author_email=EMAIL,
       packages=find_packages(),
       package_dir={'datafold': 'datafold'},
       package_data={'': ['LICENSE']},
       python_requires='>=3.6',  # uses f-strings
+      install_requires=['numpy', 'scikit-learn', 'scipy', "pandas"],
       test_suite='nose.collector',
       tests_require=['nose'],
-      install_requires=['numpy', 'scikit-learn', 'scipy'],
       extras_require={
-          'plotting': ['matplotlib', 'ipywidgets'],
-          'cuda': ['numba'],
-          'documenation': ['Sphinx']},
+          'plotting': ['matplotlib', 'ipywidgets'],  # TODO: remove interactive stuff from dmap (i.e. remove ipywidgts)
+          'cuda': ['numba'],  # TODO: required in dmap, think about to remove it, as it is not maintained
+          'documenation': ['Sphinx', "sphinx_rtd_theme", "numpydoc"]},
       # taken from list https://pypi.org/pypi?%3Aaction=list_classifiers
       classifiers=["Intended Audience :: Science/Research",
                    "License :: OSI Approved :: MIT License",

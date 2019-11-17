@@ -24,7 +24,6 @@ class EDMDBase(TransformerMixin):
     """
 
     def __init__(self):
-
         self.koopman_matrix_ = None
         self.eigenvalues_ = None
         self.eigenvectors_right_ = None
@@ -101,14 +100,14 @@ class EDMDFull(EDMDBase):
                           "than obserables. This may result in a bad computational performance.")
 
         G = shift_start_transposed.T @ shift_start_transposed
-        G_d = (shift_start_transposed.T @ shift_end_transposed)
+        G_dash = (shift_start_transposed.T @ shift_end_transposed)
 
         # TODO: check the residual
-        koopman_matrix = np.linalg.lstsq(G, G_d, rcond=1E-14)[0]
+        koopman_matrix = np.linalg.lstsq(G, G_dash, rcond=1E-14)[0]
 
         # The reason why it is tranposed:
-        # K * X_k = X_{k+1}
-        # (X_k)^T * K = X_{k+1}^T  (therefore the snapshot orientation
+        # K * G_k = G_{k+1}
+        # (G_k)^T * K = G_{k+1}^T  (therefore the row snapshot orientation at the beginning)
         koopman_matrix = koopman_matrix.T
         return koopman_matrix
 
@@ -262,7 +261,7 @@ def evolve_linear_system(ic: np.ndarray,
                          time_invariant: bool = True,
                          qoi_columns: Optional[Union[list, np.ndarray]] = None):
     """
-    :param ic: initial condition - IMPORTANT: the initial conditions are columns-wise.
+    :param ic: initial condition - IMPORTANT: the initial conditions must be columns-wise oriented.
     :param time_samples:
     :param edmd:
     :param dynmatrix:
@@ -298,10 +297,9 @@ def evolve_linear_system(ic: np.ndarray,
         raise ValueError(f"len(qoi_columns)={qoi_columns} != nr_qoi={nr_qoi}")
 
     norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
+
     if (norm_time_samples < 0).any():
         raise ValueError("Normalized time cannot be negative!")
-
-    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
 
     if time_invariant:
         norm_time_samples = norm_time_samples - norm_time_samples.min()
