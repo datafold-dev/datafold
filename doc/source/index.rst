@@ -1,16 +1,15 @@
-.. datafold documentation master file, created by
-   sphinx-quickstart on Mon Nov  4 15:13:10 2019.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-Welcome to datafold's documentation!
-====================================
+Documentation of python package `datafold`
+=========================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   todolist
 
+.. todo::
+
+    Write introdction of documentation and make a clean structure. 
 
 Indices and tables
 ==================

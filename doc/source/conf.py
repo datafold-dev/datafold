@@ -1,38 +1,93 @@
 # Configuration file for the Sphinx documentation builder.
 #
-# This file only contains a selection of the most common options. For a full
-# list see the documentation:
+# For a full list of Sphinx configuration see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # -- Path setup --------------------------------------------------------------
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
+# documentation root, use os.path.abspath to make it absolute
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
+PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
+sys.path.insert(0, PATH2ROOT)
+sys.path.insert(0, PATH2SRC)
 
-import sphinx_rtd_theme
+import sphinx_rtd_theme  # "Read the doc" theme -- https://sphinx-rtd-theme.readthedocs.io/en/stable/
+from datafold import __version__
 
-html_theme = "sphinx_rtd_theme"
+
 
 
 # -- Project information -----------------------------------------------------
-
 project = 'datafold'
 copyright = '2019, datafold contributors'
 author = 'datafold contributors'
-
+version = __version__
 
 # -- General configuration ---------------------------------------------------
+
+needs_sphinx = "2.0"
+
+# document name of the “master” document, that is, the document that contains the root toctree directive
+master_doc = "index"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["numpydoc", "sphinx_rtd_theme"
-]
+extensions = ['sphinx.ext.autodoc',
+              "sphinx.ext.todo",
+
+              # 'napoleon' allows NumPy and Google style documentation (no external Sphinx package required)
+              #  -> https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
+              # numpydoc docstring guide
+              #  -> https://numpydoc.readthedocs.io/en/latest/format.html
+              "sphinx.ext.napoleon",
+              "sphinx_rtd_theme"]
+
+# --------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------
+# sphinx.ext.todo:
+# See all options: http://www.sphinx-doc.org/en/master/ext/todo.html
+# If this is True, todo and todolist produce output, else they produce nothing. The default is False.
+todo_include_todos = True
+
+# If this is True, todo emits a warning for each TODO entry. The default is False.
+todo_emit_warnings = False
+
+# ---------------------------------------------------------------------------------------------------------------
+# napoleon (see full list of available options:
+# Full config explanations here: https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html#configuration
+
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = False
+
+# include private members (like _membername)
+napoleon_include_private_with_doc = False
+
+# include special members (like __membername__)
+napoleon_include_special_with_doc = True
+napoleon_use_admonition_for_examples = False
+napoleon_use_admonition_for_notes = False
+napoleon_use_admonition_for_references = False
+
+# use the :ivar: role for instance variables
+napoleon_use_ivar = False
+
+# True -> :param: role for each function parameter.
+# False -> use a single :parameters: role for all the parameters.
+napoleon_use_param = True
+napoleon_use_keyword = True
+
+# True to use the :rtype: role for the return type. False to output the return type inline with the description.
+napoleon_use_rtype = True
+
+# ---------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -47,7 +102,6 @@ exclude_patterns = []
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
 html_theme = "sphinx_rtd_theme"
 
 # Add any paths that contain custom static files (such as style sheets) here,

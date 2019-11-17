@@ -1,11 +1,13 @@
 # IDE 
 .idea/
 
-
-# Install files
+# Install files (package and documentation with Sphinx)
 dist/
 build/
 datafold.egg-info/
+
+doc/build/
+doc/source/apidoc_/
 
 # Python files
 *.p
@@ -15,10 +17,6 @@ __pycache__/
 .ipynb_checkpoints/
 
 # General files and folders
-# Sphinx files
-build/
-
-# General files
 *.mat
 *.zip
 *.csv
