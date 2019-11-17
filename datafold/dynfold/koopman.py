@@ -1,9 +1,12 @@
+from typing import Optional, Union
+
 import numpy as np
 import scipy.linalg
 import scipy.sparse
 from sklearn.base import TransformerMixin
 
-import datafold.pcfold.timeseries as ts
+from datafold.pcfold.timeseries import TSCDataFrame, allocate_time_series_tensor
+from datafold.utils.math import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
 
 
 class EDMDBase(TransformerMixin):
@@ -22,10 +25,9 @@ class EDMDBase(TransformerMixin):
 
     def __init__(self):
 
-        self.koopman_matrix_ = None  # TODO: maybe no need to save the koopman matrix?
+        self.koopman_matrix_ = None
         self.eigenvalues_ = None
         self.eigenvectors_right_ = None
-        self.eigenvectors_left_ = None
 
     def _set_X_info(self, X):
 
@@ -45,20 +47,13 @@ class EDMDBase(TransformerMixin):
         self._set_X_info(X)
 
     def _compute_right_eigenpairs(self):
-        self.eigenvalues_, self.eigenvectors_right_ = np.linalg.eig(self.koopman_matrix_)
-
-        # TODO: sorting of eigenpairs could be included in a helpers function (in utils)
-        # Sort eigenvectors accordingly:
-        idx = self.eigenvalues_.argsort()[::-1]
-        self.eigenvalues_ = self.eigenvalues_[idx]
-        self.eigenvectors_right_ = self.eigenvectors_right_[:, idx]
+        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(*np.linalg.eig(self.koopman_matrix_))
 
 
 class EDMDFull(EDMDBase):
 
     def __init__(self, is_diagonalize=False):
         super(EDMDFull, self).__init__()
-
         self.is_diagonalize = is_diagonalize
 
     def fit(self, X, y=None, **fit_params):
@@ -134,7 +129,7 @@ class EDMDEco(EDMDBase):
         self.fit(X, y, **fit_params)
         return self.koopman_matrix_
 
-    def _compute_internals(self, X: ts.TSCDataFrame):
+    def _compute_internals(self, X: TSCDataFrame):
         # TODO: different orientations are good for different cases:
         #  1 more snapshots than quantities
         #  2 more quantities than snapshots
@@ -142,19 +137,22 @@ class EDMDEco(EDMDBase):
 
         shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="column")
         U, S, Vh = np.linalg.svd(shift_start, full_matrices=False)  # (1.18)
-        V = Vh.T
 
         U = U[:, :self.k]
-        S = np.diag(S[:self.k])  # TODO: can be improved
+
+        S = S[:self.k]
+        S_inverse = np.reciprocal(S, out=S)
+
+        V = Vh.T
         V = V[:, :self.k]
 
-        koopman_matrix_low_rank = U.T @ shift_end @ V @ np.linalg.inv(S)  # (1.20)
+        koopman_matrix_low_rank = U.T @ shift_end @ mat_dot_diagmat(V, S_inverse)   # (1.20)
 
         self.eigenvalues_, eigenvector = np.linalg.eig(koopman_matrix_low_rank)  # (1.22)
 
         # As noted in the resource, there is also an alternative way
         # self.eigenvectors = U @ W
-        self.eigenvectors_right_ = shift_end @ V @ np.linalg.inv(S) @ eigenvector  # (1.23)
+        self.eigenvectors_right_ = shift_end @ V @ diagmat_dot_mat(S_inverse, eigenvector)  # (1.23)
 
         return koopman_matrix_low_rank
 
@@ -257,18 +255,13 @@ class PCMKoopman(object):
         return result_dt
 
 
-def _create_time_series_tensor(nr_initial_condition, nr_timesteps, nr_qoi):
-    # This indexing is for C-aligned arrays
-    # index order for "tensor[depth, row, column]"
-    #     1) depth = timeseries (i.e. for respective initial condition),
-    #     2) row = time step [k],
-    #     3) column = qoi
-    return np.zeros([nr_initial_condition, nr_timesteps, nr_qoi])
-
-
-def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, time_invariant=True, qoi_columns=None):
+def evolve_linear_system(ic: np.ndarray,
+                         time_samples: np.ndarray,
+                         edmd: EDMDBase,
+                         dynmatrix: Optional[None] = None,
+                         time_invariant: bool = True,
+                         qoi_columns: Optional[Union[list, np.ndarray]] = None):
     """
-
     :param ic: initial condition - IMPORTANT: the initial conditions are columns-wise.
     :param time_samples:
     :param edmd:
@@ -276,8 +269,6 @@ def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, time_invariant=
     :param time_invariant:
     :param qoi_columns:
     :return:
-
-    # TODO: explain all steps properly in documentation!
     """
 
     if hasattr(edmd, "eigenvectors_left_") and \
@@ -310,23 +301,21 @@ def evolve_linear_system(ic, time_samples, edmd, dynmatrix=None, time_invariant=
     if (norm_time_samples < 0).any():
         raise ValueError("Normalized time cannot be negative!")
 
+    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
+
     if time_invariant:
         norm_time_samples = norm_time_samples - norm_time_samples.min()
-
-    norm_time_samples = time_samples - edmd._normalize_shift  # process starts always at time=0
 
     if ic.ndim == 1:
         ic = ic[:, np.newaxis]
 
-    omegas = np.log(edmd.eigenvalues_.astype(np.complex)) / edmd.dt_  # divide by edmd.dt_
-    time_series_tensor = _create_time_series_tensor(nr_initial_condition=ic.shape[1],
-                                                    nr_timesteps=time_samples.shape[0],
-                                                    nr_qoi=nr_qoi)
+    omegas = np.log(edmd.eigenvalues_.astype(np.complex)) / edmd.dt_
+
+    time_series_tensor = allocate_time_series_tensor(nr_time_series=ic.shape[1],
+                                                     nr_timesteps=time_samples.shape[0],
+                                                     nr_qoi=nr_qoi)
 
     for j, time in enumerate(norm_time_samples):
-        # rowwise elementwise multiplication instead of (with full diagonal matrix) n^3 -> n complexity
-        #   dynmatrix @ np.diag(np.exp(omegas * time)) @ ic
-        # TODO: performance can be improved by avoiding the diag matrix
-        time_series_tensor[:, j, :] = np.real(dynmatrix @ np.diag(np.exp(omegas * time)) @ ic).T
+        time_series_tensor[:, j, :] = np.real(dynmatrix @ diagmat_dot_mat(np.exp(omegas * time), ic)).T
 
-    return ts.TSCDataFrame.from_tensor(time_series_tensor, columns=qoi_columns, time_index=time_samples)
+    return TSCDataFrame.from_tensor(time_series_tensor, columns=qoi_columns, time_index=time_samples)

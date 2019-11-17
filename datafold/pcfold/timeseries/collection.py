@@ -390,8 +390,24 @@ class TSCDataFrame(pd.DataFrame):
         return df
 
 
-if __name__ == "__main__":
+def allocate_time_series_tensor(nr_time_series, nr_timesteps, nr_qoi):
+    """
+    Allocate time series tensor that complies with TSCDataFrame.from_tensor(...)
 
+    This indexing is for C-aligned arrays index order for "tensor[depth, row, column]"
+       1. depth = timeseries (i.e. for respective initial condition)
+       2. row = time step [k]
+       3. column = qoi
+
+    :param nr_time_series: number of time series
+    :param nr_timesteps: number of time steps per time series
+    :param nr_qoi: nr of quantity of interest values
+    :return: zero-allocated tensor
+    """
+    return np.zeros([nr_time_series, nr_timesteps, nr_qoi])
+
+
+if __name__ == "__main__":
     idx = pd.MultiIndex.from_arrays([[0, 0, 1, 1, 55], [0, 1, 0, 1, 99]])
     idx.name = "time"
     col = ["A", "B"]
