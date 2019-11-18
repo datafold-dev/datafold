@@ -371,6 +371,29 @@ def evolve_linear_system(
 
     """
 
+    if dynmatrix is None:
+        dynmatrix = edmd.eigenvectors_right_
+        assert (
+            dynmatrix is not None
+        )  # TODO: make a is fit request here to edmd to guarantee that EDMD was fit!
+
+        if qoi_columns is None:
+            qoi_columns = edmd._qoi_columns
+
+    nr_qoi = dynmatrix.shape[0]
+
+    if len(qoi_columns) != nr_qoi:
+        raise ValueError(f"len(qoi_columns)={qoi_columns} != nr_qoi={nr_qoi}")
+
+    if qoi_columns is None:
+        qoi_columns = np.arange(nr_qoi)
+
+    if ic.shape[0] != nr_qoi:
+        raise ValueError(
+            f"Mismatch in ic.shape[0]={ic.shape[0]} is not dynmatrix.shape[0]={dynmatrix.shape[0]}."
+        )
+
+    # Choose alternative of how to evolve the linear system:
     if hasattr(edmd, "eigenvectors_left_") and (
         edmd.eigenvectors_left_ is not None and edmd.eigenvectors_right_ is not None
     ):
@@ -381,31 +404,18 @@ def evolve_linear_system(
         # -- only the right eigenvectors are required
         ic = np.linalg.lstsq(edmd.eigenvectors_right_, ic, rcond=1e-15)[0]
     else:
-        # TODO: make this closer to scikit-learn (a "is_fit" function)
+        # TODO: make this closer to scikit-learn (a "is_fit" function), probably best to do this at top of function
         raise RuntimeError("EDMD is not properly fit.")
-
-    if dynmatrix is None:
-        # To set the dynmatrix allows for generalization
-        dynmatrix = edmd.eigenvectors_right_
-
-    nr_qoi = dynmatrix.shape[0]
-
-    if qoi_columns is None and dynmatrix is None:
-        qoi_columns = edmd._qoi_columns
-    elif qoi_columns is None and dynmatrix is not None:
-        qoi_columns = np.arange(nr_qoi)
-
-    if len(qoi_columns) != nr_qoi:
-        raise ValueError(f"len(qoi_columns)={qoi_columns} != nr_qoi={nr_qoi}")
 
     norm_time_samples = (
         time_samples - edmd._normalize_shift
-    )  # process starts always at time=0
+    )  # time samples are normalized relative to EDMD shift
 
     if (norm_time_samples < 0).any():
         raise ValueError("Normalized time cannot be negative!")
 
     if time_invariant:
+        # if the initial conditions start it is effectivly t=0
         norm_time_samples = norm_time_samples - norm_time_samples.min()
 
     if ic.ndim == 1:

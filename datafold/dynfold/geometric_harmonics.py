@@ -67,6 +67,11 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         if self.y.ndim == 1:
             self.y = np.atleast_2d(y).T  # TODO: use scikit learn functions
 
+        if X.shape[0] != y.shape[0]:
+            raise ValueError(
+                f"Mismatch of number of samples between X.shape[0]={X.shape[0]} and y.shape[0]={y.shape[0]}"
+            )
+
         self.X = pcfold.PCManifold(
             X,
             kernel=self.kernel_,

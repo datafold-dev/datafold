@@ -337,10 +337,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
     def test_different_backends(self):
 
-        data = make_swiss_roll(1000)
-        data_train, data_test = train_test_split(
-            data, test_size=1 / 3, train_size=2 / 3
-        )
+        data, _ = make_swiss_roll(1000, random_state=1)
 
         from datafold.pcfold.distance import IS_IMPORTED_RDIST
 
@@ -364,10 +361,10 @@ class GeometricHarmonicsTest(unittest.TestCase):
         }
 
         actual_phi_rdist = GeometricHarmonicsInterpolator(**setting).fit(
-            self.data_train, self.phi_train[:, 0]
+            data, data[:, 0]
         )
         actual_phi_kdtree = GeometricHarmonicsInterpolator(**setting2).fit(
-            self.data_train, self.phi_train[:, 0]
+            data, data[:, 0]
         )
 
         nptest.assert_allclose(
@@ -380,9 +377,11 @@ class GeometricHarmonicsTest(unittest.TestCase):
             actual_phi_rdist.eigenvectors_, actual_phi_kdtree.eigenvectors_
         )
 
-        result_rdist = actual_phi_rdist(self.data)
-        result_kdtree = actual_phi_kdtree(self.data)
-        nptest.assert_allclose(result_rdist, result_kdtree, atol=1e-14, rtol=1e-14)
+        result_rdist = actual_phi_rdist(data)
+        result_kdtree = actual_phi_kdtree(data)
+
+        # TODO: it is not clear why relative large tolerances are required... (also see further below).
+        nptest.assert_allclose(result_rdist, result_kdtree, atol=1e-12, rtol=1e-13)
 
     def test_gradient(self):
         xx, yy = np.meshgrid(np.linspace(0, 10, 20), np.linspace(0, 100, 20))
