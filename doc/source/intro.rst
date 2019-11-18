@@ -11,17 +11,13 @@
 
 .. downloaded template from https://arc42.org/download -> rst on 18 Nov. 2019
 
-.. _section-introduction-and-goals:
-
 Introduction and Goals
 ======================
 
-.. __requirements_overview:
 
 Requirements Overview
 ---------------------
 
-.. __quality_goals:
 
 Quality Goals
 -------------
@@ -30,7 +26,6 @@ Quality Goals
 Design Decisions
 ================
 
-.. _section-glossary:
 
 Glossary
 ========

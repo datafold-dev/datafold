@@ -2,6 +2,7 @@
 
 This module implements the diffusion maps method for dimensionality reduction, as introduced in:
 
+# TODO: include as cite in documention!
 Coifman, R. R., & Lafon, S. (2006). Diffusion maps. Applied and Computational Harmonic Analysis, 21(1), 5–30.
 DOI:10.1016/j.acha.2006.04.006
 """
@@ -100,9 +101,11 @@ class DiffusionMapsVariable(KernelMethod, TransformerMixin):
         self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
             self._kernel_matrix, self._basis_change_matrix, self.use_cuda
         )
+
         self.eigenvalues_ = np.power(
             self.eigenvalues_, 1 / self.epsilon, out=self.eigenvalues_
         )
+
         self.eigenvectors_ = (
             self.eigenvectors_
             / np.linalg.norm(self.eigenvectors_, axis=1)[:, np.newaxis]
@@ -253,7 +256,8 @@ class LocalRegressionSelection(TransformerMixin):
             raise ValueError("'intrinsic_dim' has to be non-negative integer.")
 
         if strategy == "threshold" and (
-            not isinstance(regress_threshold, numbers.Real) or 0 > regress_threshold > 1
+            not isinstance(regress_threshold, numbers.Real)
+            or 0.0 > regress_threshold > 1.0
         ):
             raise ValueError(
                 f"'regress_threshold' has to be non-negative float value between (0, 1). "
@@ -318,7 +322,7 @@ class LocalRegressionSelection(TransformerMixin):
 
         const_ones = np.ones((domain_eigenvectors.shape[0], 1))
 
-        for i in range(nr_samples):  # TODO: this loop is extremly expensive...
+        for i in range(nr_samples):  # TODO: this loop is extremely expensive...
             # This is a weighted least squares problem -- see https://en.wikipedia.org/wiki/Weighted_least_squares
             # X.T W X = X.T W y
             #
@@ -384,12 +388,12 @@ class LocalRegressionSelection(TransformerMixin):
 
         return residual
 
-    def fit(self, X, y=None):
+    def fit(self, X: np.ndarray, y=None):
         """
 
         Returns
         -------
-        np.ndarray
+        X
             Residuals of local linear regression for each eigenvector.
         """
 
