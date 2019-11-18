@@ -7,7 +7,17 @@ See also: https://github.com/opencollab/arpack-ng
 import ctypes.util
 import logging
 import sys
-from ctypes import POINTER, byref, c_char, c_char_p, c_double, c_int, cdll, create_string_buffer, sizeof
+from ctypes import (
+    POINTER,
+    byref,
+    c_char,
+    c_char_p,
+    c_double,
+    c_int,
+    cdll,
+    create_string_buffer,
+    sizeof,
+)
 from typing import Optional, Tuple
 
 import numba.cuda as cuda
@@ -25,6 +35,7 @@ if not cuda.is_available():
 
 class MatrixVectorProduct:
     """Perform GPU-based, sparse matrix-vector products."""
+
     def __init__(self, matrix: scipy.sparse.csr_matrix) -> None:
         self.m = matrix.shape[0]
         self.n = matrix.shape[1]
@@ -36,10 +47,10 @@ class MatrixVectorProduct:
         self.descr = cs.cusparseCreateMatDescr()
 
     def __del__(self) -> None:
-        if hasattr(self, 'descr'):
+        if hasattr(self, "descr"):
             cs.cusparseDestroyMatDescr(self.descr)
             self.descr = None
-        if hasattr(self, 'handle'):
+        if hasattr(self, "handle"):
             cs.cusparseDestroy(self.handle)
             self.handle = None
 
@@ -47,63 +58,98 @@ class MatrixVectorProduct:
         """Multiply sparse matrix by dense vector."""
         y = cuda.device_array(self.m)
         op = cs.cusparseOperation.CUSPARSE_OPERATION_NON_TRANSPOSE
-        cs.cusparseDcsrmv(self.handle,
-                          op,
-                          self.m,
-                          self.n,
-                          self.nnz,
-                          1.0,
-                          self.descr,
-                          self.csrValA,
-                          self.csrRowPtrA,
-                          self.csrColIndA,
-                          x,
-                          0.0,
-                          y)
+        cs.cusparseDcsrmv(
+            self.handle,
+            op,
+            self.m,
+            self.n,
+            self.nnz,
+            1.0,
+            self.descr,
+            self.csrValA,
+            self.csrRowPtrA,
+            self.csrColIndA,
+            x,
+            0.0,
+            y,
+        )
         return y
 
 
 EPSILON = sys.float_info.epsilon
 MAX_ITERATIONS = int(1e7)
 
-lib_path = ctypes.util.find_library('arpack')
+lib_path = ctypes.util.find_library("arpack")
 
 if lib_path is None:
-    raise ImportError("Importing ARPACK-NG to ctypes was not successful. find_library('arpack') returns None.")
+    raise ImportError(
+        "Importing ARPACK-NG to ctypes was not successful. find_library('arpack') returns None."
+    )
 
 arpack = cdll.LoadLibrary(lib_path)
 dnaupd = arpack.dnaupd_
 
-dnaupd.argtypes = [POINTER(c_int), c_char_p, POINTER(c_int), c_char_p,
-                   POINTER(c_int), POINTER(c_double), POINTER(c_double),
-                   POINTER(c_int), POINTER(c_double), POINTER(c_int),
-                   POINTER(c_int), POINTER(c_int), POINTER(c_double),
-                   POINTER(c_double), POINTER(c_int), POINTER(c_int)]
-dnaupd_messages = dict([
-    (0, "Normal exit."),
-    (1, "Maximum number of iterations taken. "
-     "All possible eigenvalues of OP has been found. "
-     "IPARAM(5) returns the number of wanted converged Ritz values."),
-    (2, "No longer an informational error. "
-     "Deprecated starting with release 2 of ARPACK."),
-    (3, "No shifts could be applied during a cycle of the Implicitly "
-     "restarted Arnoldi iteration. One possibility is to increase the"
-     " size of NCV relative to NEV."),
-    (-1, "N must be positive."),
-    (-2, "NEV must be positive."),
-    (-3, "NCV-NEV >= 2 and less than or equal to N."),
-    (-4, "The maximum number of Arnoldi update iteration must be "
-     "greater than zero."),
-    (-5, "WHICH must be one of 'LM', 'SM', 'LR', 'SR', 'LI', 'SI'"),
-    (-6, "BMAT must be one of 'I' or 'G'."),
-    (-7, "Length of private work array is not sufficient."),
-    (-8, "Error return from LAPACK eigenvalue calculation;"),
-    (-9, "Starting vector is zero."),
-    (-10, "IPARAM(7) must be 1,2,3,4."),
-    (-11, "IPARAM(7) = 1 and BMAT = 'G' are incompatible."),
-    (-12, "IPARAM(1) must be equal to 0 or 1."),
-    (-9999, "Could not build an Arnoldi factorization. "
-     "IPARAM(5) returns the size of the current Arnoldi factorization.")])
+dnaupd.argtypes = [
+    POINTER(c_int),
+    c_char_p,
+    POINTER(c_int),
+    c_char_p,
+    POINTER(c_int),
+    POINTER(c_double),
+    POINTER(c_double),
+    POINTER(c_int),
+    POINTER(c_double),
+    POINTER(c_int),
+    POINTER(c_int),
+    POINTER(c_int),
+    POINTER(c_double),
+    POINTER(c_double),
+    POINTER(c_int),
+    POINTER(c_int),
+]
+dnaupd_messages = dict(
+    [
+        (0, "Normal exit."),
+        (
+            1,
+            "Maximum number of iterations taken. "
+            "All possible eigenvalues of OP has been found. "
+            "IPARAM(5) returns the number of wanted converged Ritz values.",
+        ),
+        (
+            2,
+            "No longer an informational error. "
+            "Deprecated starting with release 2 of ARPACK.",
+        ),
+        (
+            3,
+            "No shifts could be applied during a cycle of the Implicitly "
+            "restarted Arnoldi iteration. One possibility is to increase the"
+            " size of NCV relative to NEV.",
+        ),
+        (-1, "N must be positive."),
+        (-2, "NEV must be positive."),
+        (-3, "NCV-NEV >= 2 and less than or equal to N."),
+        (
+            -4,
+            "The maximum number of Arnoldi update iteration must be "
+            "greater than zero.",
+        ),
+        (-5, "WHICH must be one of 'LM', 'SM', 'LR', 'SR', 'LI', 'SI'"),
+        (-6, "BMAT must be one of 'I' or 'G'."),
+        (-7, "Length of private work array is not sufficient."),
+        (-8, "Error return from LAPACK eigenvalue calculation;"),
+        (-9, "Starting vector is zero."),
+        (-10, "IPARAM(7) must be 1,2,3,4."),
+        (-11, "IPARAM(7) = 1 and BMAT = 'G' are incompatible."),
+        (-12, "IPARAM(1) must be equal to 0 or 1."),
+        (
+            -9999,
+            "Could not build an Arnoldi factorization. "
+            "IPARAM(5) returns the size of the current Arnoldi factorization.",
+        ),
+    ]
+)
 
 dneupd = arpack.dneupd_
 # dneupd.argtypes = [POINTER(c_int), c_char_p, POINTER(c_int),
@@ -114,44 +160,60 @@ dneupd = arpack.dneupd_
 #                    POINTER(c_int), POINTER(c_double), POINTER(c_int),
 #                    POINTER(c_int), POINTER(c_int), POINTER(c_double),
 #                    POINTER(c_double), POINTER(c_int), POINTER(c_int)]
-dneupd_messages = dict([
-    (0, "Normal exit."),
-    (1, "The Schur form computed by LAPACK routine dlahqr could not be "
-     "reordered by LAPACK routine dtrsen. Re-enter subroutine dneupd with "
-     "IPARAM(5)=NCV and increase the size of the arrays DR and DI to have "
-     "dimension at least dimension NCV and allocate at least NCV columns "
-     "for Z. NOTE, \"Not necessary if Z and V share the same space. "
-     "Please notify the authors if this error occurs.\""),
-    (-1, "N must be positive."),
-    (-2, "NEV must be positive."),
-    (-3, "NCV-NEV >= 2 and less than or equal to N."),
-    (-5, "WHICH must be one of 'LM', 'SM', 'LR', 'SR', 'LI', 'SI'"),
-    (-6, "BMAT must be one of 'I' or 'G'."),
-    (-7, "Length of private work WORKL array is not sufficient."),
-    (-8, "Error return from calculation of a real Schur form. "
-     "Informational error from LAPACK routine dlahqr."),
-    (-9, "Error return from calculation of eigenvectors. "
-     "Informational error from LAPACK routine dtrevc."),
-    (-10, "IPARAM(7) must be 1,2,3,4."),
-    (-11, "IPARAM(7) = 1 and BMAT = 'G' are incompatible."),
-    (-12, "HOWMNY = 'S' not yet implemented."),
-    (-13, "HOWMNY must be one of 'A' or 'P' if RVEC = .true."),
-    (-14, "DNAUPD did not find any eigenvalues to sufficient accuracy."),
-    (-15, "DNEUPD got a different count of the number of converged Ritz "
-     "values than DNAUPD got. This indicates the user probably made an "
-     "error in passing data from DNAUPD to DNEUPD or that the data was "
-     "modified before entering DNEUPD.")])
+dneupd_messages = dict(
+    [
+        (0, "Normal exit."),
+        (
+            1,
+            "The Schur form computed by LAPACK routine dlahqr could not be "
+            "reordered by LAPACK routine dtrsen. Re-enter subroutine dneupd with "
+            "IPARAM(5)=NCV and increase the size of the arrays DR and DI to have "
+            "dimension at least dimension NCV and allocate at least NCV columns "
+            'for Z. NOTE, "Not necessary if Z and V share the same space. '
+            'Please notify the authors if this error occurs."',
+        ),
+        (-1, "N must be positive."),
+        (-2, "NEV must be positive."),
+        (-3, "NCV-NEV >= 2 and less than or equal to N."),
+        (-5, "WHICH must be one of 'LM', 'SM', 'LR', 'SR', 'LI', 'SI'"),
+        (-6, "BMAT must be one of 'I' or 'G'."),
+        (-7, "Length of private work WORKL array is not sufficient."),
+        (
+            -8,
+            "Error return from calculation of a real Schur form. "
+            "Informational error from LAPACK routine dlahqr.",
+        ),
+        (
+            -9,
+            "Error return from calculation of eigenvectors. "
+            "Informational error from LAPACK routine dtrevc.",
+        ),
+        (-10, "IPARAM(7) must be 1,2,3,4."),
+        (-11, "IPARAM(7) = 1 and BMAT = 'G' are incompatible."),
+        (-12, "HOWMNY = 'S' not yet implemented."),
+        (-13, "HOWMNY must be one of 'A' or 'P' if RVEC = .true."),
+        (-14, "DNAUPD did not find any eigenvalues to sufficient accuracy."),
+        (
+            -15,
+            "DNEUPD got a different count of the number of converged Ritz "
+            "values than DNAUPD got. This indicates the user probably made an "
+            "error in passing data from DNAUPD to DNEUPD or that the data was "
+            "modified before entering DNEUPD.",
+        ),
+    ]
+)
 
 
 class ArpackError(Exception):
     pass
 
 
-def eigensolver(matrix: scipy.sparse.csr_matrix,
-                num_eigenpairs: Optional[int] = 10,
-                sigma: Optional[float] = None,
-                initial_vector: Optional[np.ndarray] = None) \
-        -> Tuple[np.ndarray, np.ndarray]:
+def eigensolver(
+    matrix: scipy.sparse.csr_matrix,
+    num_eigenpairs: Optional[int] = 10,
+    sigma: Optional[float] = None,
+    initial_vector: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Solve eigenvalue problem for sparse matrix.
 
     Parameters
@@ -176,14 +238,14 @@ def eigensolver(matrix: scipy.sparse.csr_matrix,
 
     """
     if sigma is not None:
-        raise RuntimeError('Shift/invert mode not implemented on the GPU')
+        raise RuntimeError("Shift/invert mode not implemented on the GPU")
 
     N = matrix.shape[0]
 
     if initial_vector is None:
         initial_vector = np.ones(N)
 
-    n = c_int(N)                # Dimension of the eigenproblem.
+    n = c_int(N)  # Dimension of the eigenproblem.
     maxn = n
     nev = c_int(num_eigenpairs + 1)  # Number of eigenvalues to compute.
     ncv = c_int(num_eigenpairs + 3)  # Number of columns of the matrix V.
@@ -210,21 +272,21 @@ def eigensolver(matrix: scipy.sparse.csr_matrix,
     ipntr = (c_int * 14)()
     select = (c_int * maxncv)()
 
-    bmat = create_string_buffer(b'I')  # B = I, standard eigenvalue problem.
-    which = create_string_buffer(b'LM')  # Eigenvalues of largest magnitude.
+    bmat = create_string_buffer(b"I")  # B = I, standard eigenvalue problem.
+    which = create_string_buffer(b"LM")  # Eigenvalues of largest magnitude.
     ido = c_int(0)
     lworkl = c_int(len(workl))
     info = c_int(1)
 
-    ishfts = c_int(1)   # Use exact shifts.
+    ishfts = c_int(1)  # Use exact shifts.
     maxitr = c_int(MAX_ITERATIONS)
     # mode = c_int(3)           # A x = lambda x (OP = inv(A - sigma I), B = I)
-    mode = c_int(1)           # A x = lambda x (OP = A, B = I)
+    mode = c_int(1)  # A x = lambda x (OP = A, B = I)
     iparam = (c_int * 11)(ishfts, 0, maxitr, 0, 0, 0, mode)
 
     ierr = c_int(0)
     rvec = c_int(1)
-    howmny = c_char(b'A')
+    howmny = c_char(b"A")
     if sigma is not None:
         sigmar = c_double(np.real(sigma))
         sigmai = c_double(np.imag(sigma))
@@ -238,13 +300,27 @@ def eigensolver(matrix: scipy.sparse.csr_matrix,
     # A = (matrix - (sigma) * eye).tocsc()
     # solve = scipy.sparse.linalg.factorized(A)
 
-    logging.debug('Running Arnoldi iteration with tolerance {:g}...'
-                  .format(tol.value))
+    logging.debug("Running Arnoldi iteration with tolerance {:g}...".format(tol.value))
 
     for itr in range(maxitr.value):
-        dnaupd(byref(ido), bmat, byref(n), which, byref(nev), byref(tol),
-               resid, byref(ncv), v, byref(ldv), iparam, ipntr, workd, workl,
-               byref(lworkl), byref(info))
+        dnaupd(
+            byref(ido),
+            bmat,
+            byref(n),
+            which,
+            byref(nev),
+            byref(tol),
+            resid,
+            byref(ncv),
+            v,
+            byref(ldv),
+            iparam,
+            ipntr,
+            workd,
+            workl,
+            byref(lworkl),
+            byref(info),
+        )
 
         if info.value != 0:
             raise ArpackError(dnaupd_messages[info.value])
@@ -252,36 +328,61 @@ def eigensolver(matrix: scipy.sparse.csr_matrix,
         if ido.value == 99:
             break
         elif abs(ido.value) != 1:
-            logging.warning('DNAUPD repoted IDO = {}'.format(ido.value))
+            logging.warning("DNAUPD repoted IDO = {}".format(ido.value))
             break
 
         idx_rhs, idx_sol = ipntr[0] - 1, ipntr[1] - 1
-        rhs = workdnp[idx_rhs:(idx_rhs+N)]
+        rhs = workdnp[idx_rhs : (idx_rhs + N)]
 
         # # sol = solve(rhs)
         # sol = matrix @ rhs
         # workdnp[idx_sol:idx_sol+N] = sol
         sol = MVP.product(cuda.to_device(rhs.astype(np.float64)))
-        workdnp[idx_sol:idx_sol + N] = sol.copy_to_host()  # XXX pin memory
+        workdnp[idx_sol : idx_sol + N] = sol.copy_to_host()  # XXX pin memory
 
-    logging.debug('Done with Arnoldi iteration after {} steps. '.format(itr))
-    logging.debug('Running post-processing step...')
+    logging.debug("Done with Arnoldi iteration after {} steps. ".format(itr))
+    logging.debug("Running post-processing step...")
 
     d0 = byref(d, 0)
     d1 = byref(d, maxncv * sizeof(c_double))
-    dneupd(byref(rvec), byref(howmny), select, d0, d1, v, byref(ldv),
-           byref(sigmar), byref(sigmai), workev, byref(bmat), byref(n),
-           which, byref(nev), byref(tol), resid, byref(ncv), v, byref(ldv),
-           iparam, ipntr, workd, workl, byref(lworkl), byref(ierr))
+    dneupd(
+        byref(rvec),
+        byref(howmny),
+        select,
+        d0,
+        d1,
+        v,
+        byref(ldv),
+        byref(sigmar),
+        byref(sigmai),
+        workev,
+        byref(bmat),
+        byref(n),
+        which,
+        byref(nev),
+        byref(tol),
+        resid,
+        byref(ncv),
+        v,
+        byref(ldv),
+        iparam,
+        ipntr,
+        workd,
+        workl,
+        byref(lworkl),
+        byref(ierr),
+    )
 
-    logging.debug('Done with postprocessing step. '
-                  'Status: {}'.format(('OK' if ierr.value == 0 else 'FAIL')))
+    logging.debug(
+        "Done with postprocessing step. "
+        "Status: {}".format(("OK" if ierr.value == 0 else "FAIL"))
+    )
 
     if ierr.value != 0:
         raise ArpackError(dneupd_messages[ierr.value])
 
     nconv = iparam[4] - 1
-    logging.debug('Converged on {} eigenpairs.'.format(nconv))
+    logging.debug("Converged on {} eigenpairs.".format(nconv))
 
     ew = np.array(d[:num_eigenpairs])
     ii = np.argsort(np.abs(ew))[::-1]

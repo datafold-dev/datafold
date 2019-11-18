@@ -6,16 +6,23 @@ from functools import partial
 import numpy as np
 import scipy.spatial
 
-from datafold.pcfold.distance import compute_distance_matrix, get_k_smallest_element_value
+from datafold.pcfold.distance import (
+    compute_distance_matrix,
+    get_k_smallest_element_value,
+)
 from datafold.pcfold.kernels import RadialBasisKernel
 
 
 def _warn_if_not_rbf_kernel(kernel):
     if not isinstance(kernel, RadialBasisKernel):
-        warnings.warn("There is no guarantee that the method works with a kernel other than RadialBasisKernel")
+        warnings.warn(
+            "There is no guarantee that the method works with a kernel other than RadialBasisKernel"
+        )
 
 
-def estimate_cutoff(pcm, n_subsample=1000, kmin=10, random_state=None, distance_matrix=None):
+def estimate_cutoff(
+    pcm, n_subsample=1000, kmin=10, random_state=None, distance_matrix=None
+):
     """
     Estimates the cutoff needed for a Gaussian Kernel exp(-r^2/epsilon),
     given a certain tolerance below which the kernel values are considered 'zero'.
@@ -44,12 +51,18 @@ def estimate_cutoff(pcm, n_subsample=1000, kmin=10, random_state=None, distance_
 
     if distance_matrix is None:
         perm_indices_all = np.random.permutation(np.arange(n_points))
-        distance_matrix = compute_distance_matrix(pcm[perm_indices_all[:n_subsample], :], pcm, metric="euclidean")
+        distance_matrix = compute_distance_matrix(
+            pcm[perm_indices_all[:n_subsample], :], pcm, metric="euclidean"
+        )
 
         kmin = np.min([kmin, distance_matrix.shape[1] - 1])
-        k_smallest_values = get_k_smallest_element_value(distance_matrix, kmin, ignore_zeros=False)
+        k_smallest_values = get_k_smallest_element_value(
+            distance_matrix, kmin, ignore_zeros=False
+        )
     else:
-        k_smallest_values = get_k_smallest_element_value(distance_matrix, kmin, ignore_zeros=False)
+        k_smallest_values = get_k_smallest_element_value(
+            distance_matrix, kmin, ignore_zeros=False
+        )
 
     est_cutoff = np.median(k_smallest_values)
 
@@ -74,7 +87,7 @@ def estimate_scale(pcm, tol=1e-8, cut_off=None, **estimate_cut_off_params):
         cut_off = estimate_cutoff(pcm, **estimate_cut_off_params)
 
     magic = 2  # doubling it since we want the kernel values to be BELOW the tolerance, not exactly on it
-    eps0 = magic*np.sqrt(cut_off ** 2 / (-np.log(tol)))
+    eps0 = magic * np.sqrt(cut_off ** 2 / (-np.log(tol)))
     return eps0
 
 

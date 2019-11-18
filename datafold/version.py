@@ -1,4 +1,3 @@
-
 class Version:
     """Current version."""
 
@@ -11,8 +10,20 @@ class Version:
     assert 1 <= day <= 31
     assert v_nr >= 1
 
-    months_english = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
-                      "November", "December"]
+    months_english = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ]
 
     v_short = f"{year}{str(month).zfill(2)}.{v_nr}"  # YYYYMM.V
     date_string = f"{year}-{months_english[month-1]}-{day}"

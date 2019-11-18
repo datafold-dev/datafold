@@ -3,7 +3,7 @@
 """
 
 
-__all__ = ['coo_tocsr']
+__all__ = ["coo_tocsr"]
 
 
 import numpy as np
@@ -23,6 +23,7 @@ def coo_tocsr(A: scipy.sparse.coo_matrix) -> scipy.sparse.csr_matrix:
 
     """
     from scipy.sparse import csr_matrix
+
     if A.nnz == 0:
         return csr_matrix(A.shape, dtype=A.dtype)
 
@@ -33,11 +34,12 @@ def coo_tocsr(A: scipy.sparse.coo_matrix) -> scipy.sparse.csr_matrix:
     row = A.row.astype(idx_dtype, copy=False)
     col = A.col.astype(idx_dtype, copy=False)
 
-    indptr = np.empty(n+1, dtype=idx_dtype)
+    indptr = np.empty(n + 1, dtype=idx_dtype)
     indices = np.empty_like(row, dtype=idx_dtype)
     data = np.empty_like(A.data, dtype=A.dtype)
 
-    scipy.sparse._sparsetools.coo_tocsr(m, n, A.nnz, row, col, A.data,
-                                        indptr, indices, data)
+    scipy.sparse._sparsetools.coo_tocsr(
+        m, n, A.nnz, row, col, A.data, indptr, indices, data
+    )
 
     return csr_matrix((data, indices, indptr), shape=A.shape)

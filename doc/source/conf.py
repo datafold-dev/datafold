@@ -11,6 +11,7 @@
 #
 import os
 import sys
+
 PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
 PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
 sys.path.insert(0, PATH2ROOT)
@@ -20,12 +21,10 @@ import sphinx_rtd_theme  # "Read the doc" theme -- https://sphinx-rtd-theme.read
 from datafold import __version__
 
 
-
-
 # -- Project information -----------------------------------------------------
-project = 'datafold'
-copyright = '2019, datafold contributors'
-author = 'datafold contributors'
+project = "datafold"
+copyright = "2019, datafold contributors"
+author = "datafold contributors"
 version = __version__
 
 # -- General configuration ---------------------------------------------------
@@ -39,19 +38,20 @@ master_doc = "index"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [  # See build_full.sh file to execture sphinx-apidoc which fetches the documentation automatically.
-              'sphinx.ext.autodoc',
-              # See below for configuration
-              "sphinx.ext.todo",
-              # See below for configuration
-              "sphinx.ext.imgmath",
-              # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html
-              "sphinxcontrib.bibtex",
-              # 'napoleon' allows NumPy and Google style documentation (no external Sphinx package required)
-              #  -> https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
-              # numpydoc docstring guide
-              #  -> https://numpydoc.readthedocs.io/en/latest/format.html
-              "sphinx.ext.napoleon",
-              "sphinx_rtd_theme"]
+    "sphinx.ext.autodoc",
+    # See below for configuration
+    "sphinx.ext.todo",
+    # See below for configuration
+    "sphinx.ext.imgmath",
+    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html
+    "sphinxcontrib.bibtex",
+    # 'napoleon' allows NumPy and Google style documentation (no external Sphinx package required)
+    #  -> https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
+    # numpydoc docstring guide
+    #  -> https://numpydoc.readthedocs.io/en/latest/format.html
+    "sphinx.ext.napoleon",
+    "sphinx_rtd_theme",
+]
 
 # --------------------------------------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------------------
@@ -111,7 +111,7 @@ napoleon_use_rtype = True
 # ---------------------------------------------------------------------------------------------------------------
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -128,4 +128,4 @@ html_theme = "sphinx_rtd_theme"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 
 """Helper functions for testing. """
 
@@ -22,8 +22,9 @@ import datafold.dynfold.tests.legacy_dmap_repo.diffusion_maps as legacy_dmap
 from datafold.dynfold.diffusion_maps import DiffusionMaps
 
 
-def make_strip(xmin: float, ymin: float, width: float,
-               height: float, num_samples: int) -> np.ndarray:
+def make_strip(
+    xmin: float, ymin: float, width: float, height: float, num_samples: int
+) -> np.ndarray:
     """Draw samples from a 2D strip with uniform distribution.
 
     """
@@ -33,10 +34,12 @@ def make_strip(xmin: float, ymin: float, width: float,
     return np.stack((x, y), axis=-1)
 
 
-def make_points(num_points: int, x0: float, y0: float, x1: float, y1: float) \
-        -> np.ndarray:
-    xx, yy = np.meshgrid(np.linspace(x0, x1, num_points),
-                         np.linspace(y0, y1, num_points))
+def make_points(
+    num_points: int, x0: float, y0: float, x1: float, y1: float
+) -> np.ndarray:
+    xx, yy = np.meshgrid(
+        np.linspace(x0, x1, num_points), np.linspace(y0, y1, num_points)
+    )
     return np.stack((xx.ravel(), yy.ravel())).T
 
 
@@ -75,15 +78,18 @@ def print_problem(a1, a2, cmp_str=""):
 
 
 def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
-
     def diagnosis():
         if isinstance(dmap1.kernel_matrix_, np.ndarray):
-            assert isinstance(dmap2, legacy_dmap.DenseDiffusionMaps), f"got instance {type(dmap2)}"
+            assert isinstance(
+                dmap2, legacy_dmap.DenseDiffusionMaps
+            ), f"got instance {type(dmap2)}"
             logging.debug("DenseDiffusionMaps")
             kernel_matrix1 = dmap1.kernel_matrix_
             kernel_matrix2 = dmap2.kernel_matrix
         elif isinstance(dmap1.kernel_matrix_, csr_matrix):
-            assert isinstance(dmap2, legacy_dmap.SparseDiffusionMaps), f"got instance {type(dmap2)}"
+            assert isinstance(
+                dmap2, legacy_dmap.SparseDiffusionMaps
+            ), f"got instance {type(dmap2)}"
             logging.debug("SparseDiffusionMaps")
             kernel_matrix1 = dmap1.kernel_matrix_.todense()
             kernel_matrix2 = dmap2.kernel_matrix.todense()
@@ -93,21 +99,33 @@ def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
         if np.array_equal(kernel_matrix1, kernel_matrix2):
             logging.debug("Kernel matrices are equal.")
         else:
-            logging.error(f"Kernel matrices are NOT equal. \n "
-                          f"{print_problem(kernel_matrix1, kernel_matrix2), 'kernel matrix'}")
+            logging.error(
+                f"Kernel matrices are NOT equal. \n "
+                f"{print_problem(kernel_matrix1, kernel_matrix2), 'kernel matrix'}"
+            )
 
-        logging.debug(f"Condition number of kernel matrix is {np.linalg.cond(kernel_matrix1)}")
+        logging.debug(
+            f"Condition number of kernel matrix is {np.linalg.cond(kernel_matrix1)}"
+        )
 
     try:
-        nptest.assert_allclose(dmap1.eigenvalues_, dmap2.eigenvalues, rtol=1E-13, atol=1E-15, equal_nan=False)
+        nptest.assert_allclose(
+            dmap1.eigenvalues_,
+            dmap2.eigenvalues,
+            rtol=1e-13,
+            atol=1e-15,
+            equal_nan=False,
+        )
     except Exception as e:
-        if not (dmap1.eigenvalues_ - 1 < 1E-14).all():
+        if not (dmap1.eigenvalues_ - 1 < 1e-14).all():
             raise e
         else:
-            logging.debug("All eigenvalues are very close to one, did not compare eigenvectors. ")
+            logging.debug(
+                "All eigenvalues are very close to one, did not compare eigenvectors. "
+            )
 
 
-def cmp_eigenvectors(eigvec1, eigvec2, tol=1E-14):
+def cmp_eigenvectors(eigvec1, eigvec2, tol=1e-14):
     # Allows to also check orthogonality, but is not yet implemented
     norms1 = np.linalg.norm(eigvec1, axis=1)
     norms2 = np.linalg.norm(eigvec2, axis=1)
@@ -117,7 +135,9 @@ def cmp_eigenvectors(eigvec1, eigvec2, tol=1E-14):
     return np.abs((abs_diag - 1)).max() < tol  # max-abs deviation
 
 
-def cmp_kernel_matrix(actual: DiffusionMaps, expected: legacy_dmap.BaseDiffusionMaps, rtol=None, atol=None):
+def cmp_kernel_matrix(
+    actual: DiffusionMaps, expected: legacy_dmap.BaseDiffusionMaps, rtol=None, atol=None
+):
 
     if rtol is None and atol is None:
         exact = True
@@ -131,7 +151,9 @@ def cmp_kernel_matrix(actual: DiffusionMaps, expected: legacy_dmap.BaseDiffusion
         if exact:
             nptest.assert_equal(actual.kernel_matrix_, expected.kernel_matrix)
         else:
-            nptest.assert_allclose(actual.kernel_matrix_, expected.kernel_matrix, rtol=rtol, atol=atol)
+            nptest.assert_allclose(
+                actual.kernel_matrix_, expected.kernel_matrix, rtol=rtol, atol=atol
+            )
 
     elif isinstance(actual.kernel_matrix_, csr_matrix):
         assert isinstance(expected, legacy_dmap.SparseDiffusionMaps)
@@ -146,10 +168,17 @@ def cmp_kernel_matrix(actual: DiffusionMaps, expected: legacy_dmap.BaseDiffusion
             nptest.assert_equal(actual_csr.data, expected_csr.data)
         else:
             nptest.assert_equal(actual_csr.indices.sort(), expected_csr.indices.sort())
-            nptest.assert_allclose(actual_csr.data, expected_csr.data, rtol=rtol, atol=atol)
+            nptest.assert_allclose(
+                actual_csr.data, expected_csr.data, rtol=rtol, atol=atol
+            )
 
 
-def cmp_dmap_legacy(actual_dmap: DiffusionMaps, expected_dmap: legacy_dmap.BaseDiffusionMaps, rtol=None, atol=None):
+def cmp_dmap_legacy(
+    actual_dmap: DiffusionMaps,
+    expected_dmap: legacy_dmap.BaseDiffusionMaps,
+    rtol=None,
+    atol=None,
+):
     cmp_eigenpairs(actual_dmap, expected_dmap)
     cmp_kernel_matrix(actual_dmap, expected_dmap, atol, rtol)
 
@@ -169,9 +198,16 @@ def cmp_dmap(dmap1: DiffusionMaps, dmap2: DiffusionMaps):
 
     elif isinstance(dmap1.kernel_matrix_, csr_matrix):
         assert isinstance(dmap2.kernel_matrix_, csr_matrix)
-        nptest.assert_equal(dmap1.kernel_matrix_.toarray(), dmap1.kernel_matrix_.toarray())
+        nptest.assert_equal(
+            dmap1.kernel_matrix_.toarray(), dmap1.kernel_matrix_.toarray()
+        )
 
 
 def circle_data(nsamples=100):
-    data = np.vectorize(lambda w: np.exp(-1j * w))(np.linspace(0, 2 * np.pi, nsamples)[:-1][:, np.newaxis])
-    return np.hstack([np.real(data), np.imag(data)]), 1E-3  # epsilon used in jupyter notebook in method_examples
+    data = np.vectorize(lambda w: np.exp(-1j * w))(
+        np.linspace(0, 2 * np.pi, nsamples)[:-1][:, np.newaxis]
+    )
+    return (
+        np.hstack([np.real(data), np.imag(data)]),
+        1e-3,
+    )  # epsilon used in jupyter notebook in method_examples

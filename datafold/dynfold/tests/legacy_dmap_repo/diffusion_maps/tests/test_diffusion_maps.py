@@ -6,6 +6,7 @@ import logging
 import unittest
 
 import numpy as np
+
 # import matplotlib.pyplot as plt
 
 from diffusion_maps import DiffusionMaps, downsample
@@ -21,9 +22,9 @@ class DiffusionMapsTest(unittest.TestCase):
         self.width = 1.0
         self.height = 1e-1
         self.num_samples = 50000
-        self.data = make_strip(self.xmin, self.ymin,
-                               self.width, self.height,
-                               self.num_samples)
+        self.data = make_strip(
+            self.xmin, self.ymin, self.width, self.height, self.num_samples
+        )
 
     @staticmethod
     def _compute_rayleigh_quotients(matrix, eigenvectors):
@@ -38,21 +39,20 @@ class DiffusionMapsTest(unittest.TestCase):
 
     def test_accuracy(self):
         num_samples = 10000
-        logging.debug('Computing diffusion maps on a matrix of size {}'
-                      .format(num_samples))
+        logging.debug(
+            "Computing diffusion maps on a matrix of size {}".format(num_samples)
+        )
         num_eigenpairs = 10
         epsilon = 5e-1
         downsampled_data = downsample(self.data, num_samples)
 
-        dm = DiffusionMaps(downsampled_data, epsilon,
-                           num_eigenpairs=num_eigenpairs)
+        dm = DiffusionMaps(downsampled_data, epsilon, num_eigenpairs=num_eigenpairs)
 
         ew = dm.eigenvalues
-        rq = self._compute_rayleigh_quotients(dm.kernel_matrix,
-                                              dm.eigenvectors)
+        rq = self._compute_rayleigh_quotients(dm.kernel_matrix, dm.eigenvectors)
 
-        logging.debug('Eigenvalues: {}'.format(ew))
-        logging.debug('Rayleigh quotients: {}'.format(rq))
+        logging.debug("Eigenvalues: {}".format(ew))
+        logging.debug("Rayleigh quotients: {}".format(rq))
 
         self.assertTrue(np.allclose(np.abs(ew), np.abs(rq)))
 
@@ -64,8 +64,7 @@ class DiffusionMapsTest(unittest.TestCase):
         num_maps = 10
         num_eigenpairs = 10
         epsilon_min, epsilon_max = 1e-1, 1e1
-        epsilons = np.logspace(np.log10(epsilon_min),
-                               np.log10(epsilon_max), num_maps)
+        epsilons = np.logspace(np.log10(epsilon_min), np.log10(epsilon_max), num_maps)
 
         downsampled_data = downsample(self.data, num_samples)
 
@@ -75,15 +74,13 @@ class DiffusionMapsTest(unittest.TestCase):
         logging.basicConfig(level=logging.WARNING)
 
         for i, epsilon in enumerate(reversed(epsilons)):
-            dm = DiffusionMaps(downsampled_data, epsilon,
-                               num_eigenpairs=num_eigenpairs)
+            dm = DiffusionMaps(downsampled_data, epsilon, num_eigenpairs=num_eigenpairs)
 
             evs[i, :, :] = dm.eigenvectors
             ews[i, :] = dm.eigenvalues
 
             ew = dm.eigenvalues
-            rq = self._compute_rayleigh_quotients(dm.kernel_matrix,
-                                                  dm.eigenvectors)
+            rq = self._compute_rayleigh_quotients(dm.kernel_matrix, dm.eigenvectors)
             self.assertTrue(np.allclose(np.abs(ew), np.abs(rq)))
 
             # plt.title('$\\epsilon$ = {:.3f}'.format(epsilon))
@@ -101,11 +98,12 @@ class DiffusionMapsTest(unittest.TestCase):
             # plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import os
-    verbose = os.getenv('VERBOSE')
+
+    verbose = os.getenv("VERBOSE")
     if verbose is not None:
-        logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
-        logging.basicConfig(level=logging.ERROR, format='%(message)s')
+        logging.basicConfig(level=logging.ERROR, format="%(message)s")
     unittest.main()

@@ -2,7 +2,7 @@
 
 """
 
-__all__ = ['eigensolver']
+__all__ = ["eigensolver"]
 
 from typing import Optional, Tuple
 
@@ -13,11 +13,12 @@ import scipy.sparse.linalg
 from . import default
 
 
-def eigensolver(matrix: scipy.sparse.csr_matrix,
-                num_eigenpairs: int = default.num_eigenpairs,
-                sigma: Optional[float] = None,
-                initial_vector: Optional[np.array] = None)  \
-        -> Tuple[np.array, np.array]:
+def eigensolver(
+    matrix: scipy.sparse.csr_matrix,
+    num_eigenpairs: int = default.num_eigenpairs,
+    sigma: Optional[float] = None,
+    initial_vector: Optional[np.array] = None,
+) -> Tuple[np.array, np.array]:
     """Solve  eigenvalue problem for sparse matrix.
 
     Parameters
@@ -42,7 +43,8 @@ def eigensolver(matrix: scipy.sparse.csr_matrix,
     """
     if initial_vector is None:
         initial_vector = np.ones(matrix.shape[0])
-    ew, ev = scipy.sparse.linalg.eigs(matrix, k=num_eigenpairs, which='LM',
-                                      sigma=sigma, v0=initial_vector)
+    ew, ev = scipy.sparse.linalg.eigs(
+        matrix, k=num_eigenpairs, which="LM", sigma=sigma, v0=initial_vector
+    )
     ii = np.argsort(np.abs(ew))[::-1]
     return ew[ii], ev[:, ii].T

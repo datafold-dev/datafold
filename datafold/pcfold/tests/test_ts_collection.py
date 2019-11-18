@@ -5,14 +5,18 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.pcfold.timeseries.collection import TSCDataFrame, TimeSeriesCollectionError
+from datafold.pcfold.timeseries.collection import (
+    TSCDataFrame,
+    TimeSeriesCollectionError,
+)
 
 
 class TestTSCDataFrame(unittest.TestCase):
-
     def setUp(self) -> None:
         # The last two elements are used
-        idx = pd.MultiIndex.from_arrays([[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]])
+        idx = pd.MultiIndex.from_arrays(
+            [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
+        )
         col = ["A", "B"]
         self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
 
@@ -35,11 +39,17 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
-        pdtest.assert_series_equal(tc.lengths_time_series,
-                                   pd.Series([2, 2, 2, 3], index=pd.Index([0, 1, 15, 45], name="ID"), name="counts"))
+        pdtest.assert_series_equal(
+            tc.lengths_time_series,
+            pd.Series(
+                [2, 2, 2, 3], index=pd.Index([0, 1, 15, 45], name="ID"), name="counts"
+            ),
+        )
 
         simple_df = self.simple_df.copy()
-        simple_df = simple_df.drop(labels=[45])  # is the only one which has time series length 4
+        simple_df = simple_df.drop(
+            labels=[45]
+        )  # is the only one which has time series length 4
         actual = TSCDataFrame(simple_df).lengths_time_series
         expected = 2
 
@@ -57,7 +67,9 @@ class TestTSCDataFrame(unittest.TestCase):
         tc = TSCDataFrame(self.simple_df)
         matrix = self.simple_df.to_numpy()
 
-        actual = TSCDataFrame.from_same_indices_as(tc, matrix, except_columns=["qoi0", "qoi1"])
+        actual = TSCDataFrame.from_same_indices_as(
+            tc, matrix, except_columns=["qoi0", "qoi1"]
+        )
 
         expected = self.simple_df.copy()
         expected.columns = ["qoi0", "qoi1"]
@@ -69,8 +81,9 @@ class TestTSCDataFrame(unittest.TestCase):
         tc = TSCDataFrame(self.simple_df)
         matrix = self.simple_df.to_numpy()
 
-        new_index = pd.MultiIndex.from_arrays([tc.index.get_level_values(0),
-                                               tc.index.get_level_values(1) + 100])  # simply add to time +100
+        new_index = pd.MultiIndex.from_arrays(
+            [tc.index.get_level_values(0), tc.index.get_level_values(1) + 100]
+        )  # simply add to time +100
 
         actual = TSCDataFrame.from_same_indices_as(tc, matrix, except_index=new_index)
 
@@ -88,7 +101,9 @@ class TestTSCDataFrame(unittest.TestCase):
 
         # check for error
         with self.assertRaises(ValueError):
-            TSCDataFrame.from_same_indices_as(tc, matrix, except_columns=pd.Index(["A", "B"]), except_index=new_index)
+            TSCDataFrame.from_same_indices_as(
+                tc, matrix, except_columns=pd.Index(["A", "B"]), except_index=new_index
+            )
 
     def test_qoi_to_datamatrix(self):
 
@@ -119,11 +134,16 @@ class TestTSCDataFrame(unittest.TestCase):
         actual = TSCDataFrame.from_tensor(matrix, qoi_column)
 
         time_index_expected = pd.MultiIndex.from_arrays(
-            [[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], names=[actual.ID_NAME, "time"])
+            [[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], names=[actual.ID_NAME, "time"]
+        )
 
         qoi_column_expected = pd.Index(["A", "B"], name="qoi")
-        data_expected = np.array([[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [3, 3]], dtype=np.float)
-        expected = pd.DataFrame(data=data_expected, index=time_index_expected, columns=qoi_column_expected)
+        data_expected = np.array(
+            [[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [3, 3]], dtype=np.float
+        )
+        expected = pd.DataFrame(
+            data=data_expected, index=time_index_expected, columns=qoi_column_expected
+        )
         pdtest.assert_frame_equal(actual, expected)
 
     def test_from_timeseries_tensor_time_index(self):
@@ -134,14 +154,22 @@ class TestTSCDataFrame(unittest.TestCase):
 
         qoi_column = pd.Index(["A", "B"])
 
-        actual = TSCDataFrame.from_tensor(matrix, qoi_column, time_index=np.array([100, 200]))
+        actual = TSCDataFrame.from_tensor(
+            matrix, qoi_column, time_index=np.array([100, 200])
+        )
 
         time_index_expected = pd.MultiIndex.from_arrays(
-            [[0, 0, 1, 1, 2, 2], [100, 200, 100, 200, 100, 200]], names=[actual.ID_NAME, "time"])
+            [[0, 0, 1, 1, 2, 2], [100, 200, 100, 200, 100, 200]],
+            names=[actual.ID_NAME, "time"],
+        )
 
         qoi_column_expected = pd.Index(["A", "B"], name="qoi")
-        data_expected = np.array([[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [3, 3]], dtype=np.float)
-        expected = pd.DataFrame(data=data_expected, index=time_index_expected, columns=qoi_column_expected)
+        data_expected = np.array(
+            [[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [3, 3]], dtype=np.float
+        )
+        expected = pd.DataFrame(
+            data=data_expected, index=time_index_expected, columns=qoi_column_expected
+        )
         pdtest.assert_frame_equal(actual, expected)
 
     def test_time_interval(self):
@@ -207,8 +235,12 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_is_normalized_time3(self):
         # not start zero
         simple_df = self.simple_df.copy(deep=True)
-        simple_df.index = pd.MultiIndex.from_arrays([simple_df.index.get_level_values(0),
-                                                     simple_df.index.get_level_values(1) + 1])
+        simple_df.index = pd.MultiIndex.from_arrays(
+            [
+                simple_df.index.get_level_values(0),
+                simple_df.index.get_level_values(1) + 1,
+            ]
+        )
 
         actual = TSCDataFrame(simple_df).is_normalized_time()
         self.assertFalse(actual)
@@ -219,8 +251,12 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_is_normalized_time4(self):
         # time delta is not 1
         simple_df = self.simple_df.copy(deep=True)
-        simple_df.index = pd.MultiIndex.from_arrays([simple_df.index.get_level_values(0),
-                                                     simple_df.index.get_level_values(1) * 3])
+        simple_df.index = pd.MultiIndex.from_arrays(
+            [
+                simple_df.index.get_level_values(0),
+                simple_df.index.get_level_values(1) * 3,
+            ]
+        )
 
         actual = TSCDataFrame(simple_df).is_normalized_time()
         self.assertFalse(actual)
@@ -272,7 +308,9 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_timeseries_starts(self):
         expected = TSCDataFrame(self.simple_df).initial_states_df()
 
-        idx = pd.MultiIndex.from_arrays([[0, 1, 15, 45], [0, 0, 0, 17]], names=["ID", "initial_time"])
+        idx = pd.MultiIndex.from_arrays(
+            [[0, 1, 15, 45], [0, 0, 0, 17]], names=["ID", "initial_time"]
+        )
         col = pd.Index(["A", "B"], name="qoi")
 
         values = self.simple_df.to_numpy()[[0, 2, 4, 6], :]
@@ -283,7 +321,9 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_timeseries_ends(self):
         expected = TSCDataFrame(self.simple_df).final_states_df()
 
-        idx = pd.MultiIndex.from_arrays([[0, 1, 15, 45], [1, 1, 1, 19]], names=["ID", "final_time"])
+        idx = pd.MultiIndex.from_arrays(
+            [[0, 1, 15, 45], [1, 1, 1, 19]], names=["ID", "final_time"]
+        )
         col = pd.Index(["A", "B"], name="qoi")
 
         values = self.simple_df.to_numpy()[[1, 3, 5, 8], :]
@@ -297,12 +337,17 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertEqual(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # "destroy" existing time delta of id 45
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [
+            5,
+            4,
+        ]  # "destroy" existing time delta of id 45
 
         actual = TSCDataFrame(simple_df).dt
-        expected = pd.Series(data=[1, 1, 1, np.nan],
-                             index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.ID_NAME),
-                             name="dt")
+        expected = pd.Series(
+            data=[1, 1, 1, np.nan],
+            index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.ID_NAME),
+            name="dt",
+        )
 
         pdtest.assert_series_equal(actual, expected)
 
@@ -317,7 +362,10 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const time delta
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [
+            5,
+            4,
+        ]  # include non-const time delta
 
         actual = TSCDataFrame(self.simple_df).time_indices()
         expected = np.unique(self.simple_df.index.levels[1].to_numpy())
@@ -325,11 +373,14 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_time_array_fill(self):
         actual = TSCDataFrame(self.simple_df).time_index_fill()
-        expected = np.arange(0, 19+1, 1)
+        expected = np.arange(0, 19 + 1, 1)
         nptest.assert_equal(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [5, 4]  # include non-const time delta
+        simple_df.loc[pd.IndexSlice[45, 100], :] = [
+            5,
+            4,
+        ]  # include non-const time delta
         # ... should raise error
         with self.assertRaises(TimeSeriesCollectionError):
             TSCDataFrame(simple_df).time_index_fill()
@@ -344,7 +395,9 @@ class TestTSCDataFrame(unittest.TestCase):
             tsc.single_time_df(time=100)  # no time series with this time
 
         actual = tsc.single_time_df(time=17)
-        expected = self.simple_df.iloc[[6], :]  # in 'key' use a list to enforce a data frame, not a series
+        expected = self.simple_df.iloc[
+            [6], :
+        ]  # in 'key' use a list to enforce a data frame, not a series
         pdtest.assert_frame_equal(actual, expected)
 
     def test_index01(self):
@@ -427,7 +480,11 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_concat_new_timeseries(self):
         tsc = TSCDataFrame(self.simple_df)
-        new_tsc = pd.DataFrame(np.random.rand(2,2), index=pd.MultiIndex.from_tuples([(100,0), (100, 1)]), columns=["A", "B"])
+        new_tsc = pd.DataFrame(
+            np.random.rand(2, 2),
+            index=pd.MultiIndex.from_tuples([(100, 0), (100, 1)]),
+            columns=["A", "B"],
+        )
 
         full_tsc = pd.concat([tsc, new_tsc], axis=0)
 
@@ -462,7 +519,7 @@ class TestTSCDataFrame(unittest.TestCase):
             tsc.insert_ts(new_ts, 1.5)  # id has to be int
 
         with self.assertRaises(ValueError):
-            tsc.insert_ts(new_ts, 1)    # id=1 already present
+            tsc.insert_ts(new_ts, 1)  # id=1 already present
 
     def test_insert_timeseries04(self):
         tsc = TSCDataFrame(self.simple_df)
@@ -474,14 +531,13 @@ class TestTSCDataFrame(unittest.TestCase):
             tsc.insert_ts(new_ts, None)
 
     def test_build_from_single_timeseries(self):
-        df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0,-1), columns=["A"])
+        df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0, -1), columns=["A"])
         tsc = TSCDataFrame.from_single_timeseries(df)
 
         self.assertIsInstance(tsc, TSCDataFrame)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # test = TestTSCDataFrame()
     # test.setUp()
     # test.test_build_from_single_timeseries()

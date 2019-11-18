@@ -4,7 +4,12 @@ import numpy as np
 import scipy.sparse
 import scipy.spatial
 from sklearn.gaussian_process.kernels import (
-    RBF, Kernel, NormalizedKernelMixin, StationaryKernelMixin, _check_length_scale)
+    RBF,
+    Kernel,
+    NormalizedKernelMixin,
+    StationaryKernelMixin,
+    _check_length_scale,
+)
 
 from datafold.pcfold.distance import compute_distance_matrix
 
@@ -23,9 +28,10 @@ def apply_kernel_function(distance_matrix, kernel_function):
 
 
 class PCManifoldKernelMixin(metaclass=abc.ABCMeta):
-
     @abc.abstractmethod
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options):
+    def __call__(
+        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
+    ):
         """Evaluation calls for kernels used in PCManifold"""
 
     @abc.abstractmethod
@@ -42,7 +48,9 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
         self._epsilon = epsilon
 
         # sqrt because of slightly different notation of the kernel
-        super(RadialBasisKernel, self).__init__(length_scale=np.sqrt(epsilon), length_scale_bounds=length_scale_bounds)
+        super(RadialBasisKernel, self).__init__(
+            length_scale=np.sqrt(epsilon), length_scale_bounds=length_scale_bounds
+        )
 
     @property
     def epsilon(self):
@@ -51,9 +59,19 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
     @epsilon.setter
     def epsilon(self, value):
         self._epsilon = value
-        self.length_scale = np.sqrt(self.epsilon)  # keep aligned with super class from scikit learn
+        self.length_scale = np.sqrt(
+            self.epsilon
+        )  # keep aligned with super class from scikit learn
 
-    def __call__(self, X, Y=None, eval_gradient=False, dist_cut_off=None, dist_backend="brute", **dist_backend_options):
+    def __call__(
+        self,
+        X,
+        Y=None,
+        eval_gradient=False,
+        dist_cut_off=None,
+        dist_backend="brute",
+        **dist_backend_options
+    ):
         # TODO: only this kernel so far has "eval_gradient" -- should that go into the general interface?
 
         X = np.atleast_2d(X)
@@ -64,11 +82,19 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
         # Sklearn function
         _check_length_scale(X, self.length_scale)
 
-        distance_matrix = compute_distance_matrix(X, Y, metric="sqeuclidean", cut_off=dist_cut_off,
-                                                  backend=dist_backend, **dist_backend_options)
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="sqeuclidean",
+            cut_off=dist_cut_off,
+            backend=dist_backend,
+            **dist_backend_options
+        )
 
         if eval_gradient and scipy.sparse.issparse(distance_matrix):
-            raise NotImplementedError("Gradient is not implemented for sparse distance matrix")
+            raise NotImplementedError(
+                "Gradient is not implemented for sparse distance matrix"
+            )
 
         kernel_matrix = self.eval(distance_matrix)
 
@@ -85,7 +111,9 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
                 return kernel_matrix, self._gradient_given_Y(X, Y, kernel_matrix)
 
     def eval(self, distance_matrix):
-        return apply_kernel_function(distance_matrix, lambda dist: np.exp(-.5 * dist / self._epsilon))
+        return apply_kernel_function(
+            distance_matrix, lambda dist: np.exp(-0.5 * dist / self._epsilon)
+        )
 
     def _gradient(self, distance_matrix, kernel_matrix=None):
 
@@ -99,8 +127,9 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
         elif self.anisotropic:
 
             # We need to recompute the pairwise dimension-wise distances
-            kernel_gradient = (kernel_matrix[:, np.newaxis, :] - kernel_matrix[np.newaxis, :, :]) ** 2 \
-                              / (self.length_scale ** 2)
+            kernel_gradient = (
+                kernel_matrix[:, np.newaxis, :] - kernel_matrix[np.newaxis, :, :]
+            ) ** 2 / (self.length_scale ** 2)
             kernel_gradient *= kernel_matrix[..., np.newaxis]
             return kernel_gradient
 
@@ -114,9 +143,11 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
         xmy = np.zeros((Y.shape[1], Y.shape[0], X.shape[0]))
 
         if Y.shape[1] == 1:
-            raise ValueError('one dim. grad not implemented yet')
+            raise ValueError("one dim. grad not implemented yet")
         else:
-            for k in range(Y.shape[1]):  # TODO: check if this loop can be optimized, probably slow
+            for k in range(
+                Y.shape[1]
+            ):  # TODO: check if this loop can be optimized, probably slow
                 xm = Y[:, k].T @ np.ones((1, X.shape[0]))
                 ym = X[:, k].T @ np.ones((1, Y.shape[0])).T
                 xmy[k, :, :] = xm - ym
@@ -130,88 +161,130 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
 
 
 @NotImplementedError
-class PerceptronKernel():
-    """"""""
+class PerceptronKernel:
+    """""" ""
 
 
-class MultiquadraticKernel(StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel):
-
+class MultiquadraticKernel(
+    StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel
+):
     def __init__(self, epsilon):
         self.epsilon = epsilon
         super(MultiquadraticKernel, self).__init__()
 
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options):
+    def __call__(
+        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
+    ):
 
         # TODO: check metric!
-        distance_matrix = compute_distance_matrix(X, Y, metric="XXXX", cut_off=dist_cut_off, backend=dist_backend,
-                                                  **backend_options)
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="XXXX",
+            cut_off=dist_cut_off,
+            backend=dist_backend,
+            **backend_options
+        )
 
         kernel_matrix = self.eval(distance_matrix)
         return kernel_matrix
 
     def eval(self, distance_matrix):
-        kernel_func = lambda dist: np.sqrt(np.square(np.multiply(dist, 1.0 / self.epsilon)) + 1)
+        kernel_func = lambda dist: np.sqrt(
+            np.square(np.multiply(dist, 1.0 / self.epsilon)) + 1
+        )
         kernel_matrix = apply_kernel_function(distance_matrix, kernel_func)
         return kernel_matrix
 
 
-class InverseMultiQuadraticKernel(StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel):
-
+class InverseMultiQuadraticKernel(
+    StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel
+):
     def __init__(self, epsilon):
         self.epsilon = epsilon
         super(InverseMultiQuadraticKernel, self).__init__()
 
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options):
+    def __call__(
+        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
+    ):
 
         # TODO: check metric
-        distance_matrix = compute_distance_matrix(X, Y, metric="XXXX", cut_off=dist_cut_off, backend=dist_backend,
-                                                  **backend_options)
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="XXXX",
+            cut_off=dist_cut_off,
+            backend=dist_backend,
+            **backend_options
+        )
 
         kernel_matrix = self.eval(distance_matrix)
         return kernel_matrix
 
     def eval(self, distance_matrix):
-        kernel_func = lambda dist: np.reciprocal(np.sqrt(np.square(np.multiply(dist, 1 / self.epsilon)) + 1))
+        kernel_func = lambda dist: np.reciprocal(
+            np.sqrt(np.square(np.multiply(dist, 1 / self.epsilon)) + 1)
+        )
         kernel_matrix = apply_kernel_function(distance_matrix, kernel_func)
         return kernel_matrix
 
 
 class InverseQuadraticKernel(PCManifoldKernelMixin, Kernel):
-
     def __init__(self, epsilon):
         self.epsilon = epsilon
         super(InverseQuadraticKernel, self).__init__()
 
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options):
+    def __call__(
+        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
+    ):
 
         # TODO: check metric
-        distance_matrix = compute_distance_matrix(X, Y, metric="XXXX", cut_off=dist_cut_off, backend=dist_backend,
-                                                  **backend_options)
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="XXXX",
+            cut_off=dist_cut_off,
+            backend=dist_backend,
+            **backend_options
+        )
 
         kernel_matrix = self.eval(distance_matrix)
         return kernel_matrix
 
     def eval(self, distance_matrix):
-        kernel_func = lambda dist: np.clip(1 - np.square(1.0 / self.epsilon * dist), 0, 1)
+        kernel_func = lambda dist: np.clip(
+            1 - np.square(1.0 / self.epsilon * dist), 0, 1
+        )
         kernel_matrix = apply_kernel_function(distance_matrix, kernel_func)
         return kernel_matrix
 
 
-class OUKernel(StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel):
-
+class OUKernel(
+    StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel
+):
     def __init__(self, epsilon):
         self.epsilon = epsilon
         super(OUKernel, self).__init__()
 
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options):
-        distance_matrix = compute_distance_matrix(X, Y, metric="euclidean", cut_off=dist_cut_off, backend=dist_backend,
-                                                  **backend_options)
+    def __call__(
+        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
+    ):
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="euclidean",
+            cut_off=dist_cut_off,
+            backend=dist_backend,
+            **backend_options
+        )
 
         kernel_matrix = self.eval(distance_matrix)
         return kernel_matrix
 
     def eval(self, distance_matrix):
-        kernel_matrix = apply_kernel_function(distance_matrix, lambda x: np.exp(-x / self.epsilon))
+        kernel_matrix = apply_kernel_function(
+            distance_matrix, lambda x: np.exp(-x / self.epsilon)
+        )
         return kernel_matrix
 
 
@@ -223,11 +296,19 @@ class LanczosKernel(NormalizedKernelMixin, PCManifoldKernelMixin, Kernel):
         self.width = width
         super(LanczosKernel, self).__init__()
 
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options):
+    def __call__(
+        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
+    ):
 
         # TODO: check if the metric is correct
-        distance_matrix = compute_distance_matrix(X, Y, metric="euclidean", cut_off=dist_cut_off, backend=dist_backend,
-                                                  **backend_options)
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="euclidean",
+            cut_off=dist_cut_off,
+            backend=dist_backend,
+            **backend_options
+        )
 
         kernel_matrix = self.eval(distance_matrix)
         return kernel_matrix
@@ -235,7 +316,9 @@ class LanczosKernel(NormalizedKernelMixin, PCManifoldKernelMixin, Kernel):
     def eval(self, distance_matrix):
         bool_idx = distance_matrix < self.width
         kernel_matrix = bool_idx * (
-                    np.sinc(distance_matrix / self.epsilon) * np.sinc(distance_matrix / (self.epsilon * self.width)))
+            np.sinc(distance_matrix / self.epsilon)
+            * np.sinc(distance_matrix / (self.epsilon * self.width))
+        )
         return kernel_matrix
 
     def is_stationary(self):

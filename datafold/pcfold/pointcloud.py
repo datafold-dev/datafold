@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse
 
-from datafold.pcfold.distance import compute_distance_matrix, get_backend_distance_algorithm
+from datafold.pcfold.distance import (
+    compute_distance_matrix,
+    get_backend_distance_algorithm,
+)
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 from datafold.pcfold.kernels import Kernel, RadialBasisKernel
 
@@ -19,7 +22,14 @@ from datafold.pcfold.kernels import Kernel, RadialBasisKernel
 class PCManifold(np.ndarray):
     # See https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
-    def __new__(cls, data: np.ndarray, kernel: Kernel=None, cut_off=None, dist_backend="guess_optimal", **dist_params):
+    def __new__(
+        cls,
+        data: np.ndarray,
+        kernel: Kernel = None,
+        cut_off=None,
+        dist_backend="guess_optimal",
+        **dist_params,
+    ):
 
         if kernel is None:
             # TODO: also allow kernel=None? The distance matrix can still be computed.
@@ -69,10 +79,14 @@ class PCManifold(np.ndarray):
         self._dist_params = getattr(obj, "_dist_params", None)
 
     def __repr__(self):
-        attributes_line = " | ".join([f"kernel={self.kernel}",
-                                      f"cut_off={str(self.cut_off)}",
-                                      f"dist_backend={str(self.dist_backend.NAME)}",
-                                      f"dist_params={str(self._dist_params)}"])
+        attributes_line = " | ".join(
+            [
+                f"kernel={self.kernel}",
+                f"cut_off={str(self.cut_off)}",
+                f"dist_backend={str(self.dist_backend.NAME)}",
+                f"dist_params={str(self._dist_params)}",
+            ]
+        )
 
         repr = "\n".join([attributes_line, super(PCManifold, self).__repr__()])
         return repr
@@ -105,25 +119,43 @@ class PCManifold(np.ndarray):
         self._dist_backend = get_backend_distance_algorithm(backend)
 
     def compute_kernel_matrix(self, Y=None):
-        return self.kernel(X=self, Y=Y,
-                           dist_cut_off=self.cut_off,
-                           dist_backend=self.dist_backend,
-                           **self._dist_params)
+        return self.kernel(
+            X=self,
+            Y=Y,
+            dist_cut_off=self.cut_off,
+            dist_backend=self.dist_backend,
+            **self._dist_params,
+        )
 
     def compute_distance_matrix(self, Y=None, metric="euclidean"):
-        return compute_distance_matrix(X=self, Y=Y,
-                                       metric=metric,
-                                       cut_off=self.cut_off,
-                                       backend=self.dist_backend,
-                                       **self._dist_params)
+        return compute_distance_matrix(
+            X=self,
+            Y=Y,
+            metric=metric,
+            cut_off=self.cut_off,
+            backend=self.dist_backend,
+            **self._dist_params,
+        )
 
-    def optimize_parameters(self, n_subsample=1000, tol=1e-8, kmin=25, random_state=None, result_scaling=1.0, inplace=True):
+    def optimize_parameters(
+        self,
+        n_subsample=1000,
+        tol=1e-8,
+        kmin=25,
+        random_state=None,
+        result_scaling=1.0,
+        inplace=True,
+    ):
 
         if not hasattr(self._kernel, "_epsilon"):
             # fails if kernel has no epsilon parameter
-            raise AttributeError(f"Kernel {type(self._kernel)} has no epsilon parameter to optimize.")
+            raise AttributeError(
+                f"Kernel {type(self._kernel)} has no epsilon parameter to optimize."
+            )
 
-        cut_off = estimate_cutoff(self, n_subsample=n_subsample, kmin=kmin, random_state=random_state)
+        cut_off = estimate_cutoff(
+            self, n_subsample=n_subsample, kmin=kmin, random_state=random_state
+        )
         epsilon = estimate_scale(self, tol=tol, cut_off=self.cut_off, kmin=kmin)
 
         if result_scaling != 1:
@@ -137,20 +169,26 @@ class PCManifold(np.ndarray):
         return cut_off, epsilon
 
 
-def subsample(pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None, randomized=False):
+def subsample(
+    pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None, randomized=False
+):
     """
     Returns a new PCManifold that has a converged subsampling of the given points.
     randomized: False (default, will subsample iteratively) True (will randomly pick indices uniformly. Very fast)
     """
 
     if not isinstance(pcm, PCManifold):
-        raise TypeError("point cloud not valid")  # TODO: for now enforce that we deal only with a PCM
+        raise TypeError(
+            "point cloud not valid"
+        )  # TODO: for now enforce that we deal only with a PCM
 
     if min_distance is None:
         min_distance = pcm.cut_off / 2
 
     if min_distance is None:
-        raise ValueError("cut_off cannot be None. Either provide in function or PCManifold.")
+        raise ValueError(
+            "cut_off cannot be None. Either provide in function or PCManifold."
+        )
 
     if random_state is not None:
         np.random.seed(random_state)
@@ -174,10 +212,13 @@ def subsample(pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None
         for iteration_indices in indices_splits[1:]:
             iteration_points = pcm[iteration_indices, :]
 
-            distances = compute_distance_matrix(X=subsample_points, Y=iteration_points,
-                                                cut_off=min_distance,
-                                                metric="euclidean",
-                                                backend="scipy.kdtree")
+            distances = compute_distance_matrix(
+                X=subsample_points,
+                Y=iteration_points,
+                cut_off=min_distance,
+                metric="euclidean",
+                backend="scipy.kdtree",
+            )
 
             cond_1 = distances.getnnz(axis=0) == 0
             cond_2 = distances.min(axis=0).toarray().ravel() >= min_distance
@@ -195,7 +236,10 @@ def subsample(pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None
             subsample_indices = np.append(subsample_indices, current_indices_selected)
             subsample_points = pcm[subsample_indices, :]
 
-    return PCManifold(subsample_points, kernel=copy.deepcopy(pcm.kernel)), subsample_indices
+    return (
+        PCManifold(subsample_points, kernel=copy.deepcopy(pcm.kernel)),
+        subsample_indices,
+    )
 
 
 def remove_outliers(pcm, kmin, cut_off):
@@ -206,7 +250,9 @@ def remove_outliers(pcm, kmin, cut_off):
 
     assert kmin > 0
 
-    distance_matrix = compute_distance_matrix(pcm, metric="sqeuclidean", cut_off=cut_off, backend="brute")
+    distance_matrix = compute_distance_matrix(
+        pcm, metric="sqeuclidean", cut_off=cut_off, backend="brute"
+    )
 
     if scipy.sparse.issparse(distance_matrix):
         mask_non_outliers = distance_matrix.getnnz(axis=1) >= kmin
@@ -228,7 +274,9 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), scale_tests=20):
 
     np.random.seed(1)
 
-    scales = np.exp(np.linspace(np.log(scale_range[0]), np.log(scale_range[1]), scale_tests))
+    scales = np.exp(
+        np.linspace(np.log(scale_range[0]), np.log(scale_range[1]), scale_tests)
+    )
     scale_sum = np.zeros_like(scales)
 
     distance_matrix = pcm.compute_kernel_matrix()
@@ -248,26 +296,36 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), scale_tests=20):
         kernel_matrix_scale = pcm.kernel.eval(distance_matrix=distance_matrix)
         kernel_sum = kernel_matrix_scale.sum()
 
-        scale_sum[i] = (kernel_sum / (kernel_matrix_scale.shape[0] ** 2))
+        scale_sum[i] = kernel_sum / (kernel_matrix_scale.shape[0] ** 2)
 
     # ax.loglog(scales, scale_sum, 'k-', label='points')
     pcm.kernel._epsilon = save_eps
 
-    gradient = np.exp(np.gradient(np.log(scale_sum), np.log(scales)[1] - np.log(scales)[0]))
-    ax.semilogx(scales, gradient, 'k-', label='points')
+    gradient = np.exp(
+        np.gradient(np.log(scale_sum), np.log(scales)[1] - np.log(scales)[0])
+    )
+    ax.semilogx(scales, gradient, "k-", label="points")
 
     igmax = np.argmax(gradient)
 
     eps = scales[igmax]
-    dimension = (gradient[igmax] - 1 / 2)
+    dimension = gradient[igmax] - 1 / 2
 
-    ax.semilogx([scales[igmax], scales[igmax]], [np.min(gradient), np.max(gradient)], 'r-',
-                label=r'max at $\epsilon=%.5f$' % (eps))
-    ax.semilogx([np.min(scales), np.max(scales)], [gradient[igmax], gradient[igmax]], 'b-',
-                label=r'dimension $\approx %.1f$' % (dimension))
+    ax.semilogx(
+        [scales[igmax], scales[igmax]],
+        [np.min(gradient), np.max(gradient)],
+        "r-",
+        label=r"max at $\epsilon=%.5f$" % (eps),
+    )
+    ax.semilogx(
+        [np.min(scales), np.max(scales)],
+        [gradient[igmax], gradient[igmax]],
+        "b-",
+        label=r"dimension $\approx %.1f$" % (dimension),
+    )
 
-    ax.set_xlabel(r'$\epsilon$')
-    ax.set_ylabel(r'$\mathbb{E}_\epsilon$')
+    ax.set_xlabel(r"$\epsilon$")
+    ax.set_ylabel(r"$\mathbb{E}_\epsilon$")
     # ax.loglog(scales, 1*scales, 'r--', label='dim=1')
     # ax.loglog(scales, 2*scales, 'g--', label='dim=2')
     ax.legend()
@@ -278,6 +336,7 @@ if __name__ == "__main__":
     # Small test cases
 
     import logging
+
     logging.basicConfig(level=logging.INFO)
 
     array = np.random.rand(5, 5)
@@ -286,7 +345,6 @@ if __name__ == "__main__":
     print(pcm.compute_distance_matrix())
 
     exit()
-
 
     print("")
     cdist_cmp_array = np.random.rand(3, 5)
@@ -303,4 +361,8 @@ if __name__ == "__main__":
     print(pcm_subsample.compute_distance_matrix(metric="mahalanobis"))
 
     # cdist case
-    print(pcm_subsample.compute_distance_matrix(pcm_subsample[0:3, :], metric="mahalanobis"))
+    print(
+        pcm_subsample.compute_distance_matrix(
+            pcm_subsample[0:3, :], metric="mahalanobis"
+        )
+    )

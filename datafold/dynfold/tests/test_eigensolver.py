@@ -29,5 +29,5 @@ class GPUEigensolverTestCase(unittest.TestCase):
         assert np.allclose(matrix @ ev_gpu[1, :], ew_gpu[1] * ev_gpu[1, :])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 
 import logging
 import os
@@ -12,7 +12,6 @@ from datafold.dynfold.diffusion_maps import DiffusionMaps, LocalRegressionSelect
 
 
 class LocalRegressionSelectionTest(unittest.TestCase):
-
     def test_automatic_eigendirection_selection_swiss_roll(self):
         points, color = make_swiss_roll(n_samples=5000, noise=0.01, random_state=1)
         dm = DiffusionMaps(epsilon=2.1, num_eigenpairs=6).fit(points)
@@ -27,7 +26,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
         loc_regress = loc_regress.fit(dm.eigenvectors_)
 
         self.assertTrue(np.isnan(loc_regress.residuals_[0]))
-        self.assertTrue(loc_regress.residuals_[1] == 1.)
+        self.assertTrue(loc_regress.residuals_[1] == 1.0)
         # only starting from 2 because the first two values are trivial
         self.assertTrue(np.argmax(loc_regress.residuals_[2:]) == 3)
 
@@ -49,20 +48,21 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             loc_regress.fit(dmap.eigenvectors_)
 
             self.assertTrue(np.isnan(loc_regress.residuals_[0]))
-            self.assertTrue(loc_regress.residuals_[1] == 1.)  # always first directions
+            self.assertTrue(loc_regress.residuals_[1] == 1.0)  # always first directions
 
             loc_regress.residuals_[0:2] = 0  # setting to zero for easier checking
 
             # from the paper-example we know the position of the next independent eigendirection
             # Paper: Parsimonious Representation of Nonlinear Dynamical Systems Through Manifold Learning: A
             # Chemotaxis Case Study, Dsila et al., page 7     https://arxiv.org/abs/1505.06118v1
-            self.assertEqual(int(xlen + 1), np.argmax(loc_regress.residuals_))  # ignoring the first two trivial cases
+            self.assertEqual(
+                int(xlen + 1), np.argmax(loc_regress.residuals_)
+            )  # ignoring the first two trivial cases
 
             # from pydmap.plot import plot_eigenvectors_n_vs_all
             # import matplotlib.pyplot as plt
             # plot_eigenvectors_n_vs_all(dmap.eigenvectors, 1)
             # plt.show()
-
 
     def test_choose_automatic_parametrization(self):
         # For explanation see "test_automatic_eigendirection_selection_rectangle"
@@ -81,8 +81,12 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             dmap = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
 
-            loc_regress_dim = LocalRegressionSelection(n_subsample=1000, strategy="dim", intrinsic_dim=2)
-            loc_regress_threshold = LocalRegressionSelection(n_subsample=1000, strategy="threshold", regress_threshold=0.9)
+            loc_regress_dim = LocalRegressionSelection(
+                n_subsample=1000, strategy="dim", intrinsic_dim=2
+            )
+            loc_regress_threshold = LocalRegressionSelection(
+                n_subsample=1000, strategy="threshold", regress_threshold=0.9
+            )
 
             actual_dim = loc_regress_dim.fit_transform(dmap.eigenvectors_)
             actual_thresh = loc_regress_threshold.fit_transform(dmap.eigenvectors_)
@@ -93,7 +97,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             nptest.assert_equal(np.sort(indices1), np.array([1, int(xlen + 1)]))
             nptest.assert_equal(np.sort(indices2), np.array([1, int(xlen + 1)]))
 
-            expected = dmap.eigenvectors_[[1, int(xlen+1)], :]
+            expected = dmap.eigenvectors_[[1, int(xlen + 1)], :]
 
             nptest.assert_array_equal(actual_dim, expected)
             nptest.assert_array_equal(actual_thresh, expected)
@@ -117,7 +121,9 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             dmap1 = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
 
-            loc_regress_dim = LocalRegressionSelection(n_subsample=1000, strategy="dim", intrinsic_dim=2)
+            loc_regress_dim = LocalRegressionSelection(
+                n_subsample=1000, strategy="dim", intrinsic_dim=2
+            )
             actual = loc_regress_dim.fit_transform(dmap1.eigenvectors_)
 
             indices_dim = loc_regress_dim.evec_indices_
@@ -130,7 +136,9 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             # -----------------------------------
 
             dmap2 = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
-            loc_regress_thresh = LocalRegressionSelection(n_subsample=1000, strategy="threshold", regress_threshold=0.9)
+            loc_regress_thresh = LocalRegressionSelection(
+                n_subsample=1000, strategy="threshold", regress_threshold=0.9
+            )
 
             actual = loc_regress_thresh.fit_transform(dmap2.eigenvectors_)
             indices_thresh = loc_regress_thresh.evec_indices_
@@ -142,11 +150,11 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    verbose = os.getenv('VERBOSE')
+    verbose = os.getenv("VERBOSE")
     if verbose is not None:
-        logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
-        logging.basicConfig(level=logging.ERROR, format='%(message)s')
+        logging.basicConfig(level=logging.ERROR, format="%(message)s")
 
     # Comment in to run/debug specific tests
 

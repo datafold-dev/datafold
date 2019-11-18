@@ -1,4 +1,3 @@
-
 import unittest
 
 import numpy as np
@@ -20,7 +19,9 @@ class TestTimeSeriesCollectionPlots(unittest.TestCase):
         time = np.tile(np.arange(number_ts), number_ts)
 
         idx = pd.MultiIndex.from_arrays([ids, time])
-        ts = TSCDataFrame(np.random.rand(ids.shape[0], 2), index=idx, columns=["x", "y"])
+        ts = TSCDataFrame(
+            np.random.rand(ids.shape[0], 2), index=idx, columns=["x", "y"]
+        )
 
         ts.tsc.plot_density2d(0, 100, 100, np.eye(2) * 0.005)
 

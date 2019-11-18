@@ -1,8 +1,9 @@
-
 import numpy as np
 
 
-def sort_eigenpairs(eigenvalues, eigenvectors, ascending=False, eigenvector_orientation="column"):
+def sort_eigenpairs(
+    eigenvalues, eigenvectors, ascending=False, eigenvector_orientation="column"
+):
     eigenvector_orientation = eigenvector_orientation.lower()
 
     if eigenvector_orientation not in ["row", "column"]:

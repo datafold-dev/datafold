@@ -6,7 +6,6 @@ import numpy.testing as nptest
 
 
 class TestMathUtils(unittest.TestCase):
-
     def test_diagmat_dot_mat(self):
         diag_elements = np.random.rand(100)
         full_matrix = np.random.rand(100, 100)
@@ -26,5 +25,5 @@ class TestMathUtils(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

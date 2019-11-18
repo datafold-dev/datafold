@@ -2,9 +2,14 @@
 
 """
 
-__all__ = ['cusparseCreate', 'cusparseDestroy', 'cusparseGetVersion',
-           'cusparseCreateMatDescr', 'cusparseDestroyMatDescr',
-           'cusparseDcsrmv']
+__all__ = [
+    "cusparseCreate",
+    "cusparseDestroy",
+    "cusparseGetVersion",
+    "cusparseCreateMatDescr",
+    "cusparseDestroyMatDescr",
+    "cusparseDcsrmv",
+]
 
 
 import ctypes
@@ -28,7 +33,7 @@ class cusparseMatDescr(ctypes.Structure):
 cusparseMatDescr_t = ctypes.POINTER(cusparseMatDescr)
 
 
-libcusparse = ctypes.cdll.LoadLibrary(ctypes.util.find_library('cusparse'))
+libcusparse = ctypes.cdll.LoadLibrary(ctypes.util.find_library("cusparse"))
 
 libcusparse.cusparseCreate.restype = int
 libcusparse.cusparseCreate.argtypes = [ctypes.POINTER(cusparseHandle_t)]
@@ -46,19 +51,21 @@ libcusparse.cusparseDestroyMatDescr.restype = int
 libcusparse.cusparseDestroyMatDescr.argtypes = [cusparseMatDescr_t]
 
 libcusparse.cusparseDcsrmv.restype = int
-libcusparse.cusparseDcsrmv.argtypes = [cusparseHandle_t,
-                                       ctypes.c_int,
-                                       ctypes.c_int,
-                                       ctypes.c_int,
-                                       ctypes.c_int,
-                                       ctypes.c_void_p,
-                                       cusparseMatDescr_t,
-                                       ctypes.c_ulong,
-                                       ctypes.c_ulong,
-                                       ctypes.c_ulong,
-                                       ctypes.c_ulong,
-                                       ctypes.c_void_p,
-                                       ctypes.c_ulong]
+libcusparse.cusparseDcsrmv.argtypes = [
+    cusparseHandle_t,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_void_p,
+    cusparseMatDescr_t,
+    ctypes.c_ulong,
+    ctypes.c_ulong,
+    ctypes.c_ulong,
+    ctypes.c_ulong,
+    ctypes.c_void_p,
+    ctypes.c_ulong,
+]
 
 
 class cusparseOperation(IntEnum):
@@ -69,17 +76,18 @@ class cusparseOperation(IntEnum):
 
 class cusparseError(Exception):
     """Error in call to cuSPARSE library."""
+
     error_message = {
-        0: 'The operation completed successfully.',
-        1: 'The cuSPARSE library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSPARSE routine, or an error in the hardware setup.',
-        2: 'Resource allocation failed inside the cuSPARSE library. This is usually caused by a cudaMalloc() failure.',
-        3: 'An unsupported value or parameter was passed to the function (a negative vector size, for example).',
-        4: 'The function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision.',
-        5: 'An access to GPU memory space failed, which is usually caused by a failure to bind a texture.',
-        6: 'The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.',
-        7: 'An internal cuSPARSE operation failed. This error is usually caused by a cudaMemcpyAsync() failure.',
-        8: 'The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function.',
-        9: 'CUSPARSE_STATUS_ZERO_PIVOT.'
+        0: "The operation completed successfully.",
+        1: "The cuSPARSE library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSPARSE routine, or an error in the hardware setup.",
+        2: "Resource allocation failed inside the cuSPARSE library. This is usually caused by a cudaMalloc() failure.",
+        3: "An unsupported value or parameter was passed to the function (a negative vector size, for example).",
+        4: "The function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision.",
+        5: "An access to GPU memory space failed, which is usually caused by a failure to bind a texture.",
+        6: "The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.",
+        7: "An internal cuSPARSE operation failed. This error is usually caused by a cudaMemcpyAsync() failure.",
+        8: "The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function.",
+        9: "CUSPARSE_STATUS_ZERO_PIVOT.",
     }
 
     def __init__(self, status):
@@ -133,26 +141,37 @@ def cusparseDestroyMatDescr(descr: cusparseMatDescr_t) -> None:
         raise cusparseError(status)
 
 
-def cusparseDcsrmv(handle: cusparseHandle_t, transA: cusparseOperation,
-                   m: int, n: int, nnz: int, alpha: float,
-                   descrA: cusparseMatDescr_t, csrValA: DeviceNDArray,
-                   csrRowPtrA: DeviceNDArray, csrColIndA: DeviceNDArray,
-                   x: DeviceNDArray, beta:
-                   float, y: DeviceNDArray) -> None:
+def cusparseDcsrmv(
+    handle: cusparseHandle_t,
+    transA: cusparseOperation,
+    m: int,
+    n: int,
+    nnz: int,
+    alpha: float,
+    descrA: cusparseMatDescr_t,
+    csrValA: DeviceNDArray,
+    csrRowPtrA: DeviceNDArray,
+    csrColIndA: DeviceNDArray,
+    x: DeviceNDArray,
+    beta: float,
+    y: DeviceNDArray,
+) -> None:
     alpha_ = ctypes.c_double(alpha)
     beta_ = ctypes.c_double(beta)
-    status = libcusparse.cusparseDcsrmv(handle,
-                                        transA,
-                                        m,
-                                        n,
-                                        nnz,
-                                        ctypes.byref(alpha_),
-                                        descrA,
-                                        csrValA.device_ctypes_pointer,
-                                        csrRowPtrA.device_ctypes_pointer,
-                                        csrColIndA.device_ctypes_pointer,
-                                        x.device_ctypes_pointer,
-                                        ctypes.byref(beta_),
-                                        y.device_ctypes_pointer)
+    status = libcusparse.cusparseDcsrmv(
+        handle,
+        transA,
+        m,
+        n,
+        nnz,
+        ctypes.byref(alpha_),
+        descrA,
+        csrValA.device_ctypes_pointer,
+        csrRowPtrA.device_ctypes_pointer,
+        csrColIndA.device_ctypes_pointer,
+        x.device_ctypes_pointer,
+        ctypes.byref(beta_),
+        y.device_ctypes_pointer,
+    )
     if status != 0:
         raise cusparseError(status)

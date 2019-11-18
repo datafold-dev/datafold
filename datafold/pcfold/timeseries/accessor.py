@@ -7,18 +7,22 @@ import numpy as np
 import pandas as pd
 from scipy.stats import multivariate_normal
 
-from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError, TSCDataFrame
+from datafold.pcfold.timeseries.collection import (
+    TimeSeriesCollectionError,
+    TSCDataFrame,
+)
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
 class TSCollectionMethods(object):
-
     def __init__(self, tsc_df):
 
         # NOTE: cannot call TSCDataFrame(tsc_df) here to transform in case it is a normal DataFrame.
         # This is because the accessor has to know when updating this object.
         if not isinstance(tsc_df, TSCDataFrame):
-            raise ValueError("Can use 'tsc' extension only for type TSCDataFrame (convert before).")
+            raise ValueError(
+                "Can use 'tsc' extension only for type TSCDataFrame (convert before)."
+            )
 
         self._tsc_df = tsc_df
 
@@ -28,13 +32,19 @@ class TSCollectionMethods(object):
         min_time, _ = self._tsc_df.time_interval()
 
         if not self._tsc_df.is_const_dt():
-            raise TimeSeriesCollectionError("To normalize the time index it is required that the time time delta is "
-                                            "constant.")
+            raise TimeSeriesCollectionError(
+                "To normalize the time index it is required that the time time delta is "
+                "constant."
+            )
 
-        convert_times = np.array((convert_times / self._tsc_df.dt) - min_time, dtype=np.int)
+        convert_times = np.array(
+            (convert_times / self._tsc_df.dt) - min_time, dtype=np.int
+        )
         convert_times = pd.Index(convert_times, name=self._tsc_df.index.names[1])
 
-        converted_time_multi_index = pd.MultiIndex.from_arrays([self._tsc_df.index.get_level_values(0), convert_times])
+        converted_time_multi_index = pd.MultiIndex.from_arrays(
+            [self._tsc_df.index.get_level_values(0), convert_times]
+        )
         self._tsc_df.index = converted_time_multi_index
 
         return self._tsc_df
@@ -42,12 +52,17 @@ class TSCollectionMethods(object):
     def shift_matrices(self, snapshot_orientation="column"):
 
         if not self._tsc_df.is_const_dt():
-            raise TimeSeriesCollectionError("Cannot compute shift matrices: Time series are required to have the same "
-                                            "time delta.")
+            raise TimeSeriesCollectionError(
+                "Cannot compute shift matrices: Time series are required to have the same "
+                "time delta."
+            )
 
         ts_counts = self._tsc_df.lengths_time_series
         if isinstance(ts_counts, int):
-            ts_counts = pd.Series(np.ones(self._tsc_df.nr_timeseries, dtype=np.int) * ts_counts, index=self._tsc_df.ids)
+            ts_counts = pd.Series(
+                np.ones(self._tsc_df.nr_timeseries, dtype=np.int) * ts_counts,
+                index=self._tsc_df.ids,
+            )
 
         nr_shift_snapshots = (ts_counts - 1).sum()
         insert_indices = np.append(0, (ts_counts - 1).cumsum().to_numpy())
@@ -71,12 +86,20 @@ class TSCollectionMethods(object):
 
             if snapshot_orientation == "column":
                 # start from 0 and exclude last snapshot
-                shift_left[:, insert_indices[i]:insert_indices[i+1]] = ts_df.iloc[:-1, :].T
+                shift_left[:, insert_indices[i] : insert_indices[i + 1]] = ts_df.iloc[
+                    :-1, :
+                ].T
                 # exclude 0 and go to last snapshot
-                shift_right[:, insert_indices[i]:insert_indices[i+1]] = ts_df.iloc[1:, :].T
+                shift_right[:, insert_indices[i] : insert_indices[i + 1]] = ts_df.iloc[
+                    1:, :
+                ].T
             else:  # "row"
-                shift_left[insert_indices[i]:insert_indices[i + 1], :] = ts_df.iloc[:-1, :]
-                shift_right[insert_indices[i]:insert_indices[i+1], :] = ts_df.iloc[1:, :]
+                shift_left[insert_indices[i] : insert_indices[i + 1], :] = ts_df.iloc[
+                    :-1, :
+                ]
+                shift_right[insert_indices[i] : insert_indices[i + 1], :] = ts_df.iloc[
+                    1:, :
+                ]
 
         return shift_left, shift_right
 
@@ -114,14 +137,20 @@ class TSCollectionMethods(object):
         grid = self._generate_2d_meshgrid(xdim, ydim)
 
         coordinates = list(list(item) for item in df.itertuples(index=False))
-        summed_density_values_as_vector = self._sum_up_density_values_on_grid(grid, coordinates, covariance)
+        summed_density_values_as_vector = self._sum_up_density_values_on_grid(
+            grid, coordinates, covariance
+        )
 
-        reshaped_density_values = summed_density_values_as_vector.reshape(xresolution, yresolution)
+        reshaped_density_values = summed_density_values_as_vector.reshape(
+            xresolution, yresolution
+        )
 
         gridsize = (1, 1)
         ax1 = plt.subplot2grid(gridsize, (0, 0))
 
-        heatmap_plot = ax1.imshow(reshaped_density_values, origin="lower", cmap="seismic")
+        heatmap_plot = ax1.imshow(
+            reshaped_density_values, origin="lower", cmap="seismic"
+        )
 
         ax1.set_xlabel(df.columns[0])
         ax1.set_ylabel(df.columns[1])
@@ -132,8 +161,12 @@ class TSCollectionMethods(object):
         ax1.set_yticks([0, yresolution])
 
         float_precision = 4
-        ax1.set_xticklabels([round(xmin, float_precision), round(xmax, float_precision)])
-        ax1.set_yticklabels([round(ymin, float_precision), round(ymax, float_precision)])
+        ax1.set_xticklabels(
+            [round(xmin, float_precision), round(xmax, float_precision)]
+        )
+        ax1.set_yticklabels(
+            [round(ymin, float_precision), round(ymax, float_precision)]
+        )
 
         return heatmap_plot
 
@@ -152,10 +185,14 @@ class TSCollectionMethods(object):
 
     def _sum_up_density_values_on_grid(self, grid, coordinates, covariance):
         # Evaluate probability density functions of Gaussian bells on grid.
-        normal_distributions_at_given_coordinates = [multivariate_normal(coordinate, cov=covariance) for coordinate in
-                                                     coordinates]
-        evaluated_density_functions_on_grid = [distribution.pdf(grid) for distribution in
-                                               normal_distributions_at_given_coordinates]
+        normal_distributions_at_given_coordinates = [
+            multivariate_normal(coordinate, cov=covariance)
+            for coordinate in coordinates
+        ]
+        evaluated_density_functions_on_grid = [
+            distribution.pdf(grid)
+            for distribution in normal_distributions_at_given_coordinates
+        ]
 
         # Stack all 1D-vectors and sum them up vertically.
         stacked_density_values_on_grid = np.vstack(evaluated_density_functions_on_grid)
@@ -165,21 +202,28 @@ class TSCollectionMethods(object):
 
 
 class TakensEmbedding(object):
-
-    def __init__(self, lag: int, delays: int, frequency: int, time_direction="backward"):
+    def __init__(
+        self, lag: int, delays: int, frequency: int, time_direction="backward"
+    ):
         # TODO: provide fill strategy for edge cases, or remove rows that have a nan?
 
         if lag < 0:
             raise ValueError(f"Lag has to be non-negative. Got lag={lag}")
 
         if delays < 1:
-            raise ValueError(f"delays has to be an integer larger than zero. Got delays={frequency}")
+            raise ValueError(
+                f"delays has to be an integer larger than zero. Got delays={frequency}"
+            )
 
         if frequency < 1:
-            raise ValueError(f"frequency has to be an integer larger than zero. Got frequency={frequency}")
+            raise ValueError(
+                f"frequency has to be an integer larger than zero. Got frequency={frequency}"
+            )
 
         if time_direction not in ["backward", "forward"]:
-            raise ValueError(f"time_direction={time_direction} invalid. Valid choices: {['backward', 'forward']}")
+            raise ValueError(
+                f"time_direction={time_direction} invalid. Valid choices: {['backward', 'forward']}"
+            )
 
         self.lag = lag
         self.delays = delays
@@ -190,7 +234,9 @@ class TakensEmbedding(object):
 
     def _precompute_delay_indices(self):
         # zero delay (original data) is not treated
-        return self.lag + (np.arange(1, (self.delays+1)*self.frequency, self.frequency))
+        return self.lag + (
+            np.arange(1, (self.delays + 1) * self.frequency, self.frequency)
+        )
 
     def _expand_all_delay_columns(self, cols):
         def expand():
@@ -203,14 +249,15 @@ class TakensEmbedding(object):
         return cols.tolist() + list(itertools.chain(*expand()))
 
     def _expand_single_dela_column(self, cols, delay_idx):
-            return list(map(lambda q: "d".join([q, str(delay_idx)]), cols))
+        return list(map(lambda q: "d".join([q, str(delay_idx)]), cols))
 
     def _setup_delayed_timeseries_collection(self, tsc):
         data = np.zeros([tsc.shape[0], tsc.shape[1] * (self.delays + 1)])
         columns = self._expand_all_delay_columns(tsc.columns)
 
-        delayed_timeseries = TSCDataFrame(pd.DataFrame(data, tsc.index, columns),
-                                            qoi_name="time_delayed_qoi")
+        delayed_timeseries = TSCDataFrame(
+            pd.DataFrame(data, tsc.index, columns), qoi_name="time_delayed_qoi"
+        )
 
         delayed_timeseries.loc[:, tsc.columns] = tsc
         return delayed_timeseries
@@ -219,7 +266,9 @@ class TakensEmbedding(object):
         if self.time_direction == "backward":
             shifted_timeseries = timeseries.shift(delay_idx, fill_value=np.nan).copy()
         elif self.time_direction == "forward":
-            shifted_timeseries = timeseries.shift(-1 * delay_idx, fill_value=np.nan).copy()
+            shifted_timeseries = timeseries.shift(
+                -1 * delay_idx, fill_value=np.nan
+            ).copy()
         else:
             raise ValueError(f"time_direction={self.time_direction} not known.")
 
@@ -233,17 +282,21 @@ class TakensEmbedding(object):
         if (tsc.lengths_time_series <= self.delay_indices.max()).any():
             raise TimeSeriesCollectionError(
                 f"Mismatch of delay and time series length. Shortest time series has length "
-                f"{np.array(tsc.lengths_time_series).min()} and maximum delay is {self.delay_indices.max()}")
+                f"{np.array(tsc.lengths_time_series).min()} and maximum delay is {self.delay_indices.max()}"
+            )
 
         delayed_tsc = self._setup_delayed_timeseries_collection(tsc)
 
         for i, ts in tsc.itertimeseries():
             for delay_idx in self.delay_indices:
                 shifted_timeseries = self._shift_timeseries(ts, delay_idx)
-                delayed_tsc.loc[i, shifted_timeseries.columns] = shifted_timeseries.values
+                delayed_tsc.loc[
+                    i, shifted_timeseries.columns
+                ] = shifted_timeseries.values
 
-        #delayed_tsc = delayed_tsc.sort_index(axis=1)
+        # delayed_tsc = delayed_tsc.sort_index(axis=1)
         return delayed_tsc
+
 
 @DeprecationWarning  # TODO: implement if required...
 class TimeFiniteDifference(object):

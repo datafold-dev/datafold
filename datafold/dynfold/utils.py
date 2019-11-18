@@ -2,7 +2,7 @@
 
 """
 
-__all__ = ['coo_tocsr', 'downsample']
+__all__ = ["coo_tocsr", "downsample"]
 
 from typing import Union
 
@@ -30,8 +30,10 @@ def downsample(data: np.ndarray, num_samples: int) -> np.ndarray:
         A total of `num_samples` uniformly randomly sampled data points from `data`.
     """
     if 0 > num_samples >= data.shape[0]:
-        raise ValueError(f"The parameter 'num_samples' has to be larger than zero and smaller or equal to "
-                         f"data.shape[0]={data.shape[0]}.")
+        raise ValueError(
+            f"The parameter 'num_samples' has to be larger than zero and smaller or equal to "
+            f"data.shape[0]={data.shape[0]}."
+        )
 
     indices = np.random.permutation(data.shape[0])[:num_samples]
     return data[indices, :]
@@ -45,6 +47,7 @@ def coo_tocsr(matrix: scipy.sparse.coo_matrix) -> scipy.sparse.csr_matrix:
     for large matrices.
     """
     from scipy.sparse import csr_matrix
+
     if matrix.nnz == 0:
         return csr_matrix(matrix.shape, dtype=matrix.dtype)
 
@@ -59,13 +62,14 @@ def coo_tocsr(matrix: scipy.sparse.coo_matrix) -> scipy.sparse.csr_matrix:
     indices = np.empty_like(row, dtype=idx_dtype)
     data = np.empty_like(matrix.data, dtype=matrix.dtype)
 
-    scipy.sparse._sparsetools.coo_tocsr(m, n, matrix.nnz, row, col, matrix.data, indptr, indices, data)
+    scipy.sparse._sparsetools.coo_tocsr(
+        m, n, matrix.nnz, row, col, matrix.data, indptr, indices, data
+    )
 
     return csr_matrix((data, indices, indptr), shape=matrix.shape)
 
 
-def get_row(matrix: Union[scipy.sparse.coo_matrix, np.ndarray],
-            row: int) -> np.ndarray:
+def get_row(matrix: Union[scipy.sparse.coo_matrix, np.ndarray], row: int) -> np.ndarray:
     """Get a row from a matrix as an array in row shape.
 
     Parameters
