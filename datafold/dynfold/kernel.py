@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 
 import logging
 import sys
@@ -22,7 +22,9 @@ try:
     from pydmap.gpu_eigensolver import eigensolver as gpu_eigsolve
 except ImportError:
     gpu_eigsolve = None
-    SUCCESS_GPU_IMPORT = False   # variable is used to warn user when requesting GPU eigensolver
+    SUCCESS_GPU_IMPORT = (
+        False  # variable is used to warn user when requesting GPU eigensolver
+    )
 else:
     SUCCESS_GPU_IMPORT = True
 
@@ -32,9 +34,18 @@ class NumericalMathError(Exception):
 
 
 class KernelMethod(BaseEstimator):
-
-    def __init__(self, epsilon: float, num_eigenpairs: int, cut_off, is_stochastic: bool, alpha: float,
-                 symmetrize_kernel, use_cuda, dist_backend, dist_backend_kwargs):
+    def __init__(
+        self,
+        epsilon: float,
+        num_eigenpairs: int,
+        cut_off,
+        is_stochastic: bool,
+        alpha: float,
+        symmetrize_kernel,
+        use_cuda,
+        dist_backend,
+        dist_backend_kwargs,
+    ):
 
         super(KernelMethod, self).__init__()
 
@@ -60,7 +71,9 @@ class KernelMethod(BaseEstimator):
     @property
     def kernel_(self):
         if self._kernel is None:
-            raise AttributeError("Subclass is not properly implemented. No attribute self._kernel found.")
+            raise AttributeError(
+                "Subclass is not properly implemented. No attribute self._kernel found."
+            )
         return self._kernel
 
     @property
@@ -92,31 +105,41 @@ class KernelMethod(BaseEstimator):
         if use_cuda:
             assert gpu_eigsolve is not None
             if not SUCCESS_GPU_IMPORT:
-                logging.warning("Importing GPU eigensolver failed, falling back to CPU eigensolver.")
+                logging.warning(
+                    "Importing GPU eigensolver failed, falling back to CPU eigensolver."
+                )
             # Note: the GPU eigensolver is not maintained. It cannot handle the special case of is_symmetric=True
             eigvals, eigevects = gpu_eigsolve(kernel_matrix, self.num_eigenpairs)
         else:
-            eigvals, eigevects = self.cpu_eigensolver(kernel_matrix,
-                                                      is_symmetric=self.kernel_.is_symmetric,
-                                                      k=self.num_eigenpairs,
-                                                      v0=np.ones(kernel_matrix.shape[0]),
-                                                      which="LM",  # largest magnitude
-                                                      sigma=None,
-                                                      tol=1E-13)
+            eigvals, eigevects = self.cpu_eigensolver(
+                kernel_matrix,
+                is_symmetric=self.kernel_.is_symmetric,
+                k=self.num_eigenpairs,
+                v0=np.ones(kernel_matrix.shape[0]),
+                which="LM",  # largest magnitude
+                sigma=None,
+                tol=1e-13,
+            )
 
         if basis_change_matrix is not None:
             # NOTE: this the order has to be reverted here, when eigenvectors are column-wise (TODO: #44)
             eigevects = eigevects @ basis_change_matrix
 
         if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
-            raise NumericalMathError("Eigenvalues have non-negligible imaginary part. First try to use "
-                                     "'symmetrize_kernel=True' (numerically more stable) and only if this is not "
-                                     "working try to adjust epsilon.")
+            raise NumericalMathError(
+                "Eigenvalues have non-negligible imaginary part. First try to use "
+                "'symmetrize_kernel=True' (numerically more stable) and only if this is not "
+                "working try to adjust epsilon."
+            )
 
         return eigvals.real, eigevects.real
 
     @staticmethod
-    def cpu_eigensolver(matrix: Union[np.ndarray, scipy.sparse.csr_matrix], is_symmetric: bool, **solver_kwargs):
+    def cpu_eigensolver(
+        matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
+        is_symmetric: bool,
+        **solver_kwargs,
+    ):
         """Solve eigenvalue problem for sparse matrix.
 
         Parameters
@@ -163,8 +186,14 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
 
     # TODO: check whether this is correct: the kernel is stationary, if stochastic=True and alpha=1
 
-    def __init__(self, epsilon=1.0, length_scale_bounds=(1e-5, 1e5), is_stochastic=True, alpha=1.0,
-                 symmetrize_kernel=False):
+    def __init__(
+        self,
+        epsilon=1.0,
+        length_scale_bounds=(1e-5, 1e5),
+        is_stochastic=True,
+        alpha=1.0,
+        symmetrize_kernel=False,
+    ):
 
         # TODO: not sure if I need this length_scale_bounds?! Check in the scikit learn doc what this is about
 
@@ -173,7 +202,9 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
 
         self.alpha = alpha
         self.is_stochastic = is_stochastic
-        self._internal_rbf_kernel = RadialBasisKernel(epsilon, length_scale_bounds=length_scale_bounds)
+        self._internal_rbf_kernel = RadialBasisKernel(
+            epsilon, length_scale_bounds=length_scale_bounds
+        )
 
         if not is_stochastic or symmetrize_kernel:
             # If not stochastic, the kernel is always symmetric
@@ -191,12 +222,16 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
 
     def _normalize(self, rbf_kernel, is_pdist):
 
-        basis_change_matrix = None  # only required for symmetric kernel, return None if not used
+        basis_change_matrix = (
+            None  # only required for symmetric kernel, return None if not used
+        )
 
         if self.is_stochastic:
 
             if self.alpha > 0:
-                rbf_kernel = normalize_kernel_matrix(rbf_kernel, self.alpha)  # here rbf_kernel is usually non-symmetric
+                rbf_kernel = normalize_kernel_matrix(
+                    rbf_kernel, self.alpha
+                )  # here rbf_kernel is usually non-symmetric
 
             if self.is_symmetric_transform(is_pdist):
                 # increases numerical stability when solving the eigenproblem
@@ -204,12 +239,19 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
                 #          to match the original
                 # -- Note: the similarity transform only works for the is_pdist case (for cdist, there is no symmetric
                 #          kernel in the first place
-                rbf_kernel, basis_change_matrix = conjugate_stochastic_kernel_matrix(rbf_kernel)
+                rbf_kernel, basis_change_matrix = conjugate_stochastic_kernel_matrix(
+                    rbf_kernel
+                )
             else:
                 rbf_kernel = stochastic_kernel_matrix(rbf_kernel)
 
-            assert (self.is_symmetric_transform(is_pdist) and basis_change_matrix is not None) or \
-                   (not self.is_symmetric_transform(is_pdist) and basis_change_matrix is None)
+            assert (
+                self.is_symmetric_transform(is_pdist)
+                and basis_change_matrix is not None
+            ) or (
+                not self.is_symmetric_transform(is_pdist)
+                and basis_change_matrix is None
+            )
 
         if is_pdist and self.is_symmetric:
             assert _check_symmetric(rbf_kernel)
@@ -221,25 +263,38 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         # the symmetry transformation
         return is_pdist and self.is_stochastic and self.is_symmetric
 
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="guess_optimal", **backend_options):
+    def __call__(
+        self,
+        X,
+        Y=None,
+        dist_cut_off=None,
+        dist_backend="guess_optimal",
+        **backend_options,
+    ):
 
         if self.is_stochastic and Y is not None:  # cdist case
             raise NotImplementedError("see issue pydmap/#65")  # TODO
 
-        rbf_kernel = self._internal_rbf_kernel(X, Y=Y,
-                                               dist_cut_off=dist_cut_off,
-                                               dist_backend=dist_backend,
-                                               **backend_options)
+        rbf_kernel = self._internal_rbf_kernel(
+            X,
+            Y=Y,
+            dist_cut_off=dist_cut_off,
+            dist_backend=dist_backend,
+            **backend_options,
+        )
 
         is_pdist = Y is None
         kernel_matrix, basis_change_matrix = self._normalize(rbf_kernel, is_pdist)
 
-        return kernel_matrix, basis_change_matrix  # basis_change_matrix is None if not required for back-transformation
+        return (
+            kernel_matrix,
+            basis_change_matrix,
+        )  # basis_change_matrix is None if not required for back-transformation
 
     def eval(self, distance_matrix):
         if _check_symmetric(distance_matrix) and (np.diag(distance_matrix) == 0).all():
             is_pdist = True
-        else: # cdist
+        else:  # cdist
             is_pdist = False
 
         rbf_kernel = self._internal_rbf_kernel.eval(distance_matrix)
@@ -249,7 +304,9 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
 
     def gradient(self, X, X_eval):
         if self.is_stochastic:
-            raise NotImplementedError("Not implemented, also not sure how it works with stochastic and renormalization")
+            raise NotImplementedError(
+                "Not implemented, also not sure how it works with stochastic and renormalization"
+            )
         else:
             return self._internal_rbf_kernel._gradient(X, X_eval)
 
@@ -260,11 +317,12 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         else:
             # TODO: Most likely it is required to compute the full kernel self(X, X) and then take the diag.
             #  However, there are more options required now (such as cut_off, etc.)
-            raise NotImplementedError("This case a bit more complicated. Also not sure if this is required.")
+            raise NotImplementedError(
+                "This case a bit more complicated. Also not sure if this is required."
+            )
 
 
 class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
-
     def __init__(self, epsilon, k, expected_dim, beta, symmetrize_kernel):
         if expected_dim <= 0 and not isinstance(expected_dim, numbers.Integral):
             raise ValueError("expected_dim has to be a non-negative integer.")
@@ -286,21 +344,35 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
             self.is_symmetric = False
 
         self.alpha = -self.expected_dim / 4
-        c2 = 1 / 2 - 2 * self.alpha + 2 * self.expected_dim * self.alpha + self.expected_dim * self.beta / 2 + self.beta
+        c2 = (
+            1 / 2
+            - 2 * self.alpha
+            + 2 * self.expected_dim * self.alpha
+            + self.expected_dim * self.beta / 2
+            + self.beta
+        )
 
         if c2 >= 0:
-            raise ValueError("Theory requires c2 to be negative:\n"
-                             "c2 = 1/2 - 2 * alpha + 2 * expected_dim * alpha + expected_dim * beta/2 + beta \n"
-                            f"but is {c2}")
+            raise ValueError(
+                "Theory requires c2 to be negative:\n"
+                "c2 = 1/2 - 2 * alpha + 2 * expected_dim * alpha + expected_dim * beta/2 + beta \n"
+                f"but is {c2}"
+            )
 
     def _compute_rho0(self, distance_matrix):
 
         nr_samples = distance_matrix.shape[1]
 
-        MODE = 1  # both modes are equivalent, MODE=1 allows to easier compare with ref3.
+        MODE = (
+            1  # both modes are equivalent, MODE=1 allows to easier compare with ref3.
+        )
         if MODE == 1:  # according to Berry Code
-            distance_matrix = np.sort(np.sqrt(distance_matrix), axis=1)[:, :self.k]  # keep only nearest neighbors
-            rho0 = np.sqrt(np.mean(distance_matrix[:, 1:] ** 2, axis=1))  # like in berry code.
+            distance_matrix = np.sort(np.sqrt(distance_matrix), axis=1)[
+                :, : self.k
+            ]  # keep only nearest neighbors
+            rho0 = np.sqrt(
+                np.mean(distance_matrix[:, 1:] ** 2, axis=1)
+            )  # like in berry code.
         elif MODE == 2:  # more performant if required
             if self.k < nr_samples:
                 # TODO: have to revert setting the inf
@@ -308,14 +380,18 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
                 #   -> set to inf
                 #   -> after computation set all infs back to zero
                 #   -> this is also very similar to continous-nn in PCManifold
-                np.fill_diagonal(distance_matrix, np.inf)  # this allows to ignore the trivial distance=0 to itself
+                np.fill_diagonal(
+                    distance_matrix, np.inf
+                )  # this allows to ignore the trivial distance=0 to itself
                 distance_matrix.partition(self.k, axis=1)
-                distance_matrix = np.sort(distance_matrix[:, :self.k], axis=1)
+                distance_matrix = np.sort(distance_matrix[:, : self.k], axis=1)
                 distance_matrix = distance_matrix * distance_matrix
             else:  # self.k == self.N
                 np.fill_diagonal(distance_matrix, np.nan)
                 bool_mask = ~np.diag(np.ones(nr_samples)).astype(np.bool)
-                distance_matrix = distance_matrix[bool_mask].reshape(distance_matrix.shape[0], distance_matrix.shape[1] - 1)
+                distance_matrix = distance_matrix[bool_mask].reshape(
+                    distance_matrix.shape[0], distance_matrix.shape[1] - 1
+                )
 
             # experimental: ---------------------------------------------------------------------------------
             # paper: in var-bw paper (ref2) pdfp. 7
@@ -334,26 +410,37 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         meanrho0 = np.mean(rho0)
         rho0tilde = rho0 / meanrho0
 
-        eps0 = meanrho0 ** 2  # TODO: eps0 could also be optimized (see Berry Code + paper ref2)
+        eps0 = (
+            meanrho0 ** 2
+        )  # TODO: eps0 could also be optimized (see Berry Code + paper ref2)
 
-        expon_matrix = _symmetric_matrix_division(matrix=-distance_matrix, vec=rho0tilde, scalar=2 * eps0)
+        expon_matrix = _symmetric_matrix_division(
+            matrix=-distance_matrix, vec=rho0tilde, scalar=2 * eps0
+        )
         assert _check_symmetric(expon_matrix)
 
         nr_samples = distance_matrix.shape[0]
 
         # according to eq. (10) in ref1
-        q0 = np.power(2 * np.pi * eps0, - self.expected_dim / 2) / (np.power(rho0, self.expected_dim) * nr_samples) \
-             * np.sum(np.exp(expon_matrix), axis=1)
+        q0 = (
+            np.power(2 * np.pi * eps0, -self.expected_dim / 2)
+            / (np.power(rho0, self.expected_dim) * nr_samples)
+            * np.sum(np.exp(expon_matrix), axis=1)
+        )
 
         return q0
 
     def _compute_rho(self, q0):
         rho = np.power(q0, self.beta)
-        rho = rho / np.mean(rho)  # Division by mean is not in papers, but in berry code (ref3)
+        rho = rho / np.mean(
+            rho
+        )  # Division by mean is not in papers, but in berry code (ref3)
         return rho
 
     def _compute_kernel_eps_s(self, distance_matrix, rho):
-        expon_matrix = _symmetric_matrix_division(matrix=-distance_matrix, vec=rho, scalar=4 * self.epsilon)
+        expon_matrix = _symmetric_matrix_division(
+            matrix=-distance_matrix, vec=rho, scalar=4 * self.epsilon
+        )
         kernel_eps_s = np.exp(expon_matrix)
         assert _check_symmetric(kernel_eps_s)
         return kernel_eps_s
@@ -364,7 +451,9 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         return q_eps_s
 
     def _compute_kernel_eps_alpha_s(self, kernel_eps_s, q_eps_s):
-        kernel_eps_alpha_s = _symmetric_matrix_division(matrix=kernel_eps_s, vec=np.power(q_eps_s, self.alpha))
+        kernel_eps_alpha_s = _symmetric_matrix_division(
+            matrix=kernel_eps_s, vec=np.power(q_eps_s, self.alpha)
+        )
         assert _check_symmetric(kernel_eps_alpha_s)
 
         return kernel_eps_alpha_s
@@ -384,19 +473,28 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
     def _compute_matrix_l_conjugate(self, kernel_eps_alpha_s, rho, q_eps_alpha_s):
 
         basis_change_matrix = self._compute_matrix_s_inv(rho, q_eps_alpha_s)
-        #p_sq_inv = scipy.sparse.spdiags(1 / (rho ** 2), diags=0, m=basis_change_matrix.shape[0], n=basis_change_matrix.shape[1])
+        # p_sq_inv = scipy.sparse.spdiags(1 / (rho ** 2), diags=0, m=basis_change_matrix.shape[0], n=basis_change_matrix.shape[1])
         p_sq_inv = np.diag(np.reciprocal(np.square(rho)))
 
         # as described in paper, but more prone to numerical issues:
         # mat = 1/self.eps * (basis_change_matrix @ kernel_eps_alpha_s @ basis_change_matrix - p_sq_inv)
         # mat = (basis_change_matrix @ kernel_eps_alpha_s @ basis_change_matrix - p_sq_inv)
 
-        matrix_l_hat = basis_change_matrix @ kernel_eps_alpha_s @ basis_change_matrix - \
-                       (p_sq_inv - np.eye(kernel_eps_alpha_s.shape[0]))
+        matrix_l_hat = (
+            basis_change_matrix @ kernel_eps_alpha_s @ basis_change_matrix
+            - (p_sq_inv - np.eye(kernel_eps_alpha_s.shape[0]))
+        )
 
-        return matrix_l_hat, basis_change_matrix   # matrix_l_hat conjugate kernel matrix
+        return matrix_l_hat, basis_change_matrix  # matrix_l_hat conjugate kernel matrix
 
-    def __call__(self, X, Y=None, dist_cut_off=None, dist_backend="guess_optimal", **backend_options):
+    def __call__(
+        self,
+        X,
+        Y=None,
+        dist_cut_off=None,
+        dist_backend="guess_optimal",
+        **backend_options,
+    ):
 
         if dist_cut_off is not None and not np.isinf(dist_cut_off):
             raise NotImplementedError("Handling sparsity is currently not implemented!")
@@ -405,25 +503,42 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
             raise NotImplementedError("cdist case is currently not implemented!")
 
         if self.k > X.shape[0]:
-            raise ValueError(f"nr of nearest neighbors (self.k={self.k}) is larger than number of samples (={X.shape[0]})")
+            raise ValueError(
+                f"nr of nearest neighbors (self.k={self.k}) is larger than number of samples (={X.shape[0]})"
+            )
 
-        distance_matrix = compute_distance_matrix(X, Y,
-                                                  metric="sqeuclidean",
-                                                  cut_off=dist_cut_off,
-                                                  backend=dist_backend,
-                                                  **backend_options)
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="sqeuclidean",
+            cut_off=dist_cut_off,
+            backend=dist_backend,
+            **backend_options,
+        )
 
-        kernel_matrix, basis_change_matrix, rho0, rho, q0, q_eps_s = self.eval(distance_matrix)
+        kernel_matrix, basis_change_matrix, rho0, rho, q0, q_eps_s = self.eval(
+            distance_matrix
+        )
 
-        return kernel_matrix, basis_change_matrix, rho0, rho, q0, q_eps_s  # TODO: make a return_vectors option?
+        return (
+            kernel_matrix,
+            basis_change_matrix,
+            rho0,
+            rho,
+            q0,
+            q_eps_s,
+        )  # TODO: make a return_vectors option?
 
     def eval(self, distance_matrix):
         if scipy.sparse.issparse(distance_matrix):
-            raise NotImplementedError("Currently the variable bandwidth kernel is only implemented for the dense "
-                                      "distance matrix case.")
+            raise NotImplementedError(
+                "Currently the variable bandwidth kernel is only implemented for the dense "
+                "distance matrix case."
+            )
 
-        assert _check_symmetric(distance_matrix) and (np.diag(distance_matrix) == 0).all(), \
-            "only pdist case supported at the moment"
+        assert (
+            _check_symmetric(distance_matrix) and (np.diag(distance_matrix) == 0).all()
+        ), "only pdist case supported at the moment"
 
         rho0 = self._compute_rho0(distance_matrix)
         q0 = self._compute_q0(distance_matrix, rho0)
@@ -434,16 +549,27 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
 
         if self.is_symmetric:
             q_eps_alpha_s = kernel_eps_alpha_s.sum(axis=1)
-            kernel_matrix, basis_change_matrix = self._compute_matrix_l_conjugate(kernel_eps_alpha_s, rho, q_eps_alpha_s)
+            kernel_matrix, basis_change_matrix = self._compute_matrix_l_conjugate(
+                kernel_eps_alpha_s, rho, q_eps_alpha_s
+            )
         else:
             basis_change_matrix = None
             kernel_matrix = self._compute_matrix_l(kernel_eps_alpha_s, rho)
 
-        return kernel_matrix, basis_change_matrix, rho0, rho, q0, q_eps_s  # TODO: make a return_vectors option?
+        return (
+            kernel_matrix,
+            basis_change_matrix,
+            rho0,
+            rho,
+            q0,
+            q_eps_s,
+        )  # TODO: make a return_vectors option?
 
     def diag(self, X):
         """Implementing abstract function, required by the Kernel interface."""
-        raise NotImplementedError("This case a bit more complicated. Also not sure if this is required.")
+        raise NotImplementedError(
+            "This case a bit more complicated. Also not sure if this is required."
+        )
 
 
 def normalize_kernel_matrix(kernel_matrix, alpha):
@@ -470,12 +596,14 @@ def normalize_kernel_matrix(kernel_matrix, alpha):
         inv_diag = np.nan_to_num(inv_diag, copy=False)
 
         normalized_kernel = np.multiply(inv_diag[:, np.newaxis], kernel_matrix)
-        normalized_kernel = np.multiply(normalized_kernel, inv_diag, out=normalized_kernel)
+        normalized_kernel = np.multiply(
+            normalized_kernel, inv_diag, out=normalized_kernel
+        )
 
     return normalized_kernel
 
 
-def _check_symmetric(matrix, tol=1E-14):
+def _check_symmetric(matrix, tol=1e-14):
     max_abs_deviation = np.max(np.abs(matrix - matrix.T))
     if max_abs_deviation > tol:
         print(f"WARNING: deviation is {max_abs_deviation}")
@@ -516,12 +644,18 @@ def conjugate_stochastic_kernel_matrix(kernel_matrix):
         # Note: sparse_matrix.sum(axis=1) returns np.matrix -- 'A1' converts the object to a flattened ndarray.
         # basis_change_matrix = scipy.sparse.diags(kernel_matrix.sum(axis=1).A1 ** (-1/2))
         basis_change_matrix = kernel_matrix.sum(axis=1).A1
-        basis_change_matrix = scipy.sparse.diags(np.reciprocal(np.sqrt(basis_change_matrix)))
+        basis_change_matrix = scipy.sparse.diags(
+            np.reciprocal(np.sqrt(basis_change_matrix))
+        )
         kernel_matrix = basis_change_matrix @ kernel_matrix @ basis_change_matrix
     else:  # dense
         division_vec = np.sqrt(kernel_matrix.sum(axis=1))
-        kernel_matrix = _symmetric_matrix_division(np.copy(kernel_matrix), vec=division_vec)
-        basis_change_matrix = scipy.sparse.diags(np.reciprocal(division_vec, out=division_vec))
+        kernel_matrix = _symmetric_matrix_division(
+            np.copy(kernel_matrix), vec=division_vec
+        )
+        basis_change_matrix = scipy.sparse.diags(
+            np.reciprocal(division_vec, out=division_vec)
+        )
 
     return kernel_matrix, basis_change_matrix
 

@@ -9,7 +9,6 @@ from datafold.pcfold.distance import *
 
 
 class TestContinuousDistance(unittest.TestCase):
-
     def setUp(self) -> None:
         np.random.seed(1)
         example_matrix = np.random.permutation(np.arange(1, 101, 1))
@@ -35,8 +34,13 @@ class TestContinuousDistance(unittest.TestCase):
         get_k_smallest_element_value(dense_dist_mat, 3)
         get_k_smallest_element_value(sparse_dist_mat, 3)
 
-        nptest.assert_array_equal(dense_dist_mat, compute_distance_matrix(self.example_matrix))
-        nptest.assert_array_equal(sparse_dist_mat.toarray(), compute_distance_matrix(self.example_matrix, cut_off=150).toarray())
+        nptest.assert_array_equal(
+            dense_dist_mat, compute_distance_matrix(self.example_matrix)
+        )
+        nptest.assert_array_equal(
+            sparse_dist_mat.toarray(),
+            compute_distance_matrix(self.example_matrix, cut_off=150).toarray(),
+        )
 
     def test_k_smallest03(self):
         # sanity test for pdist and ignore zeros and k=0 should always be 0
@@ -44,8 +48,12 @@ class TestContinuousDistance(unittest.TestCase):
         dense_dist_mat = compute_distance_matrix(self.example_matrix)
         sparse_dist_mat = compute_distance_matrix(self.example_matrix, cut_off=150)
 
-        dense_actual = get_k_smallest_element_value(dense_dist_mat, 0, ignore_zeros=False)
-        sparse_actual = get_k_smallest_element_value(sparse_dist_mat, 0, ignore_zeros=False)
+        dense_actual = get_k_smallest_element_value(
+            dense_dist_mat, 0, ignore_zeros=False
+        )
+        sparse_actual = get_k_smallest_element_value(
+            sparse_dist_mat, 0, ignore_zeros=False
+        )
 
         expected = dense_dist_mat.min(axis=1)  # self is always zero
 
@@ -58,8 +66,11 @@ class TestContinuousDistance(unittest.TestCase):
         perm_indices_all = np.random.permutation(np.arange(n_points))
 
         # only dense case
-        distance_matrix = compute_distance_matrix(self.example_matrix[perm_indices_all[:3], :], self.example_matrix,
-                                                  metric="euclidean")
+        distance_matrix = compute_distance_matrix(
+            self.example_matrix[perm_indices_all[:3], :],
+            self.example_matrix,
+            metric="euclidean",
+        )
 
         sorted_distance_matrix = np.sort(distance_matrix, axis=1)
         kmin = 2
@@ -80,7 +91,9 @@ class TestContinuousDistance(unittest.TestCase):
             res = np.zeros((_mat_sp.shape[0],))
             for i in range(_mat_sp.shape[0]):
                 r = _mat_sp.getrow(i).data
-                r = r[r != 0]  # added to legacy code to make sure zeros are completely ignored
+                r = r[
+                    r != 0
+                ]  # added to legacy code to make sure zeros are completely ignored
 
                 if len(r) <= k:
                     res[i] = default
@@ -106,23 +119,26 @@ class TestContinuousDistance(unittest.TestCase):
     def test_continuous_nn(self):
         kmin = 3  # magic number  # TODO: make as a parameter?
         tol = 1
-        distance_matrix = compute_distance_matrix(X=self.example_matrix, metric="euclidean", cut_off=150)
+        distance_matrix = compute_distance_matrix(
+            X=self.example_matrix, metric="euclidean", cut_off=150
+        )
 
         def legacy_code_continuous_nn(dmat, k, tolerance):
-
             def get_kth_largest_in_row(_mat_sp, k, default=0):
                 """Returns kth largest element of every row, k is zero based, and zeros in the matrix are ignored """
                 res = np.zeros((_mat_sp.shape[0],))
                 for i in range(_mat_sp.shape[0]):
                     r = _mat_sp.getrow(i).data
-                    r = r[r != 0]  # added to legacy code, to make sure zeros are ignored
+                    r = r[
+                        r != 0
+                    ]  # added to legacy code, to make sure zeros are ignored
                     if len(r) <= k:
                         res[i] = default
                     else:
                         res[i] = np.sort(r)[k]
                 return res
 
-            xk = (1. / np.array(get_kth_largest_in_row(dmat, k, 1 / tolerance)))
+            xk = 1.0 / np.array(get_kth_largest_in_row(dmat, k, 1 / tolerance))
             xk_inv_sp = scipy.sparse.dia_matrix((xk, 0), (xk.shape[0], xk.shape[0]))
 
             dists_sp = dmat.copy()
@@ -136,12 +152,15 @@ class TestContinuousDistance(unittest.TestCase):
             return dists_sp
 
         distance_matrix_expected = legacy_code_continuous_nn(distance_matrix, kmin, tol)
-        distance_matrix_actual = apply_continuous_nearest_neighbor(distance_matrix, kmin=kmin, tol=1)
-        nptest.assert_array_equal(distance_matrix_expected.toarray(), distance_matrix_actual.toarray())
+        distance_matrix_actual = apply_continuous_nearest_neighbor(
+            distance_matrix, kmin=kmin, tol=1
+        )
+        nptest.assert_array_equal(
+            distance_matrix_expected.toarray(), distance_matrix_actual.toarray()
+        )
 
 
 class TestDistAlgorithms(unittest.TestCase):
-
     def setUp(self) -> None:
         self.data_X = np.random.rand(500, 100)
         self.data_Y = np.random.rand(300, 100)
@@ -159,12 +178,19 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(X=self.data_X, metric=metric, cut_off=None, kmin=0, tol=1,
-                                                 backend=algo.NAME, **backend_options)
+                actual = compute_distance_matrix(
+                    X=self.data_X,
+                    metric=metric,
+                    cut_off=None,
+                    kmin=0,
+                    tol=1,
+                    backend=algo.NAME,
+                    **backend_options,
+                )
 
                 try:
                     self.assertIsInstance(actual, np.ndarray)
-                    nptest.assert_allclose(actual, expected, atol=1E-15, rtol=1E-14)
+                    nptest.assert_allclose(actual, expected, atol=1e-15, rtol=1e-14)
                 except AssertionError as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
@@ -183,11 +209,19 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(X=self.data_X, Y=self.data_Y, metric=metric, cut_off=None, kmin=0,
-                                                 tol=1, backend=algo.NAME, **backend_options)
+                actual = compute_distance_matrix(
+                    X=self.data_X,
+                    Y=self.data_Y,
+                    metric=metric,
+                    cut_off=None,
+                    kmin=0,
+                    tol=1,
+                    backend=algo.NAME,
+                    **backend_options,
+                )
                 try:
                     self.assertIsInstance(actual, np.ndarray)
-                    nptest.assert_allclose(actual, expected, atol=1E-15, rtol=1E-14)
+                    nptest.assert_allclose(actual, expected, atol=1e-15, rtol=1e-14)
                 except AssertionError as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
@@ -206,18 +240,29 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(X=self.data_X, metric=metric, cut_off=cut_off, kmin=0, tol=1,
-                                                 backend=algo.NAME, **backend_options)
+                actual = compute_distance_matrix(
+                    X=self.data_X,
+                    metric=metric,
+                    cut_off=cut_off,
+                    kmin=0,
+                    tol=1,
+                    backend=algo.NAME,
+                    **backend_options,
+                )
                 try:
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
-                    nptest.assert_allclose(actual.toarray(), expected, atol=1E-15, rtol=1E-14)
+                    nptest.assert_allclose(
+                        actual.toarray(), expected, atol=1e-15, rtol=1e-14
+                    )
                 except AssertionError as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
 
     def test_cdist_sparse(self):
         backend_options = {}
-        expected = cdist(self.data_Y, self.data_X)  # See also comment in 'test_cdist_dense'
+        expected = cdist(
+            self.data_Y, self.data_X
+        )  # See also comment in 'test_cdist_dense'
         cut_off = np.median(expected)
 
         expected[expected > cut_off] = 0
@@ -228,11 +273,21 @@ class TestDistAlgorithms(unittest.TestCase):
                 expected = np.square(expected)
 
             for algo in self.algos:
-                actual = compute_distance_matrix(X=self.data_X, Y=self.data_Y, metric=metric, cut_off=cut_off, kmin=0,
-                                                 tol=1, backend=algo.NAME, **backend_options)
+                actual = compute_distance_matrix(
+                    X=self.data_X,
+                    Y=self.data_Y,
+                    metric=metric,
+                    cut_off=cut_off,
+                    kmin=0,
+                    tol=1,
+                    backend=algo.NAME,
+                    **backend_options,
+                )
                 try:
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
-                    nptest.assert_allclose(actual.toarray(), expected, atol=1E-15, rtol=1E-14)
+                    nptest.assert_allclose(
+                        actual.toarray(), expected, atol=1e-15, rtol=1e-14
+                    )
                 except AssertionError as e:
                     print(f"{algo.NAME} failed")
                     raise e
@@ -255,11 +310,20 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(X=self.data_X, metric=metric, cut_off=cut_off, kmin=0, tol=1,
-                                                 backend=algo.NAME, **backend_options)
+                actual = compute_distance_matrix(
+                    X=self.data_X,
+                    metric=metric,
+                    cut_off=cut_off,
+                    kmin=0,
+                    tol=1,
+                    backend=algo.NAME,
+                    **backend_options,
+                )
                 try:
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
-                    nptest.assert_allclose(expected.data, actual.data, atol=1E-15, rtol=1E-14)
+                    nptest.assert_allclose(
+                        expected.data, actual.data, atol=1e-15, rtol=1e-14
+                    )
                 except AssertionError as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
@@ -286,11 +350,21 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(X=self.data_X, Y=data_Y, metric=metric, cut_off=cut_off, kmin=0, tol=1,
-                                                 backend=algo.NAME, **backend_options)
+                actual = compute_distance_matrix(
+                    X=self.data_X,
+                    Y=data_Y,
+                    metric=metric,
+                    cut_off=cut_off,
+                    kmin=0,
+                    tol=1,
+                    backend=algo.NAME,
+                    **backend_options,
+                )
                 try:
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
-                    nptest.assert_allclose(actual.data, expected.data, atol=1E-15, rtol=1E-14)
+                    nptest.assert_allclose(
+                        actual.data, expected.data, atol=1e-15, rtol=1e-14
+                    )
                 except AssertionError as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e

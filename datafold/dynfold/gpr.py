@@ -15,6 +15,7 @@ __credits__ = ["n/a"]
 
 # TODO: make GaussienRegression also a KernelMethod and adapt to scikit-learn interface
 
+
 class PCMGPRegression(object):
     """
     Gaussian Process Regression on the point cloud manifold.
@@ -40,13 +41,24 @@ class PCMGPRegression(object):
         gp_kernel = pcm.compute_kernel_matrix()
         sgpk = gp_kernel  # scipy.linalg.fractional_matrix_power(gp_kernel @ gp_kernel.T, 1/2) # make it spd
 
-        gp_chol = np.linalg.cholesky(sgpk + output_noise_std * np.identity(gp_kernel.shape[0]))
+        gp_chol = np.linalg.cholesky(
+            sgpk + output_noise_std * np.identity(gp_kernel.shape[0])
+        )
 
-        u = np.random.randn(pcm.shape[0], n_functions)  # TODO: look this up, what is "u"?
+        u = np.random.randn(
+            pcm.shape[0], n_functions
+        )  # TODO: look this up, what is "u"?
         function_samples = gp_chol @ u
         return function_samples
 
-    def regression(self, fx, regression_scale=1, solver_tolerance=1e-6, sigma=1e-5, tikhonov_regularization=False):
+    def regression(
+        self,
+        fx,
+        regression_scale=1,
+        solver_tolerance=1e-6,
+        sigma=1e-5,
+        tikhonov_regularization=False,
+    ):
         """
         regresses the function values in (N x d),
         and returns the vector (k(D,D')^{-1}fx).
@@ -56,12 +68,17 @@ class PCMGPRegression(object):
         self._pcm.kernel.epsilon = self._regression_scale
 
         if tikhonov_regularization:
-            self._kernel_matrix = self._pcm.compute_kernel_matrix()  # TODO: could be dense/sparse?
+            self._kernel_matrix = (
+                self._pcm.compute_kernel_matrix()
+            )  # TODO: could be dense/sparse?
 
-            self._kernel_matrix = self._kernel_matrix.diagonal() + \
-                                  sigma ** 2 * scipy.sparse.identity(self._kernel_matrix.shape[0])
+            self._kernel_matrix = self._kernel_matrix.diagonal() + sigma ** 2 * scipy.sparse.identity(
+                self._kernel_matrix.shape[0]
+            )
 
-            self.__kernel_matrix_inverse = None  # scipy.sparse.linalg.splu(kernel_matrix)#, \
+            self.__kernel_matrix_inverse = (
+                None  # scipy.sparse.linalg.splu(kernel_matrix)#, \
+            )
             # permc_spec = "NATURAL", \
             # diag_pivot_thresh=0, \
             # options={"SymmetricMode":True})
@@ -74,29 +91,54 @@ class PCMGPRegression(object):
             # self.__kfx = scipy.sparse.linalg.spsolve(kernel_matrix, fx)# self.__kernel_matrix_inverse.solve(fx)
 
             # TODO: maybe write this with a full loop for code-readability, also preallocate the _kfx
-            self._kfx = np.column_stack([scipy.sparse.linalg.lsmr(self._kernel_matrix, fx[:, k], atol=solver_tolerance,
-                                                                  btol=solver_tolerance)[0]
-                                         for k in range(fx.shape[1])])  # self.__kernel_matrix_inverse.solve(fx)
+            self._kfx = np.column_stack(
+                [
+                    scipy.sparse.linalg.lsmr(
+                        self._kernel_matrix,
+                        fx[:, k],
+                        atol=solver_tolerance,
+                        btol=solver_tolerance,
+                    )[0]
+                    for k in range(fx.shape[1])
+                ]
+            )  # self.__kernel_matrix_inverse.solve(fx)
         else:
             self._kernel_matrix = self._pcm.compute_kernel_matrix()
             # kernel_matrix = scipy.sparse.csc_matrix(kernel_matrix + sigma**2 * scipy.sparse.identity(kernel_matrix.shape[0]))
 
-            self._invdiag = scipy.sparse.diags(1.0 / (self._rcond + self._kernel_matrix.sum(axis=1).A.ravel()))
+            self._invdiag = scipy.sparse.diags(
+                1.0 / (self._rcond + self._kernel_matrix.sum(axis=1).A.ravel())
+            )
             self._kernel_matrix = self._invdiag @ self._kernel_matrix
             # invdiag = scipy.sparse.diags(1.0/(self.__rcond+kernel_matrix.sum(axis=1).A.ravel()))
             # kernel_matrix = invdiag @ kernel_matrix
 
             # TODO: the same as above?
-            self._kfx = np.column_stack([scipy.sparse.linalg.lsmr(self._kernel_matrix, fx[:, k],
-                                                                  atol=solver_tolerance, btol=solver_tolerance)[0]
-                                         for k in range(fx.shape[1])])
+            self._kfx = np.column_stack(
+                [
+                    scipy.sparse.linalg.lsmr(
+                        self._kernel_matrix,
+                        fx[:, k],
+                        atol=solver_tolerance,
+                        btol=solver_tolerance,
+                    )[0]
+                    for k in range(fx.shape[1])
+                ]
+            )
 
         self._fx = fx  # store the values for later use
 
         return self._kfx
 
-    def evaluate(self, new_points, use_distances=None, use_kfx=None, return_cov=False, metric=None,
-                 tikhonov_regularization=False):
+    def evaluate(
+        self,
+        new_points,
+        use_distances=None,
+        use_kfx=None,
+        return_cov=False,
+        metric=None,
+        tikhonov_regularization=False,
+    ):
 
         if use_kfx is None and self._kfx is None:
             raise ValueError("must run regression first")
@@ -109,12 +151,17 @@ class PCMGPRegression(object):
 
         if use_distances is None:
             # add a little bit of noise to avoid zero distances to points that are on top of points in self.__points
-            noise = (np.random.rand(new_points.shape[0], self._pcm.shape[1]) - .5) * self._rcond
+            noise = (
+                np.random.rand(new_points.shape[0], self._pcm.shape[1]) - 0.5
+            ) * self._rcond
 
-            distance_matrix = compute_distance_matrix(X=self._pcm, Y=new_points + noise,
-                                                      metric=metric,
-                                                      cut_off=self._pcm.cut_off,
-                                                      backend=self._pcm.dist_backend)
+            distance_matrix = compute_distance_matrix(
+                X=self._pcm,
+                Y=new_points + noise,
+                metric=metric,
+                cut_off=self._pcm.cut_off,
+                backend=self._pcm.dist_backend,
+            )
 
             # distance_matrix = self._pcm.sparse_distance_matrix(Y=new_points + noise, metric=metric)
         else:
@@ -127,11 +174,15 @@ class PCMGPRegression(object):
             mean = np.array(kyx.T.dot(scipy.sparse.csr_matrix(use_kfx)).todense())
         else:
             # add a little bit of noise to avoid zero distances to points that are on top of points in self.__points
-            noise = (np.random.rand(new_points.shape[0], self._pcm.shape[1]) - .5) * self._rcond
+            noise = (
+                np.random.rand(new_points.shape[0], self._pcm.shape[1]) - 0.5
+            ) * self._rcond
             kyx = self._pcm.compute_kernel_matrix(Y=new_points + noise)
 
             # invdiag1 = scipy.sparse.diags(1.0 / (self._rcond + kyx.sum(axis=1).T.ravel()))
-            invdiag2 = scipy.sparse.diags(1.0 / (self._rcond + np.array(kyx.sum(axis=0)).ravel()), offsets=0)
+            invdiag2 = scipy.sparse.diags(
+                1.0 / (self._rcond + np.array(kyx.sum(axis=0)).ravel()), offsets=0
+            )
 
             kyx = kyx @ invdiag2
             # invdiag0 = scipy.sparse.diags(1.0/(self.__rcond+kyx.sum(axis=1).A.ravel()))
@@ -140,8 +191,9 @@ class PCMGPRegression(object):
 
         if return_cov:
 
-            distance_matrix = compute_distance_matrix(X=new_points, metric=metric, cut_off=None, backend="brute",
-                                                      njobs=1)
+            distance_matrix = compute_distance_matrix(
+                X=new_points, metric=metric, cut_off=None, backend="brute", njobs=1
+            )
             kernel_matrix = self._pcm.kernel.eval(distance_matrix).toarray()
 
             v = self.regression(kyx.T)
@@ -157,9 +209,14 @@ class PCMGPRegression(object):
         if lim_scales is None:
             lim_scales = [1e-7, 1]
 
-        scales = np.exp(np.linspace(np.log(lim_scales[0]), np.log(lim_scales[1]), n_samples))
+        scales = np.exp(
+            np.linspace(np.log(lim_scales[0]), np.log(lim_scales[1]), n_samples)
+        )
         lls = np.zeros((n_samples,))
-        testpoints = self._pcm + (np.random.rand(self._pcm.shape[0], self._pcm.shape[1]) - .5) * 1e-4
+        testpoints = (
+            self._pcm
+            + (np.random.rand(self._pcm.shape[0], self._pcm.shape[1]) - 0.5) * 1e-4
+        )
 
         for k in range(n_samples):
             self.regression(fx=fx, regression_scale=scales[k])
@@ -174,7 +231,9 @@ class PCMGPRegression(object):
         # compute the decomposition for fx
 
         if regression_scale is None:
-            regression_scale = 1  # TODO: check, the next line would fail if regression_scale is None
+            regression_scale = (
+                1  # TODO: check, the next line would fail if regression_scale is None
+            )
 
         self.regression(fx, regression_scale * 4)
         # compute the functional part of the log likelihood

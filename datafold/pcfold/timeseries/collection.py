@@ -47,10 +47,16 @@ class TSCDataFrame(pd.DataFrame):
         #   then this needs to be renamed!
 
         if tensor.ndim != 3:
-            raise ValueError("Input tensor has to be of dimension 3. Index (1) denotes the time series, (2) time and "
-                             f"(3) the quantity of interest. Got tensor.ndim={tensor.ndim}")
+            raise ValueError(
+                "Input tensor has to be of dimension 3. Index (1) denotes the time series, (2) time and "
+                f"(3) the quantity of interest. Got tensor.ndim={tensor.ndim}"
+            )
 
-        nr_timeseries, nr_timesteps, nr_qoi = tensor.shape  # depth=time series, row = time, col = qoi
+        (
+            nr_timeseries,
+            nr_timesteps,
+            nr_qoi,
+        ) = tensor.shape  # depth=time series, row = time, col = qoi
 
         time_series_ids = np.arange(nr_timeseries).repeat(nr_timesteps)
 
@@ -64,12 +70,19 @@ class TSCDataFrame(pd.DataFrame):
         return cls(pd.DataFrame(data=data, index=df_index, columns=columns))
 
     @classmethod
-    def from_same_indices_as(cls, indices_from: "TSCDataFrame", values: np.ndarray, except_index=None,
-                             except_columns=None):
+    def from_same_indices_as(
+        cls,
+        indices_from: "TSCDataFrame",
+        values: np.ndarray,
+        except_index=None,
+        except_columns=None,
+    ):
 
         if except_index is not None and except_columns is not None:
-            raise ValueError("'except_index' and 'except_columns' are both given. "
-                             "Cannot copy index or column from existing TSCDataFrame if both is excluded.")
+            raise ValueError(
+                "'except_index' and 'except_columns' are both given. "
+                "Cannot copy index or column from existing TSCDataFrame if both is excluded."
+            )
 
         if except_index is None:
             index = indices_from.index
@@ -103,57 +116,79 @@ class TSCDataFrame(pd.DataFrame):
     def _validate(self):
         if self.index.nlevels != 2:
             # must exactly have two levels [ID, time]
-            raise AttributeError("index.nlevels =! 1. Index has to be a pd.MultiIndex with two levels. "
-                                 "First level: time series ID. "
-                                 f"Second level: time. Got: {self.index.nlevels}")
+            raise AttributeError(
+                "index.nlevels =! 1. Index has to be a pd.MultiIndex with two levels. "
+                "First level: time series ID. "
+                f"Second level: time. Got: {self.index.nlevels}"
+            )
 
         ids_index = self.index.get_level_values(0)
         time_index = self.index.get_level_values(1)
 
         if self.columns.nlevels != 1:
             # must exactly have two levels [ID, time]
-            raise AttributeError(f"columns.nlevels =! 1. Columns has to be single level. "
-                                 f"Got: Columns.nlevels={self.columns.nlevels}")
+            raise AttributeError(
+                f"columns.nlevels =! 1. Columns has to be single level. "
+                f"Got: Columns.nlevels={self.columns.nlevels}"
+            )
 
         if ids_index.dtype != np.int:
             # The ids have to be integer values
-            raise AttributeError("Time series IDs must be of integer value. Got "
-                                 f"self.index.get_level_values(0).dtype={self.index.get_level_values(0).dtype}")
+            raise AttributeError(
+                "Time series IDs must be of integer value. Got "
+                f"self.index.get_level_values(0).dtype={self.index.get_level_values(0).dtype}"
+            )
 
         if (ids_index < 0).any():
             unique_ids = np.unique(ids_index)
             unique_negative_ids = unique_ids[unique_ids < 0]
-            raise AttributeError(f"All time series IDs have to be positive integer values. Got time series ids:"
-                                 f"{unique_negative_ids}")
+            raise AttributeError(
+                f"All time series IDs have to be positive integer values. Got time series ids:"
+                f"{unique_negative_ids}"
+            )
 
-        if time_index.dtype.kind in 'OSU':
-            raise AttributeError(f"time_index has not a numeric dype. Got time_index.dtype={time_index.dtype}")
+        if time_index.dtype.kind in "OSU":
+            raise AttributeError(
+                f"time_index has not a numeric dype. Got time_index.dtype={time_index.dtype}"
+            )
 
         if (time_index < 0).any():
-            raise AttributeError("All time values have to be non-negative. Found values "
-                                 f"{(time_index[time_index < 0])}")
+            raise AttributeError(
+                "All time values have to be non-negative. Found values "
+                f"{(time_index[time_index < 0])}"
+            )
 
         if not (isinstance(self.time_name, str) and isinstance(self.qoi_name, str)):
-            raise AttributeError("Attribute time_name and qoi_name have to be of type str. "
-                                 f"type(self.time_name)={type(self.time_name)} and "
-                                 f"type(self.qoi_name)={type(self.qoi_name)}")
+            raise AttributeError(
+                "Attribute time_name and qoi_name have to be of type str. "
+                f"type(self.time_name)={type(self.time_name)} and "
+                f"type(self.qoi_name)={type(self.qoi_name)}"
+            )
 
-        #if pd.isnull(self.values).any():
+        # if pd.isnull(self.values).any():
         #    raise AttributeError("Contains invalid values (nan or inf).")
 
-        if self.index.names is not None and not (isinstance(self.index.names, list) and len(self.index.names) == 2):
-            raise AttributeError("Provided self.index.names is invalid. Has to be a list of length 2. "
-                                 f"Got self.index.names={self.index.names}")
+        if self.index.names is not None and not (
+            isinstance(self.index.names, list) and len(self.index.names) == 2
+        ):
+            raise AttributeError(
+                "Provided self.index.names is invalid. Has to be a list of length 2. "
+                f"Got self.index.names={self.index.names}"
+            )
 
         if (ids_index.value_counts() <= 1).any():
             unique_ids, ids_time_count = np.unique(ids_index, return_counts=True)
             mask_short_ids = ids_time_count <= 1
-            raise AttributeError("The minimum length of a time series is 2. Some IDs have less entries:"
-                                 f"time series ids={unique_ids[mask_short_ids]} with respective lengths "
-                                 f"{ids_time_count[mask_short_ids]}")
+            raise AttributeError(
+                "The minimum length of a time series is 2. Some IDs have less entries:"
+                f"time series ids={unique_ids[mask_short_ids]} with respective lengths "
+                f"{ids_time_count[mask_short_ids]}"
+            )
 
         if self.index.duplicated().any():
-            raise AttributeError(f"Duplicated indices found: {self.index[self.index.duplicated()].to_numpy()}")
+            raise AttributeError(
+                f"Duplicated indices found: {self.index[self.index.duplicated()].to_numpy()}"
+            )
 
         return True
 
@@ -187,7 +222,9 @@ class TSCDataFrame(pd.DataFrame):
             return int(nr_time_elements.iloc[0])
         else:
             nr_time_elements.index.name = self.ID_NAME
-            nr_time_elements.sort_index(inplace=True)  # seems not to be sorted in the first place.
+            nr_time_elements.sort_index(
+                inplace=True
+            )  # seems not to be sorted in the first place.
             nr_time_elements.name = "counts"
             return nr_time_elements
 
@@ -195,7 +232,9 @@ class TSCDataFrame(pd.DataFrame):
     def loc(self):
         class LocHandler:
             def __init__(self, tsc):
-                self.tsc_as_df = pd.DataFrame(tsc)  # cast for the request back to a DataFrame
+                self.tsc_as_df = pd.DataFrame(
+                    tsc
+                )  # cast for the request back to a DataFrame
 
             def __getitem__(self, item):
                 sliced = self.tsc_as_df.loc[item]
@@ -224,7 +263,9 @@ class TSCDataFrame(pd.DataFrame):
 
         for i, ts in self.itertimeseries():
             if ts.shape[0] == 1:
-                raise TimeSeriesCollectionError("Cannot compute time delta because time series of length 1 exist.")
+                raise TimeSeriesCollectionError(
+                    "Cannot compute time delta because time series of length 1 exist."
+                )
 
             # the rounding to 15 decimals (~ double precision) is required as diff can create numerical noise which
             # can result in a larger set of "unique values"
@@ -292,7 +333,9 @@ class TSCDataFrame(pd.DataFrame):
             raise ValueError(f"ID {ts_id} already present.")
 
         if not isinstance(ts_id, numbers.Integral):
-            raise ValueError("ts_id has to be an integer not present in collection already.")
+            raise ValueError(
+                "ts_id has to be an integer not present in collection already."
+            )
 
         if self.nr_qoi != df.shape[1]:
             raise ValueError("TODO: Write error")  # TODO
@@ -301,10 +344,14 @@ class TSCDataFrame(pd.DataFrame):
             raise ValueError("TODO: Write error")  # TODO
 
         # Add the id to the first level of the MultiIndex
-        df.index = pd.MultiIndex.from_arrays([np.ones(df.shape[0], dtype=np.int)*ts_id, df.index])
+        df.index = pd.MultiIndex.from_arrays(
+            [np.ones(df.shape[0], dtype=np.int) * ts_id, df.index]
+        )
 
         # This call also if everything else is valid.
-        self = pd.concat([self, df], sort=False, axis=0)  # self has to appear first to keep TSCDataFrame type.
+        self = pd.concat(
+            [self, df], sort=False, axis=0
+        )  # self has to appear first to keep TSCDataFrame type.
         return self
 
     def time_interval(self, ts_id=None) -> Tuple[int, int]:
@@ -319,7 +366,9 @@ class TSCDataFrame(pd.DataFrame):
 
     def time_indices(self, require_const_dt=False, unique_values=False):
 
-        time_indices = self.index.levels[1].to_numpy()
+        # The comment-out line does not work, because levels are not update for DF slices:
+        # time_indices = self.index.levels[1].to_numpy()
+        time_indices = np.unique(self.index.get_level_values(1))
 
         if require_const_dt:
             if not self.is_const_dt():
@@ -342,9 +391,13 @@ class TSCDataFrame(pd.DataFrame):
     def qoi_to_ndarray(self, qoi: str):
 
         if not self.is_equal_time_index():
-            raise TimeSeriesCollectionError("The time series' time index are not the same for all time series.")
+            raise TimeSeriesCollectionError(
+                "The time series' time index are not the same for all time series."
+            )
 
-        return np.reshape(self.loc[:, qoi].to_numpy(), (self.nr_timeseries, self.lengths_time_series))
+        return np.reshape(
+            self.loc[:, qoi].to_numpy(), (self.nr_timeseries, self.lengths_time_series)
+        )
 
     def single_timeindex_df(self, time_index: int):
         """Extract from each time series a single time series index."""
@@ -388,8 +441,24 @@ class TSCDataFrame(pd.DataFrame):
         return df
 
 
-if __name__ == "__main__":
+def allocate_time_series_tensor(nr_time_series, nr_timesteps, nr_qoi):
+    """
+    Allocate time series tensor that complies with TSCDataFrame.from_tensor(...)
 
+    This indexing is for C-aligned arrays index order for "tensor[depth, row, column]"
+       1. depth = timeseries (i.e. for respective initial condition)
+       2. row = time step [k]
+       3. column = qoi
+
+    :param nr_time_series: number of time series
+    :param nr_timesteps: number of time steps per time series
+    :param nr_qoi: nr of quantity of interest values
+    :return: zero-allocated tensor
+    """
+    return np.zeros([nr_time_series, nr_timesteps, nr_qoi])
+
+
+if __name__ == "__main__":
     idx = pd.MultiIndex.from_arrays([[0, 0, 1, 1, 55], [0, 1, 0, 1, 99]])
     idx.name = "time"
     col = ["A", "B"]

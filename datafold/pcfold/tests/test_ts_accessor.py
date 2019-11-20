@@ -10,15 +10,18 @@ from datafold.pcfold.timeseries.accessor import TakensEmbedding
 
 
 class TestTimeSeriesCollectionMethods(unittest.TestCase):
-
     def setUp(self) -> None:
         # The last two elements are used
-        idx = pd.MultiIndex.from_arrays([[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]])
+        idx = pd.MultiIndex.from_arrays(
+            [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
+        )
         col = ["A", "B"]
         self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
 
         # Requires non-random values
-        self.takens_df = pd.DataFrame(np.arange(18).reshape([9, 2]), index=idx, columns=col)
+        self.takens_df = pd.DataFrame(
+            np.arange(18).reshape([9, 2]), index=idx, columns=col
+        )
 
     def test_normalize_time1(self):
         # NOTE: more tests are included in test_tsc_data_structre/test_is_normalize_time()
@@ -31,8 +34,12 @@ class TestTimeSeriesCollectionMethods(unittest.TestCase):
 
     def test_normalize_time2(self):
         simple_df = self.simple_df.copy()
-        simple_df.index = pd.MultiIndex.from_arrays([simple_df.index.get_level_values(0),
-                                                     simple_df.index.get_level_values(1) + 1])
+        simple_df.index = pd.MultiIndex.from_arrays(
+            [
+                simple_df.index.get_level_values(0),
+                simple_df.index.get_level_values(1) + 1,
+            ]
+        )
 
         to_convert = TSCDataFrame(simple_df)
 
@@ -43,8 +50,12 @@ class TestTimeSeriesCollectionMethods(unittest.TestCase):
 
     def test_normalize_time3(self):
         simple_df = self.simple_df.copy()
-        simple_df.index = pd.MultiIndex.from_arrays([simple_df.index.get_level_values(0),
-                                                     simple_df.index.get_level_values(1) + 0.5])  # shift by float
+        simple_df.index = pd.MultiIndex.from_arrays(
+            [
+                simple_df.index.get_level_values(0),
+                simple_df.index.get_level_values(1) + 0.5,
+            ]
+        )  # shift by float
 
         to_convert = TSCDataFrame(simple_df)
 
@@ -113,27 +124,35 @@ class TestTimeSeriesCollectionMethods(unittest.TestCase):
         tc = TSCDataFrame(simple_df)
 
         # using class
-        actual1 = TakensEmbedding(lag=0, delays=1, frequency=1, time_direction="backward").apply(tc)
+        actual1 = TakensEmbedding(
+            lag=0, delays=1, frequency=1, time_direction="backward"
+        ).apply(tc)
         self.assertTrue(isinstance(actual1, TSCDataFrame))
 
         actual1 = actual1.values  # only compare the numeric values now
 
         # using function wrapper
-        actual2 = tc.tsc.takens_embedding(lag=0, delays=1, frequency=1, time_direction="backward").values
+        actual2 = tc.tsc.takens_embedding(
+            lag=0, delays=1, frequency=1, time_direction="backward"
+        ).values
 
-        expected = np.array([[0., np.nan],
-                             [2., 0.],
-                             [4., np.nan],
-                             [6., 4.],
-                             [8., np.nan],
-                             [10., 8.],
-                             [12., np.nan],
-                             [14., 12.],
-                             [16., 14.]])
+        expected = np.array(
+            [
+                [0.0, np.nan],
+                [2.0, 0.0],
+                [4.0, np.nan],
+                [6.0, 4.0],
+                [8.0, np.nan],
+                [10.0, 8.0],
+                [12.0, np.nan],
+                [14.0, 12.0],
+                [16.0, 14.0],
+            ]
+        )
 
         nptest.assert_equal(actual1, expected)
         nptest.assert_equal(actual2, expected)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

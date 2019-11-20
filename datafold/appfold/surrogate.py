@@ -10,7 +10,6 @@ from datafold.dynfold.koopman import EDMDFull, evolve_linear_system
 
 
 class KoopmanSumo(object):
-
     def __init__(self, gh_options=None, gh_exist=None):
         # TODO: proper errors
 
@@ -18,16 +17,23 @@ class KoopmanSumo(object):
             raise ValueError("Either provide argument 'gh_options' or 'gh_exist'")
 
         if gh_options is not None:
-            if gh_options.get("is_stochastic", False):  # defaults to "not True" if not present
+            if gh_options.get(
+                "is_stochastic", False
+            ):  # defaults to "not True" if not present
                 import warnings
-                warnings.warn("Currently it is not recommended to use is_stochastic=True, because the "
-                              "out-of-sample (__call__) does not work!")
+
+                warnings.warn(
+                    "Currently it is not recommended to use is_stochastic=True, because the "
+                    "out-of-sample (__call__) does not work!"
+                )
 
             self.gh_interpolator_ = gh.GeometricHarmonicsFunctionBasis(**gh_options)
         else:
             self.gh_interpolator_ = gh_exist
             # TODO: for now, the fit() function has to be called already for the exist_gh -- check this!
-            assert gh_exist.eigenvalues_ is not None and gh_exist.eigenvectors_ is not None
+            assert (
+                gh_exist.eigenvalues_ is not None and gh_exist.eigenvectors_ is not None
+            )
 
         self.edmd_ = None
         self.gh_coeff_ = None  # matrix that maps from the GH space to the QoI
@@ -37,7 +43,9 @@ class KoopmanSumo(object):
         gh_values = self.gh_interpolator_.eigenvectors_.T
 
         columns = [f"phi{i}" for i in range(gh_values.shape[1])]
-        self.dict_data = ts.TSCDataFrame.from_same_indices_as(indices_from=X, values=gh_values, except_columns=columns)
+        self.dict_data = ts.TSCDataFrame.from_same_indices_as(
+            indices_from=X, values=gh_values, except_columns=columns
+        )
 
         self.edmd_ = EDMDFull(is_diagonalize=True)
         self.edmd_ = self.edmd_.fit(self.dict_data)
@@ -46,11 +54,13 @@ class KoopmanSumo(object):
         # TODO: check residual somehow, user info etc.
         # Phi * C = D
         # obs_basis * data_coeff = data
-        self.gh_coeff_, res = np.linalg.lstsq(self.dict_data, X, rcond=1E-14)[:2]
+        self.gh_coeff_, res = np.linalg.lstsq(self.dict_data, X, rcond=1e-14)[:2]
 
     def fit(self, X_ts: ts.TSCDataFrame):
 
-        self._fit_time_index = X_ts.time_indices(unique_values=True)  # is required to evaluate time
+        self._fit_time_index = X_ts.time_indices(
+            unique_values=True
+        )  # is required to evaluate time
         self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via GH-function basis
@@ -69,13 +79,15 @@ class KoopmanSumo(object):
 
         # Integrate the linear transformation back to the physical space (via gh coefficients) into the dynamical matrix
         # of the linear dynamical system.
-        dynmatrix = self.edmd_.eigenvectors_left_ @ self.gh_coeff_
+        dynmatrix = self.gh_coeff_.T @ self.edmd_.eigenvectors_right_
 
-        result_tc = evolve_linear_system(ic=initial_condition_gh,
-                                         time_samples=time_samples,
-                                         edmd=self.edmd_,
-                                         dynmatrix=dynmatrix,
-                                         qoi_columns=self._fit_qoi_columns)
+        result_tc = evolve_linear_system(
+            ic=initial_condition_gh.T,  # NOTE: i.c. orientation must be column-wise here
+            time_samples=time_samples,
+            edmd=self.edmd_,
+            dynmatrix=dynmatrix,
+            qoi_columns=self._fit_qoi_columns,
+        )
 
         return result_tc
 
@@ -95,7 +107,9 @@ class KoopmanSumo(object):
 
         if isinstance(X_ic, (pd.Series, pd.DataFrame)):
             assert len(X_ic.columns) == len(self._fit_qoi_columns)
-            X_ic = X_ic[self._fit_qoi_columns].to_numpy()  # fails if the columns do not match
+            X_ic = X_ic[
+                self._fit_qoi_columns
+            ].to_numpy()  # fails if the columns do not match
 
         initial_condition_gh = self.gh_interpolator_(X_ic)
 
@@ -110,17 +124,24 @@ class KoopmanSumo(object):
         time_series_length = Y_ts.lengths_time_series
 
         initial_condition_qoi = Y_ts.initial_states_df().to_numpy()
-        if use_exact_initial_condition:  # use the exact initial conditions from the training data
+        if (
+            use_exact_initial_condition
+        ):  # use the exact initial conditions from the training data
             # warp in TSCDataFrame and use the `initial_states_df` function.
             gh_values = sumo.gh_interpolator_.eigenvectors_.T
             initial_condition_gh = ts.TSCDataFrame.from_same_indices_as(
-                indices_from=Y_ts, values=gh_values, except_columns=np.arange(gh_values.shape[1]))
+                indices_from=Y_ts,
+                values=gh_values,
+                except_columns=np.arange(gh_values.shape[1]),
+            )
             initial_condition_gh = initial_condition_gh.initial_states_df().to_numpy()
 
         else:  # use the mapped initial condition with the GH interpolator
             initial_condition_gh = sumo.gh_interpolator_(initial_condition_qoi)
 
-        reconstructed_time_series = sumo._compute_sumo_timeseries(initial_condition_gh, Y_ts.time_index_fill())
+        reconstructed_time_series = sumo._compute_sumo_timeseries(
+            initial_condition_gh, Y_ts.time_index_fill()
+        )
 
         # use same ids than from the original time series
         reconstructed_time_series.index = Y_ts.index.copy()
@@ -130,10 +151,13 @@ class KoopmanSumo(object):
         # TODO: what are good time series metrics?
 
         if error_metric == "L2":
-            error_metric = lambda y_true, y_pred: np.linalg.norm(y_true - y_pred, axis=0)
+            error_metric = lambda y_true, y_pred: np.linalg.norm(
+                y_true - y_pred, axis=0
+            )
         elif error_metric == "rmse":
-            error_metric = lambda y_true, y_pred: np.sqrt(metrics.mean_squared_error(
-                y_true, y_pred, multioutput="raw_values"))
+            error_metric = lambda y_true, y_pred: np.sqrt(
+                metrics.mean_squared_error(y_true, y_pred, multioutput="raw_values")
+            )
         elif error_metric == "mse":
             error_metric = metrics.mean_squared_error
         elif error_metric == "mae":
@@ -150,8 +174,15 @@ class KoopmanSumo(object):
         return metric(Y_pred.to_numpy(), Y_ts.to_numpy())
 
     @staticmethod
-    def reconstruction_error(sumo, Y_ts, return_per_time_series=False, return_per_qoi=False, return_per_time=False,
-                             error_metric="L2", scaling="id"):
+    def reconstruction_error(
+        sumo,
+        Y_ts,
+        return_per_time_series=False,
+        return_per_qoi=False,
+        return_per_time=False,
+        error_metric="L2",
+        scaling="id",
+    ):
 
         assert return_per_time_series + return_per_qoi + return_per_time > 0
 
@@ -166,7 +197,9 @@ class KoopmanSumo(object):
         true_traj_std = Y_ts.std()
 
         # use_exact_initial_condition=False -> also interpolate the (known) initial conditions
-        sumo_ts_collection = sumo._compare_train_data(sumo, Y_ts=Y_ts, use_exact_initial_condition=False)
+        sumo_ts_collection = sumo._compare_train_data(
+            sumo, Y_ts=Y_ts, use_exact_initial_condition=False
+        )
 
         # TODO: scaling
         sumo_ts_collection = (sumo_ts_collection - true_traj_mean) / true_traj_std
@@ -176,9 +209,11 @@ class KoopmanSumo(object):
 
         # error per trajectory
         if return_per_time_series:
-            error_per_traj = pd.DataFrame(np.nan,
-                                          index=true_ts_collection.ids,
-                                          columns=true_ts_collection.columns.to_list())
+            error_per_traj = pd.DataFrame(
+                np.nan,
+                index=true_ts_collection.ids,
+                columns=true_ts_collection.columns.to_list(),
+            )
 
             for i, true_traj in true_ts_collection.itertimeseries():
                 sumo_traj = sumo_ts_collection.loc[i, :]
@@ -189,8 +224,10 @@ class KoopmanSumo(object):
 
         # error per quantity of interest
         if return_per_qoi:
-            error_per_qoi = pd.Series(error_metric(true_ts_collection, sumo_ts_collection),
-                                      index=true_ts_collection.columns)
+            error_per_qoi = pd.Series(
+                error_metric(true_ts_collection, sumo_ts_collection),
+                index=true_ts_collection.columns,
+            )
 
             assert not np.any(error_per_qoi.isna())
             return_list.append(error_per_qoi)
@@ -198,11 +235,13 @@ class KoopmanSumo(object):
         # error per time step
         if return_per_time:
             time_indices = true_ts_collection.time_indices(unique_values=True)
-            assert np.all(time_indices == sumo_ts_collection.time_indices(unique_values=True))
+            assert np.all(
+                time_indices == sumo_ts_collection.time_indices(unique_values=True)
+            )
 
-            error_per_time = pd.DataFrame(np.nan,
-                                          index=time_indices,
-                                          columns=true_ts_collection.columns)
+            error_per_time = pd.DataFrame(
+                np.nan, index=time_indices, columns=true_ts_collection.columns
+            )
 
             for t in time_indices:
                 true_traj = pd.DataFrame(true_ts_collection.loc[pd.IndexSlice[:, t], :])

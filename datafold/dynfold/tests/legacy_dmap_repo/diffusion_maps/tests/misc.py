@@ -8,8 +8,9 @@ from typing import Optional
 import numpy as np
 
 
-def make_strip(xmin: float, ymin: float, width: float,
-               height: float, num_samples: int) -> np.array:
+def make_strip(
+    xmin: float, ymin: float, width: float, height: float, num_samples: int
+) -> np.array:
     """Draw samples from a 2D strip with uniform distribution.
 
     """
@@ -19,10 +20,12 @@ def make_strip(xmin: float, ymin: float, width: float,
     return np.stack((x, y), axis=-1)
 
 
-def make_points(num_points: int, x0: float, y0: float, x1: float, y1: float) \
-        -> np.array:
-    xx, yy = np.meshgrid(np.linspace(x0, x1, num_points),
-                         np.linspace(y0, y1, num_points))
+def make_points(
+    num_points: int, x0: float, y0: float, x1: float, y1: float
+) -> np.array:
+    xx, yy = np.meshgrid(
+        np.linspace(x0, x1, num_points), np.linspace(y0, y1, num_points)
+    )
     return np.stack((xx.ravel(), yy.ravel())).T
 
 

@@ -9,14 +9,13 @@ Computational Harmonic Analysis, 21(1), 31–52. DOI:10.1016/j.acha.2005.07.005
 
 """
 
-__all__ = ['GeometricHarmonicsInterpolator']
+__all__ = ["GeometricHarmonicsInterpolator"]
 
 from typing import Optional, Dict
 
 import numpy as np
 import scipy.spatial
-from scipy.interpolate.interpnd import (NDInterpolatorBase,
-                                        _ndim_coords_from_arrays)
+from scipy.interpolate.interpnd import NDInterpolatorBase, _ndim_coords_from_arrays
 
 from diffusion_maps.diffusion_maps import DiffusionMaps
 
@@ -25,20 +24,28 @@ class GeometricHarmonicsInterpolator(NDInterpolatorBase):
     """Geometric Harmonics interpolator.
 
     """
-    def __init__(self, points: np.array, values: np.array, epsilon: float,
-                 diffusion_maps_options: Optional[Dict] = None,
-                 diffusion_maps: Optional[DiffusionMaps] = None) -> None:
-        NDInterpolatorBase.__init__(self, points, values,
-                                    need_contiguous=False, need_values=True)
+
+    def __init__(
+        self,
+        points: np.array,
+        values: np.array,
+        epsilon: float,
+        diffusion_maps_options: Optional[Dict] = None,
+        diffusion_maps: Optional[DiffusionMaps] = None,
+    ) -> None:
+        NDInterpolatorBase.__init__(
+            self, points, values, need_contiguous=False, need_values=True
+        )
         self.epsilon = epsilon
         if diffusion_maps:
             self.diffusion_maps = diffusion_maps
         else:
             if not diffusion_maps_options:
                 diffusion_maps_options = dict()
-            diffusion_maps_options['normalize_kernel'] = False
-            self.diffusion_maps = DiffusionMaps(self.points, epsilon,
-                                                **diffusion_maps_options)
+            diffusion_maps_options["normalize_kernel"] = False
+            self.diffusion_maps = DiffusionMaps(
+                self.points, epsilon, **diffusion_maps_options
+            )
 
     def __call__(self, *args):
         """Evaluate interpolator at the given points.
@@ -55,11 +62,10 @@ class GeometricHarmonicsInterpolator(NDInterpolatorBase):
         ev = self.diffusion_maps.eigenvectors
         aux = ev.T @ np.diag(1.0 / ew) @ ev @ self.values
 
-        distance_matrix \
-            = kdtree.sparse_distance_matrix(dmaps_kdtree, radius,
-                                            output_type='coo_matrix')
-        kernel_matrix \
-            = self.diffusion_maps.compute_kernel_matrix(distance_matrix)
+        distance_matrix = kdtree.sparse_distance_matrix(
+            dmaps_kdtree, radius, output_type="coo_matrix"
+        )
+        kernel_matrix = self.diffusion_maps.compute_kernel_matrix(distance_matrix)
 
         return np.squeeze(kernel_matrix @ aux)
 
@@ -77,11 +83,10 @@ class GeometricHarmonicsInterpolator(NDInterpolatorBase):
 
         grad = np.zeros_like(xi)
 
-        distance_matrix \
-            = kdtree.sparse_distance_matrix(dmaps_kdtree, radius,
-                                            output_type='coo_matrix')
-        kernel_matrix \
-            = self.diffusion_maps.compute_kernel_matrix(distance_matrix)
+        distance_matrix = kdtree.sparse_distance_matrix(
+            dmaps_kdtree, radius, output_type="coo_matrix"
+        )
+        kernel_matrix = self.diffusion_maps.compute_kernel_matrix(distance_matrix)
 
         I, J = xi.shape[0], ps.shape[0]
 
