@@ -536,11 +536,21 @@ class TestTSCDataFrame(unittest.TestCase):
 
         self.assertIsInstance(tsc, TSCDataFrame)
 
+    def test_time_not_disappear_initial_state(self):
+        """One observation was that a qoi-column named 'time' disappears because the index is set to a regular
+        column. This is tested here, that the 'time' column not disappears. """
+
+        tsc = TSCDataFrame(self.simple_df)
+        tsc["time"] = 1
+
+        initial_states = tsc.initial_states_df()
+        self.assertTrue("time" in initial_states.columns)
+
 
 if __name__ == "__main__":
     # test = TestTSCDataFrame()
     # test.setUp()
-    # test.test_build_from_single_timeseries()
+    # test.test_time_not_disappear_initial_state()
     #
     # exit()
     unittest.main()

@@ -402,24 +402,16 @@ class TSCDataFrame(pd.DataFrame):
     def single_timeindex_df(self, time_index: int):
         """Extract from each time series a single time series index."""
 
-        # TODO: if required: do also for 'time' instead of 'index'
+        (_id_codes, _idx_codes) = self.index.codes
+        unique_codes = np.unique(_id_codes)
 
-        points_df = pd.DataFrame(np.nan, index=self.ids, columns=self.columns)
+        idx_pos_first = np.zeros(len(self.ids))
 
-        # later set for index, but here is more convenient to have it as regular column
-        time_column = self.index.names[1]
+        for i, code_ in enumerate(unique_codes):
+            idx_pos_first[i] = np.argwhere(_id_codes == code_)[time_index]
 
-        # # Illegal value for now is the smallest (negative) integer possible, The problem with using "nan" is that the
-        # # time index would internally be set float (while time is integer).
-        points_df[time_column] = np.iinfo(np.int).min
+        points_df = pd.DataFrame(self).iloc[idx_pos_first, :].copy()
 
-        for i, ts in self.itertimeseries():
-            points_df.loc[i, self.columns] = ts.iloc[time_index, :]
-            points_df.loc[i, time_column] = ts.index[time_index]
-
-        assert np.any(points_df[time_column]) != np.iinfo(np.int).min
-
-        points_df = points_df.set_index(keys=time_column, append=True)
         return points_df
 
     def single_time_df(self, time):
