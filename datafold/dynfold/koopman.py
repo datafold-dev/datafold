@@ -373,22 +373,24 @@ def evolve_linear_system(
 
     if dynmatrix is None:
         dynmatrix = edmd.eigenvectors_right_
-        assert (
-            dynmatrix is not None
-        )  # TODO: make a is fit request here to edmd to guarantee that EDMD was fit!
+
+        # TODO: make a is fit request here to edmd to guarantee that EDMD was fit!
+        assert dynmatrix is not None
 
         if qoi_columns is None:
             qoi_columns = edmd._qoi_columns
 
-    nr_qoi = dynmatrix.shape[0]
-
-    if len(qoi_columns) != nr_qoi:
-        raise ValueError(f"len(qoi_columns)={qoi_columns} != nr_qoi={nr_qoi}")
+    nr_qoi, state_length = dynmatrix.shape
 
     if qoi_columns is None:
-        qoi_columns = np.arange(nr_qoi)
+        qoi_columns = np.arange(state_length)
 
-    if ic.shape[0] != nr_qoi:
+    if len(qoi_columns) != nr_qoi:
+        raise ValueError(
+            f"len(qoi_columns)={qoi_columns} != state_length={state_length}"
+        )
+
+    if ic.shape[0] != state_length:
         raise ValueError(
             f"Mismatch in ic.shape[0]={ic.shape[0]} is not dynmatrix.shape[0]={dynmatrix.shape[0]}."
         )
@@ -407,9 +409,8 @@ def evolve_linear_system(
         # TODO: make this closer to scikit-learn (a "is_fit" function), probably best to do this at top of function
         raise RuntimeError("EDMD is not properly fit.")
 
-    norm_time_samples = (
-        time_samples - edmd._normalize_shift
-    )  # time samples are normalized relative to EDMD shift
+    # time samples are normalized relative to EDMD shift
+    norm_time_samples = time_samples - edmd._normalize_shift
 
     if (norm_time_samples < 0).any():
         raise ValueError("Normalized time cannot be negative!")
@@ -424,7 +425,7 @@ def evolve_linear_system(
     omegas = np.log(edmd.eigenvalues_.astype(np.complex)) / edmd.dt_
 
     time_series_tensor = allocate_time_series_tensor(
-        nr_time_series=ic.shape[1], nr_timesteps=time_samples.shape[0], nr_qoi=nr_qoi
+        nr_time_series=ic.shape[1], nr_timesteps=time_samples.shape[0], nr_qoi=nr_qoi,
     )
 
     for j, time in enumerate(norm_time_samples):
