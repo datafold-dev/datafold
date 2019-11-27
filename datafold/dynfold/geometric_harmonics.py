@@ -18,6 +18,7 @@ import numpy as np
 from sklearn.base import MultiOutputMixin, RegressorMixin
 from sklearn.metrics.regression import mean_squared_error
 from sklearn.model_selection import train_test_split
+from sklearn.utils import check_X_y, check_array, check_consistent_length
 
 import datafold.pcfold as pcfold
 from datafold.dynfold.kernel import DmapKernelFixed, KernelMethod
@@ -62,15 +63,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
 
     def fit(self, X, y):
 
-        self.y = y
-
-        if self.y.ndim == 1:
-            self.y = np.atleast_2d(y).T  # TODO: use scikit learn functions
-
-        if X.shape[0] != y.shape[0]:
-            raise ValueError(
-                f"Mismatch of number of samples between X.shape[0]={X.shape[0]} and y.shape[0]={y.shape[0]}"
-            )
+        X, y = self._check_X_y(X, y)
 
         self.X = pcfold.PCManifold(
             X,
@@ -79,6 +72,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             dist_backend=self.dist_backend,
             **self.dist_backend_kwargs,
         )
+        self.y = y
 
         self._kernel_matrix, self._basis_change_matrix = self.X.compute_kernel_matrix()
         self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
@@ -89,8 +83,10 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         return self
 
     def score(self, X, y, sample_weight=None) -> float:
-        # TODO: maybe other appropriate scoring functions, look for those that handle multioutput!
+
+        X, y = self._check_X_y(X, y)
         y_pred = self(X)
+
         score: float = mean_squared_error(
             y, y_pred, sample_weight=None, multioutput="uniform_average"
         )
@@ -113,36 +109,31 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             self.eigenvectors_ @ self.y
         )
 
-    def _check_X(self, X: np.ndarray) -> np.ndarray:
+    def _check_X_y(self, X: np.ndarray, y: np.ndarray = None):
 
-        assert self.y is not None and self.X is not None
-        if X.ndim > 2:
-            raise ValueError(
-                f"Number of dimension mismatch. Values has to have ndim=1 for a single point or ndim=2 "
-                f"for multiple points, but got: {X.ndim}"
-            )
-        elif (
-            X.ndim == 1
-        ):  # allow ndim=1 and transform to ndim=2, but the number of elements has to match
-            if (
-                X.shape[0] != self.X.shape[1]
-            ):  # a vector (ndim==1) is considered as a single point
-                raise ValueError(
-                    "Shape is incompatible with given points. "
-                    f"Required self.points.shape[1]: {self.X.shape[1]}, "
-                    f"got values.shape[0]: {X.shape[0]}"
-                )
-            # have to add a dimension because kdtree in _compute_kernel_matrix can only handle ndim==2
-            X = X[np.newaxis, :]
+        # TODO: need to check if X and y have same shape[1] dimensions to fitted data!
+
+        check_consistent_length(X, y)
+
+        kwargs = {
+            "accept_sparse": False,
+            "accept_large_sparse": False,
+            "dtype": "numeric",
+            "ensure_2d": True,
+            "allow_nd": False,
+            "ensure_min_samples": 1,
+            "ensure_min_features": 1,
+        }
+
+        if y is None:
+            return check_array(X, **kwargs)
         else:
-            if X.shape[1] != self.X.shape[1]:
-                raise ValueError(
-                    "Shape is incompatible with given points. "
-                    f"Required self.points.shape[1]: {self.X.shape[1]}, "
-                    f"got xi.shape[1]: {X.shape[1]}"
-                )
+            if y.ndim == 1:
+                y = y[:, np.newaxis]
 
-        return X
+            kwargs["multi_output"] = True
+            kwargs["y_numeric"] = True
+            return check_X_y(X, y, **kwargs)
 
     def __call__(self, X: np.ndarray):
         """Evaluate interpolator at the given points.
@@ -152,10 +143,8 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         X : np.ndarray
             Out-of-sample points to interpolate. The points are expected to lie on a manifold.
         """
-        if self.y.ndim == 1:
-            X = np.atleast_2d(X).T
 
-        X = self._check_X(X)
+        X = self._check_X_y(X)
 
         kernel_matrix, basis_change_matrix = self.X.compute_kernel_matrix(Y=X)
 
@@ -187,7 +176,8 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
 
         # TODO: generalize to all columns (if required...). Note that this will be a tensor then.
 
-        X = self._check_X(X)
+        X = self._check_X_y(X)
+
         assert self.X is not None and self.y is not None  # prevents mypy warnings
 
         if vcol is None and self.y.ndim > 1 and self.y.shape[1] > 1:
@@ -237,7 +227,7 @@ class GeometricHarmonicsFunctionBasis(GeometricHarmonicsInterpolator):
         alpha: float = 1,
         symmetrize_kernel=False,
         use_cuda=False,
-        dist_backend="brute",
+        dist_backend="guess_optimal",
         dist_backend_kwargs=None,
     ):
         """
@@ -256,9 +246,10 @@ class GeometricHarmonicsFunctionBasis(GeometricHarmonicsInterpolator):
         )
 
     def fit(self, X, y=None) -> "GeometricHarmonicsFunctionBasis":
-        assert (
-            y is None
-        )  # y is only there to provide the same function from the base, but y is never needed...
+        # y is only there to provide the same function from the base, but y is never needed...
+        assert y is None
+
+        X = self._check_X_y(X)
 
         self.X = pcfold.PCManifold(
             X,
@@ -279,10 +270,14 @@ class GeometricHarmonicsFunctionBasis(GeometricHarmonicsInterpolator):
         self._precompute_aux()
         return self
 
-    def get_params(self, deep=True):
-        return super(GeometricHarmonicsFunctionBasis, self).get_params(deep=deep)
+    def score(self, X, y=None, sample_weight=None) -> float:
+        if y is None:
+            y = self.eigenvectors_.T  # target functions
+
+        return super(GeometricHarmonicsFunctionBasis, self).score(X, y)
 
 
+@DeprecationWarning
 def estimate_regression_error(
     points: np.ndarray, values: np.ndarray, train_size: float, **gh_options
 ) -> float:
