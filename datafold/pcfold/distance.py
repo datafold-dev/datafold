@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import scipy.sparse
 import scipy.spatial
+from scipy.spatial.distance import _METRICS, pdist, cdist, squareform
 from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
 
 # rdist is an optional distance algorithm backend -- an import error is raised only when one attempts to use rdist and
@@ -164,16 +165,25 @@ class BruteForceDist(DistanceAlgorithm):
                 "V": np.cov(X, rowvar=False)
             }  # add inverse covariance matrix??
 
-        distance_matrix = radius_neighbors_graph(
-            X,
-            radius=radius,
-            mode="distance",
-            metric=self.metric,
-            metric_params=metric_params,
-            include_self=True,
-            **backend_options,
-        )
-        distance_matrix = self._set_zeros_sparse_diagonal(distance_matrix)
+        if (
+            self.metric in _METRICS.keys()
+            and np.isinf(radius)
+            # in pdist are no more parameters, and no parallism is supported
+            and backend_options == {}
+        ):
+            distance_matrix = squareform(pdist(X, metric=self.metric))
+        else:
+            distance_matrix = radius_neighbors_graph(
+                X,
+                radius=radius,
+                mode="distance",
+                metric=self.metric,
+                metric_params=metric_params,
+                include_self=True,
+                **backend_options,
+            )
+            distance_matrix = self._set_zeros_sparse_diagonal(distance_matrix)
+
         return distance_matrix
 
     def cdist(self, X, Y, cut_off=None, **backend_options):
@@ -189,13 +199,20 @@ class BruteForceDist(DistanceAlgorithm):
                 X, rowvar=False
             )  # add inverse covariance matrix
 
-        method = NearestNeighbors(
-            radius=radius, algorithm="auto", metric=self.metric, **backend_options
-        )
-        method = method.fit(
-            X
-        )  # Fit to Y first, so that in the rows are the query and reference are in columns
-        distance_matrix = method.radius_neighbors_graph(Y, mode="distance")
+        if (
+            self.metric in _METRICS.keys()
+            and np.isinf(radius)
+            and backend_options == {}
+        ):
+            distance_matrix = cdist(Y, X, metric=self.metric)
+        else:
+            method = NearestNeighbors(
+                radius=radius, algorithm="auto", metric=self.metric, **backend_options
+            )
+
+            # Fit to Y first, so that in the rows are the query and reference are in columns
+            method = method.fit(X)
+            distance_matrix = method.radius_neighbors_graph(Y, mode="distance")
 
         return distance_matrix
 
