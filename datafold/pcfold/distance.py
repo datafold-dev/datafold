@@ -42,9 +42,8 @@ def get_k_smallest_element_value(
             row = distance_matrix.getrow(row_idx).data
 
             if ignore_zeros:
-                row = row[
-                    row != 0
-                ]  # there could still be stored zeros (e.g. on the diagonal of a pdist matrix)
+                # there could still be stored zeros (e.g. on the diagonal of a pdist matrix)
+                row = row[row != 0]
 
                 if row.shape[0] <= k:
                     k_smallest_values[row_idx] = fill_value
@@ -219,7 +218,7 @@ class BruteForceDist(DistanceAlgorithm):
 
 class RDist(DistanceAlgorithm):
 
-    NAME = "rdist"
+    NAME = "rdist" if IS_IMPORTED_RDIST else None
 
     def __init__(self, metric):
         if not IS_IMPORTED_RDIST:
@@ -401,6 +400,8 @@ class GuessOptimalDist(DistanceAlgorithm):
             if IS_IMPORTED_RDIST and self.metric in ["euclidean", "sqeuclidean"]:
                 backend_str = RDist.NAME
                 # backend_str = ScipyKdTreeDist.NAME
+                assert backend_str is not None
+
             elif self.metric in ["euclidean", "sqeuclidean"]:
                 backend_str = ScipyKdTreeDist.NAME
             else:
@@ -456,18 +457,27 @@ def all_available_distance_algorithm():
 
     # This is the case if backend is given as a str, now we look for the matching DistanceAlgorithm.NAME
     for b in all_backends:
-        # This is only for security that all algorithms have the mandatory (static) attribute set.
+        # Tests are only for security that all algorithms have the mandatory (static) attribute set.
         try:
-            b.NAME
-        except AttributeError:
+            if b.NAME is None:  # Attribute error is raised here if NAME does not exist
+                # If NAME is set to none, then the implementation is not considered
+                # e.g. because dependencies are not met in case of rdist.
+                all_backends.remove(b)
+            else:
+                assert isinstance(b.NAME, str)
+        except AttributeError or AssertionError:
             raise NotImplementedError(
-                f"class {type(b)} has no NAME attribute. Check implementation."
+                f"Bug: class {type(b)} has no NAME attribute or it is not of type 'str'. "
+                f"Check implementation."
             )
 
     return all_backends
 
 
 def get_backend_distance_algorithm(backend):
+
+    if backend is None:
+        raise ValueError("backend cannot be None")
 
     all_backends = all_available_distance_algorithm()
 
@@ -562,3 +572,7 @@ def compute_distance_matrix(
         distance_matrix.sort_indices()
 
     return distance_matrix
+
+
+if __name__ == "__main__":
+    all_available_distance_algorithm()

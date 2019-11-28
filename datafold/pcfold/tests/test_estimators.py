@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 
 import unittest
-import sys
-import os
-
-import numpy as np
 
 from datafold.pcfold import *
 import datafold.pcfold.tests.allutils
@@ -18,6 +14,7 @@ __credits__ = ["n/a"]
 
 
 class PCMEstimatonUnitTests(unittest.TestCase):
+    @unittest.skip(reason="Legacy, needs refactoring.")
     def test_llr1(self):
         # create a set of dependent, and one with independent, vectors
         np.random.seed(1)
