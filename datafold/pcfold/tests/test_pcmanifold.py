@@ -1,15 +1,11 @@
 #!/usr/bin/env python
 
 import unittest
-import sys
-import os
-
-import numpy as np
 import sklearn.datasets
 
 from datafold.pcfold import *
 
-import test.allutils
+import datafold.pcfold.tests.allutils
 
 # --------------------------------------------------
 # people who contributed code
@@ -19,6 +15,7 @@ __credits__ = ["n/a"]
 # --------------------------------------------------
 
 
+@unittest.skip(reason="Legacy, code. Requires update.")
 class PCManifoldUnitTests(unittest.TestCase):
     def test_init(self):
         pcm = PCManifold(points=np.array([[]]))
@@ -28,7 +25,9 @@ class PCManifoldUnitTests(unittest.TestCase):
         expected = np.array([[1]])
         actual = np.array([[1]])
 
-        test.allutils._assert_eq_matrices_tol(expected, actual, tol=1e-10)
+        datafold.pcfold.tests.allutils._assert_eq_matrices_tol(
+            expected, actual, tol=1e-10
+        )
 
     def test_basic_setup(self):
         # test manifold geometry class

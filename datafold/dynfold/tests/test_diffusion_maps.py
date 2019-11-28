@@ -126,11 +126,12 @@ class DiffusionMapsTest(unittest.TestCase):
         #                             rtol=1E-13, atol=1E-14))
 
     def test_symmetric_dense(self):
-        data, _ = make_swiss_roll(1000)
+        data, _ = make_swiss_roll(1000, random_state=1)
 
         dmap1 = DiffusionMaps(
             epsilon=1.5, num_eigenpairs=5, symmetrize_kernel=True
         ).fit(data)
+
         dmap2 = DiffusionMaps(
             epsilon=1.5, num_eigenpairs=5, symmetrize_kernel=False
         ).fit(data)
