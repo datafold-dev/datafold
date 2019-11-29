@@ -160,9 +160,9 @@ class BruteForceDist(DistanceAlgorithm):
             # TODO: can also compute and handle VI = inverse covariance matrix
             # TODO: sklearn also provides to approximate the covariance for large metrics
             #  https://scikit-learn.org/stable/modules/covariance.html
-            metric_params = {
-                "V": np.cov(X, rowvar=False)
-            }  # add inverse covariance matrix??
+
+            # TODO: add inverse covariance matrix?
+            metric_params = {"V": np.cov(X, rowvar=False)}
 
         if (
             self.metric in _METRICS.keys()
