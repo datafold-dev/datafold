@@ -7,11 +7,10 @@ import pandas.testing as pdtest
 from sklearn.metrics import max_error, mean_absolute_error, mean_squared_error
 
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.accessor import (
-    TakensEmbedding,
-    TimeSeriesError,
-    NormalizeQoi,
-)
+from datafold.pcfold.timeseries.accessor import TakensEmbedding
+
+from datafold.pcfold.timeseries.transform import TSCQoiTransform
+from datafold.pcfold.timeseries.metric import TimeSeriesError
 
 
 class TestTscAccessor(unittest.TestCase):
@@ -210,71 +209,6 @@ class TestTscAccessor(unittest.TestCase):
         with self.assertRaises(AttributeError):
             # time is not allowed to be negative
             tsc_df.tsc.shift_time(-5)
-
-    def test_normalize_id(self):
-        tsc_df = TSCDataFrame(self.simple_df)
-
-        norm_tsc, norm_info = tsc_df.tsc.normalize_qoi(normalize_strategy="id")
-        pdtest.assert_frame_equal(tsc_df, norm_tsc)
-
-    def test_normalize_min_max(self):
-        tsc_df = TSCDataFrame(self.simple_df)
-
-        norm_tsc, norm_info = tsc_df.tsc.normalize_qoi(normalize_strategy="min-max")
-
-        # sanity check:
-        nptest.assert_array_equal(norm_tsc.min().to_numpy(), np.zeros(2))
-        nptest.assert_array_equal(norm_tsc.max().to_numpy(), np.ones(2))
-
-        # Undoing normalization must give original TSCDataFrame back
-        pdtest.assert_frame_equal(tsc_df, norm_tsc.tsc.undo_normalize_qoi(norm_info)[0])
-
-    def test_normalize_mean(self):
-        tsc_df = TSCDataFrame(self.simple_df)
-
-        norm_tsc, norm_info = tsc_df.tsc.normalize_qoi(normalize_strategy="mean")
-
-        # sanity check:
-        nptest.assert_array_equal(tsc_df.mean(), norm_info["mean"])
-        nptest.assert_array_equal(tsc_df.min(), norm_info["min"])
-        nptest.assert_array_equal(tsc_df.max(), norm_info["max"])
-
-        # Undoing normalization must give original TSCDataFrame back
-        pdtest.assert_frame_equal(tsc_df, norm_tsc.tsc.undo_normalize_qoi(norm_info)[0])
-
-    def test_normalize_standard(self):
-        tsc_df = TSCDataFrame(self.simple_df)
-
-        norm_tsc, norm_info = tsc_df.tsc.normalize_qoi(normalize_strategy="standard")
-
-        # sanity check:
-        nptest.assert_array_equal(tsc_df.mean(), norm_info["mean"])
-        nptest.assert_array_equal(tsc_df.std(), norm_info["std"])
-
-        # Undoing normalization must give original TSCDataFrame back
-        pdtest.assert_frame_equal(tsc_df, norm_tsc.tsc.undo_normalize_qoi(norm_info)[0])
-
-    def test_normalize_standard_on_second_tsc(self):
-        tsc_df1 = TSCDataFrame(self.simple_df)
-
-        tsc_df2 = TSCDataFrame(
-            np.random.rand(*tsc_df1.to_numpy().shape),
-            index=tsc_df1.index,
-            columns=tsc_df1.columns,
-        )
-
-        norm_tsc1, norm_info1 = tsc_df1.tsc.normalize_qoi(normalize_strategy="standard")
-        norm_tsc2, norm_info2 = tsc_df2.tsc.normalize_qoi(normalize_strategy=norm_info1)
-
-        # sanity check:
-        pdtest.assert_frame_equal(
-            norm_tsc2, (tsc_df2 - norm_info1["mean"]) / norm_info1["std"]
-        )
-
-        # Undoing normalization must give original TSCDataFrame back
-        pdtest.assert_frame_equal(
-            tsc_df2, norm_tsc2.tsc.undo_normalize_qoi(norm_info2)[0]
-        )
 
 
 class TestErrorTimeSeries(unittest.TestCase):
