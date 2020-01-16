@@ -84,8 +84,8 @@ def plot_diffusion_maps_interactive_epsilon(
 ) -> None:
     """Plot diffusion maps with variable epsilon.
 
-    Provides user with a slider for epsilon, when working in jupyter notebooks. In the beginning, the diffusion
-    maps for all provided epsilons is computed.
+    Provides user with a slider for epsilon, when working in jupyter notebooks. In the
+    beginning, the diffusion maps for all provided epsilons is computed.
 
 
     Parameters
@@ -197,8 +197,8 @@ def plot_l_vs_epsilon_interactively(
             "epsilon_max_magnitude must be larger than epsilon_min_magnitude"
         )
 
-    # DMaps need to be computed for more epsilon values than provided by the user to ensure that the secant
-    # line can be computed.
+    # DMaps need to be computed for more epsilon values than provided by the user to
+    # ensure that the secant line can be computed.
     epsilons_coarse = [
         round(10.0 ** p, -p)
         for p in range(epsilon_min_magnitude - 1, epsilon_max_magnitude + 2, 1)

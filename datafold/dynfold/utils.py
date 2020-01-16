@@ -2,8 +2,6 @@
 
 """
 
-__all__ = ["coo_tocsr", "downsample"]
-
 from typing import Union
 
 import numpy as np
@@ -21,8 +19,8 @@ def downsample(data: np.ndarray, num_samples: int) -> np.ndarray:
     data : np.ndarray
         Array whose 0-th axis indexes the data points.
     num_samples : int
-        Number of items to randomly (uniformly) sample from the data.  This is typically less than the total number of
-        elements in the data set.
+        Number of items to randomly (uniformly) sample from the data.  This is typically
+        less than the total number of elements in the data set.
 
     Returns
     -------
@@ -31,20 +29,21 @@ def downsample(data: np.ndarray, num_samples: int) -> np.ndarray:
     """
     if 0 > num_samples >= data.shape[0]:
         raise ValueError(
-            f"The parameter 'num_samples' has to be larger than zero and smaller or equal to "
-            f"data.shape[0]={data.shape[0]}."
+            f"The parameter 'num_samples' has to be larger than zero and smaller or "
+            f"equal to data.shape[0]={data.shape[0]}."
         )
 
     indices = np.random.permutation(data.shape[0])[:num_samples]
     return data[indices, :]
 
 
+@DeprecationWarning
 def coo_tocsr(matrix: scipy.sparse.coo_matrix) -> scipy.sparse.csr_matrix:
     """Convert matrix to Compressed Sparse Row format, fast.
 
-    This function is derived from the corresponding SciPy code but it avoids the sanity checks that slow
-    `scipy.sparse.coo_matrix.to_csr down`. In particular, by not summing duplicates we can attain important speed-ups
-    for large matrices.
+    This function is derived from the corresponding SciPy code but it avoids the sanity
+    checks that slow `scipy.sparse.coo_matrix.to_csr down`. In particular,
+    by not summing duplicates we can attain important speed-ups for large matrices.
     """
     from scipy.sparse import csr_matrix
 
@@ -69,6 +68,7 @@ def coo_tocsr(matrix: scipy.sparse.coo_matrix) -> scipy.sparse.csr_matrix:
     return csr_matrix((data, indices, indptr), shape=matrix.shape)
 
 
+@DeprecationWarning
 def get_row(matrix: Union[scipy.sparse.coo_matrix, np.ndarray], row: int) -> np.ndarray:
     """Get a row from a matrix as an array in row shape.
 

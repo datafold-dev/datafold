@@ -33,8 +33,8 @@ class LocalRegressionSelectionTest(unittest.TestCase):
     def test_automatic_eigendirection_selection_rectangle(self):
         nsamples = 5000
 
-        # lengths 2, 4, 8 are from paper, added .3 to have it more clear on which index the next independent
-        # eigenfunction should appear
+        # lengths 2, 4, 8 are from paper, added .3 to have it more clear on which index
+        # the next independent eigenfunction should appear
         x_length_values = [1, 2.3, 4.3, 8.3]
 
         for xlen in x_length_values:
@@ -52,12 +52,14 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             loc_regress.residuals_[0:2] = 0  # setting to zero for easier checking
 
-            # from the paper-example we know the position of the next independent eigendirection
-            # Paper: Parsimonious Representation of Nonlinear Dynamical Systems Through Manifold Learning: A
-            # Chemotaxis Case Study, Dsila et al., page 7     https://arxiv.org/abs/1505.06118v1
-            self.assertEqual(
-                int(xlen + 1), np.argmax(loc_regress.residuals_)
-            )  # ignoring the first two trivial cases
+            # from the paper-example we know the position of the next independent
+            # eigendirection
+            # Paper: Parsimonious Representation of Nonlinear Dynamical Systems Through
+            # Manifold Learning: A Chemotaxis Case Study, Dsila et al., page 7
+            # https://arxiv.org/abs/1505.06118v1
+
+            # Ignoring the first two trivial cases
+            self.assertEqual(int(xlen + 1), np.argmax(loc_regress.residuals_))
 
             # from pydmap.plot import plot_eigenvectors_n_vs_all
             # import matplotlib.pyplot as plt
@@ -103,7 +105,8 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             nptest.assert_array_equal(actual_thresh, expected)
 
     def test_api_automatic_parametrization(self):
-        # Same test as test_choose_automatic_parametrization, just using the proper sklean-like API
+        # Same test as test_choose_automatic_parametrization, just using the proper
+        # sklean-like API
         nsamples = 5000
 
         x_length_values = [2.3, 4.3, 8.3]
@@ -116,8 +119,12 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             data = np.hstack([x_direction, y_direction])
 
-            # dmap1 = DiffusionMaps(0.1, num_eigenpairs=10, parametrization_strategy="locregress_intrinsic_dim",
-            #                       locregress_intrinsic_dim=2).fit(data)
+            # dmap1 = DiffusionMaps(
+            #     0.1,
+            #     num_eigenpairs=10,
+            #     parametrization_strategy="locregress_intrinsic_dim",
+            #     locregress_intrinsic_dim=2,
+            # ).fit(data)
 
             dmap1 = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
 

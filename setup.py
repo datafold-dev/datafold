@@ -15,7 +15,8 @@ setup(
     name="datafold",
     author=AUTHOR,
     version=datafold.__version__,
-    description="Python package to deal with dynamical systems represented by manifold data.",
+    description="Python package to deal with dynamical systems represented by manifold "
+    "data.",
     long_description="TODO: provide long description",  # TODO:
     license="MIT",
     author_email=EMAIL,

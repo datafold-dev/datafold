@@ -6,4 +6,6 @@ __version__ = Version.v_short  # __version__ is default package attribute for ve
 
 import datafold.appfold
 import datafold.dynfold
-import datafold.appfold
+
+import datafold.pcfold
+import datafold.pcfold.timeseries

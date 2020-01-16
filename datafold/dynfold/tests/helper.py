@@ -125,14 +125,16 @@ def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
             )
 
 
-def cmp_eigenvectors(eigvec1, eigvec2, tol=1e-14):
+def assert_equal_eigenvectors(eigvec1, eigvec2, tol=1e-14):
     # Allows to also check orthogonality, but is not yet implemented
     norms1 = np.linalg.norm(eigvec1, axis=1)
     norms2 = np.linalg.norm(eigvec2, axis=1)
     eigvec_test = (eigvec1 @ eigvec2.T) * np.reciprocal(np.outer(norms1, norms2))
 
-    abs_diag = np.abs(np.diag(eigvec_test))  # -1 is also allowed for same direction
-    return np.abs((abs_diag - 1)).max() < tol  # max-abs deviation
+    actual = np.abs(np.diag(eigvec_test))  # -1 is also allowed for same direction
+    expected = np.ones(actual.shape[0])
+
+    nptest.assert_allclose(expected, actual, atol=tol, rtol=0)
 
 
 def cmp_kernel_matrix(
