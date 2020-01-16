@@ -65,6 +65,7 @@ class TSCQoiTransform(TimeSeriesTransformMixIn):
         return TSCDataFrame.from_same_indices_as(X_ts, data)
 
 
+@DeprecationWarning
 class NormalizeQoi(object):
     VALID_STRATEGIES = ["id", "min-max", "mean", "standard"]
 

@@ -5,18 +5,19 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.transform import NormalizeQoi
 from datafold.utils.datastructure import is_df_same_index_columns, series_if_applicable
 
 
-class TimeSeriesError(object):
+class TSCMetric(object):
 
-    VALID_MODES = ["timeseries", "timestep", "qoi"]
+    VALID_MODE = ["timeseries", "timestep", "qoi"]
     VALID_METRIC = ["rmse", "rrmse", "mse", "mae", "max"]
+    VALID_SCALING = ["id", "min-max", "standard", "l2_normalize"]
 
-    def __init__(self, metric: str, mode: str, normalize_strategy: str = "id"):
+    def __init__(self, metric: str, mode: str, scaling: str = "id"):
 
         mode = mode.lower()
         metric = metric.lower()
@@ -26,12 +27,42 @@ class TimeSeriesError(object):
         else:
             raise ValueError(f"Invalid metric={mode}. Choose from {self.VALID_METRIC}")
 
-        if mode in self.VALID_MODES:
+        if mode in self.VALID_MODE:
             self.mode = mode
         else:
-            raise ValueError(f"Invalid mode={mode}. Choose from {self.VALID_MODES}")
+            raise ValueError(f"Invalid mode={mode}. Choose from {self.VALID_MODE}")
 
-        self.normalize_strategy = normalize_strategy
+        self.scaling = self._select_scaling(name=scaling)
+
+    def _select_scaling(self, name):
+
+        if name == "id":
+            return None
+        elif name == "min-max":
+            return MinMaxScaler()
+        elif name == "standard":
+            return StandardScaler()
+        elif name == "l2_normalize":
+            return Normalizer(norm="l2")
+        else:
+            raise ValueError(
+                f"scaling={name} is not known. Choose from {self.VALID_SCALING}"
+            )
+
+    def _scaling(self, y_true: TSCDataFrame, y_pred: TSCDataFrame):
+
+        # it is checked before that y_true and y_pred indices/columns are identical
+        index, columns = y_true.index, y_true.columns
+
+        # first normalize y_true, afterwards (with the same factors from y_true!) y_pred
+        if self.scaling is not None:  # is None if scaling is identity
+            y_true = self.scaling.fit_transform(y_true)
+            y_pred = self.scaling.transform(y_pred.to_numpy())
+
+            y_true = TSCDataFrame(y_true, index=index, columns=columns)
+            y_pred = TSCDataFrame(y_pred, index=index, columns=columns)
+
+        return y_true, y_pred
 
     def _rmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
@@ -242,13 +273,9 @@ class TimeSeriesError(object):
         if not is_df_same_index_columns(y_true, y_pred):
             raise ValueError("y_true and y_pred must have the same index and columns")
 
-        # first normalize y_true, then with the same factors the y_pred
-        y_true, norm_factors = NormalizeQoi(
-            self.normalize_strategy, undo=False
-        ).transform(y_true)
+        self._scaling(y_true=y_true, y_pred=y_pred)
 
-        y_pred, _ = NormalizeQoi(norm_factors, undo=False).transform(y_pred)
-
+        # score depending on mode:
         if self.mode == "timeseries":
             error_result = self._error_per_timeseries(
                 y_true=y_true,

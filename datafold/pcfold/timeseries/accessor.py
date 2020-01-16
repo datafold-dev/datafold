@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Union, Tuple
+from typing import Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,11 +12,7 @@ from datafold.pcfold.timeseries.collection import (
     TimeSeriesCollectionError,
     TSCDataFrame,
 )
-from datafold.utils.datastructure import (
-    is_df_same_index_columns,
-    series_if_applicable,
-    is_integer,
-)
+from datafold.utils.datastructure import is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
