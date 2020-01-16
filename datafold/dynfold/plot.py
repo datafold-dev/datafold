@@ -75,7 +75,8 @@ def plot_data_colored_by_diffusion_maps(
 ) -> None:
     """Plot colored data.
 
-    The plotted Figure shows the original (2D) data colored by the value of each diffusion map.
+    The plotted Figure shows the original (2D) data colored by the value of each diffusion
+    map.
 
     Parameters
     ----------
@@ -123,8 +124,8 @@ def plot_number_eigenvectors_vs_error(
     number_of_eigenpairs: numpy.ndarray = np.arange(1, 11)
         Upper bound for the number of eigenpairs to evaluate.
     diffusion_maps_options: Optional[Dict] = None
-        Options to pass to the diffusion maps used for interpolation. The parameter 'num_eigenpairs' is changed
-        according to values in 'number_of_eigenpairs'.
+        Options to pass to the diffusion maps used for interpolation. The parameter
+        'num_eigenpairs' is changed according to values in 'number_of_eigenpairs'.
     """
 
     cv_errors = np.zeros(number_of_eigenpairs.shape[0])
@@ -150,7 +151,8 @@ def plot_eps_vs_error(
 ) -> None:
     """Plot epsilon vs. error.
 
-    This function loglog-plots the k-cross-validated interpolation error for a range of epsilons.
+    This function loglog-plots the k-cross-validated interpolation error for a range of
+    epsilons.
 
     Parameters
     ----------
@@ -189,9 +191,12 @@ def _plot_eigenvectors(
 
     # eigenvector1 - First eigenvector of kernel matrix.
     # eigenvector2 - Second eigenvector of kernel matrix.
-    # title: str     Title of plot. Usually contains something like r"$\Psi_1$ vs. $\Psi_{{{}}}$".format(i).
+    # title: str     Title of plot. Usually contains something like
+    #                r"$\Psi_1$ vs. $\Psi_{{{}}}$".format(i).
 
-    ax.scatter(eigenvector1, eigenvector2, c=colors, cmap=plt.cm.Spectral)
+    ax.scatter(
+        eigenvector1, eigenvector2, 0.1, c=colors, marker=".", cmap=plt.cm.Spectral
+    )
     ax.axis("off")
     ax.set_title(title)
 
@@ -212,16 +217,20 @@ def plot_eigenvectors_n_vs_all(
     """
 
     fig = plt.figure(figsize=[6, 12])
-    for i in range(2, int(eigenvectors.shape[0])):
+
+    plot_eigenvectors = np.min([eigenvectors.shape[0], 10])
+    is_even = np.mod(plot_eigenvectors, 2) == 0
+
+    for i in range(2, plot_eigenvectors):
         # TODO: this plots also the trivial case i == n
         _plot_eigenvectors(
             eigenvectors[n, :],
             eigenvectors[i, :],
             colors,
-            fig.add_subplot(int(eigenvectors.shape[0] - 1), 2, i - 1),
+            fig.add_subplot(plot_eigenvectors // 2 - is_even, 2, i - 1),
             r"$\Psi_{{{}}}$ vs. $\Psi_{{{}}}$".format(n, i),
         )
-    plt.tight_layout()
+    # plt.tight_layout()
 
 
 def plot_results(
@@ -238,7 +247,8 @@ def plot_results(
     Plots up to three figures:
 
     1. spectrum of the kernel in the diffusion map
-    2. original data (only first two coordinates) colored by the value of each diffusion map coordinate
+    2. original data (only first two coordinates) colored by the value of each diffusion
+       map coordinate
     3. data transformed by the first two (non-trivial) diffusion maps
 
     Parameters
@@ -297,7 +307,8 @@ def plot_diffusion_maps(
 
 def _plot_secant(points: np.ndarray, i: int, ax: plt.Axes) -> None:
     # Plot secant line at index.
-    # Plot the approximate tangent/secant line of the curve given by the points array at the given point.
+    # Plot the approximate tangent/secant line of the curve given by the points array at
+    # the given point.
 
     # points:     Function values.
     # i: int      Plot tangent of curve at this index into points array.
@@ -321,8 +332,8 @@ def plot_l_vs_epsilon(
 ) -> None:
     """Plot L(epsilon).
 
-    Plot L(epsilon) (Master Thesis of Bah (2008)) for different epsilons. Extended by the optional insertion of a secant
-    line in the neighborhood of an epsilon.
+    Plot L(epsilon) (Master Thesis of Bah (2008)) for different epsilons. Extended by
+    the optional insertion of a secant line in the neighborhood of an epsilon.
 
     Parameters
     ----------
@@ -333,13 +344,17 @@ def plot_l_vs_epsilon(
     epsilons_fine: List[float] = None
         Fine range of epsilons for producing smooth-looking plots.
     epsilon_magnitude: int = None
-        Plot secant line at this magnitude. If not provided, no secant line will be plotted.
+        Plot secant line at this magnitude. If not provided, no secant line will be
+        plotted.
     epsilon: float = None
-        Plot vertical line at this epsilon. If not provided, no vertical line will be plotted.
+        Plot vertical line at this epsilon. If not provided, no vertical line will be
+        plotted.
     lut_km_coarse: LookupKernelMatsEpsilon = None
-        Option to provide precomputed kernel matrices to avoid re-computation. Coarse-scaled for float indexing.
+        Option to provide precomputed kernel matrices to avoid re-computation.
+        Coarse-scaled for float indexing.
     lut_km_fine: LookupKernelMatsEpsilon = None
-        Option to provide precomputed kernel matrices to avoid re-computation. Fine-scaled for smooth-looking plots.
+        Option to provide precomputed kernel matrices to avoid re-computation.
+        Fine-scaled for smooth-looking plots.
     """
 
     plt.rc("text", usetex=True)
@@ -383,8 +398,8 @@ def plot_l_vs_epsilon(
 def log_midpoint_rule(data: np.ndarray) -> float:
     """Compute the first key at which the data half its range plus min.
 
-    Heuristic to find a good epsilon. The key of the epsilon, at which the value of data is half the range of data plus
-    its minimum value.
+    Heuristic to find a good epsilon. The key of the epsilon, at which the value of
+    data  is half the range of data plus its minimum value.
 
     Parameters
     ----------
@@ -404,9 +419,10 @@ def plot_l_vs_epsilon_heuristic(
     data: np.ndarray, epsilon_min_magnitude: int, epsilon_max_magnitude: int
 ) -> None:
     """
-    Plot L(epsilon) (Master Thesis of Bah (2008)) for different epsilons. Extended by the insertion of a vertical line
-    at an epsilon which approximates the epsilon, at which L(epsilon) is at the log of the midpoint of its value range.
-    This is a heuristic for an optimal epsilon.
+    Plot L(epsilon) (Master Thesis of Bah (2008)) for different epsilons. Extended by the
+    insertion of a vertical line at an epsilon which approximates the epsilon, at which
+    L(epsilon) is at the log of the midpoint of its value range. This is a heuristic
+    for an optimal epsilon.
 
     Parameters
     ----------
@@ -441,17 +457,19 @@ def plot_l_vs_epsilon_heuristic(
 
 def _ls_of_kernel_matrices(kernel_matrices: "LookupKernelMatsEpsilon") -> np.ndarray:
     # Compute L values of kernel matrices.
-    # This function computes the L values for kernel matrices provided by a lookup table for kernel matrices.
+    # This function computes the L values for kernel matrices provided by a lookup table f
+    # or kernel matrices.
 
-    # Kernel matrices to compute L values from as a lut. Axis 0 must index each kernel matrix.
+    # Kernel matrices to compute L values from as a lut. Axis 0 must index each kernel
+    # matrix.
     return np.array([kernel_matrices(eps) for eps in kernel_matrices.epsilons]).sum(
         axis=(1, 2)
     )
 
 
 def _closest_to(a: List[float], i: float):
-    # Return closest value to `i` in `a` and the corresponding index. Useful when looking up values when the key is
-    # safe but the key-range is rounded differently.
+    # Return closest value to `i` in `a` and the corresponding index. Useful when
+    # looking up values when the key is safe but the key-range is rounded differently.
     return min(enumerate(a), key=lambda x: abs(x[1] - i))
 
 
@@ -514,7 +532,8 @@ class LookupDmapsEpsilon(object):
 
 
 class LookupKernelMatsEpsilon(object):
-    """Look up for diffusion distances using epsilon as key and diffusion distances as value and stores them.
+    """Look up for diffusion distances using epsilon as key and diffusion distances as
+    value and stores them.
 
     Attributes
     ----------
@@ -543,8 +562,8 @@ class LookupKernelMatsEpsilon(object):
     def __call__(self, epsilon: float) -> np.ndarray:
         """Provide kernel matricees of diffusion maps corresponding to epsilon.
 
-        This function returns the kernel matrix of diffusion maps for an epsilon provided by
-        the caller.
+        This function returns the kernel matrix of diffusion maps for an epsilon
+        provided by the caller.
 
         Parameters
         ----------

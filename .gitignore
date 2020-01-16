@@ -20,4 +20,6 @@ __pycache__/
 *.mat
 *.zip
 *.csv
+*.pdf
+*.jar
 examples/untracked/

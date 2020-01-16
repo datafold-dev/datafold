@@ -9,10 +9,10 @@ import matplotlib.pyplot as plt
 import scipy.sparse.linalg.eigen.arpack
 from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
+from sklearn.metrics import mean_squared_error
 
 from datafold.dynfold.utils import downsample
 from datafold.dynfold.diffusion_maps import DiffusionMapsVariable
-from datafold.dynfold.kernel import DmapKernelFixed
 from datafold.dynfold.tests.helper import *
 
 
@@ -46,7 +46,8 @@ class DiffusionMapsTest(unittest.TestCase):
         epsilon = 5e-1
         downsampled_data = downsample(self.data, num_samples)
 
-        # symmetrize_kernel=False, because the rayleigh_quotient requires the kernel_matrix_
+        # symmetrize_kernel=False, because the rayleigh_quotient requires the
+        # kernel_matrix_
         dm = DiffusionMaps(
             epsilon, symmetrize_kernel=False, num_eigenpairs=num_eigenpairs
         ).fit(downsampled_data)
@@ -120,13 +121,15 @@ class DiffusionMapsTest(unittest.TestCase):
             dense_case.eigenvalues_, sparse_case.eigenvalues_, rtol=1e-13, atol=1e-14
         )
 
-        # TODO: due to the sparse component, it is a bit tricky to compare eigenvectors (this requires more work),
-        #  things that can be checked, is eigenvec1 = -eigenvec2? are they self orthogonal eigenvec @ eigenvec = 1, etc.
+        # TODO: due to the sparse component, it is a bit tricky to compare eigenvectors
+        #  (this requires more work),
+        #  things that can be checked, is eigenvec1 = -eigenvec2? are they self
+        #  orthogonal eigenvec @ eigenvec = 1, etc.
         # self.assertTrue(np.allclose(dense_case.eigenvectors, sparse_case.eigenvectors,
         #                             rtol=1E-13, atol=1E-14))
 
     def test_symmetric_dense(self):
-        data, _ = make_swiss_roll(1000, random_state=1)
+        data, _ = make_swiss_roll(2000, random_state=1)
 
         dmap1 = DiffusionMaps(
             epsilon=1.5, num_eigenpairs=5, symmetrize_kernel=True
@@ -139,37 +142,223 @@ class DiffusionMapsTest(unittest.TestCase):
         # make sure that the symmetric transformation is really used
         self.assertTrue(dmap1.kernel_.is_symmetric_transform(is_pdist=True))
 
-        # Note: cannot compare kernel matrices, because they are only similar (sharing same eigenvalues and
-        # eigenvectors [after transformation] not equal
+        # Note: cannot compare kernel matrices, because they are only similar (sharing
+        # same eigenvalues and eigenvectors [after transformation] not equal
         nptest.assert_allclose(
             dmap1.eigenvalues_, dmap2.eigenvalues_, rtol=1e-14, atol=1e-14
         )
-        self.assertTrue(cmp_eigenvectors(dmap1.eigenvectors_, dmap2.eigenvectors_))
+
+        assert_equal_eigenvectors(dmap1.eigenvectors_, dmap2.eigenvectors_, tol=1e-13)
 
     def test_symmetric_sparse(self):
-        data, _ = make_swiss_roll(1000)
+        data, _ = make_swiss_roll(1500, random_state=2)
 
         dmap1 = DiffusionMaps(
-            epsilon=1.5, num_eigenpairs=5, cut_off=1e100, symmetrize_kernel=True
+            epsilon=3, num_eigenpairs=5, cut_off=1e100, symmetrize_kernel=True
         ).fit(data)
         dmap2 = DiffusionMaps(
-            epsilon=1.5, num_eigenpairs=5, cut_off=1e100, symmetrize_kernel=False
+            epsilon=3, num_eigenpairs=5, cut_off=1e100, symmetrize_kernel=False
         ).fit(data)
 
         # make sure that the symmetric transformation is really used
         self.assertTrue(dmap1.kernel_.is_symmetric_transform(is_pdist=True))
 
-        # Note: cannot compare kernel matrices, because they are only similar (sharing same eigenvalues and
-        # eigenvectors [after transformation] not equal
+        # Note: cannot compare kernel matrices, because they are only similar (sharing
+        # same eigenvalues and eigenvectors [after transformation] not equal
         nptest.assert_allclose(
             dmap1.eigenvalues_, dmap2.eigenvalues_, rtol=1e-14, atol=1e-14
         )
-        self.assertTrue(cmp_eigenvectors(dmap1.eigenvectors_, dmap2.eigenvectors_))
+
+        assert_equal_eigenvectors(dmap1.eigenvectors_, dmap2.eigenvectors_, tol=1e-13)
+
+    def test_nystrom_out_of_sample_swiss_roll(self, plot=False):
+
+        X_swiss_all, color_all = make_swiss_roll(
+            n_samples=4000, noise=0, random_state=5
+        )
+
+        setting = {
+            "epsilon": 1.7,
+            "num_eigenpairs": 7,
+            "is_stochastic": True,
+            "alpha": 1,
+            "symmetrize_kernel": True,
+        }
+
+        dmap_embed = DiffusionMaps(**setting).fit(X_swiss_all)
+
+        if plot:
+            from datafold.dynfold.plot import plot_eigenvectors_n_vs_all
+
+            plot_eigenvectors_n_vs_all(
+                eigenvectors=dmap_embed.transform(X_swiss_all).T, n=1, colors=color_all,
+            )
+
+        dmap_embed_eval_expected = dmap_embed.eigenvectors_[[1, 5], :].T
+        dmap_embed_eval_actual = dmap_embed.transform(X=X_swiss_all, indices=[1, 5])
+
+        if plot:
+            X_swiss_oos, color_oos = make_swiss_roll(
+                n_samples=30000, noise=0, random_state=5
+            )
+
+            f, ax = plt.subplots(2, 3, figsize=(10, 8))
+            marker = "."
+            markersize = 0.2
+            ax[0][0].scatter(
+                dmap_embed_eval_expected[:, 0],
+                dmap_embed_eval_expected[:, 1],
+                s=markersize,
+                marker=marker,
+                c=color_all,
+            )
+            ax[0][0].set_title("expected (DMAP eigenvector)")
+
+            ax[0][1].scatter(
+                dmap_embed_eval_actual[:, 0],
+                dmap_embed_eval_actual[:, 1],
+                s=markersize,
+                marker=marker,
+                c=color_all,
+            )
+            ax[0][1].set_title("actual (DMAP Nyström on training data)")
+
+            absdiff = np.abs(dmap_embed_eval_expected - dmap_embed_eval_actual)
+            abs_error_norm = np.linalg.norm(absdiff, axis=1)
+
+            error_scatter = ax[0][2].scatter(
+                dmap_embed_eval_expected[:, 0],
+                dmap_embed_eval_expected[:, 1],
+                s=markersize,
+                marker=marker,
+                c=abs_error_norm,
+                cmap=plt.get_cmap("Reds"),
+            )
+            f.colorbar(error_scatter, ax=ax[0][2])
+            ax[0][2].set_title("abs. difference")
+
+            gh_embed_eval_oos = dmap_embed.transform(X_swiss_oos, indices=[1, 5])
+            ax[1][0].scatter(
+                gh_embed_eval_oos[:, 0],
+                gh_embed_eval_oos[:, 1],
+                s=markersize,
+                marker=marker,
+                c=color_oos,
+            )
+
+            ax[1][0].set_title(
+                f"DMAP Nyström out-of-sample \n ({gh_embed_eval_oos.shape[0]} points) "
+            )
+
+            ax[1][2].text(
+                0.01,
+                0.5,
+                f"both have same setting \n epsilon="
+                f"{setting['epsilon']}, symmetrize_kernel="
+                f"{setting['symmetrize_kernel']}, "
+                f"chosen_eigenvectors={[1, 5]}",
+            )
+
+            plt.show()
+
+        nptest.assert_allclose(
+            dmap_embed_eval_actual, dmap_embed_eval_expected, atol=1e-15
+        )
+
+    def test_nystrom_out_of_sample_1dspiral(self, plot=False):
+        def sample_1dsprial(phis):
+            c1 = phis * np.cos(phis)
+            c2 = phis * np.sin(phis)
+            return np.vstack([c1, c2]).T
+
+        phis = np.linspace(0, np.pi * 4, 50)
+        phis_oos = np.linspace(0, np.pi * 4, 50) - ((phis[1] - phis[0]) / 2)
+
+        # remove first so that they are all between the phis-samples
+        phis_oos = phis_oos[1:]
+
+        X_all = sample_1dsprial(phis)
+        X_oos = sample_1dsprial(phis_oos)
+
+        dmap_embed = DiffusionMaps(epsilon=0.9, num_eigenpairs=2).fit(X_all)
+
+        expected_oos = (
+            dmap_embed.eigenvectors_[1, :-1] + dmap_embed.eigenvectors_[1, 1:]
+        ) / 2
+        actual_oos = dmap_embed.transform(X_oos, indices=[1])
+
+        self.assertLessEqual(
+            mean_squared_error(expected_oos, actual_oos.ravel()), 6.559405731418304e-09
+        )
+
+        if plot:
+            plt.plot(X_all[:, 0], X_all[:, 1], "-*")
+            plt.plot(X_oos[:, 0], X_oos[:, 1], ".")
+            plt.axis("equal")
+
+            plt.figure()
+            plt.plot(expected_oos, np.zeros(49), "+")
+            plt.plot(dmap_embed.transform(X_all, indices=[1]), np.zeros(50), "-*")
+            plt.plot(dmap_embed.transform(X_oos, indices=[1]), np.zeros(49), ".")
+
+            plt.show()
+
+    def test_out_of_sample_property(self, plot=False):
+        # NOTE it is quite hard to compare a train dataset versus a "ground truth"
+        # solution for kernel methods. This is because subsampling a training set from
+        # the entire dataset changes the density in the dataset. Therefore, different
+        # epsilon values are needed, which ultimately change the embedding itself.
+
+        # Therefore, only reference solutions can be tested here.
+
+        X_swiss_train, _ = make_swiss_roll(2700, random_state=1)
+        X_swiss_test, _ = make_swiss_roll(1300, random_state=1)
+
+        setting = {
+            "epsilon": 1.9,
+            "num_eigenpairs": 7,
+            "is_stochastic": True,
+            "alpha": 1,
+            "symmetrize_kernel": True,
+        }
+
+        dmap_embed = DiffusionMaps(**setting).fit(X_swiss_train)
+
+        dmap_embed_test_eval = dmap_embed.transform(X_swiss_test, indices=[1, 5])
+
+        # NOTE: These tests are only to detect potentially unwanted changes in computation
+        # NOTE: For some reason the remote computer produces other results. Therefore,
+        # it is only checked with "allclose"
+
+        np.set_printoptions(precision=17)
+
+        print(dmap_embed_test_eval.sum(axis=0))
+
+        nptest.assert_allclose(
+            dmap_embed_test_eval.sum(axis=0),
+            (-6.0898767014414625, -0.08601754715746428),
+            atol=1e-15,
+        )
+
+        print(dmap_embed_test_eval.min(axis=0))
+        nptest.assert_allclose(
+            dmap_embed_test_eval.min(axis=0),
+            (-0.02598525783966408, -0.03529902485787358),
+            atol=1e-15,
+        )
+
+        print(dmap_embed_test_eval.max(axis=0))
+        nptest.assert_allclose(
+            dmap_embed_test_eval.max(axis=0),
+            (0.02734430784974816, 0.03623258738511785),
+            atol=1e-15,
+        )
 
 
 class DiffusionMapsLegacyTest(unittest.TestCase):
-    """We want to produce exactly the same results as the forked DMAP repository. These are test to make sure this is
-    the case. All dmaps have symmetrize_kernel=False to be able to compare the kernel."""
+    """We want to produce exactly the same results as the forked DMAP repository. These
+    are test to make sure this is the case. All dmaps have symmetrize_kernel=False to
+    be able to compare the kernel."""
 
     def test_simple_dataset(self):
         """Taken from method_examples(/diffusion_maps/diffusion_maps.ipynb) repository."""
@@ -251,13 +440,21 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         data, _ = make_swiss_roll(1000, random_state=123)
         epsilon = 1.25
 
-        # actual = DiffusionMaps(epsilon=epsilon, num_eigenpairs=11, is_stochastic=False).fit(data)
-        # expected = legacy_dmap.DenseDiffusionMaps(data, epsilon=1.25, normalize_kernel=False)
-        # cmp_kernel_matrix(actual, expected, rtol=1E-14, atol=1E-14)
+        # actual = DiffusionMaps(
+        #     epsilon=epsilon, num_eigenpairs=11, is_stochastic=False
+        # ).fit(data)
+        # expected = legacy_dmap.DenseDiffusionMaps(
+        #     data, epsilon=1.25, normalize_kernel=False
+        # )
+        # cmp_kernel_matrix(actual, expected, rtol=1e-14, atol=1e-14)
         #
-        # actual = DiffusionMaps(epsilon=epsilon, num_eigenpairs=11, is_stochastic=True).fit(data)
-        # expected = legacy_dmap.DenseDiffusionMaps(data, epsilon=1.25, normalize_kernel=True)
-        # cmp_kernel_matrix(actual, expected, rtol=1E-15, atol=1E-15)
+        # actual = DiffusionMaps(
+        #     epsilon=epsilon, num_eigenpairs=11, is_stochastic=True
+        # ).fit(data)
+        # expected = legacy_dmap.DenseDiffusionMaps(
+        #     data, epsilon=1.25, normalize_kernel=True
+        # )
+        # cmp_kernel_matrix(actual, expected, rtol=1e-15, atol=1e-15)
 
         # Sparse case
         actual = DiffusionMaps(
@@ -330,8 +527,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
             except scipy.sparse.linalg.eigen.arpack.ArpackNoConvergence as e:
                 print(
-                    f"Did not converge for epsilon={eps}. This can happen due to random effects of the sparse "
-                    "eigenproblem solver (and usually a bad conditioned matrix)."
+                    f"Did not converge for epsilon={eps}. This can happen due to random "
+                    f"effects of the sparse eigenproblem solver (and usually a bad "
+                    f"conditioned matrix)."
                 )
                 raise e
 
@@ -385,7 +583,10 @@ class DiffusionMapsVariableTest(unittest.TestCase):
 
         f, ax = plt.subplots(ncols=3, nrows=3)
         f.suptitle(
-            f"N={data.shape[0]}, eps={dmap.epsilon}, beta={dmap.beta}, expected_dim={dmap.expected_dim}, "
+            f"N={data.shape[0]}, "
+            f"eps={dmap.epsilon}, "
+            f"beta={dmap.beta}, "
+            f"expected_dim={dmap.expected_dim}, "
             f"k={dmap.k}"
         )
 
@@ -434,7 +635,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         ax[2][1].set_title("inner products of EV (abs and rel)")
         f.colorbar(im, ax=ax[2][1])
 
-    def test_ornstein_uhlenbeck(self):
+    def test_ornstein_uhlenbeck(self, plot=False):
         from scipy.special import erfinv
 
         nr_samples = 5000
@@ -454,14 +655,11 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         dmap = DiffusionMapsVariable(
             epsilon=0.001,
             num_eigenpairs=num_eigenpairs,
-            k=100,
+            nn_bandwidth=100,
             expected_dim=1,
             beta=-0.5,
             symmetrize_kernel=True,
         ).fit(X)
-
-        # PLOT:
-        plot = False
 
         if plot:
             DiffusionMapsVariableTest.plot_quantities(X, dmap)
@@ -486,54 +684,6 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         nptest.assert_allclose(
             actual, expected.ravel(), atol=0.0002519, rtol=0.29684159
         )
-
-
-class TestDiffusionMapsKernelTest(unittest.TestCase):
-    def test_is_symmetric01(self):
-        # stochastic False
-
-        # Note: in this case the alpha value is ignored
-        k1 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=True)
-        self.assertTrue(k1.is_symmetric)
-        self.assertFalse(
-            k1.is_symmetric_transform(is_pdist=True)
-        )  # No transformation is required
-
-        k2 = DmapKernelFixed(
-            is_stochastic=False, symmetrize_kernel=False
-        )  # Even now the symmetric kernel is true
-        self.assertTrue(k2.is_symmetric)
-        self.assertFalse(
-            k1.is_symmetric_transform(is_pdist=True)
-        )  # No transformation is required
-
-    def test_is_symmetric02(self):
-        # symmetric_kernel and alpha == 0
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=False)
-        self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
-
-        k2 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=True)
-        self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform(is_pdist=True))
-
-    def test_is_symmetric03(self):
-        # symmetric_kernel and alpha > 0
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=False)
-        self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
-
-        k2 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
-        self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform(is_pdist=True))
-
-    def test_is_symmetric04(self):
-        # ways False when is_pdist==False
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=False))
-
-        k2 = DmapKernelFixed(is_stochastic=False, alpha=1, symmetrize_kernel=True)
-        self.assertFalse(k2.is_symmetric_transform(is_pdist=False))
 
 
 if __name__ == "__main__":
