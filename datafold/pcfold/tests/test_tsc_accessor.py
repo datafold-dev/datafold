@@ -7,8 +7,6 @@ import pandas.testing as pdtest
 from sklearn.metrics import max_error, mean_absolute_error, mean_squared_error
 
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.accessor import TakensEmbedding
-from datafold.pcfold.timeseries.metric import TSCMetric
 
 
 class TestTscAccessor(unittest.TestCase):
@@ -19,11 +17,6 @@ class TestTscAccessor(unittest.TestCase):
         )
         col = ["A", "B"]
         self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
-
-        # Requires non-random values
-        self.takens_df = pd.DataFrame(
-            np.arange(18).reshape([9, 2]), index=idx, columns=col
-        )
 
     def test_normalize_time1(self):
         # NOTE: more tests are included in test_tsc_data_structre/test_is_normalize_time()
@@ -119,78 +112,6 @@ class TestTscAccessor(unittest.TestCase):
 
         nptest.assert_equal(actual_left, expected_left)
         nptest.assert_equal(actual_right, expected_right)
-
-    def test_takens_embedding(self):
-        simple_df = self.takens_df.drop("B", axis=1)
-
-        tc = TSCDataFrame(simple_df)
-
-        # using class
-        actual1 = TakensEmbedding(
-            lag=0, delays=1, frequency=1, time_direction="backward"
-        ).apply(tc)
-        self.assertTrue(isinstance(actual1, TSCDataFrame))
-
-        actual1 = actual1.values  # only compare the numeric values now
-
-        # using function wrapper
-        actual2 = tc.tsc.takens_embedding(
-            lag=0, delays=1, frequency=1, time_direction="backward"
-        ).values
-
-        expected = np.array(
-            [
-                [0.0, np.nan],
-                [2.0, 0.0],
-                [4.0, np.nan],
-                [6.0, 4.0],
-                [8.0, np.nan],
-                [10.0, 8.0],
-                [12.0, np.nan],
-                [14.0, 12.0],
-                [16.0, 14.0],
-            ]
-        )
-
-        nptest.assert_equal(actual1, expected)
-        nptest.assert_equal(actual2, expected)
-
-    def test_takens_delay_indices(self):
-        nptest.assert_array_equal(
-            TakensEmbedding(lag=0, delays=1, frequency=1).delay_indices, np.array([1])
-        )
-
-        nptest.assert_array_equal(
-            TakensEmbedding(lag=0, delays=2, frequency=1).delay_indices,
-            np.array([1, 2]),
-        )
-
-        nptest.assert_array_equal(
-            TakensEmbedding(lag=0, delays=5, frequency=1).delay_indices,
-            np.array([1, 2, 3, 4, 5]),
-        )
-
-        nptest.assert_array_equal(
-            TakensEmbedding(lag=1, delays=1, frequency=1).delay_indices, np.array([2]),
-        )
-
-        nptest.assert_array_equal(
-            TakensEmbedding(lag=1, delays=5, frequency=1).delay_indices,
-            np.array([2, 3, 4, 5, 6]),
-        )
-
-        nptest.assert_array_equal(
-            TakensEmbedding(lag=2, delays=2, frequency=2).delay_indices,
-            np.array([3, 5]),
-        )
-
-        nptest.assert_array_equal(
-            TakensEmbedding(lag=2, delays=4, frequency=2).delay_indices,
-            np.array([3, 5, 7, 9]),
-        )
-
-        with self.assertRaises(ValueError):
-            TakensEmbedding(lag=0, delays=1, frequency=2)
 
     def test_shift_time1(self):
         tsc_df = TSCDataFrame(self.simple_df)

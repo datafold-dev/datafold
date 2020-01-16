@@ -127,35 +127,25 @@ class TSCollectionMethods(object):
 
         return shift_left, shift_right
 
-    # def normalize_qoi(self, normalize_strategy: Union[str, dict]):
-    #     return NormalizeQoi(
-    #         normalize_strategy=normalize_strategy, undo=False
-    #     ).transform(self._tsc_df)
+    # def takens_embedding(
+    #     self,
+    #     lag=0,
+    #     delays=3,
+    #     frequency=1,
+    #     time_direction="backward",
+    #     attach=False,
+    #     fill_value: float = np.nan,
+    # ):
+    #     """Wrapper function for class TakensEmbedding"""
     #
-    # def undo_normalize_qoi(self, normalize_strategy: dict):
-    #     return NormalizeQoi(normalize_strategy=normalize_strategy, undo=True).transform(
-    #         df=self._tsc_df
-    #     )
-
-    def takens_embedding(
-        self,
-        lag=0,
-        delays=3,
-        frequency=1,
-        time_direction="backward",
-        attach=False,
-        fill_value: float = np.nan,
-    ):
-        """Wrapper function for class TakensEmbedding"""
-
-        takens = TakensEmbedding(lag, delays, frequency, time_direction, fill_value)
-        return_df = takens.apply(self._tsc_df)
-
-        if attach:
-            return_df = return_df.drop(self._tsc_df.columns, axis=1)
-            return_df = pd.concat([self._tsc_df, return_df], axis=1)
-
-        return return_df
+    #     takens = TSCTakensEmbedding(lag, delays, frequency, time_direction, fill_value)
+    #     return_df = takens.apply(self._tsc_df)
+    #
+    #     if attach:
+    #         return_df = return_df.drop(self._tsc_df.columns, axis=1)
+    #         return_df = pd.concat([self._tsc_df, return_df], axis=1)
+    #
+    #     return return_df
 
     def plot_density2d(self, time, xresolution: int, yresolution: int, covariance=None):
         """
@@ -250,154 +240,6 @@ class TSCollectionMethods(object):
         summed_density_values_as_vector = np.sum(stacked_density_values_on_grid, axis=0)
 
         return summed_density_values_as_vector
-
-
-class TakensEmbedding(object):
-    def __init__(
-        self,
-        lag: int,
-        delays: int,
-        frequency: int,
-        time_direction="backward",
-        fill_value: float = np.nan,
-    ):
-
-        if lag < 0:
-            raise ValueError(f"Lag has to be non-negative. Got lag={lag}")
-
-        if delays < 1:
-            raise ValueError(
-                f"delays has to be an integer larger than zero. Got delays={frequency}"
-            )
-
-        if frequency < 1:
-            raise ValueError(
-                f"frequency has to be an integer larger than zero. Got frequency"
-                f"={frequency}"
-            )
-
-        if frequency > 1 and delays == 1:
-            raise ValueError("frequency must be 1, if delays=1")
-
-        if time_direction not in ["backward", "forward"]:
-            raise ValueError(
-                f"time_direction={time_direction} invalid. Valid choices: "
-                f"{['backward', 'forward']}"
-            )
-
-        self.lag = lag
-        self.delays = delays
-        self.frequency = frequency
-        self.time_direction = time_direction
-        self.fill_value = fill_value
-
-        self.delay_indices = self._precompute_delay_indices()
-
-    def _precompute_delay_indices(self):
-        # zero delay (original data) is not treated
-        return self.lag + (
-            np.arange(1, (self.delays * self.frequency) + 1, self.frequency)
-        )
-
-    def _expand_all_delay_columns(self, cols):
-        def expand():
-            delayed_columns = list()
-            for didx in self.delay_indices:
-                delayed_columns.append(self._expand_single_delta_column(cols, didx))
-            return delayed_columns
-
-        # the name of the original indices is not changed, therefore append the delay
-        # indices to
-        return cols.tolist() + list(itertools.chain(*expand()))
-
-    def _expand_single_delta_column(self, cols, delay_idx):
-        return list(map(lambda q: "d".join([q, str(delay_idx)]), cols))
-
-    def _setup_delayed_timeseries_collection(self, tsc):
-
-        nr_columns_incl_delays = tsc.shape[1] * (self.delays + 1)
-
-        data = np.zeros([tsc.shape[0], nr_columns_incl_delays])
-        columns = self._expand_all_delay_columns(tsc.columns)
-
-        delayed_timeseries = TSCDataFrame(
-            pd.DataFrame(data, index=tsc.index, columns=columns),
-        )
-
-        delayed_timeseries.loc[:, tsc.columns] = tsc
-        return delayed_timeseries
-
-    def _shift_timeseries(self, timeseries, delay_idx):
-
-        if self.time_direction == "backward":
-            shifted_timeseries = timeseries.shift(
-                delay_idx, fill_value=self.fill_value,
-            ).copy()
-        elif self.time_direction == "forward":
-            shifted_timeseries = timeseries.shift(
-                -1 * delay_idx, fill_value=self.fill_value
-            ).copy()
-        else:
-            raise ValueError(f"time_direction={self.time_direction} not known.")
-
-        columns = self._expand_single_delta_column(timeseries.columns, delay_idx)
-        shifted_timeseries.columns = columns
-
-        return shifted_timeseries
-
-    def apply(self, tsc: TSCDataFrame):
-
-        if not tsc.is_const_dt():
-            raise TimeSeriesCollectionError("dt is not const")
-
-        if (tsc.lengths_time_series <= self.delay_indices.max()).any():
-            raise TimeSeriesCollectionError(
-                f"Mismatch of delay and time series length. Shortest time series has "
-                f"length "
-                f"{np.array(tsc.lengths_time_series).min()} and maximum delay is "
-                f"{self.delay_indices.max()}"
-            )
-
-        delayed_tsc = self._setup_delayed_timeseries_collection(tsc)
-
-        for i, ts in tsc.itertimeseries():
-            for delay_idx in self.delay_indices:
-                shifted_timeseries = self._shift_timeseries(ts, delay_idx)
-                delayed_tsc.loc[
-                    i, shifted_timeseries.columns
-                ] = shifted_timeseries.values
-
-        return delayed_tsc
-
-
-@DeprecationWarning  # TODO: implement if required...
-class TimeFiniteDifference(object):
-
-    # TODO: provide longer shifts? This could give some average of slow and fast
-    #  variables...
-
-    def __init__(self, scheme="centered"):
-        self.scheme = scheme
-
-    def _get_shift_negative(self):
-        pass
-
-    def _get_shift_positive(self):
-        pass
-
-    def _finite_difference_backward(self):
-        pass
-
-    def _finite_difference_forward(self, tsc):
-        pass
-
-    def _finite_difference_centered(self):
-        pass
-
-    def apply(self, tsc: TSCDataFrame):
-
-        for i, traj in tsc:
-            pass
 
 
 if __name__ == "__main__":
