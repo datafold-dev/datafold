@@ -83,7 +83,8 @@ lib_path = ctypes.util.find_library("arpack")
 
 if lib_path is None:
     raise ImportError(
-        "Importing ARPACK-NG to ctypes was not successful. find_library('arpack') returns None."
+        "Importing ARPACK-NG to ctypes was not successful. find_library('arpack') "
+        "returns None."
     )
 
 arpack = cdll.LoadLibrary(lib_path)

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import numbers
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional, List, Generator
+from datafold.utils.typing import PD_IDX_TYPE
 
 import numpy as np
 import pandas as pd
@@ -13,52 +14,49 @@ class TimeSeriesCollectionError(Exception):
 
 class TSCDataFrame(pd.DataFrame):
 
-    ID_NAME = "ID"  # name used in index of (unique) time series
+    IDX_ID_NAME = "ID"  # name used in index of (unique) time series
+    IDX_TIME_NAME = "time"
+    IDX_QOI_NAME = "qoi"
 
     def __init__(self, *args, **kwargs):
-        # TODO: at the moment a sliced object is a Series, not a TSCSeries. Therefore, a single qoi, is also represented
-        #  as a DataFrame
+        # TODO: at the moment a sliced object is a Series, not a TSCSeries. Therefore,
+        #  a single qoi, is also represented as a DataFrame
 
-        time_name = kwargs.pop("time_name", None)
-        qoi_name = kwargs.pop("qoi_name", None)
-
-        # NOTE: do not move this call after other setters "self.attribute = ...". Otherwise, there is an infinite
-        # recursion because pandas handles the __getattr__ magic function.
+        # NOTE: do not move this call after other setters "self.attribute = ...".
+        # Otherwise, there is an infinite recursion because pandas handles the
+        # __getattr__ magic function.
         super(TSCDataFrame, self).__init__(*args, **kwargs)
 
-        if time_name is None:
-            self.time_name = "time"
-        else:
-            self.time_name = time_name
-
-        if time_name is None:
-            self.qoi_name = "qoi"
-        else:
-            self.qoi_name = qoi_name
-
         self._validate()
-        self._insert_missing_index_names()
-        self.sort_index(level=[self.ID_NAME, self.time_name], inplace=True)
+        self.sort_index(level=[self.IDX_ID_NAME, self.IDX_TIME_NAME], inplace=True)
 
     @classmethod
-    def from_tensor(cls, tensor: np.ndarray, columns, time_index=None):
+    def from_tensor(
+        cls, tensor: np.ndarray, time_series_ids=None, columns=None, time_index=None
+    ):
 
-        # TODO: need to make sure, that if pandas implements from_tensor in pd.DataFrame,
-        #   then this needs to be renamed!
+        # TODO: [minor] need to make sure, that if pandas implements from_tensor in
+        #  pd.DataFrame, then this needs to be renamed!
 
         if tensor.ndim != 3:
             raise ValueError(
-                "Input tensor has to be of dimension 3. Index (1) denotes the time series, (2) time and "
-                f"(3) the quantity of interest. Got tensor.ndim={tensor.ndim}"
+                "Input tensor has to be of dimension 3. Index (1) denotes the time "
+                "series, (2) time and (3) the quantity of interest. "
+                f"Got tensor.ndim={tensor.ndim}"
             )
 
-        (
-            nr_timeseries,
-            nr_timesteps,
-            nr_qoi,
-        ) = tensor.shape  # depth=time series, row = time, col = qoi
+        # depth=time series, row = time, col = qoi
+        (nr_timeseries, nr_timesteps, nr_qoi,) = tensor.shape
 
-        time_series_ids = np.arange(nr_timeseries).repeat(nr_timesteps)
+        if time_series_ids is None:
+            time_series_ids = np.arange(nr_timeseries).repeat(nr_timesteps)
+        else:
+            if time_series_ids.ndim > 1:
+                raise ValueError("parameter time_series_ids has to be 1-dim.")
+            time_series_ids = time_series_ids.repeat(nr_timesteps)
+
+        if columns is None:
+            columns = [f"qoi_{i}" for i in range(nr_qoi)]
 
         if time_index is None:
             time_index = np.arange(nr_timesteps)
@@ -67,25 +65,26 @@ class TSCDataFrame(pd.DataFrame):
 
         df_index = pd.MultiIndex.from_arrays([time_series_ids, full_time_index])
         data = tensor.reshape(nr_timeseries * nr_timesteps, nr_qoi)
-        return cls(pd.DataFrame(data=data, index=df_index, columns=columns))
+        return cls(data=data, index=df_index, columns=columns)
 
     @classmethod
     def from_same_indices_as(
         cls,
         indices_from: "TSCDataFrame",
         values: np.ndarray,
-        except_index=None,
-        except_columns=None,
+        except_index: Optional[PD_IDX_TYPE] = None,
+        except_columns: Optional[PD_IDX_TYPE] = None,
     ):
 
         if except_index is not None and except_columns is not None:
             raise ValueError(
                 "'except_index' and 'except_columns' are both given. "
-                "Cannot copy index or column from existing TSCDataFrame if both is excluded."
+                "Cannot copy index or column from existing TSCDataFrame if both is "
+                "excluded."
             )
 
         if except_index is None:
-            index = indices_from.index
+            index = indices_from.index  # type: ignore  # mypy cannot infer type here
         else:
             index = except_index
 
@@ -93,25 +92,47 @@ class TSCDataFrame(pd.DataFrame):
             columns = indices_from.columns
         else:
             columns = except_columns
-
-        return cls(pd.DataFrame(data=values, index=index, columns=columns))
+        return cls(data=values, index=index, columns=columns)
 
     @classmethod
-    def from_single_timeseries(cls, df):
+    def from_single_timeseries(cls, df, ts_id=None):
         """Requires only 1-dim index (time). The time series gets the ID=0."""
 
         if df.index.ndim != 1:
             raise ValueError("Only single time index (without ID) are allowed.")
 
-        df[cls.ID_NAME] = 0
-        df.set_index(cls.ID_NAME, append=True, inplace=True)
-        df = df.reorder_levels([cls.ID_NAME, df.index.names[0]])
+        if ts_id is None:
+            ts_id = 0
 
+        if isinstance(df, pd.Series):
+            if df.name is None:
+                df.name = "qoi1"
+            df = pd.DataFrame(df)
+
+        df[cls.IDX_ID_NAME] = ts_id
+        df.set_index(cls.IDX_ID_NAME, append=True, inplace=True)
+        df = df.reorder_levels([cls.IDX_ID_NAME, df.index.names[0]])
+
+        return cls(df)
+
+    @classmethod
+    def from_csv(cls, filepath, **kwargs):
+        # NOTE: Overwrites the super class method (which is deprecated since version 0.21
+        # Here the csv is read from a csv file that was a
+        # TSCDataFrame, i.e. tscdf.to_csv("filename.csv") and therefore should be valid.
+        df = pd.read_csv(filepath, index_col=[0, 1], header=[0], **kwargs)
         return cls(df)
 
     @property
     def _constructor(self):
         return TSCDataFrame
+
+    @property
+    def _constructor_expanddim(self):
+        raise NotImplementedError(
+            "Currently, there is no intension to expand the "
+            "dimension of a TSCDataFrame"
+        )
 
     def _validate(self):
         if self.index.nlevels != 2:
@@ -122,8 +143,9 @@ class TSCDataFrame(pd.DataFrame):
                 f"Second level: time. Got: {self.index.nlevels}"
             )
 
-        ids_index = self.index.get_level_values(0)
-        time_index = self.index.get_level_values(1)
+        self._insert_index_names()
+        ids_index = self.index.get_level_values("ID")
+        time_index = self.index.get_level_values("time")
 
         if self.columns.nlevels != 1:
             # must exactly have two levels [ID, time]
@@ -136,33 +158,30 @@ class TSCDataFrame(pd.DataFrame):
             # The ids have to be integer values
             raise AttributeError(
                 "Time series IDs must be of integer value. Got "
-                f"self.index.get_level_values(0).dtype={self.index.get_level_values(0).dtype}"
+                f"self.index.get_level_values(0)."
+                f"dtype={self.index.get_level_values(0).dtype}"
             )
 
         if (ids_index < 0).any():
             unique_ids = np.unique(ids_index)
             unique_negative_ids = unique_ids[unique_ids < 0]
             raise AttributeError(
-                f"All time series IDs have to be positive integer values. Got time series ids:"
-                f"{unique_negative_ids}"
+                f"All time series IDs have to be positive integer values. "
+                f"Got time series ids: {unique_negative_ids}"
             )
 
-        if time_index.dtype.kind in "OSU":
+        if time_index.dtype.kind in "bcmOSUV":
+            # See further info for 'kind'-codes:
+            # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html?highlight=kind#numpy.dtype.kind
             raise AttributeError(
-                f"time_index has not a numeric dype. Got time_index.dtype={time_index.dtype}"
+                f"time_index has not a numeric dype. Got time_index "
+                f"dtype={time_index.dtype}"
             )
 
-        if (time_index < 0).any():
+        if time_index.dtype.kind in "if" and (time_index < 0).any():
             raise AttributeError(
                 "All time values have to be non-negative. Found values "
                 f"{(time_index[time_index < 0])}"
-            )
-
-        if not (isinstance(self.time_name, str) and isinstance(self.qoi_name, str)):
-            raise AttributeError(
-                "Attribute time_name and qoi_name have to be of type str. "
-                f"type(self.time_name)={type(self.time_name)} and "
-                f"type(self.qoi_name)={type(self.qoi_name)}"
             )
 
         # if pd.isnull(self.values).any():
@@ -187,18 +206,15 @@ class TSCDataFrame(pd.DataFrame):
 
         if self.index.duplicated().any():
             raise AttributeError(
-                f"Duplicated indices found: {self.index[self.index.duplicated()].to_numpy()}"
+                f"Duplicated indices found: "
+                f"{self.index[self.index.duplicated()].to_numpy()}"
             )
 
         return True
 
-    def _insert_missing_index_names(self):
-
-        if self.index.names is None or self.index.names[1] != self.time_name:
-            self.index.names = [self.ID_NAME, self.time_name]
-
-        if self.columns.name is None or self.columns.name != self.qoi_name:
-            self.columns.name = self.qoi_name
+    def _insert_index_names(self):
+        self.index.names = [self.IDX_ID_NAME, self.IDX_TIME_NAME]
+        self.columns.name = self.IDX_QOI_NAME
 
     @property
     def nr_timeseries(self) -> int:
@@ -210,7 +226,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def ids(self) -> np.ndarray:
-        self.index = self.index.remove_unused_levels()
+        self.index = self.index.remove_unused_levels()  # type: ignore
         return self.index.levels[0]
 
     @property
@@ -221,7 +237,7 @@ class TSCDataFrame(pd.DataFrame):
         if nr_unique_elements == 1:
             return int(nr_time_elements.iloc[0])
         else:
-            nr_time_elements.index.name = self.ID_NAME
+            nr_time_elements.index.name = self.IDX_ID_NAME
             nr_time_elements.sort_index(
                 inplace=True
             )  # seems not to be sorted in the first place.
@@ -241,16 +257,18 @@ class TSCDataFrame(pd.DataFrame):
                 _type = type(sliced)
 
                 try:
-                    # TODO: at the moment there is no TSCSeries, so always use TSCDataFrame, even when sliced is a
-                    #  pd.Series
+                    # TODO: at the moment there is no TSCSeries, so always use
+                    #  TSCDataFrame, even when sliced is a pd.Series
                     return TSCDataFrame(sliced)
                 except AttributeError:
-                    # returns to pd.Series or pd.DataFrame (depending on what the sliced object of an pd.DataFrame is)
+                    # returns to pd.Series or pd.DataFrame (depending on what the
+                    # sliced object of an pd.DataFrame is)
                     return _type(sliced)
 
             def __setitem__(self, key, value):
                 self.tsc_as_df.loc[key] = value
-                # may raise AttributeError, when after the insertion it is not a valid TSCDataFrame
+                # may raise AttributeError, when after the insertion it is not a valid
+                # TSCDataFrame
                 return TSCDataFrame(self.tsc_as_df)
 
         return LocHandler(self)
@@ -259,29 +277,39 @@ class TSCDataFrame(pd.DataFrame):
     def dt(self) -> Union[pd.Series, float]:
         """Returns float if all time deltas are identical, else returns Series."""
 
-        dt = pd.Series(np.nan, index=self.ids, name="dt")
+        if self._is_datetime_index():
+            # TODO: are there ways to better deal with timedeltas?
+            #  E.g. could cast internally to float64
+            # NaT = Not a Time (cmp. to NaN)
+            dt_series = pd.Series(np.timedelta64("NaT"), index=self.ids, name="dt")
+            dt_series = dt_series.astype("timedelta64[ns]")
+        else:
+            dt_series = pd.Series(np.nan, index=self.ids, name="dt")
 
-        for i, ts in self.itertimeseries():
-            if ts.shape[0] == 1:
-                raise TimeSeriesCollectionError(
-                    "Cannot compute time delta because time series of length 1 exist."
-                )
+        diff_times = np.diff(self.index.get_level_values("time"))
+        id_indexer = self.index.get_level_values("ID")
+        for id_ in self.ids:
+            id_diff_times = diff_times[id_indexer.get_indexer_for([id_])[:-1]]
 
-            # the rounding to 15 decimals (~ double precision) is required as diff can create numerical noise which
-            # can result in a larger set of "unique values"
-            time_diffs = np.unique(np.around(np.diff(ts.index), decimals=15))
-            if len(time_diffs) == 1:
-                dt.loc[i] = time_diffs[0]
+            if not self._is_datetime_index():
+                id_diff_times = np.around(id_diff_times, decimals=14)
+            id_dt = np.unique(id_diff_times)
 
-        nr_different_dt = len(np.unique(dt))
+            if len(id_dt) == 1:
+                dt_series[id_] = id_dt[0]
+
+        nr_different_dt = len(np.unique(dt_series))
 
         if nr_different_dt == 1:
-            return float(dt.iloc[0])
+            return dt_series.iloc[0]
         else:
-            return dt
+            return dt_series
 
-    def itertimeseries(self):
-        for i, ts in self.groupby(level=self.ID_NAME):
+    def _is_datetime_index(self):
+        return self.index.get_level_values(1).dtype.kind == "M"
+
+    def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
+        for i, ts in self.groupby(level=self.IDX_ID_NAME):
             # cast single time series back to DataFrame
             yield (i, pd.DataFrame(ts.loc[i, :]))
 
@@ -292,20 +320,21 @@ class TSCDataFrame(pd.DataFrame):
         return len(np.unique(self.lengths_time_series)) == 1
 
     def is_const_dt(self) -> bool:
-        return isinstance(self.dt, float)
+        # If dt is a Series it means it shows "dt per ID" (because it is not constant).
+        return not isinstance(self.dt, pd.Series)
 
     def is_same_ts_length(self):
         return isinstance(self.lengths_time_series, int)
 
     def is_equal_time_index(self) -> bool:
-        check_series = self.reset_index(level=1).loc[:, self.time_name]
+        check_series = self.reset_index(level=1).loc[:, self.IDX_TIME_NAME]
 
         if not self.is_equal_length():
             return False
 
         time_values = None
 
-        for i, current_time_values in check_series.groupby(self.ID_NAME):
+        for i, current_time_values in check_series.groupby(self.IDX_ID_NAME):
             if time_values is None:
                 time_values = current_time_values.to_numpy()
             else:
@@ -348,11 +377,8 @@ class TSCDataFrame(pd.DataFrame):
             [np.ones(df.shape[0], dtype=np.int) * ts_id, df.index]
         )
 
-        # This call also if everything else is valid.
-        self = pd.concat(
-            [self, df], sort=False, axis=0
-        )  # self has to appear first to keep TSCDataFrame type.
-        return self
+        # 'self' has to appear first to keep TSCDataFrame type.
+        return pd.concat([self, df], sort=False, axis=0)
 
     def time_interval(self, ts_id=None) -> Tuple[int, int]:
         """ts_id if None get global (over all time series) min/max value."""
@@ -364,11 +390,12 @@ class TSCDataFrame(pd.DataFrame):
 
         return time_values.min(), time_values.max()
 
+    # TODO: refactor this and time_index_fill (too difficult)
     def time_indices(self, require_const_dt=False, unique_values=False):
 
         # The comment-out line does not work, because levels are not update for DF slices:
         # time_indices = self.index.levels[1].to_numpy()
-        time_indices = np.unique(self.index.get_level_values(1))
+        time_indices = self.index.get_level_values(1)
 
         if require_const_dt:
             if not self.is_const_dt():
@@ -380,7 +407,8 @@ class TSCDataFrame(pd.DataFrame):
             return time_indices
 
     def time_index_fill(self):
-        """Creates an time array over the entire interval and also fills potential gaps. Requires const time delta. """
+        """Creates an time array over the entire interval and also fills potential
+        gaps. Requires const time delta. """
 
         if not self.is_const_dt():
             raise TimeSeriesCollectionError("Time delta is required to be constant.")
@@ -415,21 +443,25 @@ class TSCDataFrame(pd.DataFrame):
         return points_df
 
     def single_time_df(self, time):
-        """Extract from each time series the row for time. If there is no corresponding entry for 'time', then the
-         time series is skipped. If no time series has an entry for time, then an KeyError is raised."""
+        """Extract from each time series the row for time. If there is no corresponding
+        entry for 'time', then the time series is skipped. If no time series has an
+        entry for time, then an KeyError is raised."""
         idx = pd.IndexSlice
 
         # cast to DataFrame first, because this time series has to be at least of length 2
         return pd.DataFrame(self).loc[idx[:, time], :]
 
-    def initial_states_df(self):
+    def initial_states_df(self) -> pd.DataFrame:
+        """Returns the initial condition (first state) for each time series as a
+        pd.DataFrame (because it no longer a time series).
+        """
         df = self.single_timeindex_df(0)
-        df.index.names = [self.ID_NAME, "_".join(["initial", self.time_name])]
+        df.index.names = [self.IDX_ID_NAME, "_".join(["initial", self.IDX_TIME_NAME])]
         return df
 
     def final_states_df(self):
         df = self.single_timeindex_df(-1)
-        df.index.names = [self.ID_NAME, "_".join(["final", self.time_name])]
+        df.index.names = [self.IDX_ID_NAME, "_".join(["final", self.IDX_TIME_NAME])]
         return df
 
 
@@ -451,10 +483,4 @@ def allocate_time_series_tensor(nr_time_series, nr_timesteps, nr_qoi):
 
 
 if __name__ == "__main__":
-    idx = pd.MultiIndex.from_arrays([[0, 0, 1, 1, 55], [0, 1, 0, 1, 99]])
-    idx.name = "time"
-    col = ["A", "B"]
-    df = pd.DataFrame(np.random.rand(5, 2), index=idx, columns=col)
-
-    ts = TSCDataFrame(df)
-    print(ts)
+    pass

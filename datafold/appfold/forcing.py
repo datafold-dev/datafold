@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from typing import Optional, Union
 
 import numpy as np
@@ -9,26 +7,13 @@ from sklearn.base import BaseEstimator
 import datafold.dynfold.operator as operator
 import datafold.pcfold.timeseries as ts
 from datafold.dynfold.koopman import DMDEco, DMDFull
+from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.accessor import NormalizeQoi, TimeSeriesError
 from datafold.utils.datastructure import if1dim_rowvec
 
-from sklearn.decomposition import TruncatedSVD
 
-
-@NotImplementedError
-class DynamicalSystemEstimatorMixIn(object):
-    def fit(self, X_ts: TSCDataFrame):
-        pass
-
-    def predict(self, X_ic: TSCDataFrame, t):
-        pass
-
-    def score(self, Y_ts: TSCDataFrame):
-        pass
-
-
-class SumoKernelEigFuncDMD(object):
+class ForcingKernelEigFuncDMD(object):
     # TODO: integrate DynamicalSystemEstimatorMixIn and finish work
 
     def __init__(
@@ -86,7 +71,7 @@ class SumoKernelEigFuncDMD(object):
         # self.dict_data = pd.concat([self.dict_data, X_ts], axis=1)
         # # # TODO: end experimental
 
-        self.edmd_ = DMDFull(is_diagonalize=True)
+        self.edmd_ = DMDFull(is_diagonalize=False)
         self.edmd_ = self.edmd_.fit(self.dict_data)
 
     def _coeff_matrix_least_square(self, X):
@@ -95,20 +80,27 @@ class SumoKernelEigFuncDMD(object):
         # obs_basis * data_coeff = data
         self.coeff_matrix_, res = np.linalg.lstsq(self.dict_data, X, rcond=1e-14)[:2]
 
-    def _compute_sumo_timeseries(self, X_ic_edmd, time_samples) -> TSCDataFrame:
+    def _compute_forcing_timeseries(self, X_forcing) -> TSCDataFrame:
 
-        tsc_result = self.edmd_.predict(
-            X_ic_edmd,
-            t=time_samples,
-            post_map=self.coeff_matrix_.T,
-            qoi_columns=self._fit_qoi_columns,
+        # Integrate the linear transformation back to the physical space
+        # (via coefficients matrix) into the dynamical matrix of the linear dynamical
+        # system.
+        dynmatrix = self.coeff_matrix_.T @ self.edmd_.eigenvectors_right_
+
+        tsc_result = LinearDynamicalSystem(
+            mode="continuous"
+        ).evolve_edmd_forcing_system(
+            edmd=self.edmd_,
+            tsc_forcing=X_forcing,
+            dynmatrix=dynmatrix,
+            eigfunc_interp=self.eigfunc_interpolator,
         )
 
         tsc_result, _ = tsc_result.tsc.undo_normalize_qoi(self.normalize_data)
 
         return tsc_result
 
-    def fit(self, X_ts: ts.TSCDataFrame) -> "SumoKernelEigFuncDMD":
+    def fit(self, X_ts: ts.TSCDataFrame) -> "ForcingKernelEigFuncDMD":
 
         X_ts, self.normalize_data = X_ts.tsc.normalize_qoi(
             normalize_strategy=self.normalize_data
@@ -133,70 +125,18 @@ class SumoKernelEigFuncDMD(object):
 
         return self
 
-    def __call__(self, X_ic: np.ndarray, t) -> TSCDataFrame:
-        return self.predict(X_ic, t)
+    def __call__(self, X_ic: np.ndarray) -> TSCDataFrame:
+        return self.predict(X_ic)
 
-    def _transform_dmd_ic(self, t, X_ic):
-
-        # Time samples to evaluate the dmd model:
-        if t is None:
-            time_samples = self._fit_time_index
-        elif isinstance(t, (float, int)):
-            shift = self.edmd_._normalize_shift
-            time_samples = np.arange(shift, shift + t + 1)
-        elif isinstance(t, np.ndarray):
-            time_samples = t
-        else:
-            raise TypeError(f"type(t)={type(t)} currently not supported.")
-
-        # Initial condition for the DMD (needs to be transformed)
-        if isinstance(X_ic, np.ndarray):
-            X_ic = if1dim_rowvec(X_ic)
-            nr_samples = X_ic.shape[0]
-
-            idx = pd.MultiIndex.from_arrays(
-                [np.arange(nr_samples), np.ones(nr_samples) * time_samples[0]],
-                names=["ID", "initial_time"],
-            )
-
-            X_ic = pd.DataFrame(X_ic, index=idx, columns=self._fit_qoi_columns)
-
-        elif isinstance(X_ic, pd.DataFrame):
-            assert len(X_ic.columns) == len(self._fit_qoi_columns)
-
-            # Re-organize columns, if required. Fails if the column names do not match.
-            X_ic = X_ic[self._fit_qoi_columns]
-
-        else:
-            raise TypeError(
-                f"type={type(X_ic)} is currently not supported to describe initial "
-                f"conditions."
-            )
+    def predict(self, X_force) -> TSCDataFrame:
 
         # Apply the same normalization as to the data that was fit
         # Cannot use the .tsc extension, because it is no time series collection.
-        X_ic, _ = NormalizeQoi(
+        X_force, _ = NormalizeQoi(
             normalize_strategy=self.normalize_data, undo=False
-        ).transform(X_ic)
+        ).transform(X_force)
 
-        # Transform the initial conditions to obervable functions evaluations
-        ic_obs_space = self.eigfunc_interpolator(X_ic.to_numpy())
-
-        X_ic_dmd = pd.DataFrame(
-            if1dim_rowvec(ic_obs_space),
-            index=X_ic.index,
-            columns=self.dict_data.columns,
-        )
-
-        return t, X_ic_dmd
-
-    def predict(self, X_ic, t=None) -> TSCDataFrame:
-
-        time_samples, X_ic_dmd = self._transform_dmd_ic(t=t, X_ic=X_ic)
-
-        tsc_predicted = self._compute_sumo_timeseries(
-            X_ic_dmd, time_samples=time_samples,
-        )
+        tsc_predicted = self._compute_forcing_timeseries(X_force)
 
         return tsc_predicted
 
@@ -210,9 +150,7 @@ class SumoKernelEigFuncDMD(object):
         sample_weight: Optional[np.ndarray] = None,
         multi_qoi: Union[str, np.ndarray] = "uniform_average",
     ):
-
-        time_samples = Y_ts.time_indices(unique_values=True)
-        Y_pred = self.predict(X_ic, t=time_samples)
+        Y_pred = self.predict(X_ic)
 
         tsc_error = TimeSeriesError(  # setup to compute the TimeSeriesError
             metric=metric, mode=mode, normalize_strategy=normalize_strategy

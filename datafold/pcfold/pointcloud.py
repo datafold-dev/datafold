@@ -13,10 +13,13 @@ from datafold.pcfold.distance import (
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 from datafold.pcfold.kernels import Kernel, RadialBasisKernel
 
-# TODO: Consider to have a separate Methods section in documentation for the methods that are only for PCManifold
+# TODO: Consider to have a separate Methods section in documentation for the methods
+#  that are only for PCManifold
 #   source: https://numpydoc.readthedocs.io/en/latest/format.html#class-docstring
-#   > In some cases, however, a class may have a great many methods, of which only a few are relevant (e.g.,
-#   > subclasses of ndarray). Then, it becomes useful to have an additional "Methods" section.
+#   > In some cases, however, a class may have a great many methods, of which only a
+#     few are relevant (e.g.,
+#   > subclasses of ndarray). Then, it becomes useful to have an additional "Methods"
+#   section.
 
 
 class PCManifold(np.ndarray):
@@ -35,7 +38,8 @@ class PCManifold(np.ndarray):
             # TODO: also allow kernel=None? The distance matrix can still be computed.
             kernel = RadialBasisKernel()
 
-        # view casting --> the np.ndarray as a PCManifold object --> this calls internally __array_finalize__
+        # view casting --> the np.ndarray as a PCManifold object --> this calls
+        # internally __array_finalize__
         obj = np.asarray(data).view(cls)
 
         if obj.ndim != 2:
@@ -56,17 +60,21 @@ class PCManifold(np.ndarray):
     def __array_finalize__(self, obj):
         # Gets called for all three ways of object creation
         # 1) explicit construction (PCManifold(...)) --> obj is None
-        # 2) view casting -->  obj can be an instance of any subclass of ndarray, including our own
-        # 3) new-from-template --> obj is another instance of our own subclass, that we might use to update the new
-        #    self instance.
+        # 2) view casting -->  obj can be an instance of any subclass of ndarray,
+        #    including our own
+        # 3) new-from-template --> obj is another instance of our own subclass,
+        #    that we might use to update the new self instance.
 
-        # For details see https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
+        # For details
+        # see https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
-        # Because __array_finalize__ is the only method that always sees new instances being created, it is the
-        # sensible place to fill in instance defaults for new object attributes, among other tasks.
+        # Because __array_finalize__ is the only method that always sees new instances
+        # being created, it is the sensible place to fill in instance defaults for new
+        # object attributes, among other tasks.
 
-        # "self" is a new object resulting from ndarray.__new__(InfoArray, ...), therefore it only has attributes that
-        # the ndarray.__new__ constructor gave it - i.e. those of a standard ndarray.
+        # "self" is a new object resulting from ndarray.__new__(InfoArray, ...),
+        # therefore it only has attributes that the ndarray.__new__ constructor gave it
+        # - i.e. those of a standard ndarray.
 
         if obj is None:
             return obj
@@ -118,13 +126,14 @@ class PCManifold(np.ndarray):
     def dist_backend(self, backend):
         self._dist_backend = get_backend_distance_algorithm(backend)
 
-    def compute_kernel_matrix(self, Y=None):
+    def compute_kernel_matrix(self, Y=None, **kernel_kwargs):
         return self.kernel(
             X=self,
             Y=Y,
             dist_cut_off=self.cut_off,
             dist_backend=self.dist_backend,
-            **self._dist_params,
+            kernel_kwargs=kernel_kwargs,
+            dist_backend_kwargs=self._dist_params,
         )
 
     def compute_distance_matrix(self, Y=None, metric="euclidean"):
@@ -174,7 +183,8 @@ def subsample(
 ):
     """
     Returns a new PCManifold that has a converged subsampling of the given points.
-    randomized: False (default, will subsample iteratively) True (will randomly pick indices uniformly. Very fast)
+    randomized: False (default, will subsample iteratively) True (will randomly pick
+    indices uniformly. Very fast)
     """
 
     if not isinstance(pcm, PCManifold):
@@ -227,7 +237,8 @@ def subsample(
             current_indices_selected = iteration_indices[bool_mask_select_indices]
 
             if bool_mask_select_indices.sum() < int(n_samples * tol) + 1:
-                # TODO: not sure why we need this condition -- break out of look and we don't look at other chunks.
+                # TODO: not sure why we need this condition -- break out of look and we
+                #  don't look at other chunks.
                 #  Original code:
                 #  if len(new_indices_k) < int(n_samples * tol) + 1:
                 #     break
@@ -284,7 +295,8 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), scale_tests=20):
     fig, ax = plt.subplots(1, 1, figsize=(6, 4))
 
     # n_samples = 100000
-    # ind = np.random.permutation(np.arange(_d.shape[0]))[0:np.min([_d.shape[0], n_samples])]
+    # ind =
+    #  np.random.permutation(np.arange(_d.shape[0]))[0:np.min([_d.shape[0], n_samples])]
     # _d = _d[ind,:]
     # _d = _d[:, ind]
 
