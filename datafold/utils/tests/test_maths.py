@@ -1,5 +1,5 @@
 import unittest
-from datafold.utils.math import *
+from datafold.utils.maths import *
 
 import numpy as np
 import numpy.testing as nptest

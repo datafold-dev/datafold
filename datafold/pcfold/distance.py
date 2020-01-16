@@ -9,9 +9,9 @@ import scipy.spatial
 from scipy.spatial.distance import _METRICS, pdist, cdist, squareform
 from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
 
-# rdist is an optional distance algorithm backend -- an import error is raised only when one attempts to use rdist and
-# the import was not successful
 try:
+    # rdist is an optional distance algorithm backend -- an import error is raised only
+    # when one attempts to use rdist and the import was not successful
     import rdist
 
     IS_IMPORTED_RDIST = True
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 def get_k_smallest_element_value(
     distance_matrix, k: int, ignore_zeros=True, fill_value=0
 ):
-    """Return the k-th smallest element, i.e. the element where only k-1 elements are smaller.
-    if ignore_zeros=True only positive distances are considered.
+    """Return the k-th smallest element, i.e. the element where only k-1 elements are
+    smaller. if ignore_zeros=True only positive distances are considered.
     """
 
     if k > distance_matrix.shape[1] or k < 0:
@@ -42,7 +42,8 @@ def get_k_smallest_element_value(
             row = distance_matrix.getrow(row_idx).data
 
             if ignore_zeros:
-                # there could still be stored zeros (e.g. on the diagonal of a pdist matrix)
+                # there could still be stored zeros (e.g. on the diagonal of a pdist
+                # matrix)
                 row = row[row != 0]
 
                 if row.shape[0] <= k:
@@ -90,7 +91,8 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     def _check_valid_metric(self, valid, metric):
         if metric not in valid:
             raise ValueError(
-                f"Distance algorithm has invalid metric = {metric}. Valid metrics are = {valid}."
+                f"Distance algorithm has invalid metric = {metric}. Valid metrics "
+                f"are = {valid}."
             )
 
     def _numeric_cut_off(self, cut_off):
@@ -102,21 +104,30 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     def _set_zeros_sparse_diagonal(self, distance_matrix):
         # This function sets the diagonal to zero of a sparse matrix.
 
-        # Some algorithms don't store the zeros on the diagonal for the pdist case. However, this is critical if
-        # afterwards the kernel is applied kernel(distance_matrix).
-        #   -> kernel(distance)=0 but correct is kernel(distance)=1 (for a stationary kernel)
+        # Some algorithms don't store the zeros on the diagonal for the pdist case.
+        # However, this is critical if afterwards the kernel is applied
+        # kernel(distance_matrix).
+        #   -> kernel(distance)=0 but correct is kernel(distance)=1
+        #      (for a stationary kernel)
         # The issue is:
-        # * We neglect not zeros but large values (e.g. cut_off=100 we ignore larger values and do not store them)
-        # * The sparse matrix formats see the "not stored values" equal to zero, however, there are also "true zeros"
-        #   for duplicates. We HAVE to store these zero values, otherwise the kernel values are wrong on the
-        #   opposite extreme end (i.e. 0 instead of 1, for stationary kernels).
+        # * We neglect not zeros but large values (e.g. cut_off=100 we ignore larger
+        #   values and do not store them)
+        # * The sparse matrix formats see the "not stored values" equal to zero,
+        #   however, there are also "true zeros" for duplicates. We HAVE to store these
+        #   zero values, otherwise the kernel values are wrong on the opposite extreme
+        #   end (i.e. 0 instead of 1, for stationary kernels).
+
+        # TODO: If (sparse) distance_matrix is essentially dense (radius very large),
+        #  then return dense matrix early and don't bother with adapting the sparse
+        #  matrix
 
         assert (
             scipy.sparse.issparse(distance_matrix)
             and distance_matrix.shape[0] == distance_matrix.shape[1]
         )
 
-        # distances cannot be negative, therefore choose an easy to identify negative value
+        # distances cannot be negative, therefore choose an easy to identify negative
+        # value
         invalid_value = -999.0
 
         # in case there are duplicate rows -> set to invalid_value
@@ -134,13 +145,15 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def pdist(self, X, cut_off=None, **backend_options):
-        """Computes the distance matrix pairwise from the dataset. From this follows always that the matrix is square
-        and the diagonal is zero (distance of self points)."""
+        """Computes the distance matrix pairwise from the dataset. From this follows
+        always that the matrix is square and the diagonal is zero (distance of self
+        points)."""
 
     @abc.abstractmethod
     def cdist(self, X, Y, cut_off=None, **backend_options):
-        """Computes the distance matrix componentwise between two point clouds X and Y. Important:
-        the query points are in rows (i) and the reference points in columns (j)."""
+        """Computes the distance matrix componentwise between two point clouds X and Y.
+        Important: the query points are in rows (i) and the reference points in columns
+        (j)."""
 
 
 class BruteForceDist(DistanceAlgorithm):
@@ -160,9 +173,9 @@ class BruteForceDist(DistanceAlgorithm):
             # TODO: can also compute and handle VI = inverse covariance matrix
             # TODO: sklearn also provides to approximate the covariance for large metrics
             #  https://scikit-learn.org/stable/modules/covariance.html
-            metric_params = {
-                "V": np.cov(X, rowvar=False)
-            }  # add inverse covariance matrix??
+
+            # TODO: add inverse covariance matrix?
+            metric_params = {"V": np.cov(X, rowvar=False)}
 
         if (
             self.metric in _METRICS.keys()
@@ -172,6 +185,10 @@ class BruteForceDist(DistanceAlgorithm):
         ):
             distance_matrix = squareform(pdist(X, metric=self.metric))
         else:
+            # TODO: move over to
+            #  https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.RadiusNeighborsTransformer.html#sklearn.neighbors.RadiusNeighborsTransformer
+            #  when upgrading to scikit-learn v0.22
+            #  Test also how the brute force works!
             distance_matrix = radius_neighbors_graph(
                 X,
                 radius=radius,
@@ -209,7 +226,8 @@ class BruteForceDist(DistanceAlgorithm):
                 radius=radius, algorithm="auto", metric=self.metric, **backend_options
             )
 
-            # Fit to Y first, so that in the rows are the query and reference are in columns
+            # Fit to Y first, so that in the rows are the query and reference are in
+            # columns
             method = method.fit(X)
             distance_matrix = method.radius_neighbors_graph(Y, mode="distance")
 
@@ -228,8 +246,9 @@ class RDist(DistanceAlgorithm):
         super(RDist, self).__init__(metric=metric)
 
     def _adapt_correct_metric_max_distance(self, max_distance):
-        # Generally: the cut-off is represented like self.metric. The scipy.kdtree can only compute Euclidean distances.
-        # Therefore, undo the squaring of cut-off. For sqeuclidean distance, the squaring has to be done after the
+        # Generally: the cut-off is represented like self.metric. The scipy.kdtree can
+        # only compute Euclidean distances. Therefore, undo the squaring of cut-off.
+        # For sqeuclidean distance, the squaring has to be done after the
         # distance matrix was computed.
 
         if self.metric == "sqeuclidean":
@@ -250,7 +269,8 @@ class RDist(DistanceAlgorithm):
         # build tree, currently not stored, backend options are handled to here.
         _rdist = rdist.Rdist(X, **backend_options)
 
-        # compute distance matrix, these options are not accessible from outside at the moment.
+        # compute distance matrix, these options are not accessible from outside at the
+        # moment.
         distance_matrix = _rdist.sparse_pdist(
             r=max_distance, rtype="radius", **self._get_dist_options()
         )
@@ -285,21 +305,21 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         super(ScipyKdTreeDist, self).__init__(metric=metric)
 
     def _adapt_correct_metric_max_distance(self, max_distance):
-        # Generally: the cut-off is represented like self.metric. The scipy.kdtree can only compute Euclidean distances.
-        # Therefore, undo the squaring of cut-off. For sqeuclidean distance, the squaring has to be done after the
+        # Generally: the cut-off is represented like self.metric. The scipy.kdtree can
+        # only compute Euclidean distances. Therefore, undo the squaring of cut-off.
+        # For sqeuclidean distance, the squaring has to be done after the
         # distance matrix was computed.
 
         if self.metric == "sqeuclidean":
-            max_distance = np.sqrt(
-                max_distance
-            )  # note if max_distance==np.inf, the it is still np.inf
+            # note if max_distance==np.inf, the it is still np.inf
+            max_distance = np.sqrt(max_distance)
 
         return max_distance
 
     def pdist(self, X, cut_off=None, **backend_options):
 
-        # TODO: if necessary there are build_options and compute_options required, currently no options to
-        #  sparse_distance_matrix are handed
+        # TODO: if necessary there are build_options and compute_options required,
+        #  currently no options to sparse_distance_matrix are handed
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)
 
@@ -422,7 +442,8 @@ class GuessOptimalDist(DistanceAlgorithm):
 def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):
 
     if tol == 0:
-        # TODO: check if what are valid tol values and what the tolerance is exactly used for...
+        # TODO: check if what are valid tol values and what the tolerance is exactly
+        #  used for...
         raise ZeroDivisionError("tol cannot be zero.")
 
     k_smallest_element_values = get_k_smallest_element_value(
@@ -441,7 +462,8 @@ def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):
 
         # TODO: 4 is magic number, and the product is currently always 1
         distance_matrix.data[distance_matrix.data > 4 * epsilon] = 0
-        distance_matrix.eliminate_zeros()  # TODO: maybe for pdist matrices need to set the diagonal with zeros again
+        # TODO: maybe for pdist matrices need to set the diagonal with zeros again
+        distance_matrix.eliminate_zeros()
     else:  # dense case
         xk_inv = np.diag(xk)
         distance_matrix = np.square(distance_matrix)
@@ -455,9 +477,11 @@ def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):
 def all_available_distance_algorithm():
     all_backends = DistanceAlgorithm.__subclasses__()
 
-    # This is the case if backend is given as a str, now we look for the matching DistanceAlgorithm.NAME
+    # This is the case if backend is given as a str, now we look for the matching
+    # DistanceAlgorithm.NAME
     for b in all_backends:
-        # Tests are only for security that all algorithms have the mandatory (static) attribute set.
+        # Tests are only for security that all algorithms have the mandatory (static)
+        # attribute set.
         try:
             if b.NAME is None:  # Attribute error is raised here if NAME does not exist
                 # If NAME is set to none, then the implementation is not considered
@@ -508,8 +532,10 @@ def compute_distance_matrix(
     :param Y: np.ndarray [Optional] - point cloud for componentwise (cdist)
     :param metric: str - metric to compute
     :param cut_off: float - cut off for sparsity
-    :param kmin: int input for continuous nearest neighbor TODO: check again this parameter
-    :param tol: float tolerance used in continuous nearest neighbors TODO: I don't quite get this parameter
+    TODO: check again this parameter:
+    :param kmin: int input for continuous nearest neighbor
+    TODO: I don't quite get this parameter:
+    :param tol: float tolerance used in continuous nearest neighbors
     :param backend: str - algorithm to choose
     :param backend_options: dict - handling for specific options to the selected algorithm
     :return: distance matrix
@@ -527,15 +553,16 @@ def compute_distance_matrix(
     if not is_sparse and kmin > 0:
         # TODO: (raise error early, before expensive distance matrix is computed)
         raise NotImplementedError(
-            "fix_kmin_rows currently only works for sparse distance matrices (i.e. with set "
-            "cut_off)."
+            "fix_kmin_rows currently only works for sparse distance matrices (i.e. with "
+            "set cut_off)."
         )
 
     if metric == "sqeuclidean":
         # TODO: discuss this if this is okay
         if cut_off is not None:
-            # NOTE: this is a special case. Usually the cut_off is represented in the respective metric. However, for
-            # the 'sqeuclidean' case we use the 'euclidean' metric for the cut off.
+            # NOTE: this is a special case. Usually the cut_off is represented in the
+            # respective metric. However, for the 'sqeuclidean' case we use the
+            # 'euclidean' metric for the cut off.
             cut_off = cut_off ** 2
 
     backend_class = get_backend_distance_algorithm(backend)
@@ -554,8 +581,8 @@ def compute_distance_matrix(
 
     if is_sparse and distance_matrix.nnz == np.product(distance_matrix.shape):
         logger.warning(
-            f"cut_off={cut_off} value has no effect on sparsity of distance matrix, the sparse matrix is "
-            f"effectively dense."
+            f"cut_off={cut_off} value has no effect on sparsity of distance matrix, "
+            f"the sparse matrix is effectively dense."
         )
 
     if kmin > 0:
@@ -568,7 +595,8 @@ def compute_distance_matrix(
             distance_matrix = distance_matrix.tocsr()
 
         # Sort_indices return immediately if indices are already sorted.
-        # If not sorted, the call can be costly (depending on nnz), but is better for later usage
+        # If not sorted, the call can be costly (depending on nnz), but is better for
+        # later usage
         distance_matrix.sort_indices()
 
     return distance_matrix

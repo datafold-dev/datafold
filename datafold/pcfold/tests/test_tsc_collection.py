@@ -131,10 +131,10 @@ class TestTSCDataFrame(unittest.TestCase):
 
         qoi_column = pd.Index(["A", "B"])
 
-        actual = TSCDataFrame.from_tensor(matrix, qoi_column)
+        actual = TSCDataFrame.from_tensor(matrix, columns=qoi_column)
 
         time_index_expected = pd.MultiIndex.from_arrays(
-            [[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], names=[actual.ID_NAME, "time"]
+            [[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], names=[actual.IDX_ID_NAME, "time"]
         )
 
         qoi_column_expected = pd.Index(["A", "B"], name="qoi")
@@ -155,12 +155,12 @@ class TestTSCDataFrame(unittest.TestCase):
         qoi_column = pd.Index(["A", "B"])
 
         actual = TSCDataFrame.from_tensor(
-            matrix, qoi_column, time_index=np.array([100, 200])
+            matrix, columns=qoi_column, time_index=np.array([100, 200])
         )
 
         time_index_expected = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 2, 2], [100, 200, 100, 200, 100, 200]],
-            names=[actual.ID_NAME, "time"],
+            names=[actual.IDX_ID_NAME, "time"],
         )
 
         qoi_column_expected = pd.Index(["A", "B"], name="qoi")
@@ -280,7 +280,7 @@ class TestTSCDataFrame(unittest.TestCase):
         actual = TSCDataFrame(self.simple_df).is_contain_nans()
         self.assertFalse(actual)
 
-    @unittest.skip  # allow nan values for now
+    @unittest.skip  # type: ignore # allow nan values for now
     def test_isnan2(self):
         # insert nan
         simple_df = self.simple_df.copy()
@@ -345,7 +345,7 @@ class TestTSCDataFrame(unittest.TestCase):
         actual = TSCDataFrame(simple_df).dt
         expected = pd.Series(
             data=[1, 1, 1, np.nan],
-            index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.ID_NAME),
+            index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.IDX_ID_NAME),
             name="dt",
         )
 
@@ -357,17 +357,19 @@ class TestTSCDataFrame(unittest.TestCase):
         simple_df.loc[pd.IndexSlice[45, 1], :] = [1, 2]
 
     def test_time_array(self):
-        actual = TSCDataFrame(self.simple_df).time_indices()
+        actual = TSCDataFrame(self.simple_df).time_indices(unique_values=True)
         expected = self.simple_df.index.levels[1].to_numpy()
         nptest.assert_equal(actual, expected)
 
         simple_df = self.simple_df.copy()
-        simple_df.loc[pd.IndexSlice[45, 100], :] = [
+
+        # include non-const time delta
+        simple_df.loc[pd.IndexSlice[45, 100], :] = (
             5,
             4,
-        ]  # include non-const time delta
+        )
 
-        actual = TSCDataFrame(self.simple_df).time_indices()
+        actual = TSCDataFrame(self.simple_df).time_indices(unique_values=True)
         expected = np.unique(self.simple_df.index.levels[1].to_numpy())
         nptest.assert_equal(actual, expected)
 
@@ -546,11 +548,42 @@ class TestTSCDataFrame(unittest.TestCase):
         initial_states = tsc.initial_states_df()
         self.assertTrue("time" in initial_states.columns)
 
+    def test_str_time_indices(self):
+        simple_df = self.simple_df.copy(deep=True)
+
+        simple_df.index = simple_df.index.set_levels(
+            self.simple_df.index.levels[1].astype(str), level=1
+        )
+
+        with self.assertRaises(AttributeError):
+            TSCDataFrame(simple_df)
+
+    def test_float_time_indices(self):
+        simple_df = self.simple_df.copy(deep=True)
+
+        simple_df.index = simple_df.index.set_levels(
+            self.simple_df.index.levels[1].astype(np.float), level=1
+        )
+
+        self.assertIsInstance(TSCDataFrame(simple_df), TSCDataFrame)
+
+    def test_datetime_time_indices(self):
+        simple_df = self.simple_df.copy(deep=True)
+
+        dates = pd.to_datetime(
+            "2019-11-" + (self.simple_df.index.levels[1] + 1).astype(str).str.zfill(2),
+            format="%Y-%m-%d",
+        )
+
+        simple_df.index = simple_df.index.set_levels(dates, level=1)
+
+        self.assertIsInstance(TSCDataFrame(simple_df), TSCDataFrame)
+
 
 if __name__ == "__main__":
     # test = TestTSCDataFrame()
     # test.setUp()
-    # test.test_time_not_disappear_initial_state()
+    # test.test_build_from_single_timeseries()
     #
     # exit()
     unittest.main()
