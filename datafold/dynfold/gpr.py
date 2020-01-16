@@ -36,10 +36,13 @@ class PCMGPRegression(object):
 
     @staticmethod
     def sample(pcm, n_functions=1, output_noise_std=1e-5):
-        """Samples random, smooth functions on the point cloud. does NOT use sparsity!!! """
+        """Samples random, smooth functions on the point cloud.
+        does NOT use sparsity!!! """
 
         gp_kernel = pcm.compute_kernel_matrix()
-        sgpk = gp_kernel  # scipy.linalg.fractional_matrix_power(gp_kernel @ gp_kernel.T, 1/2) # make it spd
+
+        # scipy.linalg.fractional_matrix_power(gp_kernel @ gp_kernel.T, 1/2) # make it spd
+        sgpk = gp_kernel
 
         gp_chol = np.linalg.cholesky(
             sgpk + output_noise_std * np.identity(gp_kernel.shape[0])
@@ -88,9 +91,11 @@ class PCMGPRegression(object):
             # alpha,_,_,_ = np.linalg.lstsq(__L.T, alpha0, rcond=self.__rcond)
             # self.__kfx = alpha
 
-            # self.__kfx = scipy.sparse.linalg.spsolve(kernel_matrix, fx)# self.__kernel_matrix_inverse.solve(fx)
+            # self.__kernel_matrix_inverse.solve(fx)
+            # self.__kfx = scipy.sparse.linalg.spsolve(kernel_matrix, fx)
 
-            # TODO: maybe write this with a full loop for code-readability, also preallocate the _kfx
+            # TODO: maybe write this with a full loop for code-readability, also
+            #  preallocate the _kfx
             self._kfx = np.column_stack(
                 [
                     scipy.sparse.linalg.lsmr(
@@ -104,13 +109,20 @@ class PCMGPRegression(object):
             )  # self.__kernel_matrix_inverse.solve(fx)
         else:
             self._kernel_matrix = self._pcm.compute_kernel_matrix()
-            # kernel_matrix = scipy.sparse.csc_matrix(kernel_matrix + sigma**2 * scipy.sparse.identity(kernel_matrix.shape[0]))
+
+            # kernel_matrix = scipy.sparse.csc_matrix(
+            #     kernel_matrix
+            #     + sigma ** 2 * scipy.sparse.identity(kernel_matrix.shape[0])
+            # )
 
             self._invdiag = scipy.sparse.diags(
                 1.0 / (self._rcond + self._kernel_matrix.sum(axis=1).A.ravel())
             )
             self._kernel_matrix = self._invdiag @ self._kernel_matrix
-            # invdiag = scipy.sparse.diags(1.0/(self.__rcond+kernel_matrix.sum(axis=1).A.ravel()))
+
+            # invdiag = scipy.sparse.diags(
+            #     1.0 / (self.__rcond + kernel_matrix.sum(axis=1).A.ravel())
+            # )
             # kernel_matrix = invdiag @ kernel_matrix
 
             # TODO: the same as above?
@@ -150,7 +162,8 @@ class PCMGPRegression(object):
             metric = "euclidean"
 
         if use_distances is None:
-            # add a little bit of noise to avoid zero distances to points that are on top of points in self.__points
+            # add a little bit of noise to avoid zero distances to points that are on top
+            # of points in self.__points
             noise = (
                 np.random.rand(new_points.shape[0], self._pcm.shape[1]) - 0.5
             ) * self._rcond
@@ -163,23 +176,33 @@ class PCMGPRegression(object):
                 backend=self._pcm.dist_backend,
             )
 
-            # distance_matrix = self._pcm.sparse_distance_matrix(Y=new_points + noise, metric=metric)
+            # distance_matrix = self._pcm.sparse_distance_matrix(Y=new_points + noise,
+            # metric=metric)
         else:
             # TODO: this does not work at the moment, the kernel matrix is not using it.
             distance_matrix = use_distances
 
         if tikhonov_regularization:
             kyx = self._pcm.kernel.eval(distance_matrix)
-            # kyx = self._pcm.sparse_kernel_matrix(distance_matrix=distance_matrix, scale=self._regression_scale, add_identity=False)
+
+            # kyx = self._pcm.sparse_kernel_matrix(
+            #     distance_matrix=distance_matrix,
+            #     scale=self._regression_scale,
+            #     add_identity=False,
+            # )
             mean = np.array(kyx.T.dot(scipy.sparse.csr_matrix(use_kfx)).todense())
         else:
-            # add a little bit of noise to avoid zero distances to points that are on top of points in self.__points
+            # add a little bit of noise to avoid zero distances to points that are on
+            # top  of points in self.__points
             noise = (
                 np.random.rand(new_points.shape[0], self._pcm.shape[1]) - 0.5
             ) * self._rcond
             kyx = self._pcm.compute_kernel_matrix(Y=new_points + noise)
 
-            # invdiag1 = scipy.sparse.diags(1.0 / (self._rcond + kyx.sum(axis=1).T.ravel()))
+            # invdiag1 = scipy.sparse.diags(
+            #     1.0 / (self._rcond + kyx.sum(axis=1).T.ravel())
+            # )
+
             invdiag2 = scipy.sparse.diags(
                 1.0 / (self._rcond + np.array(kyx.sum(axis=0)).ravel()), offsets=0
             )
@@ -231,9 +254,8 @@ class PCMGPRegression(object):
         # compute the decomposition for fx
 
         if regression_scale is None:
-            regression_scale = (
-                1  # TODO: check, the next line would fail if regression_scale is None
-            )
+            # TODO: check, the next line would fail if regression_scale is None
+            regression_scale = 1
 
         self.regression(fx, regression_scale * 4)
         # compute the functional part of the log likelihood

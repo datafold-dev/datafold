@@ -3,7 +3,14 @@ unittests:
   script:
     - pip3 install -r requirements-dev.txt -q --user
     - nosetests datafold/ -v
+  allow_failure: false
 
 is_blackd:
   script:
     - black ./datafold/ --check --diff
+  allow_failure: true
+
+mypy_check:
+  script:
+    - mypy ./
+  allow_failure: true
