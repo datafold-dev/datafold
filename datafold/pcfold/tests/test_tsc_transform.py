@@ -6,9 +6,14 @@ import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
+from sklearn.preprocessing import StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.transform import TSCQoiTransform, TSCTakensEmbedding
+from datafold.pcfold.timeseries.transform import (
+    TSCQoiPreprocess,
+    TSCQoiScale,
+    TSCTakensEmbedding,
+)
 
 
 class TestTSCQoiTransform(unittest.TestCase):
@@ -39,7 +44,7 @@ class TestTSCQoiTransform(unittest.TestCase):
     def test_scale_min_max(self):
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiTransform.from_name("min-max")
+        scale = TSCQoiScale("min-max")
         scaled_tsc = scale.fit_transform(tsc_df)
 
         # sanity check:
@@ -53,10 +58,8 @@ class TestTSCQoiTransform(unittest.TestCase):
 
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiTransform.from_name("standard")
+        scale = TSCQoiScale("standard")
         scaled_tsc = scale.fit_transform(tsc_df)
-
-        from sklearn.preprocessing import StandardScaler
 
         nptest.assert_array_equal(
             scaled_tsc.to_numpy(),
@@ -95,7 +98,7 @@ class TestTSCQoiTransform(unittest.TestCase):
         ]
 
         for cls, kwargs in scaler:
-            scale = TSCQoiTransform(cls=cls, **kwargs)
+            scale = TSCQoiPreprocess(cls=cls, **kwargs)
             tsc_transformed = scale.fit_transform(tsc_df)
 
             # Check the underlying array equals:
@@ -112,17 +115,17 @@ class TestTSCQoiTransform(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             # Normalizer has no inverse_transform
-            TSCQoiTransform(cls=Normalizer)
+            TSCQoiPreprocess(cls=Normalizer)
 
     def test_takens_embedding(self):
         simple_df = self.takens_df.drop("B", axis=1)
 
-        tc = TSCDataFrame(simple_df)
+        tsc_df = TSCDataFrame(simple_df)
 
         # using class
         actual = TSCTakensEmbedding(
             lag=0, delays=1, frequency=1, time_direction="backward"
-        ).apply(tc)
+        ).transform(tsc_df)
         self.assertTrue(isinstance(actual, TSCDataFrame))
 
         actual = actual.values  # only compare the numeric values now
