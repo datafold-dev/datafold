@@ -5,14 +5,9 @@
 
 import functools
 import timeit
-import numpy as np
 
-try:
-    import numexpr as ne
-except ImportError:
-    numexpr_bm = False
-else:
-    numexpr_bm = True
+import numexpr as ne
+import numpy as np
 
 NUMBER_OF_RUNS = 1
 N = 10000
