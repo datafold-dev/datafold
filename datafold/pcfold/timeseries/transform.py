@@ -3,6 +3,7 @@
 import itertools
 
 import numpy as np
+import pandas as pd
 import pandas.testing as pdtest
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
@@ -41,6 +42,23 @@ class TSCTransformMixIn:
     def _save_transform_columns(self, X_ts: TSCDataFrame):
         self._transform_columns = X_ts.columns
 
+    def _return_same_type_X(self, X_ts, values, columns=None):
+        _type = type(X_ts)
+
+        if columns is None:
+            columns = X_ts.columns
+
+        if isinstance(X_ts, TSCDataFrame):
+            # NOTE: order is important here TSCDataFrame is also a DataFrame, so first
+            # check for the special case, then for the more general case.
+            return TSCDataFrame.from_same_indices_as(
+                X_ts, values=values, except_columns=columns
+            )
+        if isinstance(X_ts, pd.DataFrame):
+            return pd.DataFrame(values, index=X_ts.index, columns=columns)
+        else:
+            raise TypeError
+
 
 class TSCQoiPreprocess(TSCTransformMixIn):
     def __init__(self, cls, **kwargs):
@@ -65,18 +83,18 @@ class TSCQoiPreprocess(TSCTransformMixIn):
 
     def transform(self, X_ts: TSCDataFrame):
         self._check_fit_columns(X_ts=X_ts)
-        data = self.transform_cls_.transform(X_ts.to_numpy())
-        return TSCDataFrame.from_same_indices_as(X_ts, data)
+        values = self.transform_cls_.transform(X_ts.to_numpy())
+        return self._return_same_type_X(X_ts=X_ts, values=values)
 
     def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
         self._save_fit_columns(X_ts=X_ts)
-        data = self.transform_cls_.fit_transform(X_ts.to_numpy())
-        return TSCDataFrame.from_same_indices_as(X_ts, data)
+        values = self.transform_cls_.fit_transform(X_ts.to_numpy())
+        return self._return_same_type_X(X_ts=X_ts, values=values)
 
     def inverse_transform(self, X_ts: TSCDataFrame):
         self._check_fit_columns(X_ts=X_ts)
-        data = self.transform_cls_.inverse_transform(X_ts.to_numpy())
-        return TSCDataFrame.from_same_indices_as(X_ts, data)
+        values = self.transform_cls_.inverse_transform(X_ts.to_numpy())
+        return self._return_same_type_X(X_ts=X_ts, values=values)
 
 
 class TSCQoiScale(TSCTransformMixIn):

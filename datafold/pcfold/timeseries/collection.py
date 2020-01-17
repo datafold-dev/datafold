@@ -92,6 +92,7 @@ class TSCDataFrame(pd.DataFrame):
             columns = indices_from.columns
         else:
             columns = except_columns
+
         return cls(data=values, index=index, columns=columns)
 
     @classmethod

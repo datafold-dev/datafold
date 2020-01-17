@@ -1,6 +1,6 @@
 """
-    This is a micro-benchmark used to verify the improvement
-    in the speed of the computation of the aux-vector as used in geometrics-harmonics
+    This is a micro-benchmark used to verify the improvement of
+    exp(large_matrix)
 """
 
 import functools
@@ -14,7 +14,7 @@ N = 10000
 
 matrix = np.random.rand(N, N)
 
-# symmetric
+# symmetric case, for methods that try to exploit this
 matrix = (matrix + matrix.T) / 2
 
 

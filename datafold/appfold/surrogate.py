@@ -10,10 +10,9 @@ import datafold.dynfold.operator as operator
 import datafold.pcfold.timeseries as ts
 from datafold.dynfold.koopman import DMDEco, DMDFull
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.accessor import NormalizeQoi, TimeSeriesError
+from datafold.pcfold.timeseries.transform import TSCQoiScale
+from datafold.pcfold.timeseries.metric import TSCMetric
 from datafold.utils.datastructure import if1dim_rowvec
-
-from sklearn.decomposition import TruncatedSVD
 
 
 @NotImplementedError
@@ -67,9 +66,10 @@ class SumoKernelEigFuncDMD(object):
                 and eigfunc_exist.eigenvectors_ is not None
             )
 
-        self.normalize_data = NormalizeQoi.check_normalize_qoi_strategy(
-            strategy=normalize_strategy
-        )
+        if normalize_strategy == "id":
+            self.qoi_scale_ = None
+        else:
+            self.qoi_scale_ = TSCQoiScale(normalize_strategy)
 
     def _extract_dynamics_with_edmd(self, X_ts: TSCDataFrame):
         # transpose eigenvectors, because the eigenvectors are row-wise in pydmap
@@ -104,15 +104,15 @@ class SumoKernelEigFuncDMD(object):
             qoi_columns=self._fit_qoi_columns,
         )
 
-        tsc_result, _ = tsc_result.tsc.undo_normalize_qoi(self.normalize_data)
+        if self.qoi_scale_ is not None:
+            tsc_result = self.qoi_scale_.inverse_transform(tsc_result)
 
         return tsc_result
 
     def fit(self, X_ts: ts.TSCDataFrame) -> "SumoKernelEigFuncDMD":
 
-        X_ts, self.normalize_data = X_ts.tsc.normalize_qoi(
-            normalize_strategy=self.normalize_data
-        )
+        if self.qoi_scale_ is not None:
+            X_ts = self.qoi_scale_.fit_transform(X_ts)
 
         # is required to evaluate time
         self._fit_time_index = X_ts.time_indices(unique_values=True)
@@ -173,11 +173,10 @@ class SumoKernelEigFuncDMD(object):
                 f"conditions."
             )
 
-        # Apply the same normalization as to the data that was fit
-        # Cannot use the .tsc extension, because it is no time series collection.
-        X_ic, _ = NormalizeQoi(
-            normalize_strategy=self.normalize_data, undo=False
-        ).transform(X_ic)
+        if self.qoi_scale_ is not None:
+            # Apply the same normalization as to the data that was fit
+            # Cannot use the .tsc extension, because it is no time series collection.
+            X_ic = self.qoi_scale_.transform(X_ic)
 
         # Transform the initial conditions to obervable functions evaluations
         ic_obs_space = self.eigfunc_interpolator(X_ic.to_numpy())
@@ -188,14 +187,14 @@ class SumoKernelEigFuncDMD(object):
             columns=self.dict_data.columns,
         )
 
-        return t, X_ic_dmd
+        return time_samples, X_ic_dmd
 
     def predict(self, X_ic, t=None) -> TSCDataFrame:
 
         time_samples, X_ic_dmd = self._transform_dmd_ic(t=t, X_ic=X_ic)
 
         tsc_predicted = self._compute_sumo_timeseries(
-            X_ic_dmd, time_samples=time_samples,
+            X_ic_edmd=X_ic_dmd, time_samples=time_samples,
         )
 
         return tsc_predicted
@@ -214,11 +213,8 @@ class SumoKernelEigFuncDMD(object):
         time_samples = Y_ts.time_indices(unique_values=True)
         Y_pred = self.predict(X_ic, t=time_samples)
 
-        tsc_error = TimeSeriesError(  # setup to compute the TimeSeriesError
-            metric=metric, mode=mode, normalize_strategy=normalize_strategy
-        )
-
-        return tsc_error.score(
+        tsc_metric = TSCMetric(metric=metric, mode=mode, scaling=normalize_strategy)
+        return tsc_metric.score(
             y_true=Y_ts, y_pred=Y_pred, sample_weight=sample_weight, multi_qoi=multi_qoi
         )
 
