@@ -66,6 +66,9 @@ class DMDBase(BaseEstimator):
         self._time_interval = X.time_interval()
         self._normalize_shift = self._time_interval[0]
 
+        # TODO: this needs more investigation, it is annoying that there are can
+        #  be so large differences... investigate if there is a better numberical
+        #  way...?
         assert (
             np.around(
                 (self._time_interval[1] - self._normalize_shift) / self.dt_, decimals=5
@@ -89,6 +92,23 @@ class DMDBase(BaseEstimator):
             raise ValueError("TODO")
 
         t = np.sort(t)
+
+        if isinstance(X_ic, np.ndarray):
+            # TODO: it'd be better to have a DataFrame that describes initial conditions
+            if X_ic.ndim == 1:
+                nr_ic = 1
+            else:
+                nr_ic = X_ic.shape[0]
+
+            from datafold.utils.datastructure import if1dim_rowvec
+
+            X_ic = if1dim_rowvec(X_ic)
+
+            idx = pd.MultiIndex.from_arrays(
+                [np.arange(nr_ic), np.ones(X_ic.shape[0]) * t[0]],
+                names=["ID", "initial_time"],
+            )
+            X_ic = pd.DataFrame(X_ic, idx)
 
         post_map = predict_params.pop("post_map", None)
         qoi_columns = predict_params.pop("qoi_columns", None)
@@ -115,7 +135,7 @@ class DMDBase(BaseEstimator):
         qoi_columns=None,
     ):
         """
-        Evolce the linear system.
+        Evolve the linear system.
 
         Parameters
         ----------
