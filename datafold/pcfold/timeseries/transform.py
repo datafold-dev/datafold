@@ -1,32 +1,54 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Union
 
 import numpy as np
-import pandas as pd
+import pandas.testing as pdtest
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError
 
 
-class TimeSeriesTransformMixIn:
-    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
+class TSCTransformMixIn:
+    def fit(self, X_ts: TSCDataFrame, **fit_params):
         raise NotImplementedError
 
     def transform(self, X_ts: TSCDataFrame):
         raise NotImplementedError
 
+    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
+        return self.fit(X_ts, **fit_params).transform(X_ts=X_ts)
+
     def inverse_transform(self, X_ts: TSCDataFrame):
         raise NotImplementedError
 
+    def _check_fit_columns(self, X_ts: TSCDataFrame):
+        if not hasattr(self, "_fit_columns"):
+            raise RuntimeError("_fit_columns is not set. Please report bug.")
 
-class TSCQoiPreprocess(TimeSeriesTransformMixIn):
+        pdtest.assert_index_equal(right=self._fit_columns, left=X_ts.columns)
+
+    def _check_transform_columns(self, X_ts: TSCDataFrame):
+        if not hasattr(self, "_transform_columns"):
+            raise RuntimeError("_transform_columns is not set. Please report bug.")
+
+        pdtest.assert_index_equal(right=self._transform_columns, left=X_ts.columns)
+
+    def _save_fit_columns(self, X_ts: TSCDataFrame):
+        self._fit_columns = X_ts.columns
+
+    def _save_transform_columns(self, X_ts: TSCDataFrame):
+        self._transform_columns = X_ts.columns
+
+
+class TSCQoiPreprocess(TSCTransformMixIn):
     def __init__(self, cls, **kwargs):
         """
         See
         https://scikit-learn.org/stable/modules/classes.html#module-sklearn.preprocessing
-        for scaling classes
+        for a list of preprocessing classes that can be used. A mandatory requirement
+        (for now) is that it supports an inverse mapping.
         """
 
         if not hasattr(cls, "transform") or not hasattr(cls, "inverse_transform"):
@@ -36,25 +58,32 @@ class TSCQoiPreprocess(TimeSeriesTransformMixIn):
             )
         self.transform_cls_ = cls(**kwargs)
 
-    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
-        data = self.transform_cls_.fit_transform(X_ts.to_numpy())
-        return TSCDataFrame.from_same_indices_as(X_ts, data)
+    def fit(self, X_ts: TSCDataFrame, **fit_params):
+        self._save_fit_columns(X_ts=X_ts)
+        self.transform_cls_.fit(X_ts.to_numpy())
+        return self
 
     def transform(self, X_ts: TSCDataFrame):
+        self._check_fit_columns(X_ts=X_ts)
         data = self.transform_cls_.transform(X_ts.to_numpy())
         return TSCDataFrame.from_same_indices_as(X_ts, data)
 
+    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
+        self._save_fit_columns(X_ts=X_ts)
+        data = self.transform_cls_.fit_transform(X_ts.to_numpy())
+        return TSCDataFrame.from_same_indices_as(X_ts, data)
+
     def inverse_transform(self, X_ts: TSCDataFrame):
+        self._check_fit_columns(X_ts=X_ts)
         data = self.transform_cls_.inverse_transform(X_ts.to_numpy())
         return TSCDataFrame.from_same_indices_as(X_ts, data)
 
 
-class TSCQoiScale(TimeSeriesTransformMixIn):
+class TSCQoiScale(TSCTransformMixIn):
 
     VALID_NAMES = ["min-max", "standard"]
 
     def __init__(self, name):
-        from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
         if name == "min-max":
             self._qoi_scaler = TSCQoiPreprocess(cls=MinMaxScaler, feature_range=(0, 1))
@@ -68,17 +97,20 @@ class TSCQoiScale(TimeSeriesTransformMixIn):
                 f"name={name} is not known. Choose from {self.VALID_NAMES}"
             )
 
-    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
-        return self._qoi_scaler.fit_transform(X_ts=X_ts)
+    def fit(self, X_ts: TSCDataFrame, **fit_params):
+        self._qoi_scaler.fit(X_ts=X_ts, **fit_params)
 
     def transform(self, X_ts: TSCDataFrame):
         return self._qoi_scaler.transform(X_ts=X_ts)
+
+    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
+        return self._qoi_scaler.fit_transform(X_ts=X_ts, **fit_params)
 
     def inverse_transform(self, X_ts: TSCDataFrame):
         return self._qoi_scaler.inverse_transform(X_ts=X_ts)
 
 
-class TSCTakensEmbedding(TimeSeriesTransformMixIn):
+class TSCTakensEmbedding(TSCTransformMixIn):
     def __init__(
         self,
         lag: int,
@@ -117,8 +149,6 @@ class TSCTakensEmbedding(TimeSeriesTransformMixIn):
         self.time_direction = time_direction
         self.fill_value = fill_value
 
-        self.delay_indices_ = self._precompute_delay_indices()
-
     def _precompute_delay_indices(self):
         # zero delay (original data) is not treated
         return self.lag + (
@@ -137,70 +167,87 @@ class TSCTakensEmbedding(TimeSeriesTransformMixIn):
         return cols.tolist() + list(itertools.chain(*expand()))
 
     def _expand_single_delta_column(self, cols, delay_idx):
-        return list(map(lambda q: "d".join([q, str(delay_idx)]), cols))
+        return list(map(lambda q: ":d".join([q, str(delay_idx)]), cols))
 
-    def _setup_delayed_timeseries_collection(self, tsc):
+    def _allocate_delayed_qoi(self, tsc):
 
-        nr_columns_incl_delays = tsc.shape[1] * (self.delays + 1)
+        # original columns + delayed columns
+        total_nr_columns = tsc.shape[1] * (self.delays + 1)
 
-        data = np.zeros([tsc.shape[0], nr_columns_incl_delays])
+        data = np.empty([tsc.shape[0], total_nr_columns])
         columns = self._expand_all_delay_columns(tsc.columns)
 
-        delayed_timeseries = TSCDataFrame(
-            pd.DataFrame(data, index=tsc.index, columns=columns),
-        )
+        delayed_tsc = TSCDataFrame(data, index=tsc.index, columns=columns)
 
-        delayed_timeseries.loc[:, tsc.columns] = tsc
-        return delayed_timeseries
+        delayed_tsc.loc[:, tsc.columns] = tsc
+        return delayed_tsc
 
-    def _shift_timeseries(self, timeseries, delay_idx):
+    def _shift_timeseries(self, single_ts, delay_idx):
 
         if self.time_direction == "backward":
-            shifted_timeseries = timeseries.shift(
+            shifted_timeseries = single_ts.shift(
                 delay_idx, fill_value=self.fill_value,
             ).copy()
         elif self.time_direction == "forward":
-            shifted_timeseries = timeseries.shift(
+            shifted_timeseries = single_ts.shift(
                 -1 * delay_idx, fill_value=self.fill_value
             ).copy()
         else:
-            raise ValueError(f"time_direction={self.time_direction} not known.")
+            raise ValueError(
+                f"time_direction={self.time_direction} not known. "
+                f"Please report bug."
+            )
 
-        columns = self._expand_single_delta_column(timeseries.columns, delay_idx)
-        shifted_timeseries.columns = columns
+        shifted_timeseries.columns = self._expand_single_delta_column(
+            single_ts.columns, delay_idx
+        )
 
         return shifted_timeseries
 
-    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
-        return self.fit(X_ts).transform(X_ts=X_ts)
+    def fit(self, X_ts, **fit_params):
+
+        # TODO: Check that there are no NaN values present. (the integrate the option
+        #  to remove fill in rows.
+
+        self._save_fit_columns(X_ts)
+        self.delay_indices_ = self._precompute_delay_indices()
+        return self
 
     def transform(self, X_ts: TSCDataFrame):
 
+        self._check_fit_columns(X_ts=X_ts)
+
         if not X_ts.is_const_dt():
-            raise TimeSeriesCollectionError("dt is not const")
+            raise TimeSeriesCollectionError("dt is not constant")
+
+        if X_ts.is_contain_nans():
+            raise ValueError("The TSCDataFrame must be NaN free")
 
         if (X_ts.lengths_time_series <= self.delay_indices_.max()).any():
             raise TimeSeriesCollectionError(
                 f"Mismatch of delay and time series length. Shortest time series has "
-                f"length "
-                f"{np.array(X_ts.lengths_time_series).min()} and maximum delay is "
+                f"length {np.array(X_ts.lengths_time_series).min()} and maximum delay is "
                 f"{self.delay_indices_.max()}"
             )
 
-        delayed_tsc = self._setup_delayed_timeseries_collection(X_ts)
+        X_ts = self._allocate_delayed_qoi(X_ts)
 
-        for i, ts in X_ts.itertimeseries():
+        # Compute the shifts --> per single time series
+        for i, ts in X_ts.loc[:, self._fit_columns].itertimeseries():
             for delay_idx in self.delay_indices_:
                 shifted_timeseries = self._shift_timeseries(ts, delay_idx)
-                delayed_tsc.loc[
-                    i, shifted_timeseries.columns
-                ] = shifted_timeseries.values
+                X_ts.loc[i, shifted_timeseries.columns] = shifted_timeseries.values
 
-        return delayed_tsc
+        self._save_transform_columns(X_ts=X_ts)
+        return X_ts
+
+    def inverse_transform(self, X_ts: TSCDataFrame):
+        self._check_transform_columns(X_ts=X_ts)
+        return X_ts.loc[:, self._fit_columns]
 
 
 @DeprecationWarning  # TODO: implement if required...
-class TimeFiniteDifference(object):
+class TSCFiniteDifference(object):
 
     # TODO: provide longer shifts? This could give some average of slow and fast
     #  variables...

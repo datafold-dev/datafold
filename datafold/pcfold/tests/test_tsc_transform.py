@@ -119,13 +119,12 @@ class TestTSCQoiTransform(unittest.TestCase):
 
     def test_takens_embedding(self):
         simple_df = self.takens_df.drop("B", axis=1)
-
         tsc_df = TSCDataFrame(simple_df)
 
         # using class
         actual = TSCTakensEmbedding(
             lag=0, delays=1, frequency=1, time_direction="backward"
-        ).transform(tsc_df)
+        ).fit_transform(tsc_df)
         self.assertTrue(isinstance(actual, TSCDataFrame))
 
         actual = actual.values  # only compare the numeric values now
@@ -147,38 +146,40 @@ class TestTSCQoiTransform(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
     def test_takens_delay_indices(self):
+        tsc = TSCDataFrame(self.takens_df)
+
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=1, frequency=1).delay_indices_,
+            TSCTakensEmbedding(lag=0, delays=1, frequency=1).fit(tsc).delay_indices_,
             np.array([1]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=2, frequency=1).delay_indices_,
+            TSCTakensEmbedding(lag=0, delays=2, frequency=1).fit(tsc).delay_indices_,
             np.array([1, 2]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=5, frequency=1).delay_indices_,
+            TSCTakensEmbedding(lag=0, delays=5, frequency=1).fit(tsc).delay_indices_,
             np.array([1, 2, 3, 4, 5]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=1, delays=1, frequency=1).delay_indices_,
+            TSCTakensEmbedding(lag=1, delays=1, frequency=1).fit(tsc).delay_indices_,
             np.array([2]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=1, delays=5, frequency=1).delay_indices_,
+            TSCTakensEmbedding(lag=1, delays=5, frequency=1).fit(tsc).delay_indices_,
             np.array([2, 3, 4, 5, 6]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=2, delays=2, frequency=2).delay_indices_,
+            TSCTakensEmbedding(lag=2, delays=2, frequency=2).fit(tsc).delay_indices_,
             np.array([3, 5]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=2, delays=4, frequency=2).delay_indices_,
+            TSCTakensEmbedding(lag=2, delays=4, frequency=2).fit(tsc).delay_indices_,
             np.array([3, 5, 7, 9]),
         )
 
