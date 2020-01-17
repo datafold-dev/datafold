@@ -15,7 +15,7 @@ else:
     numexpr_bm = True
 
 NUMBER_OF_RUNS = 1
-N = 5000
+N = 10000
 
 matrix = np.random.rand(N, N)
 
@@ -57,15 +57,4 @@ print(
 print(
     f"symmetry "
     f"{timeit.timeit(functools.partial(exploit_symmetry, matrix.copy()), number=NUMBER_OF_RUNS)}"
-)
-exit()
-
-if numexpr_bm:
-    print(
-        f"n2 {timeit.timeit(functools.partial(n2_numexpr, a, b, c), number=NUMBER_OF_RUNS)}"
-    )
-
-print(f"n3 {timeit.timeit(functools.partial(n3, a,b,c), number=NUMBER_OF_RUNS)}")
-print(
-    f"n3_alternative {timeit.timeit(functools.partial(n3_alternative, a,b,c), number=NUMBER_OF_RUNS)}"
 )
