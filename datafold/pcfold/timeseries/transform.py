@@ -25,6 +25,8 @@ class TSCTransformMixIn:
         raise NotImplementedError
 
     def _check_fit_columns(self, X_ts: TSCDataFrame):
+        # TODO: requires a "is_fit" functionality. Currently, this is also called if
+        #  fit() was not called
         if not hasattr(self, "_fit_columns"):
             raise RuntimeError("_fit_columns is not set. Please report bug.")
 

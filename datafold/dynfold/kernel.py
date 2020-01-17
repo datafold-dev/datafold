@@ -186,6 +186,12 @@ class KernelMethod(BaseEstimator):
         else:
             eigvals, eigvects = scipy.sparse.linalg.eigs(matrix, **solver_kwargs)
 
+        if np.isnan(eigvals).any() or np.isnan(eigvects).any():
+            raise RuntimeError(
+                "eigenvalues or eigenvector contains NaN values. Maybe try a larger "
+                "epsilon value."
+            )
+
         ii = np.argsort(np.abs(eigvals))[::-1]
         return eigvals[ii], eigvects[:, ii].T  # TODO: #44
 
