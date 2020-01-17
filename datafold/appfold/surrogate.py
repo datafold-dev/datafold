@@ -114,22 +114,30 @@ class SumoKernelEigFuncDMD(object):
         if self.qoi_scale_ is not None:
             X_ts = self.qoi_scale_.fit_transform(X_ts)
 
+        print("transformed data")
+
         # is required to evaluate time
         self._fit_time_index = X_ts.time_indices(unique_values=True)
         self._fit_qoi_columns = X_ts.columns
 
-        # 1. transform data via GH-function basis
+        # 1. transform data via operator-function basis
         # TODO: there should be a method provided by GH "is_fit" (look at sklearn)
         if not hasattr(self.eigfunc_interpolator, "eigenvectors_") and not hasattr(
             self.eigfunc_interpolator, "eigenvalues_"
         ):  # if not already fit...
             self.eigfunc_interpolator = self.eigfunc_interpolator.fit(X_ts.to_numpy())
 
-        # 2. Compute Koopman matrix via EDMD
+        print("fitted eigunc_interpolator")
+
+        # 2. Compute Koopman matrix via DMD
         self._extract_dynamics_with_edmd(X_ts)
+
+        print("extracted dynamics")
 
         # 3. Linear map from new observable space to qoi data space
         self._coeff_matrix_least_square(X_ts)
+
+        print("fit sumo")
 
         return self
 
