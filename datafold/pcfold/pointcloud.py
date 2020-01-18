@@ -179,12 +179,12 @@ class PCManifold(np.ndarray):
 
 
 def subsample(
-    pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None, randomized=False
+    pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None, randomized=False, min_added_per_iteration=1
 ):
     """
     Returns a new PCManifold that has a converged subsampling of the given points.
-    randomized: False (default, will subsample iteratively) True (will randomly pick
-    indices uniformly. Very fast)
+    randomized: False (default, will subsample iteratively) True (will randomly pick indices, but not necessarily uniformly distributed over the manifold. Very fast)
+    min_added_per_iteration: default (1), number of points that need to be added per iteration to keep going. Setting it to zero will search the entire dataset.
     """
 
     if not isinstance(pcm, PCManifold):
@@ -192,7 +192,7 @@ def subsample(
             "point cloud not valid"
         )  # TODO: for now enforce that we deal only with a PCM
 
-    if min_distance is None:
+    if min_distance is None and not(pcm.cut_off is None):
         min_distance = pcm.cut_off / 2
 
     if min_distance is None:
@@ -206,8 +206,6 @@ def subsample(
     orig_n_samples = pcm.shape[0]
 
     if randomized:
-        max_samples = 10000
-        n_samples = np.max([max_samples, int(np.sqrt(orig_n_samples))])
         subsample_indices = np.random.permutation(orig_n_samples)[:n_samples]
         subsample_points = pcm[subsample_indices, :]
     else:
@@ -230,15 +228,16 @@ def subsample(
                 backend="scipy.kdtree",
             )
 
-            cond_1 = distances.getnnz(axis=0) == 0
-            cond_2 = distances.min(axis=0).toarray().ravel() >= min_distance
+            cond_1 = distances.getnnz(axis=1) == 0
+            cond_2 = distances.min(axis=1).toarray().ravel() >= min_distance
             bool_mask_select_indices = np.logical_or(cond_1, cond_2)
 
             current_indices_selected = iteration_indices[bool_mask_select_indices]
 
-            if bool_mask_select_indices.sum() < int(n_samples * tol) + 1:
+            if bool_mask_select_indices.sum() <= min_added_per_iteration: # + int(n_samples * tol) + 
                 # TODO: not sure why we need this condition -- break out of look and we
                 #  don't look at other chunks.
+                # FD: this is needed to prematurely end the iteration, stopping if too few points are added.
                 #  Original code:
                 #  if len(new_indices_k) < int(n_samples * tol) + 1:
                 #     break
