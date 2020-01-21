@@ -1,5 +1,6 @@
 import abc
 
+import numexpr as ne
 import numpy as np
 import scipy.sparse
 import scipy.spatial
@@ -25,6 +26,21 @@ def apply_kernel_function(distance_matrix, kernel_function):
         kernel = kernel_function(distance_matrix)
 
     return kernel
+
+
+def apply_kernel_function_numexpr(distance_matrix, expr, expr_dict):
+
+    assert "D" not in expr_dict.keys()
+
+    if scipy.sparse.issparse(distance_matrix):
+        # copy because the distance matrix may be used further by the user
+        distance_matrix = distance_matrix.copy()
+        expr_dict["D"] = distance_matrix.data
+        ne.evaluate(expr, expr_dict, out=distance_matrix.data)
+        return distance_matrix
+    else:
+        expr_dict["D"] = distance_matrix
+        return ne.evaluate(expr, expr_dict)
 
 
 class PCManifoldKernelMixin(metaclass=abc.ABCMeta):
@@ -127,8 +143,10 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
         # Security copy, the distance matrix is maybe required again (for gradient,
         # or other computations...)
 
-        return apply_kernel_function(
-            distance_matrix, lambda dist: np.exp((-0.5 / self._epsilon) * dist)
+        return apply_kernel_function_numexpr(
+            distance_matrix,
+            expr="exp((- 1 / (2*eps)) * D)",
+            expr_dict={"eps": self._epsilon},
         )
 
     def _gradient(self, distance_matrix, kernel_matrix=None):

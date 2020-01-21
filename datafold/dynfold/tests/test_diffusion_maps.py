@@ -86,7 +86,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
             ew = dm.eigenvalues_
             rq = self._compute_rayleigh_quotients(dm.kernel_matrix_, dm.eigenvectors_)
-            nptest.assert_allclose(np.abs(ew), np.abs(rq))
+            nptest.assert_allclose(np.abs(ew), np.abs(rq), atol=1e-16)
 
             # plt.title('$\\epsilon$ = {:.3f}'.format(epsilon))
             # for k in range(1, 10):
@@ -288,7 +288,7 @@ class DiffusionMapsTest(unittest.TestCase):
         actual_oos = dmap_embed.transform(X_oos, indices=[1])
 
         self.assertLessEqual(
-            mean_squared_error(expected_oos, actual_oos.ravel()), 6.559405731418304e-09
+            mean_squared_error(expected_oos, actual_oos.ravel()), 6.559405995567413e-09
         )
 
         if plot:
@@ -331,26 +331,25 @@ class DiffusionMapsTest(unittest.TestCase):
         # it is only checked with "allclose"
 
         np.set_printoptions(precision=17)
-
         print(dmap_embed_test_eval.sum(axis=0))
 
         nptest.assert_allclose(
             dmap_embed_test_eval.sum(axis=0),
-            (-6.0898767014414625, -0.08601754715746428),
+            (6.0898767014414625, 0.08601754715746428),
             atol=1e-15,
         )
 
         print(dmap_embed_test_eval.min(axis=0))
         nptest.assert_allclose(
             dmap_embed_test_eval.min(axis=0),
-            (-0.02598525783966408, -0.03529902485787358),
+            (-0.0273443078497527, -0.03623258738512025),
             atol=1e-15,
         )
 
         print(dmap_embed_test_eval.max(axis=0))
         nptest.assert_allclose(
-            dmap_embed_test_eval.max(axis=0),
-            (0.02734430784974816, 0.03623258738511785),
+            np.abs(dmap_embed_test_eval.max(axis=0)),
+            (0.02598525783966298, 0.03529902485787183),
             atol=1e-15,
         )
 
@@ -675,7 +674,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         expected = h3(X)
 
         # using only a reference computation (fails if quality gets worse)
-        self.assertTrue(np.abs(actual - expected.ravel()).max() <= 1.5943698803387)
+        self.assertLessEqual(np.abs(actual - expected.ravel()).max(), 1.5943698803387)
 
         actual = dmap.peq_est_
         expected = norm.pdf(X, 0, 1)
