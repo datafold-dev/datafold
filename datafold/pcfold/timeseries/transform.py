@@ -5,6 +5,7 @@ import itertools
 import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
@@ -12,6 +13,12 @@ from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError
 
 
 class TSCTransformMixIn:
+    def _save_columns(self, fit_columns: pd.Index, transform_columns: pd.Index = None):
+        self._fit_columns = fit_columns
+
+        if transform_columns is not None:
+            self._transform_columns = transform_columns
+
     def fit(self, X_ts: TSCDataFrame, **fit_params):
         raise NotImplementedError
 
@@ -25,8 +32,6 @@ class TSCTransformMixIn:
         raise NotImplementedError
 
     def _check_fit_columns(self, X_ts: TSCDataFrame):
-        # TODO: requires a "is_fit" functionality. Currently, this is also called if
-        #  fit() was not called
         if not hasattr(self, "_fit_columns"):
             raise RuntimeError("_fit_columns is not set. Please report bug.")
 
@@ -38,13 +43,8 @@ class TSCTransformMixIn:
 
         pdtest.assert_index_equal(right=self._transform_columns, left=X_ts.columns)
 
-    def _save_fit_columns(self, X_ts: TSCDataFrame):
-        self._fit_columns = X_ts.columns
-
-    def _save_transform_columns(self, X_ts: TSCDataFrame):
-        self._transform_columns = X_ts.columns
-
     def _return_same_type_X(self, X_ts, values, columns=None):
+
         _type = type(X_ts)
 
         if columns is None:
@@ -79,7 +79,7 @@ class TSCQoiPreprocess(TSCTransformMixIn):
         self.transform_cls_ = cls(**kwargs)
 
     def fit(self, X_ts: TSCDataFrame, **fit_params):
-        self._save_fit_columns(X_ts=X_ts)
+        self._save_columns(X_ts.columns)
         self.transform_cls_.fit(X_ts.to_numpy())
         return self
 
@@ -89,8 +89,8 @@ class TSCQoiPreprocess(TSCTransformMixIn):
         return self._return_same_type_X(X_ts=X_ts, values=values)
 
     def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
-        self._save_fit_columns(X_ts=X_ts)
-        values = self.transform_cls_.fit_transform(X_ts.to_numpy())
+        self._save_columns(fit_columns=X_ts.columns)
+        values = self.transform_cls_.fit_transform(X_ts)
         return self._return_same_type_X(X_ts=X_ts, values=values)
 
     def inverse_transform(self, X_ts: TSCDataFrame):
@@ -131,8 +131,59 @@ class TSCQoiScale(TSCTransformMixIn):
 
 
 class TSCPrincipalComponents(TSCTransformMixIn):
-    def __init__(self, n_components, **kwargs):
-        pass
+    def __init__(
+        self,
+        n_components,
+        copy=True,
+        whiten=False,
+        svd_solver="auto",
+        tol=0.0,
+        iterated_power="auto",
+        random_state=None,
+    ):
+
+        self._pca = PCA(
+            n_components=n_components,
+            copy=copy,
+            whiten=whiten,
+            svd_solver=svd_solver,
+            tol=tol,
+            iterated_power=iterated_power,
+            random_state=random_state,
+        )
+
+    def fit(self, X_ts: TSCDataFrame, **fit_params):
+        self._pca.fit(X=X_ts, y=None)
+
+        column_names = ["pca{i}" for i in range(self._pca.n_components_)]
+        transform_columns = pd.Index(
+            column_names, dtype=np.str, copy=False, name=TSCDataFrame.IDX_QOI_NAME
+        )
+
+        self._save_columns(
+            fit_columns=X_ts.columns, transform_columns=transform_columns
+        )
+        return self
+
+    def transform(self, X_ts: TSCDataFrame):
+        self._check_fit_columns(X_ts=X_ts)
+        pca_data = self._pca.transform(X_ts.to_numpy())
+
+        pca_data_tsc = TSCDataFrame.from_same_indices_as(
+            X_ts, pca_data, except_columns=self._transform_columns
+        )
+
+        return pca_data_tsc
+
+    def inverse_transform(self, X_ts: TSCDataFrame):
+        self._check_transform_columns(X_ts=X_ts)
+        data_orig_space = self._pca.inverse_transform(X_ts.to_numpy())
+
+        data_orig_space = TSCDataFrame.from_same_indices_as(
+            X_ts, values=data_orig_space, except_columns=self._fit_columns
+        )
+
+        return data_orig_space
 
 
 class TSCTakensEmbedding(TSCTransformMixIn):
@@ -189,7 +240,11 @@ class TSCTakensEmbedding(TSCTransformMixIn):
 
         # the name of the original indices is not changed, therefore append the delay
         # indices to
-        return cols.tolist() + list(itertools.chain(*expand()))
+        columns_names = cols.tolist() + list(itertools.chain(*expand()))
+
+        return pd.Index(
+            columns_names, dtype=np.str, copy=False, name=TSCDataFrame.IDX_QOI_NAME
+        )
 
     def _expand_single_delta_column(self, cols, delay_idx):
         return list(map(lambda q: ":d".join([q, str(delay_idx)]), cols))
@@ -200,9 +255,10 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         total_nr_columns = tsc.shape[1] * (self.delays + 1)
 
         data = np.empty([tsc.shape[0], total_nr_columns])
-        columns = self._expand_all_delay_columns(tsc.columns)
 
-        delayed_tsc = TSCDataFrame(data, index=tsc.index, columns=columns)
+        delayed_tsc = TSCDataFrame(
+            data, index=tsc.index, columns=self._transform_columns
+        )
 
         delayed_tsc.loc[:, tsc.columns] = tsc
         return delayed_tsc
@@ -234,8 +290,14 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         # TODO: Check that there are no NaN values present. (the integrate the option
         #  to remove fill in rows.
 
-        self._save_fit_columns(X_ts)
         self.delay_indices_ = self._precompute_delay_indices()
+
+        fit_columns = X_ts.columns
+        transform_columns = self._expand_all_delay_columns(fit_columns)
+        self._save_columns(
+            fit_columns=X_ts.columns, transform_columns=transform_columns
+        )
+
         return self
 
     def transform(self, X_ts: TSCDataFrame):
@@ -263,7 +325,6 @@ class TSCTakensEmbedding(TSCTransformMixIn):
                 shifted_timeseries = self._shift_timeseries(ts, delay_idx)
                 X_ts.loc[i, shifted_timeseries.columns] = shifted_timeseries.values
 
-        self._save_transform_columns(X_ts=X_ts)
         return X_ts
 
     def inverse_transform(self, X_ts: TSCDataFrame):

@@ -6,17 +6,19 @@ import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.transform import (
+    TSCPrincipalComponents,
     TSCQoiPreprocess,
     TSCQoiScale,
     TSCTakensEmbedding,
 )
 
 
-class TestTSCQoiTransform(unittest.TestCase):
+class TestTSCTransform(unittest.TestCase):
     def _setUp_simple_df(self):
         idx = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
@@ -116,6 +118,24 @@ class TestTSCQoiTransform(unittest.TestCase):
         with self.assertRaises(AttributeError):
             # Normalizer has no inverse_transform
             TSCQoiPreprocess(cls=Normalizer)
+
+    def test_pca_transform(self):
+
+        tsc = TSCDataFrame(self.simple_df)
+        pca = TSCPrincipalComponents(n_components=1).fit(tsc)
+
+        data = pca.transform(tsc)
+        self.assertIsInstance(data, TSCDataFrame)
+
+        pca_sklearn = PCA(n_components=1).fit(tsc.to_numpy())
+        data_sklearn = pca_sklearn.transform(tsc)
+
+        nptest.assert_allclose(data, data_sklearn, atol=1e-15)
+
+        nptest.assert_array_equal(
+            pca.inverse_transform(data).to_numpy(),
+            pca_sklearn.inverse_transform(data_sklearn),
+        )
 
     def test_takens_embedding(self):
         simple_df = self.takens_df.drop("B", axis=1)
