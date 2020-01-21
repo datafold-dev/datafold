@@ -3,11 +3,13 @@
 import abc
 import logging
 
+import numexpr as ne
 import numpy as np
 import scipy.sparse
 import scipy.spatial
-from scipy.spatial.distance import _METRICS, pdist, cdist, squareform
+from scipy.spatial.distance import _METRICS, cdist, pdist, squareform
 from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
+from sklearn.metrics import pairwise_distances
 
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only
@@ -78,6 +80,9 @@ def get_k_smallest_element_value(
 class DistanceAlgorithm(metaclass=abc.ABCMeta):
     """Provides same interface for different distance matrix computations."""
 
+    # distances cannot be negative, therefore choose an easy to identify negative value
+    _INVALID_DIST_VALUE = -999
+
     def __init__(self, metric):
         try:
             getattr(self, "NAME")
@@ -117,29 +122,33 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         #   zero values, otherwise the kernel values are wrong on the opposite extreme
         #   end (i.e. 0 instead of 1, for stationary kernels).
 
-        # TODO: If (sparse) distance_matrix is essentially dense (radius very large),
-        #  then return dense matrix early and don't bother with adapting the sparse
-        #  matrix
-
         assert (
             scipy.sparse.issparse(distance_matrix)
             and distance_matrix.shape[0] == distance_matrix.shape[1]
         )
 
-        # distances cannot be negative, therefore choose an easy to identify negative
-        # value
-        invalid_value = -999.0
-
-        # in case there are duplicate rows -> set to invalid_value
-        distance_matrix.data[distance_matrix.data == 0] = invalid_value
+        # in case there are duplicate rows -> set to invalid value
+        distance_matrix.data[distance_matrix.data == 0] = self._INVALID_DIST_VALUE
 
         # convert to lil-format, because it is more efficient to set the diag=0
         distance_matrix = distance_matrix.tolil()
-        distance_matrix.setdiag(invalid_value)
+        distance_matrix.setdiag(self._INVALID_DIST_VALUE)
 
         # turn back to csr and set the invalid to "true zeros"
         distance_matrix = distance_matrix.tocsr()
-        distance_matrix.data[distance_matrix.data == invalid_value] = 0
+        distance_matrix.data[distance_matrix.data == self._INVALID_DIST_VALUE] = 0
+
+        return distance_matrix
+
+    def _dense2csr_matrix(self, distance_matrix, cut_off):
+        # This is the same issue as described in _set_zeros_sparse_diagonal
+        # All true zeros have to be kept in the sparse matrix. This is a workaround as
+        # csr_matrix(distance_matrix) removes internally all zeros.
+
+        distance_matrix[distance_matrix == 0] = self._INVALID_DIST_VALUE
+        distance_matrix[distance_matrix >= cut_off] = 0
+        distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
+        distance_matrix.data[distance_matrix.data == self._INVALID_DIST_VALUE] = 0
 
         return distance_matrix
 
@@ -156,6 +165,78 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         (j)."""
 
 
+class BruteForceNumexpr(DistanceAlgorithm):
+    """
+    Source of algorithm:
+    https://stackoverflow.com/questions/47271662/what-is-the-fastest-way-to-compute-an-rbf-kernel-in-python
+    """
+
+    NAME = None  #  TODO: not used at the moment
+
+    def __init__(self, metric):
+        if metric not in ["euclidean", "sqeuclidean"]:
+            raise ValueError
+
+        super(BruteForceNumexpr, self).__init__(metric=metric)
+
+    def _eval_numexpr_dist(self, A, B, C):
+
+        distance_matrix = ne.evaluate(
+            f"A + B - 2. * C",
+            {"A": A, "B": B, "C": C,},
+            optimization="aggressive",
+            order="C",
+        )
+
+        # For some reason actual zero values can be slightly negative (in range of
+        # numerical noise ~1e-14) --> this then results into nan values when applying
+        # the sqrt() function for the euclidean
+        distance_matrix[distance_matrix < 0] = 0
+        return distance_matrix
+
+    def pdist(self, X, cut_off=None, **backend_options):
+
+        X_norm = ne.evaluate("sum(X ** 2, axis=1)", {"X": X})
+        # X_norm = np.linalg.norm(X, axis=1)
+        # X_norm = np.square(X_norm, X_norm)
+
+        distance_matrix = self._eval_numexpr_dist(
+            A=X_norm[np.newaxis, :], B=X_norm[:, np.newaxis], C=np.dot(X, X.T),
+        )
+
+        if self.metric == "euclidean":
+            distance_matrix = np.sqrt(distance_matrix, out=distance_matrix)
+
+        # Somehow, zero valuess are often imprecise,
+        # For these zero values are easy to
+        # set:
+        np.fill_diagonal(distance_matrix, 0)
+
+        # Brute force algorithms can only sparsify the distance matrix, after everything
+        # is computed:
+        if cut_off is not None:
+            distance_matrix = self._dense2csr_matrix(distance_matrix, cut_off)
+
+        return distance_matrix
+
+    def cdist(self, X, Y, cut_off=None, **backend_options):
+
+        X_norm = ne.evaluate("sum(X ** 2, axis=1)", {"X": X})
+        Y_norm = ne.evaluate("sum(Y ** 2, axis=1)", {"Y": Y})
+
+        distance_matrix = self._eval_numexpr_dist(
+            A=Y_norm[:, np.newaxis], B=X_norm[np.newaxis, :], C=np.dot(Y, X.T)
+        )
+
+        if self.metric == "euclidean":
+            distance_matrix = np.sqrt(distance_matrix, out=distance_matrix)
+
+        if cut_off is not None:
+            distance_matrix = self._dense2csr_matrix(distance_matrix, cut_off)
+
+        return distance_matrix
+
+
 class BruteForceDist(DistanceAlgorithm):
 
     NAME = "brute"
@@ -163,73 +244,27 @@ class BruteForceDist(DistanceAlgorithm):
     def __init__(self, metric):
         super(BruteForceDist, self).__init__(metric=metric)
 
-    def pdist(self, X, cut_off=None, **backend_options):
-        radius = self._numeric_cut_off(cut_off)
+    def pdist(self, X, cut_off=None, exact_numeric=True, **backend_options):
 
-        metric_params = {}
-
-        if self.metric == "mahalanobis":
-            # TODO: also allow the user to handle metric_params?
-            # TODO: can also compute and handle VI = inverse covariance matrix
-            # TODO: sklearn also provides to approximate the covariance for large metrics
-            #  https://scikit-learn.org/stable/modules/covariance.html
-
-            # TODO: add inverse covariance matrix?
-            metric_params = {"V": np.cov(X, rowvar=False)}
-
-        if (
-            self.metric in _METRICS.keys()
-            and np.isinf(radius)
-            # in pdist are no more parameters, and no parallism is supported
-            and backend_options == {}
-        ):
+        if exact_numeric:
             distance_matrix = squareform(pdist(X, metric=self.metric))
         else:
-            # TODO: move over to
-            #  https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.RadiusNeighborsTransformer.html#sklearn.neighbors.RadiusNeighborsTransformer
-            #  when upgrading to scikit-learn v0.22
-            #  Test also how the brute force works!
-            distance_matrix = radius_neighbors_graph(
-                X,
-                radius=radius,
-                mode="distance",
-                metric=self.metric,
-                metric_params=metric_params,
-                include_self=True,
-                **backend_options,
-            )
-            distance_matrix = self._set_zeros_sparse_diagonal(distance_matrix)
+            distance_matrix = pairwise_distances(X, metric=self.metric)
+
+        if cut_off is not None:
+            distance_matrix = self._dense2csr_matrix(distance_matrix, cut_off=cut_off)
 
         return distance_matrix
 
-    def cdist(self, X, Y, cut_off=None, **backend_options):
-        radius = self._numeric_cut_off(cut_off)
+    def cdist(self, X, Y, cut_off=None, exact_numeric=True, **backend_options):
 
-        metric_params = {}
-        if self.metric == "mahalanobis":
-            # TODO: also allow the user to handle metric_params?
-            # TODO: can also compute and handle VI = inverse covariance matrix
-            # TODO: sklearn also provides to approximate the covariance for large metrics
-            #  https://scikit-learn.org/stable/modules/covariance.html
-            metric_params["V"] = np.cov(
-                X, rowvar=False
-            )  # add inverse covariance matrix
-
-        if (
-            self.metric in _METRICS.keys()
-            and np.isinf(radius)
-            and backend_options == {}
-        ):
+        if exact_numeric:
             distance_matrix = cdist(Y, X, metric=self.metric)
         else:
-            method = NearestNeighbors(
-                radius=radius, algorithm="auto", metric=self.metric, **backend_options
-            )
+            distance_matrix = pairwise_distances(Y, X, metric=self.metric)
 
-            # Fit to Y first, so that in the rows are the query and reference are in
-            # columns
-            method = method.fit(X)
-            distance_matrix = method.radius_neighbors_graph(Y, mode="distance")
+        if cut_off is not None:
+            distance_matrix = self._dense2csr_matrix(distance_matrix, cut_off=cut_off)
 
         return distance_matrix
 
@@ -578,6 +613,12 @@ def compute_distance_matrix(
     if scipy.sparse.issparse(distance_matrix) and cut_off is None:
         # dense case stored in a sparse distance matrix -> convert to np.ndarray
         distance_matrix = distance_matrix.toarray()
+
+    if is_sparse and not scipy.sparse.issparse(distance_matrix):
+        raise RuntimeError(
+            "Distance_matrix is expected to be sparse but returned "
+            "distance matrix is dense. Please report bug. "
+        )
 
     if is_sparse and distance_matrix.nnz == np.product(distance_matrix.shape):
         logger.warning(

@@ -574,7 +574,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         #
         # plt.show()
 
-    def test_renormalization_kernel(self):
+    def test_renormalization_kernel(self, plot=False):
         # Currently, only check if it runs through (with is_stochastic=True
 
         data = np.linspace(0, 2 * np.pi, 40)[:, np.newaxis]
@@ -599,32 +599,34 @@ class GeometricHarmonicsTest(unittest.TestCase):
         # sin curve more accurately.
         # self.assertEqual(score, 0.0005576927798107333)
 
-        # To identify changes in the implementation, this checks against a reference
-        # solution
-        print(score)
+        if plot:
+            # To identify changes in the implementation, this checks against a reference
+            # solution
+            print(score)
 
-        import matplotlib.pyplot as plt
+            import matplotlib.pyplot as plt
 
-        plt.plot(data, values, "-*")
-        plt.plot(data_interp, predicted_all, "-*")
-        plt.plot(data[:10, :], predicted_partial, "-*")
+            plt.plot(data, values, "-*")
+            plt.plot(data_interp, predicted_all, "-*")
+            plt.plot(data[:10, :], predicted_partial, "-*")
 
-        # plt.show()
+            plt.show()
 
 
 class GeometricHarmonicsFunctionBasisTest(unittest.TestCase):
     def test_geometric_harmonics_function_basis(self):
         data, _ = make_swiss_roll(3000, noise=0, random_state=0)
-        dmap = DiffusionMaps(epsilon=0.3, num_eigenpairs=50, is_stochastic=False).fit(
+
+        dmap = DiffusionMaps(epsilon=1.25, num_eigenpairs=50, is_stochastic=False).fit(
             data
         )
 
         actual_interp = KernelEigenfunctionInterpolator(
-            epsilon=0.3, num_eigenpairs=50
+            epsilon=1.25, num_eigenpairs=50
         ).fit(data)
         # TODO: issue #44
         expected_interp = GeometricHarmonicsInterpolator(
-            epsilon=0.3, num_eigenpairs=50
+            epsilon=1.25, num_eigenpairs=50
         ).fit(data, dmap.eigenvectors_.T)
 
         nptest.assert_array_equal(

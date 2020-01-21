@@ -20,6 +20,7 @@ from datafold.utils.maths import (
     is_symmetric_matrix,
     mat_dot_diagmat,
     remove_numeric_noise_symmetric_matrix,
+    sort_eigenpairs,
 )
 
 try:
@@ -89,24 +90,35 @@ class KernelMethod(BaseEstimator):
 
         return inv_basis_change_matrix @ kernel_matrix @ inv_basis_change_matrix
 
+    def _select_eigsolver_kwargs(self, n):
+        """Selects the parametrization for the eigen value solver depending on the
+        properties of the kernel.
+
+        This is also a result of the microbenchmark_kernel_eigvect.py file, which looks
+        at the quality and convergence speed.
+        """
+
+        solver_kwargs = {
+            "k": self.num_eigenpairs,
+            "which": "LM",
+            "v0": np.ones(n),
+            "tol": 1e-14,
+        }
+
+        if self.kernel_.is_symmetric and self.is_stochastic:
+            # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
+            # setting sigma=1 resulted into a slower computation.
+            NUMERICAL_EXACT_BREAKER = 0.1
+            solver_kwargs["sigma"] = 1.0 + NUMERICAL_EXACT_BREAKER
+            solver_kwargs["mode"] = "normal"
+        else:
+            solver_kwargs["sigma"] = None
+
+        return solver_kwargs
+
     def solve_eigenproblem(self, kernel_matrix, basis_change_matrix, use_cuda):
         """Solve eigenproblem (eigenvalues and eigenvectors) using CPU or GPU solver.
         """
-
-        # ----
-        # TODO: insert this, this allows to have another "layer" to sparsify the matrix
-        #  (note the cut_off is for distances, but after the kernel is applied,
-        #  there may be  small numbers). --> only apply this, if there
-        #    are values in the order of 1E-1 or greater (additional test required)
-        #    also print a warning if there are many removed...)
-        # TODO: for now cut-off approx. numerical double precision,parametrize if
-        #  necessary
-        # cut_off = 1E-15
-        # bool_idx = np.abs(kernel_matrix) < cut_off
-        # print(f"The cut-off rate is {cut_off}. There are {np.sum(np.sum(bool_idx))}
-        # values set to zero.")
-        # kernel_matrix[bool_idx] = 0
-        # ----
 
         if use_cuda and SUCCESS_GPU_IMPORT:
             # Note: the GPU eigensolver is not maintained. It cannot handle the special
@@ -118,23 +130,30 @@ class KernelMethod(BaseEstimator):
                     "Importing GPU eigensolver failed, falling back to CPU eigensolver."
                 )
 
+            solver_kwargs = self._select_eigsolver_kwargs(n=kernel_matrix.shape[0])
+
+            # TODO: this is just to test this experimental feature and will be included
+            #  properly if useful (default=False).
+            test_sparsify = False
+            if test_sparsify:
+
+                SPARSIFY_CUTOFF = 1e-14
+
+                if scipy.sparse.issparse(kernel_matrix):
+                    kernel_matrix.data[np.abs(kernel_matrix.data) < SPARSIFY_CUTOFF] = 0
+                    kernel_matrix.eliminate_zeros()
+                else:
+                    kernel_matrix[np.abs(kernel_matrix) < SPARSIFY_CUTOFF] = 0
+                    kernel_matrix = scipy.sparse.csr_matrix(kernel_matrix)
+
             eigvals, eigvect = self.cpu_eigensolver(
-                kernel_matrix,
-                is_symmetric=self.kernel_.is_symmetric,
-                k=self.num_eigenpairs,
-                v0=np.ones(kernel_matrix.shape[0]),
-                which="LM",  # largest magnitude
-                sigma=None,
-                tol=1e-13,
+                kernel_matrix, is_symmetric=self.kernel_.is_symmetric, **solver_kwargs
             )
 
         if basis_change_matrix is not None:
             # NOTE: this order has to be reverted, when eigenvectors are
             # column-wise (TODO: #44)
             eigvect = eigvect @ basis_change_matrix
-
-        # normalize eigenvectors to 1 (change if required differently).
-        eigvect /= np.linalg.norm(eigvect, axis=1)[:, np.newaxis]
 
         if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
             raise NumericalMathError(
@@ -144,7 +163,12 @@ class KernelMethod(BaseEstimator):
                 f"only if this is not working try to adjust epsilon."
             )
 
-        return eigvals.real, eigvect.real
+        eigvals, eigvect = np.real(eigvals), np.real(eigvect)
+
+        # normalize eigenvectors to 1 (change if required differently).
+        eigvect /= np.linalg.norm(eigvect, axis=1)[:, np.newaxis]
+
+        return eigvals, eigvect
 
     @staticmethod
     def cpu_eigensolver(
@@ -192,8 +216,16 @@ class KernelMethod(BaseEstimator):
                 "epsilon value."
             )
 
-        ii = np.argsort(np.abs(eigvals))[::-1]
-        return eigvals[ii], eigvects[:, ii].T  # TODO: #44
+        if is_symmetric:
+            # can include zero or numerical noise imaginary part
+            eigvects = np.real(eigvects)
+
+        # TODO: #44 -- that the eigvects are row-wise is an issue from the legacy code
+        eigvals, eigvects = sort_eigenpairs(
+            eigvals, eigvects.T, eigenvector_orientation="row"
+        )
+
+        return eigvals, eigvects
 
 
 class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
@@ -212,7 +244,7 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         length_scale_bounds=(1e-5, 1e5),
         is_stochastic=True,
         alpha=1.0,
-        symmetrize_kernel=False,
+        symmetrize_kernel=True,
     ):
 
         self.row_sums_init = None
@@ -638,8 +670,8 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
     def eval(self, distance_matrix):
         if scipy.sparse.issparse(distance_matrix):
             raise NotImplementedError(
-                "Currently the variable bandwidth kernel is only implemented for the "
-                "dense distance matrix case."
+                "Currently DmapKernelVariable is only implemented to handle a dense "
+                "distance matrix."
             )
 
         assert (

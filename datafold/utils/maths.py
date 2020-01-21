@@ -18,6 +18,9 @@ def sort_eigenpairs(
     # Sort eigenvectors accordingly:
     idx = np.abs(eigenvalues).argsort()
     if not ascending:
+        # creates a view on array and is most efficient way for flipping
+        # see:
+        # https://stackoverflow.com/questions/6771428/most-efficient-way-to-reverse-a-numpy-array
         idx = idx[::-1]
 
     eigenvalues = eigenvalues[idx]

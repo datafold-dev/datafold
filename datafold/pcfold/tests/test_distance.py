@@ -26,7 +26,8 @@ class TestContinuousDistance(unittest.TestCase):
         nptest.assert_array_equal(dense_actual, sparse_actual)
 
     def test_k_smallest02(self):
-        # test that distance matrix is unchanged (in get_k_smallest_element_value, values are adapted
+        # test that distance matrix is unchanged (in get_k_smallest_element_value, values
+        # are adapted
 
         dense_dist_mat = compute_distance_matrix(self.example_matrix)
         sparse_dist_mat = compute_distance_matrix(self.example_matrix, cut_off=150)
@@ -87,7 +88,8 @@ class TestContinuousDistance(unittest.TestCase):
         distance_matrix = compute_distance_matrix(self.example_matrix, cut_off=150)
 
         def get_kth_smallest_in_row_legacy(_mat_sp, k, default=0):
-            """Returns kth largest element of every row, k is zero based, and zeros in the matrix are ignored."""
+            """Returns kth largest element of every row, k is zero based, and zeros in
+            the matrix are ignored."""
             res = np.zeros((_mat_sp.shape[0],))
             for i in range(_mat_sp.shape[0]):
                 r = _mat_sp.getrow(i).data
@@ -125,7 +127,8 @@ class TestContinuousDistance(unittest.TestCase):
 
         def legacy_code_continuous_nn(dmat, k, tolerance):
             def get_kth_largest_in_row(_mat_sp, k, default=0):
-                """Returns kth largest element of every row, k is zero based, and zeros in the matrix are ignored """
+                """Returns kth largest element of every row, k is zero based, and zeros
+                in the matrix are ignored """
                 res = np.zeros((_mat_sp.shape[0],))
                 for i in range(_mat_sp.shape[0]):
                     r = _mat_sp.getrow(i).data
@@ -178,19 +181,19 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(
-                    X=self.data_X,
-                    metric=metric,
-                    cut_off=None,
-                    kmin=0,
-                    tol=1,
-                    backend=algo.NAME,
-                    **backend_options,
-                )
-
                 try:
+                    actual = compute_distance_matrix(
+                        X=self.data_X,
+                        metric=metric,
+                        cut_off=None,
+                        kmin=0,
+                        tol=1,
+                        backend=algo.NAME,
+                        **backend_options,
+                    )
+
                     self.assertIsInstance(actual, np.ndarray)
-                    nptest.assert_allclose(actual, expected, atol=1e-15, rtol=1e-14)
+                    nptest.assert_allclose(actual, expected, atol=1e-14, rtol=1e-14)
                 except AssertionError as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
@@ -198,8 +201,9 @@ class TestDistAlgorithms(unittest.TestCase):
     def test_cdist_dense(self):
         backend_options = {}
 
-        # NOTE: first Y and then X because, the Y (query points) should be in rows, the X (reference points) in columns
-        # This turned out to be a better handling for equations (e.g. in geometric harmonics).
+        # NOTE: first Y and then X because, the Y (query points) should be in rows, the X
+        # (reference points) in columns This turned out to be a better handling for
+        # equations (e.g. in geometric harmonics).
         expected = cdist(self.data_Y, self.data_X)
 
         for metric in ["euclidean", "sqeuclidean"]:
@@ -208,21 +212,21 @@ class TestDistAlgorithms(unittest.TestCase):
                 expected = np.square(expected)
 
             for algo in self.algos:
-
-                actual = compute_distance_matrix(
-                    X=self.data_X,
-                    Y=self.data_Y,
-                    metric=metric,
-                    cut_off=None,
-                    kmin=0,
-                    tol=1,
-                    backend=algo.NAME,
-                    **backend_options,
-                )
                 try:
+                    actual = compute_distance_matrix(
+                        X=self.data_X,
+                        Y=self.data_Y,
+                        metric=metric,
+                        cut_off=None,
+                        kmin=0,
+                        tol=1,
+                        backend=algo.NAME,
+                        **backend_options,
+                    )
+
                     self.assertIsInstance(actual, np.ndarray)
                     nptest.assert_allclose(actual, expected, atol=1e-15, rtol=1e-14)
-                except AssertionError as e:
+                except Exception as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
 
@@ -239,30 +243,30 @@ class TestDistAlgorithms(unittest.TestCase):
                 expected = np.square(expected)
 
             for algo in self.algos:
-
-                actual = compute_distance_matrix(
-                    X=self.data_X,
-                    metric=metric,
-                    cut_off=cut_off,
-                    kmin=0,
-                    tol=1,
-                    backend=algo.NAME,
-                    **backend_options,
-                )
                 try:
+                    actual = compute_distance_matrix(
+                        X=self.data_X,
+                        metric=metric,
+                        cut_off=cut_off,
+                        kmin=0,
+                        tol=1,
+                        backend=algo.NAME,
+                        **backend_options,
+                    )
+
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
-                        actual.toarray(), expected, atol=1e-15, rtol=1e-14
+                        actual.toarray(), expected, atol=1e-14, rtol=1e-14
                     )
-                except AssertionError as e:
+                except Exception as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
 
     def test_cdist_sparse(self):
         backend_options = {}
-        expected = cdist(
-            self.data_Y, self.data_X
-        )  # See also comment in 'test_cdist_dense'
+
+        # See also comment in 'test_cdist_dense'
+        expected = cdist(self.data_Y, self.data_X)
         cut_off = np.median(expected)
 
         expected[expected > cut_off] = 0
@@ -273,23 +277,24 @@ class TestDistAlgorithms(unittest.TestCase):
                 expected = np.square(expected)
 
             for algo in self.algos:
-                actual = compute_distance_matrix(
-                    X=self.data_X,
-                    Y=self.data_Y,
-                    metric=metric,
-                    cut_off=cut_off,
-                    kmin=0,
-                    tol=1,
-                    backend=algo.NAME,
-                    **backend_options,
-                )
                 try:
+                    actual = compute_distance_matrix(
+                        X=self.data_X,
+                        Y=self.data_Y,
+                        metric=metric,
+                        cut_off=cut_off,
+                        kmin=0,
+                        tol=1,
+                        backend=algo.NAME,
+                        **backend_options,
+                    )
+
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
                         actual.toarray(), expected, atol=1e-15, rtol=1e-14
                     )
-                except AssertionError as e:
-                    print(f"{algo.NAME} failed")
+                except Exception as e:
+                    print(f"{algo.NAME} failed with metric {metric}")
                     raise e
 
     def test_pdist_sparse_zeros(self):
@@ -310,25 +315,26 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(
-                    X=self.data_X,
-                    metric=metric,
-                    cut_off=cut_off,
-                    kmin=0,
-                    tol=1,
-                    backend=algo.NAME,
-                    **backend_options,
-                )
                 try:
+                    actual = compute_distance_matrix(
+                        X=self.data_X,
+                        metric=metric,
+                        cut_off=cut_off,
+                        kmin=0,
+                        tol=1,
+                        backend=algo.NAME,
+                        **backend_options,
+                    )
+
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
-                        expected.data, actual.data, atol=1e-15, rtol=1e-14
+                        expected.data, actual.data, atol=1e-14, rtol=1e-14
                     )
-                except AssertionError as e:
+                except Exception as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
 
-    def test_cdist_sparse_zeros(self):
+    def test_cdist_sparse_duplicate_zeros(self):
         backend_options = {}
 
         data_Y = self.data_Y.copy()  # make copy to manipulate values
@@ -350,22 +356,24 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
 
-                actual = compute_distance_matrix(
-                    X=self.data_X,
-                    Y=data_Y,
-                    metric=metric,
-                    cut_off=cut_off,
-                    kmin=0,
-                    tol=1,
-                    backend=algo.NAME,
-                    **backend_options,
-                )
                 try:
+                    actual = compute_distance_matrix(
+                        X=self.data_X,
+                        Y=data_Y,
+                        metric=metric,
+                        cut_off=cut_off,
+                        kmin=0,
+                        tol=1,
+                        backend=algo.NAME,
+                        **backend_options,
+                    )
+
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
                         actual.data, expected.data, atol=1e-15, rtol=1e-14
                     )
-                except AssertionError as e:
+
+                except Exception as e:
                     print(f"{algo.NAME} failed for metric {metric}")
                     raise e
 

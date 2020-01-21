@@ -13,21 +13,14 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.base import MultiOutputMixin, RegressorMixin, TransformerMixin
-from sklearn.metrics.regression import mean_squared_error
-from sklearn.model_selection import train_test_split
+from sklearn.base import MultiOutputMixin, RegressorMixin
+from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
 
 import datafold.pcfold as pcfold
-from datafold.dynfold.kernel import (
-    DmapKernelFixed,
-    KernelMethod,
-    conjugate_stochastic_kernel_matrix,
-    stochastic_kernel_matrix,
-)
+from datafold.dynfold.kernel import KernelMethod
 from datafold.dynfold.utils import to_ndarray
 from datafold.pcfold.distance import compute_distance_matrix
-from datafold.pcfold.kernels import RadialBasisKernel
 from datafold.utils.maths import mat_dot_diagmat
 
 from datafold.dynfold.kernel import DmapKernelFixed

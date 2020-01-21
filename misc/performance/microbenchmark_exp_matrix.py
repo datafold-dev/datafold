@@ -1,6 +1,6 @@
 """
     This is a micro-benchmark used to verify the improvement of
-    exp(large_matrix)
+    exp(large_matrix) using numexpr
 """
 
 import functools
@@ -8,9 +8,10 @@ import timeit
 
 import numexpr as ne
 import numpy as np
+import numpy.testing as nptest
 
 NUMBER_OF_RUNS = 1
-N = 10000
+N = 5000
 
 matrix = np.random.rand(N, N)
 
@@ -20,23 +21,17 @@ matrix = (matrix + matrix.T) / 2
 
 def normal(m):
     m = m.copy()
-    # Current implemented version
-    return np.exp(m)
+    # using
+    return np.exp(-0.5 * m)
 
 
 def numexpr(m):
     m = m.copy()
-    # Current implemented version
-    return ne.evaluate("exp(m)")
+    # using numpy
+    return ne.evaluate("exp(-0.5*m)")
 
 
-def exploit_symmetry(m):
-    m_new = np.zeros_like(m)
-    idx = np.triu_indices(m_new.shape[0])
-    m_new[idx] = np.exp(m_new[idx])
-    m_new + m_new.T - np.diag(m_new.diagonal())
-    return m
-
+nptest.assert_array_equal(normal(matrix.copy()), numexpr(matrix.copy()))
 
 print(
     f"normal "
@@ -46,10 +41,4 @@ print(
 print(
     f"numexpr"
     f" {timeit.timeit(functools.partial(numexpr, matrix.copy()), number=NUMBER_OF_RUNS)}"
-)
-
-
-print(
-    f"symmetry "
-    f"{timeit.timeit(functools.partial(exploit_symmetry, matrix.copy()), number=NUMBER_OF_RUNS)}"
 )
