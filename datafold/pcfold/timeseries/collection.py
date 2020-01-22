@@ -353,7 +353,7 @@ class TSCDataFrame(pd.DataFrame):
         return self.time_interval()[0] == 0 and self.dt == 1
 
     def is_finite(self):
-        return not self.isnull().values.any()
+        return np.isfinite(self).all().all()
 
     def insert_ts(self, df, ts_id=None):
         if ts_id is None:
@@ -464,6 +464,13 @@ class TSCDataFrame(pd.DataFrame):
         df = self.single_timeindex_df(-1)
         df.index.names = [self.IDX_ID_NAME, "_".join(["final", self.IDX_TIME_NAME])]
         return df
+
+    def plot(self, *args, **kwargs):
+        ax = kwargs.pop("ax", None)
+
+        for i, ts in self.itertimeseries():
+            kwargs["ax"] = ax
+            ax = ts.plot(*args, **kwargs)
 
 
 def allocate_time_series_tensor(nr_time_series, nr_timesteps, nr_qoi):
