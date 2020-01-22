@@ -472,6 +472,8 @@ class TSCDataFrame(pd.DataFrame):
             kwargs["ax"] = ax
             ax = ts.plot(*args, **kwargs)
 
+        return ax
+
 
 def allocate_time_series_tensor(nr_time_series, nr_timesteps, nr_qoi):
     """

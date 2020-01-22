@@ -6,7 +6,7 @@ from sklearn.base import BaseEstimator
 
 import datafold.dynfold.operator as operator
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import DMDEco, DMDFull
+from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.accessor import NormalizeQoi, TimeSeriesError
