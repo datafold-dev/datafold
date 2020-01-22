@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -19,13 +20,13 @@ class TSCTransformMixIn:
         if transform_columns is not None:
             self._transform_columns = transform_columns
 
-    def fit(self, X_ts: TSCDataFrame, **fit_params):
+    def fit(self, X_ts: TSCDataFrame, y=None, **fit_params):
         raise NotImplementedError
 
     def transform(self, X_ts: TSCDataFrame):
         raise NotImplementedError
 
-    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
+    def fit_transform(self, X_ts: TSCDataFrame, y=None, **fit_params):
         return self.fit(X_ts, **fit_params).transform(X_ts=X_ts)
 
     def inverse_transform(self, X_ts: TSCDataFrame):
@@ -78,7 +79,7 @@ class TSCQoiPreprocess(TSCTransformMixIn):
             )
         self.transform_cls_ = cls(**kwargs)
 
-    def fit(self, X_ts: TSCDataFrame, **fit_params):
+    def fit(self, X_ts: TSCDataFrame, y=None, **fit_params):
         self._save_columns(X_ts.columns)
         self.transform_cls_.fit(X_ts.to_numpy())
         return self
@@ -88,7 +89,7 @@ class TSCQoiPreprocess(TSCTransformMixIn):
         values = self.transform_cls_.transform(X_ts.to_numpy())
         return self._return_same_type_X(X_ts=X_ts, values=values)
 
-    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
+    def fit_transform(self, X_ts: TSCDataFrame, y=None, **fit_params):
         self._save_columns(fit_columns=X_ts.columns)
         values = self.transform_cls_.fit_transform(X_ts)
         return self._return_same_type_X(X_ts=X_ts, values=values)
@@ -117,13 +118,13 @@ class TSCQoiScale(TSCTransformMixIn):
                 f"name={name} is not known. Choose from {self.VALID_NAMES}"
             )
 
-    def fit(self, X_ts: TSCDataFrame, **fit_params):
+    def fit(self, X_ts: TSCDataFrame, y=None, **fit_params):
         self._qoi_scaler.fit(X_ts=X_ts, **fit_params)
 
     def transform(self, X_ts: TSCDataFrame):
         return self._qoi_scaler.transform(X_ts=X_ts)
 
-    def fit_transform(self, X_ts: TSCDataFrame, **fit_params):
+    def fit_transform(self, X_ts: TSCDataFrame, y=None, **fit_params):
         return self._qoi_scaler.fit_transform(X_ts=X_ts, **fit_params)
 
     def inverse_transform(self, X_ts: TSCDataFrame):
@@ -152,10 +153,10 @@ class TSCPrincipalComponents(TSCTransformMixIn):
             random_state=random_state,
         )
 
-    def fit(self, X_ts: TSCDataFrame, **fit_params):
+    def fit(self, X_ts: TSCDataFrame, y=None, **fit_params):
         self._pca.fit(X=X_ts, y=None)
 
-        column_names = ["pca{i}" for i in range(self._pca.n_components_)]
+        column_names = [f"pca{i}" for i in range(self._pca.n_components_)]
         transform_columns = pd.Index(
             column_names, dtype=np.str, copy=False, name=TSCDataFrame.IDX_QOI_NAME
         )
@@ -189,13 +190,17 @@ class TSCPrincipalComponents(TSCTransformMixIn):
 class TSCTakensEmbedding(TSCTransformMixIn):
     def __init__(
         self,
-        lag: int,
-        delays: int,
-        frequency: int,
+        lag: int = 0,
+        delays: int = 10,
+        frequency: int = 1,
         time_direction="backward",
-        fill_value: float = np.nan,
+        fillin_handle: Union[str, float] = "remove",
     ):
-
+        """
+        fillin_handle:
+            If 'value': all fill-ins will be set to this value
+            If 'remove': all rows that are affected of fill-ins are removed.
+        """
         if lag < 0:
             raise ValueError(f"Lag has to be non-negative. Got lag={lag}")
 
@@ -223,7 +228,7 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         self.delays = delays
         self.frequency = frequency
         self.time_direction = time_direction
-        self.fill_value = fill_value
+        self.fillin_handle = fillin_handle
 
     def _precompute_delay_indices(self):
         # zero delay (original data) is not treated
@@ -254,7 +259,7 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         # original columns + delayed columns
         total_nr_columns = tsc.shape[1] * (self.delays + 1)
 
-        data = np.empty([tsc.shape[0], total_nr_columns])
+        data = np.zeros([tsc.shape[0], total_nr_columns]) * np.nan
 
         delayed_tsc = TSCDataFrame(
             data, index=tsc.index, columns=self._transform_columns
@@ -265,13 +270,18 @@ class TSCTakensEmbedding(TSCTransformMixIn):
 
     def _shift_timeseries(self, single_ts, delay_idx):
 
+        if self.fillin_handle == "remove":
+            fill_value = np.nan
+        else:
+            fill_value = self.fillin_handle
+
         if self.time_direction == "backward":
             shifted_timeseries = single_ts.shift(
-                delay_idx, fill_value=self.fill_value,
+                delay_idx, fill_value=fill_value,
             ).copy()
         elif self.time_direction == "forward":
             shifted_timeseries = single_ts.shift(
-                -1 * delay_idx, fill_value=self.fill_value
+                -1 * delay_idx, fill_value=fill_value
             ).copy()
         else:
             raise ValueError(
@@ -285,7 +295,7 @@ class TSCTakensEmbedding(TSCTransformMixIn):
 
         return shifted_timeseries
 
-    def fit(self, X_ts, **fit_params):
+    def fit(self, X_ts, y=None, **fit_params):
 
         # TODO: Check that there are no NaN values present. (the integrate the option
         #  to remove fill in rows.
@@ -307,8 +317,8 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         if not X_ts.is_const_dt():
             raise TimeSeriesCollectionError("dt is not constant")
 
-        if X_ts.is_contain_nans():
-            raise ValueError("The TSCDataFrame must be NaN free")
+        if not X_ts.is_finite():
+            raise ValueError("The TSCDataFrame must only consist of finite values.")
 
         if (X_ts.lengths_time_series <= self.delay_indices_.max()).any():
             raise TimeSeriesCollectionError(
@@ -324,6 +334,22 @@ class TSCTakensEmbedding(TSCTransformMixIn):
             for delay_idx in self.delay_indices_:
                 shifted_timeseries = self._shift_timeseries(ts, delay_idx)
                 X_ts.loc[i, shifted_timeseries.columns] = shifted_timeseries.values
+
+        if self.fillin_handle == "remove":
+            bool_idx = np.logical_not(np.sum(pd.isnull(X_ts), axis=1).astype(np.bool))
+            X_ts = X_ts.loc[bool_idx]
+
+            if isinstance(X_ts, TSCDataFrame):
+                pass
+            elif isinstance(X_ts, pd.DataFrame):
+                import warnings
+
+                # TODO: irregular time series could be removed completely (per option)
+                warnings.warn(
+                    "During Takens delay embedding the time series collection is "
+                    "not regular (due to large delays) and is returned as "
+                    "pd.DataFrame"
+                )
 
         return X_ts
 

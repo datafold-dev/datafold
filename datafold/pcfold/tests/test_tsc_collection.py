@@ -276,19 +276,23 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = True
         self.assertEqual(actual, expected)
 
-    def test_isnan1(self):
-        actual = TSCDataFrame(self.simple_df).is_contain_nans()
+    def test_isfinite1(self):
+        actual = TSCDataFrame(self.simple_df).is_finite()
+        self.assertTrue(actual)
+
+    def test_isfinite2(self):
+        tsc = TSCDataFrame(self.simple_df.copy())
+        tsc.iloc[0, 0] = np.inf
+
+        actual = TSCDataFrame(tsc).is_finite()
         self.assertFalse(actual)
 
-    @unittest.skip  # type: ignore # allow nan values for now
-    def test_isnan2(self):
-        # insert nan
-        simple_df = self.simple_df.copy()
-        simple_df.iloc[0, 0] = np.nan
+    def test_isfinite3(self):
+        tsc = TSCDataFrame(self.simple_df.copy())
+        tsc.iloc[0, 0] = np.nan
 
-        with self.assertRaises(AttributeError):
-            # currently nan values are not accepted for security
-            TSCDataFrame(simple_df)
+        actual = TSCDataFrame(tsc).is_finite()
+        self.assertFalse(actual)
 
     def test_iterator(self):
         tc = TSCDataFrame(self.simple_df)

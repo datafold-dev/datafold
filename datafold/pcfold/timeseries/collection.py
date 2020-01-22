@@ -352,8 +352,8 @@ class TSCDataFrame(pd.DataFrame):
             return False
         return self.time_interval()[0] == 0 and self.dt == 1
 
-    def is_contain_nans(self):
-        return np.any(np.isnan(self))
+    def is_finite(self):
+        return not self.isnull().values.any()
 
     def insert_ts(self, df, ts_id=None):
         if ts_id is None:
