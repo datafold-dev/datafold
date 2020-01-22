@@ -11,7 +11,8 @@ from sklearn.preprocessing import StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.transform import (
-    TSCPrincipalComponents,
+    TSCIdentity,
+    TSCPrincipalComponent,
     TSCQoiPreprocess,
     TSCQoiScale,
     TSCTakensEmbedding,
@@ -42,6 +43,13 @@ class TestTSCTransform(unittest.TestCase):
     def setUp(self) -> None:
         self._setUp_simple_df()
         self._setUp_takens_df()
+
+    def test_identity(self):
+        tsc = TSCDataFrame(self.simple_df)
+
+        _id = TSCIdentity()
+        pdtest.assert_frame_equal(_id.fit_transform(tsc), tsc)
+        pdtest.assert_frame_equal(_id.inverse_transform(tsc), tsc)
 
     def test_scale_min_max(self):
         tsc_df = TSCDataFrame(self.simple_df)
@@ -122,7 +130,7 @@ class TestTSCTransform(unittest.TestCase):
     def test_pca_transform(self):
 
         tsc = TSCDataFrame(self.simple_df)
-        pca = TSCPrincipalComponents(n_components=1).fit(tsc)
+        pca = TSCPrincipalComponent(n_components=1).fit(tsc)
 
         data = pca.transform(tsc)
         self.assertIsInstance(data, TSCDataFrame)

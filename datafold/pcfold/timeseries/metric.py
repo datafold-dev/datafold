@@ -8,7 +8,7 @@ from sklearn import metrics
 from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.utils.datastructure import is_df_same_index_columns, series_if_applicable
+from datafold.utils.datastructure import is_df_same_index, series_if_applicable
 
 
 class TSCMetric(object):
@@ -270,7 +270,7 @@ class TSCMetric(object):
         multi_qoi="uniform_average",
     ) -> Union[pd.Series, pd.DataFrame]:
 
-        if not is_df_same_index_columns(y_true, y_pred):
+        if not is_df_same_index(y_true, y_pred):
             raise ValueError("y_true and y_pred must have the same index and columns")
 
         self._scaling(y_true=y_true, y_pred=y_pred)

@@ -29,7 +29,7 @@ def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
     return ds
 
 
-def is_df_same_index_columns(
+def is_df_same_index(
     df_left: pd.DataFrame, df_right: pd.DataFrame, check_index=True, check_column=True
 ):
 

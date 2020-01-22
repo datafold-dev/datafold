@@ -37,16 +37,16 @@ class TestDataStructureUtils(unittest.TestCase):
         pdtest.assert_series_equal(actual, self.df2.iloc[:, 0])
 
     def test_is_df_same_index_columns1(self):
-        self.assertFalse(is_df_same_index_columns(self.df1, self.df2))
+        self.assertFalse(is_df_same_index(self.df1, self.df2))
 
     def test_is_df_same_index_columns2(self):
         df1_local = self.df1.copy()
-        self.assertTrue(is_df_same_index_columns(self.df1, df1_local))
+        self.assertTrue(is_df_same_index(self.df1, df1_local))
 
     def test_is_df_same_index_columns3(self):
         df1_local = self.df1.copy()
         df1_local.columns = ["One", "Two", "Three"]
-        self.assertFalse(is_df_same_index_columns(self.df1, df1_local))
+        self.assertFalse(is_df_same_index(self.df1, df1_local))
 
     def test_is_integer1(self):
         self.assertTrue(is_integer(6.0))
