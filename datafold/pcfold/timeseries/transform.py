@@ -130,6 +130,11 @@ class TSCQoiScale(TSCTransformMixIn):
         return self._qoi_scaler.inverse_transform(X_ts=X_ts)
 
 
+class TSCPrincipalComponents(TSCTransformMixIn):
+    def __init__(self, n_components, **kwargs):
+        pass
+
+
 class TSCTakensEmbedding(TSCTransformMixIn):
     def __init__(
         self,
