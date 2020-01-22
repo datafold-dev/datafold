@@ -179,12 +179,19 @@ class PCManifold(np.ndarray):
 
 
 def subsample(
-    pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None, randomized=False, min_added_per_iteration=1
+    pcm,
+    min_distance=None,
+    n_samples=100,
+    random_state=None,
+    randomized=False,
+    min_added_per_iteration=1,
 ):
     """
     Returns a new PCManifold that has a converged subsampling of the given points.
-    randomized: False (default, will subsample iteratively) True (will randomly pick indices, but not necessarily uniformly distributed over the manifold. Very fast)
-    min_added_per_iteration: default (1), number of points that need to be added per iteration to keep going. Setting it to zero will search the entire dataset.
+    randomized: False (default, will subsample iteratively) True (will randomly pick
+    indices, but not necessarily uniformly distributed over the manifold. Very fast)
+    min_added_per_iteration: default (1), number of points that need to be added per
+    iteration to keep going. Setting it to zero will search the entire dataset.
     """
 
     if not isinstance(pcm, PCManifold):
@@ -192,7 +199,7 @@ def subsample(
             "point cloud not valid"
         )  # TODO: for now enforce that we deal only with a PCM
 
-    if min_distance is None and not(pcm.cut_off is None):
+    if min_distance is None and not (pcm.cut_off is None):
         min_distance = pcm.cut_off / 2
 
     if min_distance is None:
@@ -220,6 +227,8 @@ def subsample(
         for iteration_indices in indices_splits[1:]:
             iteration_points = pcm[iteration_indices, :]
 
+            # TODO: "guess_optimal" may be justified here, or what is set in PCM?
+            #  if iteration points is not too big, backend could also be brute force
             distances = compute_distance_matrix(
                 X=subsample_points,
                 Y=iteration_points,
@@ -230,17 +239,12 @@ def subsample(
 
             cond_1 = distances.getnnz(axis=1) == 0
             cond_2 = distances.min(axis=1).toarray().ravel() >= min_distance
-            bool_mask_select_indices = np.logical_or(cond_1, cond_2)
+            bool_mask_select_indices = np.logical_or(cond_1, cond_2, out=cond_1)
 
             current_indices_selected = iteration_indices[bool_mask_select_indices]
 
-            if bool_mask_select_indices.sum() <= min_added_per_iteration: # + int(n_samples * tol) + 
-                # TODO: not sure why we need this condition -- break out of look and we
-                #  don't look at other chunks.
-                # FD: this is needed to prematurely end the iteration, stopping if too few points are added.
-                #  Original code:
-                #  if len(new_indices_k) < int(n_samples * tol) + 1:
-                #     break
+            if bool_mask_select_indices.sum() <= min_added_per_iteration:
+                # prematurely end the iteration, if too few points are added.
                 break
 
             subsample_indices = np.append(subsample_indices, current_indices_selected)
