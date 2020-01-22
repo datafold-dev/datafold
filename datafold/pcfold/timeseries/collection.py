@@ -249,9 +249,20 @@ class TSCDataFrame(pd.DataFrame):
     def loc(self):
         class LocHandler:
             def __init__(self, tsc):
-                self.tsc_as_df = pd.DataFrame(
-                    tsc
-                )  # cast for the request back to a DataFrame
+                # cast for the request back to a DataFrame
+                self.tsc_as_df = pd.DataFrame(tsc)
+
+            # TODO: best would be to wrap all attributes through getattr
+            #  unfortunately this seems not to work with magic functions as __call__ when
+            #  they depending on how they are used:
+            #    self.loc.__call__ --> prints "got here" and returns the right attribute
+            #    self.loc() --> Error cannot be called, has no __call__ function
+            # def __getattr__(self, attr, *args, **kwargs):
+            #     print("got here")
+            #     return getattr(self.tsc_as_df.loc, attr)
+
+            def __call__(self, axis):
+                return self.tsc_as_df.loc(axis=axis)
 
             def __getitem__(self, item):
                 sliced = self.tsc_as_df.loc[item]
@@ -262,8 +273,9 @@ class TSCDataFrame(pd.DataFrame):
                     #  TSCDataFrame, even when sliced is a pd.Series
                     return TSCDataFrame(sliced)
                 except AttributeError:
+                    # Fallback if the sliced is not a valid TSC anymore
                     # returns to pd.Series or pd.DataFrame (depending on what the
-                    # sliced object of an pd.DataFrame is)
+                    # sliced object of an pd.DataFrame is).
                     return _type(sliced)
 
             def __setitem__(self, key, value):
