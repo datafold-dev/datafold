@@ -100,6 +100,23 @@ class TSCQoiPreprocess(TSCTransformMixIn):
         return self._return_same_type_X(X_ts=X_ts, values=values)
 
 
+class TSCIdentity(TSCTransformMixIn):
+    def __ini__(self):
+        pass
+
+    def fit(self, X_ts: TSCDataFrame, y=None, **fit_params):
+        self._save_columns(fit_columns=X_ts.columns, transform_columns=X_ts.columns)
+        return self
+
+    def transform(self, X_ts: TSCDataFrame):
+        self._check_fit_columns(X_ts=X_ts)
+        return X_ts
+
+    def inverse_transform(self, X_ts: TSCDataFrame):
+        self._check_transform_columns(X_ts=X_ts)
+        return X_ts
+
+
 class TSCQoiScale(TSCTransformMixIn):
 
     VALID_NAMES = ["min-max", "standard"]
@@ -131,7 +148,7 @@ class TSCQoiScale(TSCTransformMixIn):
         return self._qoi_scaler.inverse_transform(X_ts=X_ts)
 
 
-class TSCPrincipalComponents(TSCTransformMixIn):
+class TSCPrincipalComponent(TSCTransformMixIn):
     def __init__(
         self,
         n_components,
