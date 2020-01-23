@@ -9,7 +9,7 @@ from sklearn.datasets import make_swiss_roll
 from sklearn.model_selection import ParameterGrid
 
 from datafold.dynfold.kernel import DmapKernelFixed
-from datafold.dynfold.operator import KernelEigenfunctionInterpolator
+from datafold.dynfold.operator import TSCEigfuncInterpolator
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
@@ -621,9 +621,9 @@ class GeometricHarmonicsFunctionBasisTest(unittest.TestCase):
             data
         )
 
-        actual_interp = KernelEigenfunctionInterpolator(
-            epsilon=1.25, num_eigenpairs=50
-        ).fit(data)
+        actual_interp = TSCEigfuncInterpolator(epsilon=1.25, num_eigenpairs=50).fit(
+            data
+        )
         # TODO: issue #44
         expected_interp = GeometricHarmonicsInterpolator(
             epsilon=1.25, num_eigenpairs=50

@@ -5,6 +5,8 @@ import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse
+import pandas as pd
+from typing import Union
 
 from datafold.pcfold.distance import (
     compute_distance_matrix,
@@ -13,7 +15,7 @@ from datafold.pcfold.distance import (
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 from datafold.pcfold.kernels import Kernel, RadialBasisKernel
 
-# TODO: Consider to have a separate Methods section in documentation for the methods
+# TODO: Consider to have a separate methods section in documentation for the methods
 #  that are only for PCManifold
 #   source: https://numpydoc.readthedocs.io/en/latest/format.html#class-docstring
 #   > In some cases, however, a class may have a great many methods, of which only a
@@ -27,7 +29,7 @@ class PCManifold(np.ndarray):
 
     def __new__(
         cls,
-        data: np.ndarray,
+        data: Union[np.ndarray, pd.DataFrame],
         kernel: Kernel = None,
         cut_off=None,
         dist_backend="guess_optimal",

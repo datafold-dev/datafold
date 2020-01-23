@@ -16,14 +16,18 @@ import scipy.sparse.linalg
 import scipy.spatial
 from sklearn.base import TransformerMixin
 
-import datafold.pcfold as pcfold
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
-from datafold.utils.datastructure import is_float, is_integer
+from datafold.pcfold.pointcloud import PCManifold
+from datafold.pcfold.timeseries.transform import (
+    TSCTransformMixIn,
+    TF_ALLOWED_TYPES,
+)
+from datafold.utils.datastructure import is_float, is_integer, if1dim_rowvec
 from datafold.utils.maths import mat_dot_diagmat
 
 
-class DiffusionMaps(KernelMethod, TransformerMixin):
+class DiffusionMaps(KernelMethod, TSCTransformMixIn):
     """Nonlinear dimension reduction by parametrizing a manifold with diffusion maps.
     Attributes:
 
@@ -53,6 +57,10 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
         This function computes the eigen-decomposition of the transition matrix
         associated to a random walk on the data using a (fixed) bandwidth equal to
         epsilon.
+
+        NOTE for docu: if is_stochastic=False, it is actually not DMAP anymore, but a
+          RadialBasisKernel, so this option is only for convenience.
+
         """
 
         super(DiffusionMaps, self).__init__(
@@ -74,13 +82,28 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
             symmetrize_kernel=symmetrize_kernel,
         )
 
-    def fit(self, X, y=None, **fit_params) -> "DiffusionMaps":
+    def _nystrom(self, kernel_cdist, eigvec, eigvals):
+        return kernel_cdist @ mat_dot_diagmat(eigvec, np.reciprocal(eigvals))
+
+    def _select_eigpairs_indices(self, indices):
+        if indices is not None:
+            _selected_eigvect = self.eigenvectors_[indices, :]
+            _selected_eigvals = self.eigenvalues_[indices]
+        else:
+            _selected_eigvect = self.eigenvectors_
+            _selected_eigvals = self.eigenvalues_
+
+        return if1dim_rowvec(_selected_eigvect), _selected_eigvals
+
+    def _dmap_embedding(self, eigvect, eigvals, t):
+        if t == 0:
+            return eigvect
+        else:
+            eigvals_time = np.power(eigvals, t)
+            return mat_dot_diagmat(eigvect, eigvals_time)
+
+    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params) -> "DiffusionMaps":
         """
-        num_eigenpairs: int, optional
-            Number of eigenpairs to compute. Default is `default.num_eigenpairs`.
-        use_cuda : bool
-            Determine whether to use CUDA-enabled eigenproblem solver or not (if CUDA
-            is not available, fallback the CPU solver is a fallback).
 
         Returns
         -------
@@ -88,7 +111,13 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
             self
         """
 
-        self.X = pcfold.PCManifold(
+        super(DiffusionMaps, self).fit(
+            X, y, transform_columns=[f"dmap{i}" for i in range(self.num_eigenpairs)]
+        )
+
+        # Need to hold X in class to be able to compute cdist distance matrix which is
+        # required for out-of-sample transforms
+        self.X = PCManifold(
             X,
             kernel=self.kernel_,
             cut_off=self.cut_off,
@@ -98,7 +127,7 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
 
         # basis_change_matrix is None if not required
         # save kernel_matrix for now to use it for testing, but it may not be necessary
-        # for large problems
+        # for larger problems
         (
             self.kernel_matrix_,
             _basis_change_matrix,
@@ -117,27 +146,8 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
 
         return self
 
-    def _nystrom(self, kernel_cdist, eigvec, eigvals):
-        return kernel_cdist @ mat_dot_diagmat(eigvec, np.reciprocal(eigvals))
+    def transform(self, X, indices=None, t=0):
 
-    def _select_eigpairs_indices(self, indices):
-        if indices is not None:
-            _selected_eigvect = self.eigenvectors_[indices, :]
-            _selected_eigvals = self.eigenvalues_[indices]
-        else:
-            _selected_eigvect = self.eigenvectors_
-            _selected_eigvals = self.eigenvalues_
-
-        return _selected_eigvect, _selected_eigvals
-
-    def _dmap_embedding(self, eigvect, eigvals, t):
-        if t == 0:
-            return eigvect
-        else:
-            eigvals_time = np.power(eigvals, t)
-            return mat_dot_diagmat(eigvect, eigvals_time)
-
-    def transform(self, X, y=None, indices=None, t=0):
         """
         Uses Nyström for out-of-sample functionality.
 
@@ -155,6 +165,8 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
         if t < 0:
             raise ValueError("'t' must be greater than zero")
 
+        super(DiffusionMaps, self).transform(X)
+
         kernel_matrix_cdist, _, _ = self.X.compute_kernel_matrix(
             X, row_sums_alpha_fit=self._row_sums_alpha
         )
@@ -170,8 +182,9 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
         dmap_embedding = self._dmap_embedding(
             eigvect=eigvec_embedding, eigvals=_selected_eigvals, t=t
         )
-
-        return dmap_embedding
+        return self._return_same_type_X(
+            X, values=dmap_embedding, columns=self._transform_columns
+        )
 
     def fit_transform(self, X, y=None, indices=None, t=0):
 
@@ -186,10 +199,24 @@ class DiffusionMaps(KernelMethod, TransformerMixin):
             eigvect=_selected_eigvect.T, eigvals=_selected_eigvals, t=t
         )
 
-        return dmap_embedding
+        return self._return_same_type_X(
+            X, values=dmap_embedding, columns=self._transform_columns
+        )
+
+    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+        super(DiffusionMaps, self).inverse_transform(X)
+
+        import scipy.linalg
+
+        coeff_matrix = scipy.linalg.lstsq(self.eigenvectors_.T, self.X, rcond=1e-14)
+
+        X_orig_space = np.asarray(X) @ coeff_matrix
+        return self._return_same_type_X(
+            X, values=X_orig_space, columns=self._fit_columns
+        )
 
 
-class DiffusionMapsVariable(KernelMethod, TransformerMixin):
+class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
     def __init__(
         self,
         epsilon=1.0,
@@ -241,9 +268,13 @@ class DiffusionMapsVariable(KernelMethod, TransformerMixin):
             nr_samples * (4 * np.pi * self.epsilon) ** (self.expected_dim / 2)
         )
 
-    def fit(self, X, y=None, **fit_params):
+    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
 
-        pcm = pcfold.PCManifold(
+        super(DiffusionMapsVariable, self).fit(
+            X, y, transform_columns=[f"dmap{i}" for i in range(self.num_eigenpairs)]
+        )
+
+        pcm = PCManifold(
             X,
             kernel=self.kernel_,
             cut_off=self.cut_off,
@@ -288,9 +319,17 @@ class DiffusionMapsVariable(KernelMethod, TransformerMixin):
 
         return self
 
-    def fit_transform(self, X, y=None, **fit_params):
+    def transform(self, X: TF_ALLOWED_TYPES):
+        raise NotImplementedError(
+            "A transform for out-of-sample points is currently "
+            "not supported. This requires to implement the "
+            "'cdist' case for the variable bandwidth diffusion "
+            "maps kernel."
+        )
+
+    def fit_transform(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
         self.fit(X, y, **fit_params)
-        return self.eigenvectors_
+        return self._return_same_type_X(X, self.eigenvectors_, self._transform_columns)
 
 
 class LocalRegressionSelection(TransformerMixin):
