@@ -8,7 +8,7 @@ from sklearn.base import BaseEstimator
 
 import datafold.dynfold.operator as operator
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import DMDEco, DMDFull
+from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.transform import TSCQoiScale
 from datafold.pcfold.timeseries.metric import TSCMetric

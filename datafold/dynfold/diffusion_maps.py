@@ -19,7 +19,7 @@ from sklearn.base import TransformerMixin
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries.transform import (
+from datafold.pcfold.timeseries.base import (
     TSCTransformMixIn,
     TF_ALLOWED_TYPES,
 )
