@@ -8,8 +8,6 @@ Coifman, R. R., & Lafon, S. (2006). Diffusion maps. Applied and Computational Ha
 Analysis, 21(1), 5–30. DOI:10.1016/j.acha.2006.04.006
 """
 
-from typing import Optional
-
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
@@ -37,6 +35,13 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         Eigenvectors of the kernel matrix, which can be used to parametrize the
         manifold of X.
     """
+
+    VALID_OPERATOR_NAMES = [
+        "laplace_beltrami",
+        "fokker_planck",
+        "graph_laplacian",
+        "rbf",
+    ]
 
     def __init__(
         self,
@@ -80,6 +85,77 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             is_stochastic=is_stochastic,
             alpha=alpha,
             symmetrize_kernel=symmetrize_kernel,
+        )
+
+    @classmethod
+    def from_operator_name(cls, name, **kwargs):
+
+        if name == "laplace_beltrami":
+            eigfunc_interp = cls.laplace_beltrami(**kwargs)
+        elif name == "fokker_planck":
+            eigfunc_interp = cls.fokker_planck(**kwargs)
+        elif name == "graph_laplacian":
+            eigfunc_interp = cls.graph_laplacian(**kwargs)
+        elif name == "rbf":
+            eigfunc_interp = cls.rbf(**kwargs)
+        else:
+            raise ValueError(
+                f"name='{name}' not known. Choose from {cls.VALID_OPERATOR_NAMES}"
+            )
+
+        if name not in cls.VALID_OPERATOR_NAMES:
+            raise NotImplementedError(
+                f"This is a bug. name={name} each name has to be "
+                f"listed in VALID_OPERATOR_NAMES"
+            )
+
+        return eigfunc_interp
+
+    @classmethod
+    def laplace_beltrami(
+        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+    ):
+        return cls(
+            epsilon=epsilon,
+            num_eigenpairs=num_eigenpairs,
+            is_stochastic=True,
+            alpha=1.0,
+            **kwargs,
+        )
+
+    @classmethod
+    def fokker_planck(
+        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+    ):
+        return cls(
+            epsilon=epsilon,
+            num_eigenpairs=num_eigenpairs,
+            is_stochastic=True,
+            alpha=0.5,
+            **kwargs,
+        )
+
+    @classmethod
+    def graph_laplacian(
+        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+    ):
+        return cls(
+            epsilon=epsilon,
+            num_eigenpairs=num_eigenpairs,
+            is_stochastic=True,
+            alpha=0.0,
+            **kwargs,
+        )
+
+    @classmethod
+    def rbf(
+        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+    ):
+        return cls(
+            epsilon=epsilon,
+            num_eigenpairs=num_eigenpairs,
+            is_stochastic=False,
+            **kwargs,
         )
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals):

@@ -10,12 +10,13 @@ from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame, allocate_time_series_tensor
+from datafold.pcfold.timeseries.base import TSCPredictMixIn, PRE_FIT_TYPES, PRE_IC_TYPES
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
 
 import pydmd
 
 
-class DMDBase(BaseEstimator):
+class DMDBase(BaseEstimator, TSCPredictMixIn):
     r"""Dynamic Mode Decomposition (DMD) approximates the Koopman operator with
     a matrix :math:`K`.
 
@@ -55,7 +56,7 @@ class DMDBase(BaseEstimator):
         self.eigenvalues_ = None
         self.eigenvectors_right_ = None
 
-    def _set_X_info(self, X):
+    def _set_X_info(self, X: PRE_FIT_TYPES):
 
         if not X.is_const_dt():
             raise ValueError("Only data with constant frequency is supported.")
@@ -80,10 +81,10 @@ class DMDBase(BaseEstimator):
             (self._time_interval[1] - self._normalize_shift) / self.dt_
         )
 
-    def fit(self, X_ts, **fit_params):
-        self._set_X_info(X_ts)
+    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        self._set_X_info(X)
 
-    def predict(self, X_ic, t, **predict_params):
+    def predict(self, X: PRE_IC_TYPES, t, **predict_params):
 
         if t.ndim != 1:
             raise ValueError("TODO")
@@ -93,22 +94,22 @@ class DMDBase(BaseEstimator):
 
         t = np.sort(t)
 
-        if isinstance(X_ic, np.ndarray):
+        if isinstance(X, np.ndarray):
             # TODO: it'd be better to have a DataFrame that describes initial conditions
-            if X_ic.ndim == 1:
+            if X.ndim == 1:
                 nr_ic = 1
             else:
-                nr_ic = X_ic.shape[0]
+                nr_ic = X.shape[0]
 
             from datafold.utils.datastructure import if1dim_rowvec
 
-            X_ic = if1dim_rowvec(X_ic)
+            X = if1dim_rowvec(X)
 
             idx = pd.MultiIndex.from_arrays(
-                [np.arange(nr_ic), np.ones(X_ic.shape[0]) * t[0]],
+                [np.arange(nr_ic), np.ones(X.shape[0]) * t[0]],
                 names=["ID", "initial_time"],
             )
-            X_ic = pd.DataFrame(X_ic, idx)
+            X = pd.DataFrame(X, idx)
 
         post_map = predict_params.pop("post_map", None)
         qoi_columns = predict_params.pop("qoi_columns", None)
@@ -116,14 +117,14 @@ class DMDBase(BaseEstimator):
         if len(predict_params.keys()) > 0:
             raise ValueError("TODO")
 
-        if len(np.unique(X_ic.index.get_level_values("initial_time"))) != 1:
+        if len(np.unique(X.index.get_level_values("initial_time"))) != 1:
             raise NotImplementedError(
                 "Currently alls initial conditions have to have "
                 "the same initial time."
             )
 
         return self._evolve_edmd_system(
-            X_ic=X_ic, time_samples=t, post_map=post_map, qoi_columns=qoi_columns
+            X_ic=X, time_samples=t, post_map=post_map, qoi_columns=qoi_columns
         )
 
     def _evolve_edmd_system(
@@ -240,10 +241,10 @@ class DMDFull(DMDBase):
         super(DMDFull, self).__init__()
         self.is_diagonalize = is_diagonalize
 
-    def fit(self, X_ts: TSCDataFrame, **fit_params):
-        super(DMDFull, self).fit(X_ts, **fit_params)
+    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        super(DMDFull, self).fit(X, **fit_params)
 
-        self.koopman_matrix_ = self._compute_koopman_matrix(X_ts)
+        self.koopman_matrix_ = self._compute_koopman_matrix(X)
         self._compute_right_eigenpairs()
 
         if self.is_diagonalize:
@@ -377,10 +378,10 @@ class DMDEco(DMDBase):
         self.k = svd_rank
         super(DMDEco, self).__init__()
 
-    def fit(self, X_ts, y=None, **fit_params):
-        super(DMDEco, self).fit(X_ts, **fit_params)
+    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        super(DMDEco, self).fit(X, **fit_params)
 
-        self._compute_internals(X_ts)
+        self._compute_internals(X)
         return self
 
     def _compute_internals(self, X: TSCDataFrame):
@@ -460,17 +461,17 @@ class PyDMDWrapper(DMDBase):
         else:
             raise ValueError(f"method={method} not known")
 
-    def fit(self, X_ts: TSCDataFrame, **fit_params) -> "PyDMDWrapper":
+    def fit(self, X: PRE_FIT_TYPES, **fit_params) -> "PyDMDWrapper":
 
-        super(PyDMDWrapper, self).fit(X_ts=X_ts)
+        super(PyDMDWrapper, self).fit(X=X)
 
-        if len(X_ts.ids) > 1:
+        if len(X.ids) > 1:
             raise NotImplementedError(
                 "Provided DMD methods only allow single time " "series analysis."
             )
 
         # data is column major
-        self.dmd_.fit(X=X_ts.to_numpy().T)
+        self.dmd_.fit(X=X.to_numpy().T)
         self.eigenvectors_right_ = self.dmd_.modes
         self.eigenvalues_ = self.dmd_.eigs
 
@@ -577,16 +578,3 @@ class PCMKoopman(object):
 
         # project back
         return result_dt
-
-
-class DMDPowerAnalysis:
-    @staticmethod
-    def plot_dmd_power_spectrum(eigvals, dt, initial_state):
-
-        import matplotlib.pyplot as plt
-
-        freq = (np.log(eigvals.astype(np.complex)) / dt) / (2 * np.pi)
-
-        power = np.abs(initial_state.ravel()) * 2 / np.sqrt(len(eigvals))
-        plt.scatter(np.abs(np.imag(freq)), power)
-        plt.show()

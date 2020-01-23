@@ -10,7 +10,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError
-from datafold.pcfold.timeseries.base import TSCTransformMixIn
+from datafold.pcfold.timeseries.base import TSCTransformMixIn, TF_ALLOWED_TYPES
 
 
 class TSCQoiPreprocess(TSCTransformMixIn):

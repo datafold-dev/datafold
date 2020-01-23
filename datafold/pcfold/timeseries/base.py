@@ -80,3 +80,21 @@ class TSCTransformMixIn:
             return values
         else:
             raise TypeError
+
+
+PRE_FIT_TYPES = TSCDataFrame
+PRE_IC_TYPES = Union[pd.DataFrame, np.ndarray]
+
+
+class TSCPredictMixIn:
+    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        # NOTE: Currently, only TSCDataFrame is supported as input!
+        raise NotImplementedError
+
+    def predict(self, X: PRE_IC_TYPES, t, **predict_params):
+        # NOTE the definition of predict cannot be a TSC. Best is provided as a
+        # pd.DataFrame with all the information...
+        raise NotImplementedError
+
+    def score(self, X: PRE_FIT_TYPES):
+        raise NotImplementedError

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
-import datafold.dynfold.operator as operator
+import datafold.dynfold.diffusion_maps as dmap
 import datafold.pcfold.timeseries as ts
 from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.pcfold.timeseries import TSCDataFrame
@@ -48,15 +48,13 @@ class SumoKernelEigFuncDMD(object):
                 eigfunc_kwargs = {}
 
             # call from with name
-            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator.from_name(
+            self.eigfunc_interpolator = dmap.DiffusionMaps.from_operator_name(
                 name=eigfunc_name, **eigfunc_kwargs
             )
 
         elif eigfunc_kwargs is not None:
             # call __init__
-            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator(
-                **eigfunc_kwargs
-            )
+            self.eigfunc_interpolator = dmap.DiffusionMaps(**eigfunc_kwargs)
         else:
             self.eigfunc_interpolator = eigfunc_exist
             # TODO: for now, the fit() function has to be called already for the
@@ -113,8 +111,6 @@ class SumoKernelEigFuncDMD(object):
 
         if self.qoi_scale_ is not None:
             X_ts = self.qoi_scale_.fit_transform(X_ts)
-
-        print("transformed data")
 
         # is required to evaluate time
         self._fit_time_index = X_ts.time_indices(unique_values=True)
@@ -181,7 +177,7 @@ class SumoKernelEigFuncDMD(object):
             X_ic = self.qoi_scale_.transform(X_ic)
 
         # Transform the initial conditions to obervable functions evaluations
-        ic_obs_space = self.eigfunc_interpolator(X_ic.to_numpy())
+        ic_obs_space = self.eigfunc_interpolator.transform(X_ic.to_numpy())
 
         X_ic_dmd = pd.DataFrame(
             if1dim_rowvec(ic_obs_space),

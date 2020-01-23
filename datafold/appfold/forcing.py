@@ -34,7 +34,7 @@ class ForcingKernelEigFuncDMD(object):
                 eigfunc_kwargs = {}
 
             # call from with name
-            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator.from_name(
+            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator.from_operator_name(
                 name=eigfunc_name, **eigfunc_kwargs
             )
 
