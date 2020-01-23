@@ -151,6 +151,8 @@ class KernelMethod(BaseEstimator):
             )
 
         if basis_change_matrix is not None:
+            # TODO: [minor] could use diag_dot_mat from utils and simply read the
+            #  diagonal from basis_change_matrix
             eigvect = basis_change_matrix @ eigvect
 
         if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
@@ -164,7 +166,7 @@ class KernelMethod(BaseEstimator):
         eigvals, eigvect = np.real(eigvals), np.real(eigvect)
 
         # normalize eigenvectors to 1 (change if required differently).
-        eigvect /= np.linalg.norm(eigvect, axis=1)[:, np.newaxis]
+        eigvect /= np.linalg.norm(eigvect, axis=0)[np.newaxis, :]
 
         return eigvals, eigvect
 
