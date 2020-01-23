@@ -85,7 +85,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             self._row_sums_alpha,
         ) = self.X.compute_kernel_matrix()
 
-        (self.eigenvalues_, self.eigenvectors_,) = self.solve_eigenproblem(
+        self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
         )
 
@@ -359,7 +359,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
     def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
 
         if y is None:
-            y = self.eigenvectors_.T  # target functions
+            y = self.eigenvectors_  # target functions
 
         return super(MultiScaleGeometricHarmonicsInterpolator, self).score(
             X=X, y=y, sample_weight=sample_weight, multioutput=multioutput

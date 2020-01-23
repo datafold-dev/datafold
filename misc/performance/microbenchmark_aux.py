@@ -14,22 +14,22 @@ except ImportError:
 else:
     numexpr_bm = True
 
-NUMBER_OF_RUNS = 1000
-N, M = 10000, 5000
+NUMBER_OF_RUNS = 40
+N, M = 2000, 200
 
-a = np.random.rand(M, N)
+a = np.random.rand(N, M)
 b = np.random.rand(M)
 c = np.random.rand(N)
 
 
 def n2(a, b, c):
     # Current implemented version
-    return (a.T * (1.0 / b)) @ (a @ c)
+    return (a * (1.0 / b[np.newaxis, :])) @ (a.T @ c)
 
 
 def n2_alternative(a, b, c):
     # Current implemented version
-    return np.linalg.multi_dot([(a.T * (1.0 / b)), a, c])
+    return np.linalg.multi_dot([(a * (1.0 / b[np.newaxis, :])), a.T, c])
 
 
 def n2_numexpr(a, b, c):
@@ -39,17 +39,15 @@ def n2_numexpr(a, b, c):
     # About 1,3 - 1.4 faster for (N, M, NUMBER_OF_RUNS = 100000, 500, 300)
     # For smaller problems it is often slower (which can be neglected then anyway).
 
-    d = a.T  # transpose is not supported in numexpr.evaluate
-
-    return ne.evaluate("d * (1. / b)") @ (a @ c)
+    return np.linalg.multi_dot([ne.evaluate("a * (1. / b)"), a.T, c])
 
 
 def n3_alternative(a, b, c):
-    return ((a.T * (1.0 / b)) @ a) @ c
+    return ((a * (1.0 / b[np.newaxis])) @ a.T) @ c
 
 
 def n3(a, b, c):
-    return a.T @ np.diag(1.0 / b) @ a @ c  # Original version
+    return a @ np.diag(1.0 / b) @ a.T @ c  # Original version
 
 
 print(f"n2 {timeit.timeit(functools.partial(n2, a,b,c), number=NUMBER_OF_RUNS)}")
@@ -61,7 +59,8 @@ print(
 
 if numexpr_bm:
     print(
-        f"n2 {timeit.timeit(functools.partial(n2_numexpr, a, b, c), number=NUMBER_OF_RUNS)}"
+        f"n2_numexpr"
+        f" {timeit.timeit(functools.partial(n2_numexpr, a, b, c), number=NUMBER_OF_RUNS)}"
     )
 
 print(f"n3 {timeit.timeit(functools.partial(n3, a,b,c), number=NUMBER_OF_RUNS)}")
