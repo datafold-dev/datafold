@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from datafold.dynfold.outofsample import GeometricHarmonicsInterpolator
+from datafold.dynfold.diffusion_maps import DiffusionMaps
+from datafold.pcfold.timeseries.transform import TSCTransformMixIn
 from datafold.utils.maths import mat_dot_diagmat
 import datafold.pcfold.pointcloud as pcfold
 
 
-class KernelEigenfunctionInterpolator(GeometricHarmonicsInterpolator):
+# TODO: do not inherit from GeometricHamronics, replace with DiffusionMaps?
+# TODO: make it a TSCTransformer
+# TODO: inherit from KernelMethod (or DiffusionMaps?)
+
+
+class TSCEigfuncInterpolator(TSCTransformMixIn):
     # TODO: use (*args, **kwargs) and simply note that it is the same as in
     #  GeometricHarmonicsInterpolator?
 
@@ -30,7 +36,7 @@ class KernelEigenfunctionInterpolator(GeometricHarmonicsInterpolator):
         dist_backend_kwargs=None,
     ):
 
-        super(KernelEigenfunctionInterpolator, self).__init__(
+        super(TSCEigfuncInterpolator, self).__init__(
             epsilon=epsilon,
             num_eigenpairs=num_eigenpairs,
             cut_off=cut_off,
@@ -111,61 +117,4 @@ class KernelEigenfunctionInterpolator(GeometricHarmonicsInterpolator):
             num_eigenpairs=num_eigenpairs,
             is_stochastic=False,
             **kwargs,
-        )
-
-    def _precompute_aux(self) -> None:
-        # NOTE: this in the special case of
-        # target functions == own kernel eigenfunctions
-        # this corresponds to the normal Nyström extension
-        # \psi(x) = 1/Lambda @ kernel(x, .) @ \psi
-        self._aux = mat_dot_diagmat(
-            self.eigenvectors_.T, np.reciprocal(self.eigenvalues_)
-        )
-
-    def fit(
-        self, X: np.ndarray, y=None, **fit_params
-    ) -> "KernelEigenfunctionInterpolator":
-        # y is only there to provide the same function from the base, but y is never
-        # needed...
-        if y is not None:
-            raise ValueError(
-                "Do not provide y for GeometricHarmonicsFunctionBasis. The target values "
-                "are the eigenvectors computed."
-            )
-
-        X = self._check_X_y(X)
-
-        self.X = pcfold.PCManifold(
-            data=X,
-            kernel=self.kernel_,
-            cut_off=self.cut_off,
-            dist_backend=self.dist_backend,
-            **self.dist_backend_kwargs,
-        )
-
-        (
-            self.kernel_matrix_,
-            _basis_change_matrix,
-            self._row_sums_alpha,
-        ) = self.X.compute_kernel_matrix()
-
-        self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
-            self.kernel_matrix_, _basis_change_matrix, self.use_cuda
-        )
-
-        if self.kernel_.is_symmetric_transform(is_pdist=True):
-            self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
-                kernel_matrix=self.kernel_matrix_,
-                basis_change_matrix=_basis_change_matrix,
-            )
-
-        self.y = self.eigenvectors_.T  # TODO: see #44
-
-        self._precompute_aux()
-        return self
-
-    def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
-
-        return super(KernelEigenfunctionInterpolator, self).score(
-            X=X, y=y, sample_weight=sample_weight, multioutput=multioutput
         )

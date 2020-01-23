@@ -30,3 +30,6 @@ class EDMDDict(object):
 class EDMD(object):
     def __init__(self, steps=None):
         pass
+
+    def predict(self, X_ic):
+        pass

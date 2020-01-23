@@ -48,13 +48,13 @@ class SumoKernelEigFuncDMD(object):
                 eigfunc_kwargs = {}
 
             # call from with name
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator.from_name(
+            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator.from_name(
                 name=eigfunc_name, **eigfunc_kwargs
             )
 
         elif eigfunc_kwargs is not None:
             # call __init__
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator(
+            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator(
                 **eigfunc_kwargs
             )
         else:
@@ -127,17 +127,11 @@ class SumoKernelEigFuncDMD(object):
         ):  # if not already fit...
             self.eigfunc_interpolator = self.eigfunc_interpolator.fit(X_ts.to_numpy())
 
-        print("fitted eigunc_interpolator")
-
         # 2. Compute Koopman matrix via DMD
         self._extract_dynamics_with_edmd(X_ts)
 
-        print("extracted dynamics")
-
         # 3. Linear map from new observable space to qoi data space
         self._coeff_matrix_least_square(X_ts)
-
-        print("fit sumo")
 
         return self
 

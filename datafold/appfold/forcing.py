@@ -34,13 +34,13 @@ class ForcingKernelEigFuncDMD(object):
                 eigfunc_kwargs = {}
 
             # call from with name
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator.from_name(
+            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator.from_name(
                 name=eigfunc_name, **eigfunc_kwargs
             )
 
         elif eigfunc_kwargs is not None:
             # call __init__
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator(
+            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator(
                 **eigfunc_kwargs
             )
         else:
