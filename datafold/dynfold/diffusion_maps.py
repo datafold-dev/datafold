@@ -248,7 +248,6 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         )
 
         _selected_eigvect, _selected_eigvals = self._select_eigpairs_indices(indices)
-
         _selected_eigvect = _selected_eigvect.T
 
         eigvec_embedding = self._nystrom(
@@ -389,7 +388,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
 
         self.eigenvectors_ = (
             self.eigenvectors_
-            / np.linalg.norm(self.eigenvectors_, axis=1)[:, np.newaxis]
+            / np.linalg.norm(self.eigenvectors_, axis=0)[np.newaxis, :]
             * np.sqrt(pcm.shape[0])
         )
 

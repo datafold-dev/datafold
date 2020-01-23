@@ -578,15 +578,13 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
         assert data.ndim == 2 and data.shape[1] == 1
 
-        eigvec = dmap.eigenvectors_.T  # TODO #44
-
         f, ax = plt.subplots(ncols=3, nrows=3)
         f.suptitle(
             f"N={data.shape[0]}, "
             f"eps={dmap.epsilon}, "
             f"beta={dmap.beta}, "
             f"expected_dim={dmap.expected_dim}, "
-            f"k={dmap.k}"
+            f"nn_bandwidth={dmap.nn_bandwidth}"
         )
 
         ax[0][0].plot(data, dmap.rho0_, "-")
@@ -597,14 +595,14 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         ax[0][1].set_title("hist distribution data")
 
         factor = DiffusionMapsVariableTest.eig_neg_factor(
-            h3(data), eigvec[:, 3]
-        )  # TODO #44
+            h3(data), dmap.eigenvectors_[:, 3]
+        )
         ax[1][0].plot(
             np.linspace(-3, 3, 200), h3(np.linspace(-3, 3, 200)), label="exact, H3"
         )
         ax[1][0].plot(
             data[:, 0],
-            factor * eigvec[:, 3],
+            factor * dmap.eigenvectors_[:, 3],
             "-",
             label=f"dmap_variable_kernel, ev_idx=3",
         )
@@ -630,7 +628,10 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         ax[2][0].set_xlabel("idx")
         ax[2][0].set_ylabel("eigval")
 
-        im = ax[2][1].imshow(np.abs((eigvec.T @ eigvec)) / eigvec.shape[0])
+        im = ax[2][1].imshow(
+            np.abs((dmap.eigenvectors_.T @ dmap.eigenvectors_))
+            / dmap.eigenvectors_.shape[0]
+        )
         ax[2][1].set_title("inner products of EV (abs and rel)")
         f.colorbar(im, ax=ax[2][1])
 
@@ -667,10 +668,10 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         # TESTS:
         h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
         factor = DiffusionMapsVariableTest.eig_neg_factor(
-            h3(X), dmap.eigenvectors_.T[:, 3]
+            h3(X), dmap.eigenvectors_[:, 3]
         )
 
-        actual = factor * dmap.eigenvectors_.T[:, 3]  # TODO #44
+        actual = factor * dmap.eigenvectors_[:, 3]
         expected = h3(X)
 
         # using only a reference computation (fails if quality gets worse)

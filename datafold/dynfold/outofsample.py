@@ -130,8 +130,8 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
 
         # fast "n^2" complexity "AUX = EVEC @ 1/EVAL @ EVEC.T @ y"
         self._aux = mat_dot_diagmat(
-            self.eigenvectors_.T, np.reciprocal(self.eigenvalues_)
-        ) @ (self.eigenvectors_ @ self.y)
+            self.eigenvectors_, np.reciprocal(self.eigenvalues_)
+        ) @ (self.eigenvectors_.T @ self.y)
 
     def _check_X_y(self, X: np.ndarray, y: np.ndarray = None) -> np.ndarray:
 

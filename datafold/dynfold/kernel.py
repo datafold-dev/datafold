@@ -151,9 +151,7 @@ class KernelMethod(BaseEstimator):
             )
 
         if basis_change_matrix is not None:
-            # NOTE: this order has to be reverted, when eigenvectors are
-            # column-wise (TODO: #44)
-            eigvect = eigvect @ basis_change_matrix
+            eigvect = basis_change_matrix @ eigvect
 
         if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
             raise NumericalMathError(
@@ -220,9 +218,8 @@ class KernelMethod(BaseEstimator):
             # can include zero or numerical noise imaginary part
             eigvects = np.real(eigvects)
 
-        # TODO: #44 -- that the eigvects are row-wise is an issue from the legacy code
         eigvals, eigvects = sort_eigenpairs(
-            eigvals, eigvects.T, eigenvector_orientation="row"
+            eigvals, eigvects, eigenvector_orientation="column"
         )
 
         return eigvals, eigvects
