@@ -9,7 +9,6 @@ from sklearn.datasets import make_swiss_roll
 from sklearn.model_selection import ParameterGrid
 
 from datafold.dynfold.kernel import DmapKernelFixed
-from datafold.dynfold.operator import TSCEigfuncInterpolator
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
@@ -611,31 +610,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
             plt.plot(data[:10, :], predicted_partial, "-*")
 
             plt.show()
-
-
-class GeometricHarmonicsFunctionBasisTest(unittest.TestCase):
-    def test_geometric_harmonics_function_basis(self):
-        data, _ = make_swiss_roll(3000, noise=0, random_state=0)
-
-        dmap = DiffusionMaps(epsilon=1.25, num_eigenpairs=50, is_stochastic=False).fit(
-            data
-        )
-
-        actual_interp = TSCEigfuncInterpolator(epsilon=1.25, num_eigenpairs=50).fit(
-            data
-        )
-        # TODO: issue #44
-        expected_interp = GeometricHarmonicsInterpolator(
-            epsilon=1.25, num_eigenpairs=50
-        ).fit(data, dmap.eigenvectors_.T)
-
-        nptest.assert_array_equal(
-            actual_interp.kernel_matrix_, expected_interp.kernel_matrix_
-        )
-
-        nptest.assert_allclose(
-            actual_interp(data), expected_interp(data), rtol=1e-16, atol=1e-15
-        )
 
 
 class GeometricHarmonicsLegacyTest(unittest.TestCase):

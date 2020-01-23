@@ -10,8 +10,8 @@ import datafold.dynfold.diffusion_maps as dmap
 import datafold.pcfold.timeseries as ts
 from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.transform import TSCQoiScale
 from datafold.pcfold.timeseries.metric import TSCMetric
+from datafold.pcfold.timeseries.transform import TSCQoiScale
 from datafold.utils.datastructure import if1dim_rowvec
 
 
@@ -71,12 +71,14 @@ class SumoKernelEigFuncDMD(object):
 
     def _extract_dynamics_with_edmd(self, X_ts: TSCDataFrame):
         # transpose eigenvectors, because the eigenvectors are row-wise in pydmap
-        eig_func_values = self.eigfunc_interpolator.eigenvectors_.T
+        # eig_func_values = self.eigfunc_interpolator.eigenvectors_.T
 
-        columns = [f"phi{i}" for i in range(eig_func_values.shape[1])]
-        self.dict_data = ts.TSCDataFrame.from_same_indices_as(
-            indices_from=X_ts, values=eig_func_values, except_columns=columns
-        )
+        # columns = [f"phi{i}" for i in range(eig_func_values.shape[1])]
+        # self.dict_data = ts.TSCDataFrame.from_same_indices_as(
+        #     indices_from=X_ts, values=eig_func_values, except_columns=columns
+        # )
+
+        self.dict_data = self.eigfunc_interpolator.eigenvectors_
 
         # TODO: provide as option --> include the identity observable state?
         # # # TODO: experimental: add const vector to eig_func_values
@@ -98,9 +100,11 @@ class SumoKernelEigFuncDMD(object):
         tsc_result = self.edmd_.predict(
             X_ic_edmd,
             t=time_samples,
-            post_map=self.coeff_matrix_.T,
-            qoi_columns=self._fit_qoi_columns,
+            # post_map=self.coeff_matrix_.T,
+            # qoi_columns=self._fit_qoi_columns,
         )
+
+        tsc_result = self.eigfunc_interpolator.inverse_transform(tsc_result)
 
         if self.qoi_scale_ is not None:
             tsc_result = self.qoi_scale_.inverse_transform(tsc_result)
@@ -121,13 +125,13 @@ class SumoKernelEigFuncDMD(object):
         if not hasattr(self.eigfunc_interpolator, "eigenvectors_") and not hasattr(
             self.eigfunc_interpolator, "eigenvalues_"
         ):  # if not already fit...
-            self.eigfunc_interpolator = self.eigfunc_interpolator.fit(X_ts.to_numpy())
+            self.eigfunc_interpolator = self.eigfunc_interpolator.fit(X=X_ts)
 
         # 2. Compute Koopman matrix via DMD
         self._extract_dynamics_with_edmd(X_ts)
 
-        # 3. Linear map from new observable space to qoi data space
-        self._coeff_matrix_least_square(X_ts)
+        # # 3. Linear map from new observable space to qoi data space
+        # self._coeff_matrix_least_square(X_ts)
 
         return self
 

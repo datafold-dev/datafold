@@ -17,11 +17,9 @@ from sklearn.base import TransformerMixin
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries.base import (
-    TSCTransformMixIn,
-    TF_ALLOWED_TYPES,
-)
-from datafold.utils.datastructure import is_float, is_integer, if1dim_rowvec
+from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold.timeseries.base import TF_ALLOWED_TYPES, TSCTransformMixIn
+from datafold.utils.datastructure import if1dim_rowvec, is_float, is_integer
 from datafold.utils.maths import mat_dot_diagmat
 
 
@@ -214,6 +212,11 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
         )
 
+        if self._has_indices(X):
+            self.eigenvectors_ = TSCDataFrame.from_same_indices_as(
+                X, values=self.eigenvectors_.T, except_columns=self._transform_columns
+            )
+
         if self.kernel_.is_symmetric_transform(is_pdist=True):
             self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
                 kernel_matrix=self.kernel_matrix_,
@@ -223,7 +226,6 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         return self
 
     def transform(self, X, indices=None, t=0):
-
         """
         Uses Nyström for out-of-sample functionality.
 
