@@ -17,6 +17,7 @@ __pycache__/
 .ipynb_checkpoints/
 .coverage
 cover/
+venv/
 
 # General files and folders
 *.mat
