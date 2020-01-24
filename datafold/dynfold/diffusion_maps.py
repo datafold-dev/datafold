@@ -14,12 +14,11 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
-from sklearn.base import TransformerMixin
 
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries.base import TF_ALLOWED_TYPES, TSCTransformMixIn
+from datafold.pcfold.timeseries.base import TRANF_TYPES, TSCTransformMixIn
 from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat
 
@@ -191,7 +190,7 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         return self
 
-    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params) -> "DiffusionMaps":
+    def fit(self, X: TRANF_TYPES, y=None, **fit_params) -> "DiffusionMaps":
         """
 
         Returns
@@ -281,7 +280,7 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             X, values=dmap_embedding, columns=self._transform_columns
         )
 
-    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+    def inverse_transform(self, X: TRANF_TYPES):
         super(DiffusionMaps, self).inverse_transform(X)
 
         import scipy.linalg
@@ -346,7 +345,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
             nr_samples * (4 * np.pi * self.epsilon) ** (self.expected_dim / 2)
         )
 
-    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
+    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
         super(DiffusionMapsVariable, self).fit(
             X, y, transform_columns=[f"dmap{i}" for i in range(self.num_eigenpairs)]
@@ -401,7 +400,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
 
         return self
 
-    def transform(self, X: TF_ALLOWED_TYPES):
+    def transform(self, X: TRANF_TYPES):
         raise NotImplementedError(
             "A transform for out-of-sample points is currently "
             "not supported. This requires to implement the "
@@ -409,7 +408,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
             "maps kernel."
         )
 
-    def fit_transform(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
+    def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
         self.fit(X, y, **fit_params)
         return self._same_type_X(X, self.eigenvectors_, self._transform_columns)
 
@@ -641,7 +640,7 @@ class LocalRegressionSelection(TSCTransformMixIn):
         else:
             raise ValueError(f"strategy={self.strategy} not known")
 
-    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
+    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
         """
 
         Returns
@@ -706,9 +705,7 @@ class LocalRegressionSelection(TSCTransformMixIn):
 
         return self
 
-    def transform(
-        self, X: Union[TF_ALLOWED_TYPES, DiffusionMaps, DiffusionMapsVariable]
-    ):
+    def transform(self, X: Union[TRANF_TYPES, DiffusionMaps, DiffusionMapsVariable]):
         """Automatic parsimonious parametrization of the manifold by selecting appropriate
         residuals from local linear least squares fit.
         """
@@ -730,7 +727,7 @@ class LocalRegressionSelection(TSCTransformMixIn):
 
         return X_selected
 
-    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+    def inverse_transform(self, X: TRANF_TYPES):
 
         # TODO: from the philosophy the inverse_transform should map
         #   \Psi_selected -> \Psi_full

@@ -477,12 +477,20 @@ class TSCDataFrame(pd.DataFrame):
         df.index.names = [self.IDX_ID_NAME, "_".join(["final", self.IDX_TIME_NAME])]
         return df
 
-    def plot(self, *args, **kwargs):
+    def plot(self, **kwargs):
         ax = kwargs.pop("ax", None)
+        legend = kwargs.pop("legend", False)
+
+        first = True
 
         for i, ts in self.itertimeseries():
             kwargs["ax"] = ax
-            ax = ts.plot(*args, **kwargs)
+
+            if first:
+                ax = ts.plot(legend=legend, **kwargs)
+                first = False
+            else:
+                ax = ts.plot(legend=False, **kwargs)
 
         return ax
 

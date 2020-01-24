@@ -10,7 +10,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError
-from datafold.pcfold.timeseries.base import TSCTransformMixIn, TF_ALLOWED_TYPES
+from datafold.pcfold.timeseries.base import TSCTransformMixIn, TRANF_TYPES
 
 
 class TSCQoiPreprocess(TSCTransformMixIn):
@@ -29,23 +29,23 @@ class TSCQoiPreprocess(TSCTransformMixIn):
             )
         self.transform_cls_ = cls(**kwargs)
 
-    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
+    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
         super(TSCQoiPreprocess, self).fit(X, y, **fit_params)
         self.transform_cls_.fit(X.to_numpy())
         return self
 
-    def transform(self, X: TF_ALLOWED_TYPES):
+    def transform(self, X: TRANF_TYPES):
         super(TSCQoiPreprocess, self).transform(X)
 
         values = self.transform_cls_.transform(X.to_numpy())
         return self._same_type_X(X=X, values=values)
 
-    def fit_transform(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
+    def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
         super(TSCQoiPreprocess, self).fit_transform(X, y, **fit_params)
         values = self.transform_cls_.fit_transform(X)
         return self._same_type_X(X=X, values=values)
 
-    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+    def inverse_transform(self, X: TRANF_TYPES):
         super(TSCQoiPreprocess, self).inverse_transform(X)
         values = self.transform_cls_.inverse_transform(X.to_numpy())
         return self._same_type_X(X=X, values=values)
@@ -55,15 +55,15 @@ class TSCIdentity(TSCTransformMixIn):
     def __init__(self):
         pass
 
-    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
+    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
         super(TSCIdentity, self).fit(X, y, **fit_params)
         return self
 
-    def transform(self, X: TF_ALLOWED_TYPES):
+    def transform(self, X: TRANF_TYPES):
         super(TSCIdentity, self).transform(X)
         return X
 
-    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+    def inverse_transform(self, X: TRANF_TYPES):
         super(TSCIdentity, self).inverse_transform(X)
         return X
 
@@ -110,7 +110,7 @@ class TSCPrincipalComponent(TSCTransformMixIn):
             random_state=random_state,
         )
 
-    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
+    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
         self._pca.fit(X=X, y=None)
 
         super(TSCPrincipalComponent, self).fit(
@@ -119,13 +119,13 @@ class TSCPrincipalComponent(TSCTransformMixIn):
 
         return self
 
-    def transform(self, X: TF_ALLOWED_TYPES):
+    def transform(self, X: TRANF_TYPES):
         super(TSCPrincipalComponent, self).transform(X)
 
         pca_data = self._pca.transform(X.to_numpy())
         return self._same_type_X(X, values=pca_data, columns=self._transform_columns)
 
-    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+    def inverse_transform(self, X: TRANF_TYPES):
         super(TSCPrincipalComponent, self).inverse_transform(X)
         data_orig_space = self._pca.inverse_transform(X.to_numpy())
 
@@ -250,7 +250,7 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         super(TSCTakensEmbedding, self).fit(X, y, transform_columns=transform_columns)
         return self
 
-    def transform(self, X: TF_ALLOWED_TYPES):
+    def transform(self, X: TRANF_TYPES):
 
         self._check_fit_columns(X=X)
 
@@ -293,7 +293,7 @@ class TSCTakensEmbedding(TSCTransformMixIn):
 
         return X
 
-    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+    def inverse_transform(self, X: TRANF_TYPES):
         self._check_transform_columns(X=X)
         return X.loc[:, self._fit_columns]
 
