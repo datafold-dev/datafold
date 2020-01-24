@@ -246,22 +246,23 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         symmetrize_kernel=True,
     ):
 
-        self.row_sums_init = None
+        self.epsilon = epsilon
         # TODO: not sure if I need this length_scale_bounds?! Check in the scikit learn
         #  doc what this is about
+        self.length_scale_bounds = length_scale_bounds
 
-        self.epsilon = epsilon
+        self.is_stochastic = is_stochastic
 
         if not (0 <= alpha <= 1):
             raise ValueError(f"alpha has to be between [0, 1]. Got alpha={alpha}")
         self.alpha = alpha
+        self.symmetrize_kernel = symmetrize_kernel
 
-        self.is_stochastic = is_stochastic
         self._internal_rbf_kernel = RadialBasisKernel(
-            self.epsilon, length_scale_bounds=length_scale_bounds
+            self.epsilon, length_scale_bounds=self.length_scale_bounds
         )
 
-        if not is_stochastic or symmetrize_kernel:
+        if not self.is_stochastic or self.symmetrize_kernel:
             # If not stochastic, the kernel is always symmetric
             # `symmetrize_kernel` indicates if the user wants the kernel to use
             # similarity transformations to solve the
@@ -273,6 +274,8 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
             self.is_symmetric = True
         else:
             self.is_symmetric = False
+
+        self.row_sums_init = None
 
         # TODO: check if the super call is reaching the Kernel class, currently the
         #  output does not show the params

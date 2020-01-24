@@ -60,7 +60,9 @@ class TSCTransformMixIn:
 
         pdtest.assert_index_equal(right=self._transform_columns, left=X.columns)
 
-    def _return_same_type_X(self, X, values, columns=None):
+    def _same_type_X(
+        self, X: TF_ALLOWED_TYPES, values: np.ndarray, columns=None
+    ) -> TF_ALLOWED_TYPES:
 
         _type = type(X)
 

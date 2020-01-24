@@ -38,17 +38,17 @@ class TSCQoiPreprocess(TSCTransformMixIn):
         super(TSCQoiPreprocess, self).transform(X)
 
         values = self.transform_cls_.transform(X.to_numpy())
-        return self._return_same_type_X(X=X, values=values)
+        return self._same_type_X(X=X, values=values)
 
     def fit_transform(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
         super(TSCQoiPreprocess, self).fit_transform(X, y, **fit_params)
         values = self.transform_cls_.fit_transform(X)
-        return self._return_same_type_X(X=X, values=values)
+        return self._same_type_X(X=X, values=values)
 
     def inverse_transform(self, X: TF_ALLOWED_TYPES):
         super(TSCQoiPreprocess, self).inverse_transform(X)
         values = self.transform_cls_.inverse_transform(X.to_numpy())
-        return self._return_same_type_X(X=X, values=values)
+        return self._same_type_X(X=X, values=values)
 
 
 class TSCIdentity(TSCTransformMixIn):
@@ -123,17 +123,13 @@ class TSCPrincipalComponent(TSCTransformMixIn):
         super(TSCPrincipalComponent, self).transform(X)
 
         pca_data = self._pca.transform(X.to_numpy())
-        return self._return_same_type_X(
-            X, values=pca_data, columns=self._transform_columns
-        )
+        return self._same_type_X(X, values=pca_data, columns=self._transform_columns)
 
     def inverse_transform(self, X: TF_ALLOWED_TYPES):
         super(TSCPrincipalComponent, self).inverse_transform(X)
         data_orig_space = self._pca.inverse_transform(X.to_numpy())
 
-        return self._return_same_type_X(
-            X, values=data_orig_space, columns=self._fit_columns
-        )
+        return self._same_type_X(X, values=data_orig_space, columns=self._fit_columns)
 
 
 class TSCTakensEmbedding(TSCTransformMixIn):

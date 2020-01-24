@@ -9,6 +9,7 @@ Analysis, 21(1), 5–30. DOI:10.1016/j.acha.2006.04.006
 """
 
 import numpy as np
+import scipy.linalg
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
@@ -17,11 +18,9 @@ from sklearn.base import TransformerMixin
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries.base import (
-    TSCTransformMixIn,
-    TF_ALLOWED_TYPES,
-)
-from datafold.utils.datastructure import is_float, is_integer, if1dim_rowvec
+from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold.timeseries.base import TF_ALLOWED_TYPES, TSCTransformMixIn
+from datafold.utils.datastructure import if1dim_rowvec, is_float, is_integer
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat
 
 
@@ -158,7 +157,9 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             **kwargs,
         )
 
-    def _nystrom(self, kernel_cdist, eigvec, eigvals):
+    def _nystrom(
+        self, kernel_cdist: np.ndarray, eigvec: np.ndarray, eigvals: np.ndarray
+    ):
         """From eigenproblem:
             K(X,X) \Psi = \Psi \Lambda
 
@@ -167,7 +168,9 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             K(X, Y) \Psi \Lambda^-1 = \Psi
         """
 
-        return kernel_cdist @ mat_dot_diagmat(eigvec, np.reciprocal(eigvals))
+        return kernel_cdist @ mat_dot_diagmat(
+            np.asarray(eigvec), np.reciprocal(eigvals)
+        )
 
     def _select_eigpairs_indices(self, indices):
         if indices is not None:
@@ -222,10 +225,9 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
         )
 
-        if self._has_indices(X):
-            self.eigenvectors_ = TSCDataFrame.from_same_indices_as(
-                X, values=self.eigenvectors_.T, except_columns=self._transform_columns
-            )
+        self.eigenvectors_ = self._same_type_X(
+            X, values=self.eigenvectors_, columns=self._transform_columns
+        )
 
         if self.kernel_.is_symmetric_transform(is_pdist=True):
             self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
@@ -262,13 +264,16 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         _selected_eigvect, _selected_eigvals = self._select_eigpairs_indices(indices)
 
         eigvec_embedding = self._nystrom(
-            kernel_matrix_cdist, eigvec=_selected_eigvect, eigvals=_selected_eigvals,
+            kernel_matrix_cdist,
+            eigvec=np.asarray(_selected_eigvect),  # can be a DataFrame
+            eigvals=_selected_eigvals,
         )
 
         dmap_embedding = self._dmap_embedding(
             eigvect=eigvec_embedding, eigvals=_selected_eigvals, t=t
         )
-        return self._return_same_type_X(
+
+        return self._same_type_X(
             X, values=dmap_embedding, columns=self._transform_columns
         )
 
@@ -285,21 +290,22 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             eigvect=_selected_eigvect, eigvals=_selected_eigvals, t=t
         )
 
-        return self._return_same_type_X(
+        return self._same_type_X(
             X, values=dmap_embedding, columns=self._transform_columns
         )
 
     def inverse_transform(self, X: TF_ALLOWED_TYPES):
         super(DiffusionMaps, self).inverse_transform(X)
 
-        import scipy.linalg
+        # TODO: this is highly inefficient, only need to compute it once
+        #   only for testing at the moment!
 
-        coeff_matrix = scipy.linalg.lstsq(self.eigenvectors_.T, self.X, rcond=1e-14)
+        coeff_matrix = scipy.linalg.lstsq(
+            np.asarray(self.eigenvectors_), self.X, cond=1e-13
+        )[0]
 
         X_orig_space = np.asarray(X) @ coeff_matrix
-        return self._return_same_type_X(
-            X, values=X_orig_space, columns=self._fit_columns
-        )
+        return self._same_type_X(X, values=X_orig_space, columns=self._fit_columns)
 
 
 class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
@@ -415,7 +421,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
 
     def fit_transform(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
         self.fit(X, y, **fit_params)
-        return self._return_same_type_X(X, self.eigenvectors_, self._transform_columns)
+        return self._same_type_X(X, self.eigenvectors_, self._transform_columns)
 
 
 class LocalRegressionSelection(TransformerMixin):
