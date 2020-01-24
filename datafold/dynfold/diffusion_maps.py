@@ -683,9 +683,8 @@ class LocalRegressionSelection(TransformerMixin):
             if self.intrinsic_dim == 1:
                 self.evec_indices_ = np.array([1])
             else:
-                self.residuals_[
-                    0
-                ] = -1  # set the trivial cases invalid  # TODO: do this somewhere else?
+                # set the trivial cases invalid  # TODO: do this somewhere else?
+                self.residuals_[0] = -1
 
                 # NOTE: negative residuals to obtain the largest -- argpartition are the
                 # respective indices
@@ -701,4 +700,5 @@ class LocalRegressionSelection(TransformerMixin):
         else:
             raise ValueError(f"strategy={self.strategy} not known")
 
-        return X[self.evec_indices_, :]  # transform the eigenvectors # TODO: #44
+        # choose eigenvectors
+        return X[:, self.evec_indices_]
