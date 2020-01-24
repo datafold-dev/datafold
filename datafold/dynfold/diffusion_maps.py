@@ -219,6 +219,10 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
         )
 
+        self.eigenvectors_ = self._same_type_X(
+            X, values=self.eigenvectors_, columns=self._transform_columns
+        )
+
         if self.kernel_.is_symmetric_transform(is_pdist=True):
             self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
                 kernel_matrix=self.kernel_matrix_,
