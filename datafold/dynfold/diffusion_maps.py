@@ -47,6 +47,8 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         self,
         epsilon: float = 1.0,
         num_eigenpairs: int = 10,
+        # Note for docu: exponent in embedding \lambda^time_exponent \psi
+        time_exponent=0,
         cut_off: float = np.inf,  # TODO: can provide to optimize the cut_off via PCM
         is_stochastic: bool = True,
         alpha: float = 1,
@@ -68,6 +70,11 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         """
 
+        if time_exponent < 0:
+            raise ValueError("'time_exponent' must be greater than zero")
+
+        self.time_exponent = time_exponent
+
         super(DiffusionMaps, self).__init__(
             epsilon,
             num_eigenpairs,
@@ -81,10 +88,10 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         )
 
         self._kernel = DmapKernelFixed(
-            epsilon=epsilon,
-            is_stochastic=is_stochastic,
-            alpha=alpha,
-            symmetrize_kernel=symmetrize_kernel,
+            epsilon=self.epsilon,
+            is_stochastic=self.is_stochastic,
+            alpha=self.alpha,
+            symmetrize_kernel=self.symmetrize_kernel,
         )
 
     @classmethod
@@ -169,14 +176,16 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         return kernel_cdist @ mat_dot_diagmat(eigvec, np.reciprocal(eigvals))
 
-    def _dmap_embedding(self, eigvect, eigvals, t):
-        if t == 0:
-            return eigvect
+    def _perform_dmap_embedding(self, eigenvectors: np.ndarray) -> np.ndarray:
+        if self.time_exponent == 0:
+            dmap_embedding = eigenvectors
         else:
-            eigvals_time = np.power(eigvals, t)
-            return diagmat_dot_mat(eigvals_time, eigvect)
+            eigvals_time = np.power(self.eigenvalues_, self.time_exponent)
+            dmap_embedding = diagmat_dot_mat(eigvals_time, eigenvectors)
 
-    def set_coords(self, indices: np.ndarray) -> "DiffusionMaps":
+        return dmap_embedding
+
+    def set_coords(self, indices) -> "DiffusionMaps":
 
         self.eigenvectors_ = if1dim_colvec(self.eigenvectors_[:, indices])
         self.eigenvalues_ = self.eigenvalues_[indices]
@@ -231,8 +240,7 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         return self
 
-    def transform(self, X, t=0):
-
+    def transform(self, X):
         """
         Uses Nyström for out-of-sample functionality.
 
@@ -247,37 +255,28 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         """
 
-        if t < 0:
-            raise ValueError("'t' must be greater than zero")
-
         super(DiffusionMaps, self).transform(X)
 
         kernel_matrix_cdist, _, _ = self.X.compute_kernel_matrix(
             X, row_sums_alpha_fit=self._row_sums_alpha
         )
 
-        eigvec_embedding = self._nystrom(
+        eigvec_nystroem = self._nystrom(
             kernel_matrix_cdist,
             eigvec=np.asarray(self.eigenvectors_),
             eigvals=self.eigenvalues_,
         )
 
-        dmap_embedding = self._dmap_embedding(
-            eigvect=eigvec_embedding, eigvals=self.eigenvalues_, t=t
-        )
+        dmap_embedding = self._perform_dmap_embedding(eigvec_nystroem)
+
         return self._same_type_X(
             X, values=dmap_embedding, columns=self._transform_columns
         )
 
-    def fit_transform(self, X, y=None, t=0, **fit_transform):
-
-        if t < 0:
-            raise ValueError("'t' must be greater than zero")
+    def fit_transform(self, X, y=None, **fit_transform):
 
         self.fit(X, y)
-        dmap_embedding = self._dmap_embedding(
-            eigvect=np.asarray(self.eigenvectors_), eigvals=self.eigenvalues_, t=t
-        )
+        dmap_embedding = self._perform_dmap_embedding(self.eigenvectors_)
 
         return self._same_type_X(
             X, values=dmap_embedding, columns=self._transform_columns
@@ -288,7 +287,9 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         import scipy.linalg
 
-        coeff_matrix = scipy.linalg.lstsq(self.eigenvectors_.T, self.X, rcond=1e-14)
+        coeff_matrix = scipy.linalg.lstsq(
+            np.asarray(self.eigenvectors_), self.X, cond=1e-14
+        )[0]
 
         X_orig_space = np.asarray(X) @ coeff_matrix
         return self._same_type_X(X, values=X_orig_space, columns=self._fit_columns)
@@ -389,10 +390,14 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
             self.eigenvalues_, 1 / self.epsilon, out=self.eigenvalues_
         )
 
-        self.eigenvectors_ = (
-            self.eigenvectors_
-            / np.linalg.norm(self.eigenvectors_, axis=0)[np.newaxis, :]
-            * np.sqrt(pcm.shape[0])
+        # assumes that the eigenvectors are already normed to 1
+        #   (which is the default)
+        self.eigenvectors_ = np.multiply(
+            self.eigenvectors_, np.sqrt(X.shape[0]), out=self.eigenvectors_
+        )
+
+        self.eigenvectors_ = self._same_type_X(
+            X, values=self.eigenvectors_, columns=self._transform_columns
         )
 
         return self

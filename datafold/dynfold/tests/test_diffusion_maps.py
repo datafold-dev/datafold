@@ -197,7 +197,9 @@ class DiffusionMapsTest(unittest.TestCase):
             )
 
         dmap_embed_eval_expected = dmap_embed.eigenvectors_[:, [1, 5]]
-        dmap_embed_eval_actual = dmap_embed.transform(X=X_swiss_all, indices=[1, 5])
+        dmap_embed_eval_actual = dmap_embed.set_coords(indices=[1, 5]).transform(
+            X=X_swiss_all
+        )
 
         nptest.assert_allclose(
             dmap_embed_eval_actual, dmap_embed_eval_expected, atol=1e-15
@@ -243,7 +245,9 @@ class DiffusionMapsTest(unittest.TestCase):
             f.colorbar(error_scatter, ax=ax[0][2])
             ax[0][2].set_title("abs. difference")
 
-            gh_embed_eval_oos = dmap_embed.transform(X_swiss_oos, indices=[1, 5])
+            gh_embed_eval_oos = dmap_embed.set_coords(indices=[1, 5]).transform(
+                X_swiss_oos
+            )
             ax[1][0].scatter(
                 gh_embed_eval_oos[:, 0],
                 gh_embed_eval_oos[:, 1],
@@ -287,7 +291,8 @@ class DiffusionMapsTest(unittest.TestCase):
         expected_oos = (
             dmap_embed.eigenvectors_[:-1, 1] + dmap_embed.eigenvectors_[1:, 1]
         ) / 2
-        actual_oos = dmap_embed.transform(X_oos, indices=[1])
+
+        actual_oos = dmap_embed.set_coords(indices=[1]).transform(X_oos)
 
         self.assertLessEqual(
             mean_squared_error(expected_oos, actual_oos.ravel()), 6.559405995567413e-09
@@ -300,8 +305,12 @@ class DiffusionMapsTest(unittest.TestCase):
 
             plt.figure()
             plt.plot(expected_oos, np.zeros(49), "+")
-            plt.plot(dmap_embed.transform(X_all, indices=[1]), np.zeros(50), "-*")
-            plt.plot(dmap_embed.transform(X_oos, indices=[1]), np.zeros(49), ".")
+            plt.plot(
+                dmap_embed.set_coords(indices=[1]).transform(X_all), np.zeros(50), "-*"
+            )
+            plt.plot(
+                dmap_embed.set_coords(indices=[1]).transform(X_oos), np.zeros(49), "."
+            )
 
             plt.show()
 
@@ -326,7 +335,9 @@ class DiffusionMapsTest(unittest.TestCase):
 
         dmap_embed = DiffusionMaps(**setting).fit(X_swiss_train)
 
-        dmap_embed_test_eval = dmap_embed.transform(X_swiss_test, indices=[1, 5])
+        dmap_embed_test_eval = dmap_embed.set_coords(indices=[1, 5]).transform(
+            X_swiss_test
+        )
 
         # NOTE: These tests are only to detect potentially unwanted changes in computation
         # NOTE: For some reason the remote computer produces other results. Therefore,
