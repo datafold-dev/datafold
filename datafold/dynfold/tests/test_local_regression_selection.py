@@ -99,7 +99,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             nptest.assert_equal(np.sort(indices1), np.array([1, int(xlen + 1)]))
             nptest.assert_equal(np.sort(indices2), np.array([1, int(xlen + 1)]))
 
-            expected = dmap.eigenvectors_[[1, int(xlen + 1)], :]
+            expected = dmap.eigenvectors_[:, [1, int(xlen + 1)]]
 
             nptest.assert_array_equal(actual_dim, expected)
             nptest.assert_array_equal(actual_thresh, expected)
@@ -137,7 +137,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             nptest.assert_equal(np.sort(indices_dim), np.array([1, int(xlen + 1)]))
 
-            expected = dmap1.eigenvectors_[indices_dim, :]
+            expected = dmap1.eigenvectors_[:, indices_dim]
             nptest.assert_array_equal(actual, expected)
 
             # -----------------------------------
@@ -152,7 +152,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             nptest.assert_equal(np.sort(indices_thresh), np.array([1, int(xlen + 1)]))
 
-            expected = dmap2.eigenvectors_[[1, int(xlen + 1)], :]
+            expected = dmap2.eigenvectors_[:, [1, int(xlen + 1)]]
             nptest.assert_array_equal(actual, expected)
 
 
