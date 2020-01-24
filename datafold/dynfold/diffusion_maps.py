@@ -8,6 +8,8 @@ Coifman, R. R., & Lafon, S. (2006). Diffusion maps. Applied and Computational Ha
 Analysis, 21(1), 5–30. DOI:10.1016/j.acha.2006.04.006
 """
 
+from typing import Union
+
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
@@ -17,11 +19,8 @@ from sklearn.base import TransformerMixin
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries.base import (
-    TSCTransformMixIn,
-    TF_ALLOWED_TYPES,
-)
-from datafold.utils.datastructure import is_float, is_integer, if1dim_colvec
+from datafold.pcfold.timeseries.base import TF_ALLOWED_TYPES, TSCTransformMixIn
+from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat
 
 
@@ -415,7 +414,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
         return self._same_type_X(X, self.eigenvectors_, self._transform_columns)
 
 
-class LocalRegressionSelection(TransformerMixin):
+class LocalRegressionSelection(TSCTransformMixIn):
 
     VALID_STRATEGY = ("dim", "threshold")
 
@@ -614,7 +613,35 @@ class LocalRegressionSelection(TransformerMixin):
 
         return residual
 
-    def fit(self, X: np.ndarray, y=None):
+    def _set_indices(self):
+
+        # For the strategies numerical values are required. Therefore, set the first
+        # residual (nan) here to the invalid value -1. This value makes sure, that
+        # the first coordinate is always chosen.
+        residuals = self.residuals_.copy()
+        residuals[0] = -1
+
+        # Strategy 1, according to user input:
+        # User provides knowledge of the (expected) intrinsic dimension -- could also be
+        # a result of estimation
+        if self.strategy == "dim":
+            if self.intrinsic_dim == 1:
+                self.evec_indices_ = np.array([1])
+            else:
+                # NOTE: negative residuals to obtain the largest -- argpartition are the
+                # respective indices
+                self.evec_indices_ = np.argpartition(-residuals, self.intrinsic_dim)[
+                    : self.intrinsic_dim
+                ]
+
+        # User provides a threshold for the residuals. All eigenfunctions above this value
+        # are incldued to parametrize the manifold.
+        elif self.strategy == "threshold":
+            self.evec_indices_ = np.where(residuals > self.regress_threshold)[0]
+        else:
+            raise ValueError(f"strategy={self.strategy} not known")
+
+    def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params):
         """
 
         Returns
@@ -630,6 +657,11 @@ class LocalRegressionSelection(TransformerMixin):
         #  samples
         #  1: use numba, numexpr or try to vectorize numpy code, last resort: cython
         #  2: parallelize code (outer loop)
+
+        # Note: this saves self._transform_columns = X.columns
+        # Later on not all of these columns are required because of the selection
+        # performed.
+        super(LocalRegressionSelection, self).fit(X, y, **fit_params)
 
         num_eigenvectors = X.shape[1]
 
@@ -656,50 +688,60 @@ class LocalRegressionSelection(TransformerMixin):
             raise ValueError(f"strategy={self.strategy} not known")
 
         if self.n_subsample is not None:
-            eigvec = downsample(X, self.n_subsample)
+            eigvec = downsample(np.asarray(X), self.n_subsample)
         else:
-            eigvec = X
+            eigvec = np.asarray(X)
 
         self.residuals_ = np.zeros(num_eigenvectors)
         self.residuals_[0] = np.nan  # the const (trivial) eigenvector is ignored
         # the first eigenvector is always taken, therefore receives a 1
-        self.residuals_[1] = 1
+        self.residuals_[1] = 1.0
 
         for i in range(2, num_eigenvectors):
             self.residuals_[i] = self._single_residual_local_regression(
                 domain_eigenvectors=eigvec[:, 1:i], target_eigenvector=eigvec[:, i]
             )
 
+        self._set_indices()
+
         return self
 
-    def transform(self, X, y=None):
+    def transform(
+        self, X: Union[TF_ALLOWED_TYPES, DiffusionMaps, DiffusionMapsVariable]
+    ):
         """Automatic parsimonious parametrization of the manifold by selecting appropriate
         residuals from local linear least squares fit.
         """
 
-        # Strategy 1, according to user input:
-        # User provides knowledge of the (expected) intrinsic dimension -- could also be
-        # a result of estimation
-        if self.strategy == "dim":
-            if self.intrinsic_dim == 1:
-                self.evec_indices_ = np.array([1])
-            else:
-                # set the trivial cases invalid  # TODO: do this somewhere else?
-                self.residuals_[0] = -1
+        if isinstance(X, (DiffusionMaps, DiffusionMapsVariable)):
+            X = X.eigenvectors_
 
-                # NOTE: negative residuals to obtain the largest -- argpartition are the
-                # respective indices
-                self.evec_indices_ = np.argpartition(
-                    -self.residuals_, self.intrinsic_dim
-                )[: self.intrinsic_dim]
+        super(LocalRegressionSelection, self).transform(X)
 
-        # User provides a threshold for the residuals. All eigenfunctions above this value
-        # are incldued to parametrize the manifold.
-        elif self.strategy == "threshold":
-            self.residuals_[0] = -1  # make trivial to invalid value
-            self.evec_indices_ = np.where(self.residuals_ > self.regress_threshold)[0]
+        if self._transform_columns is not None:
+            columns = self._transform_columns[self.evec_indices_]
         else:
-            raise ValueError(f"strategy={self.strategy} not known")
+            columns = None
 
         # choose eigenvectors
-        return X[:, self.evec_indices_]
+        X_selected = self._same_type_X(
+            X, np.asarray(X)[:, self.evec_indices_], columns=columns,
+        )
+
+        return X_selected
+
+    def inverse_transform(self, X: TF_ALLOWED_TYPES):
+
+        # TODO: from the philosophy the inverse_transform should map
+        #   \Psi_selected -> \Psi_full
+        #  However this is mostly not what we are interested in. Instead it is more likely
+        #  that someone wants to do the inverse_transform like in DMAP:
+        #   \Psi_selected -> X (original data)
+        #   --> For this case, use the function "set_coord(indices)" in DMAP and set
+        #   indices=
+
+        raise NotImplementedError(
+            "The inverse_transform should be carried out with an DMAP, which has all "
+            "eigenvectors (not selected), the mapping is still difficult, because "
+            "information is thrown away."
+        )
