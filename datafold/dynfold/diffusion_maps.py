@@ -17,10 +17,12 @@ from sklearn.base import TransformerMixin
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.base import TF_ALLOWED_TYPES, TSCTransformMixIn
-from datafold.utils.datastructure import if1dim_rowvec, is_float, is_integer
-from datafold.utils.maths import mat_dot_diagmat
+from datafold.pcfold.timeseries.base import (
+    TSCTransformMixIn,
+    TF_ALLOWED_TYPES,
+)
+from datafold.utils.datastructure import is_float, is_integer, if1dim_rowvec
+from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat
 
 
 class DiffusionMaps(KernelMethod, TSCTransformMixIn):
@@ -157,11 +159,19 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         )
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals):
+        """From eigenproblem:
+            K(X,X) \Psi = \Psi \Lambda
+
+        follows Nyström (out-of-sample):
+
+            K(X, Y) \Psi \Lambda^-1 = \Psi
+        """
+
         return kernel_cdist @ mat_dot_diagmat(eigvec, np.reciprocal(eigvals))
 
     def _select_eigpairs_indices(self, indices):
         if indices is not None:
-            _selected_eigvect = self.eigenvectors_[indices, :]
+            _selected_eigvect = self.eigenvectors_[:, indices]
             _selected_eigvals = self.eigenvalues_[indices]
         else:
             _selected_eigvect = self.eigenvectors_
@@ -174,7 +184,7 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             return eigvect
         else:
             eigvals_time = np.power(eigvals, t)
-            return mat_dot_diagmat(eigvect, eigvals_time)
+            return diagmat_dot_mat(eigvals_time, eigvect)
 
     def fit(self, X: TF_ALLOWED_TYPES, y=None, **fit_params) -> "DiffusionMaps":
         """
@@ -251,8 +261,6 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         _selected_eigvect, _selected_eigvals = self._select_eigpairs_indices(indices)
 
-        _selected_eigvect = _selected_eigvect.T
-
         eigvec_embedding = self._nystrom(
             kernel_matrix_cdist, eigvec=_selected_eigvect, eigvals=_selected_eigvals,
         )
@@ -274,7 +282,7 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         _selected_eigvect, _selected_eigvals = self._select_eigpairs_indices(indices)
 
         dmap_embedding = self._dmap_embedding(
-            eigvect=_selected_eigvect.T, eigvals=_selected_eigvals, t=t
+            eigvect=_selected_eigvect, eigvals=_selected_eigvals, t=t
         )
 
         return self._return_same_type_X(
@@ -391,7 +399,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
 
         self.eigenvectors_ = (
             self.eigenvectors_
-            / np.linalg.norm(self.eigenvectors_, axis=1)[:, np.newaxis]
+            / np.linalg.norm(self.eigenvectors_, axis=0)[np.newaxis, :]
             * np.sqrt(pcm.shape[0])
         )
 
@@ -626,9 +634,9 @@ class LocalRegressionSelection(TransformerMixin):
         #  1: use numba, numexpr or try to vectorize numpy code, last resort: cython
         #  2: parallelize code (outer loop)
 
-        num_eigenvectors = X.shape[0]
+        num_eigenvectors = X.shape[1]
 
-        if num_eigenvectors <= 1:  # TODO: #44
+        if num_eigenvectors <= 1:
             raise ValueError(
                 "There must be more than one eigenvector to compute the residual."
             )
@@ -651,17 +659,14 @@ class LocalRegressionSelection(TransformerMixin):
             raise ValueError(f"strategy={self.strategy} not known")
 
         if self.n_subsample is not None:
-            # TODO: see issue #44, currently the eigenvectors have to often be transposed
-            #  (or adapt the function accordingly so that it is consistent)
-            eigvec = downsample(X.T, self.n_subsample)
+            eigvec = downsample(X, self.n_subsample)
         else:
-            eigvec = X.T  # TODO #44
+            eigvec = X
 
         self.residuals_ = np.zeros(num_eigenvectors)
         self.residuals_[0] = np.nan  # the const (trivial) eigenvector is ignored
-        self.residuals_[
-            1
-        ] = 1  # the first eigenvector is always taken, therefore receives a 1
+        # the first eigenvector is always taken, therefore receives a 1
+        self.residuals_[1] = 1
 
         for i in range(2, num_eigenvectors):
             self.residuals_[i] = self._single_residual_local_regression(
@@ -682,9 +687,8 @@ class LocalRegressionSelection(TransformerMixin):
             if self.intrinsic_dim == 1:
                 self.evec_indices_ = np.array([1])
             else:
-                self.residuals_[
-                    0
-                ] = -1  # set the trivial cases invalid  # TODO: do this somewhere else?
+                # set the trivial cases invalid  # TODO: do this somewhere else?
+                self.residuals_[0] = -1
 
                 # NOTE: negative residuals to obtain the largest -- argpartition are the
                 # respective indices
@@ -700,4 +704,5 @@ class LocalRegressionSelection(TransformerMixin):
         else:
             raise ValueError(f"strategy={self.strategy} not known")
 
-        return X[self.evec_indices_, :]  # transform the eigenvectors # TODO: #44
+        # choose eigenvectors
+        return X[:, self.evec_indices_]

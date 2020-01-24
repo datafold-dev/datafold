@@ -31,11 +31,11 @@ class DiffusionMapsTest(unittest.TestCase):
     @staticmethod
     def _compute_rayleigh_quotients(matrix, eigenvectors):
         """Compute Rayleigh quotients."""
-        n = eigenvectors.shape[0]
+        n = eigenvectors.shape[1]
         rayleigh_quotients = np.zeros(n)
-        for n in range(n):
-            v = eigenvectors[n, :]
-            rayleigh_quotients[n] = np.dot(v, matrix @ v) / np.dot(v, v)
+        for i in range(n):
+            v = eigenvectors[:, i]
+            rayleigh_quotients[i] = np.dot(v, matrix @ v) / np.dot(v, v)
         rayleigh_quotients = np.sort(np.abs(rayleigh_quotients))
         return rayleigh_quotients[::-1]
 
@@ -63,6 +63,8 @@ class DiffusionMapsTest(unittest.TestCase):
         nptest.assert_allclose(np.abs(actual_ew), np.abs(expected_ew))
 
     def test_multiple_epsilon_values(self):
+        """Test from legacy code, not exactly sure what is tested here (Rayleigh
+        quotient)."""
         num_samples = 5000
         num_maps = 10
         num_eigenpairs = 10
@@ -71,8 +73,8 @@ class DiffusionMapsTest(unittest.TestCase):
 
         downsampled_data = downsample(self.data, num_samples)
 
-        evs = np.zeros((num_maps, num_eigenpairs, downsampled_data.shape[0]))
-        ews = np.zeros((num_maps, num_eigenpairs))
+        eigvects = np.zeros((num_maps, downsampled_data.shape[0], num_eigenpairs))
+        eigvals = np.zeros((num_maps, num_eigenpairs))
 
         logging.basicConfig(level=logging.WARNING)
 
@@ -81,8 +83,8 @@ class DiffusionMapsTest(unittest.TestCase):
                 downsampled_data
             )
 
-            evs[i, :, :] = dm.eigenvectors_
-            ews[i, :] = dm.eigenvalues_
+            eigvals[i, :] = dm.eigenvalues_
+            eigvects[i, :, :] = dm.eigenvectors_
 
             ew = dm.eigenvalues_
             rq = self._compute_rayleigh_quotients(dm.kernel_matrix_, dm.eigenvectors_)
@@ -98,7 +100,7 @@ class DiffusionMapsTest(unittest.TestCase):
             #     plt.tight_layout()
             #     plt.gca().set_title('$\\psi_{}$'.format(k))
             # plt.subplot(2, 5, 10)
-            # plt.step(range(ews[i, :].shape[0]), np.abs(ews[i, :]))
+            # plt.step(range(eigvals[i, :].shape[0]), np.abs(eigvals[i, :]))
             # plt.title('epsilon = {:.2f}'.format(epsilon))
             # plt.show()
 
@@ -194,8 +196,12 @@ class DiffusionMapsTest(unittest.TestCase):
                 eigenvectors=dmap_embed.transform(X_swiss_all).T, n=1, colors=color_all,
             )
 
-        dmap_embed_eval_expected = dmap_embed.eigenvectors_[[1, 5], :].T
+        dmap_embed_eval_expected = dmap_embed.eigenvectors_[:, [1, 5]]
         dmap_embed_eval_actual = dmap_embed.transform(X=X_swiss_all, indices=[1, 5])
+
+        nptest.assert_allclose(
+            dmap_embed_eval_actual, dmap_embed_eval_expected, atol=1e-15
+        )
 
         if plot:
             X_swiss_oos, color_oos = make_swiss_roll(
@@ -261,10 +267,6 @@ class DiffusionMapsTest(unittest.TestCase):
 
             plt.show()
 
-        nptest.assert_allclose(
-            dmap_embed_eval_actual, dmap_embed_eval_expected, atol=1e-15
-        )
-
     def test_nystrom_out_of_sample_1dspiral(self, plot=False):
         def sample_1dsprial(phis):
             c1 = phis * np.cos(phis)
@@ -283,7 +285,7 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap_embed = DiffusionMaps(epsilon=0.9, num_eigenpairs=2).fit(X_all)
 
         expected_oos = (
-            dmap_embed.eigenvectors_[1, :-1] + dmap_embed.eigenvectors_[1, 1:]
+            dmap_embed.eigenvectors_[:-1, 1] + dmap_embed.eigenvectors_[1:, 1]
         ) / 2
         actual_oos = dmap_embed.transform(X_oos, indices=[1])
 
@@ -578,15 +580,13 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
         assert data.ndim == 2 and data.shape[1] == 1
 
-        eigvec = dmap.eigenvectors_.T  # TODO #44
-
         f, ax = plt.subplots(ncols=3, nrows=3)
         f.suptitle(
             f"N={data.shape[0]}, "
             f"eps={dmap.epsilon}, "
             f"beta={dmap.beta}, "
             f"expected_dim={dmap.expected_dim}, "
-            f"k={dmap.k}"
+            f"nn_bandwidth={dmap.nn_bandwidth}"
         )
 
         ax[0][0].plot(data, dmap.rho0_, "-")
@@ -597,14 +597,14 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         ax[0][1].set_title("hist distribution data")
 
         factor = DiffusionMapsVariableTest.eig_neg_factor(
-            h3(data), eigvec[:, 3]
-        )  # TODO #44
+            h3(data), dmap.eigenvectors_[:, 3]
+        )
         ax[1][0].plot(
             np.linspace(-3, 3, 200), h3(np.linspace(-3, 3, 200)), label="exact, H3"
         )
         ax[1][0].plot(
             data[:, 0],
-            factor * eigvec[:, 3],
+            factor * dmap.eigenvectors_[:, 3],
             "-",
             label=f"dmap_variable_kernel, ev_idx=3",
         )
@@ -630,7 +630,10 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         ax[2][0].set_xlabel("idx")
         ax[2][0].set_ylabel("eigval")
 
-        im = ax[2][1].imshow(np.abs((eigvec.T @ eigvec)) / eigvec.shape[0])
+        im = ax[2][1].imshow(
+            np.abs((dmap.eigenvectors_.T @ dmap.eigenvectors_))
+            / dmap.eigenvectors_.shape[0]
+        )
         ax[2][1].set_title("inner products of EV (abs and rel)")
         f.colorbar(im, ax=ax[2][1])
 
@@ -667,10 +670,10 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         # TESTS:
         h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
         factor = DiffusionMapsVariableTest.eig_neg_factor(
-            h3(X), dmap.eigenvectors_.T[:, 3]
+            h3(X), dmap.eigenvectors_[:, 3]
         )
 
-        actual = factor * dmap.eigenvectors_.T[:, 3]  # TODO #44
+        actual = factor * dmap.eigenvectors_[:, 3]
         expected = h3(X)
 
         # using only a reference computation (fails if quality gets worse)

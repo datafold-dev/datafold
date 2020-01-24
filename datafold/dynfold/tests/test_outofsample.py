@@ -9,6 +9,8 @@ from sklearn.datasets import make_swiss_roll
 from sklearn.model_selection import ParameterGrid
 
 from datafold.dynfold.kernel import DmapKernelFixed
+
+# from datafold.dynfold.operator import TSCEigfuncInterpolator
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
@@ -118,7 +120,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         # plt.tight_layout()
         # plt.show()
 
-    def test_eigenfunctions(self):
+    def test_eigenfunctions(self, plot=False):
         logging.basicConfig(level=logging.DEBUG)
 
         eps = 1e1
@@ -130,12 +132,11 @@ class GeometricHarmonicsTest(unittest.TestCase):
         dm = DiffusionMaps(
             epsilon=eps, num_eigenpairs=num_eigenpairs, cut_off=1e100
         ).fit(points)
-        ev = dm.eigenvectors_
 
         # plt.subplot(1, 2, 1)
-        # plt.scatter(points[:, 0], points[:, 1], c=ev[1, :], cmap='RdBu_r')
+        # plt.scatter(points[:, 0], points[:, 1], c=dm.eigenvectors_[:, 1], cmap='RdBu_r')
         # plt.subplot(1, 2, 2)
-        # plt.scatter(points[:, 0], points[:, 1], c=ev[2, :], cmap='RdBu_r')
+        # plt.scatter(points[:, 0], points[:, 1], c=dm.eigenvectors_[:, 2], cmap='RdBu_r')
         # plt.show()
 
         setting = {
@@ -145,29 +146,32 @@ class GeometricHarmonicsTest(unittest.TestCase):
             "is_stochastic": False,
         }
 
-        ev1 = GeometricHarmonicsInterpolator(**setting).fit(points, ev[1, :])
-        ev2 = GeometricHarmonicsInterpolator(**setting).fit(points, ev[2, :])
-
-        # new_points = make_points(50, 0, 0, 1, 1e-1)
-        # ev1i = ev1(new_points)
-        # ev2i = ev2(new_points)
-        # plt.subplot(1, 2, 1)
-        # plt.scatter(new_points[:, 0], new_points[:, 1], c=ev1i,
-        #             cmap='RdBu_r')
-        # plt.subplot(1, 2, 2)
-        # plt.scatter(new_points[:, 0], new_points[:, 1], c=ev2i,
-        #             cmap='RdBu_r')
-        # plt.show()
-
-        rel_err1 = np.linalg.norm(ev[1, :] - ev1(points), np.inf) / np.linalg.norm(
-            ev[1, :], np.inf
+        ev1 = GeometricHarmonicsInterpolator(**setting).fit(
+            points, dm.eigenvectors_[:, 1]
         )
+        ev2 = GeometricHarmonicsInterpolator(**setting).fit(
+            points, dm.eigenvectors_[:, 2]
+        )
+
+        rel_err1 = np.linalg.norm(
+            dm.eigenvectors_[:, 1] - ev1(points), np.inf
+        ) / np.linalg.norm(dm.eigenvectors_[:, 1], np.inf)
         self.assertAlmostEqual(rel_err1, 0, places=1)
 
-        rel_err2 = np.linalg.norm(ev[2, :] - ev2(points), np.inf) / np.linalg.norm(
-            ev[2, :], np.inf
-        )
+        rel_err2 = np.linalg.norm(
+            dm.eigenvectors_[:, 2] - ev2(points), np.inf
+        ) / np.linalg.norm(dm.eigenvectors_[:, 2], np.inf)
         self.assertAlmostEqual(rel_err2, 0, places=1)
+
+        if plot:
+            new_points = make_points(50, 0, 0, 1, 1e-1)
+            ev1i = ev1(new_points)
+            ev2i = ev2(new_points)
+            plt.subplot(1, 2, 1)
+            plt.scatter(new_points[:, 0], new_points[:, 1], c=ev1i, cmap="RdBu_r")
+            plt.subplot(1, 2, 2)
+            plt.scatter(new_points[:, 0], new_points[:, 1], c=ev2i, cmap="RdBu_r")
+            plt.show()
 
     def test_dense_sparse(self):
         data, _ = make_swiss_roll(n_samples=1000, noise=0, random_state=1)
@@ -187,7 +191,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         }
 
         dmap_dense = DiffusionMaps(**dense_setting).fit(data)
-        values = dmap_dense.eigenvectors_[1, :]
+        values = dmap_dense.eigenvectors_[:, 1]
 
         dmap_sparse = DiffusionMaps(**sparse_setting).fit(data)
 
@@ -626,7 +630,7 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
             self.data
         )
 
-        self.phi_all = dmap.eigenvectors_[[1, 5], :].T  # column wise like X_all
+        self.phi_all = dmap.eigenvectors_[:, [1, 5]]  # column wise like X_all
 
         train_idx_stop = int(self.data.shape[0] * 2 / 3)
         self.data_train = self.data[:train_idx_stop, :]
