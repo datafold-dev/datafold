@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import numbers
-from typing import Tuple, Union, Optional, List, Generator
-from datafold.utils.typing import PD_IDX_TYPE
+from typing import Generator, List, Optional, Tuple, Union
 
+import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
+
+from datafold.utils.typing import PD_IDX_TYPE
 
 
 class TimeSeriesCollectionError(Exception):
@@ -479,7 +481,8 @@ class TSCDataFrame(pd.DataFrame):
 
     def plot(self, **kwargs):
         ax = kwargs.pop("ax", None)
-        legend = kwargs.pop("legend", False)
+        legend = kwargs.pop("legend", True)
+        qoi_colors = None
 
         first = True
 
@@ -488,9 +491,12 @@ class TSCDataFrame(pd.DataFrame):
 
             if first:
                 ax = ts.plot(legend=legend, **kwargs)
+                qoi_colors = [
+                    mclrs.to_rgba(ax.lines[j].get_c()) for j in range(self.nr_qoi)
+                ]
                 first = False
             else:
-                ax = ts.plot(legend=False, **kwargs)
+                ax = ts.plot(color=qoi_colors, legend=False, **kwargs)
 
         return ax
 
