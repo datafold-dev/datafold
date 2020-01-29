@@ -7,9 +7,9 @@ import scipy.linalg
 import scipy.sparse
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
-
+from datafold.utils.datastructure import if1dim_rowvec
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
-from datafold.pcfold.timeseries import TSCDataFrame, allocate_time_series_tensor
+from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.base import TSCPredictMixIn, PRE_FIT_TYPES, PRE_IC_TYPES
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
 
@@ -82,6 +82,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         )
 
     def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        self._save_columns(fit_columns=X.columns, transform_columns=X.columns)
         self._set_X_info(X)
 
     def predict(self, X: PRE_IC_TYPES, t, **predict_params):
@@ -96,20 +97,12 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         if isinstance(X, np.ndarray):
             # TODO: it'd be better to have a DataFrame that describes initial conditions
-            if X.ndim == 1:
-                nr_ic = 1
-            else:
-                nr_ic = X.shape[0]
-
-            from datafold.utils.datastructure import if1dim_rowvec
-
-            X = if1dim_rowvec(X)
-
-            idx = pd.MultiIndex.from_arrays(
-                [np.arange(nr_ic), np.ones(X.shape[0]) * t[0]],
-                names=["ID", "initial_time"],
+            assert X.ndim == 2
+            nr_ic = X.shape[0]
+            index = pd.MultiIndex.from_arrays(
+                [np.arange(nr_ic), np.ones(X.shape[0]) * t[0]], names=["ID", "time"],
             )
-            X = pd.DataFrame(X, idx)
+            X = pd.DataFrame(X, index=index, columns=self._fit_columns)
 
         post_map = predict_params.pop("post_map", None)
         qoi_columns = predict_params.pop("qoi_columns", None)
@@ -117,10 +110,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         if len(predict_params.keys()) > 0:
             raise ValueError("TODO")
 
-        if len(np.unique(X.index.get_level_values("initial_time"))) != 1:
+        if len(np.unique(X.index.get_level_values("time"))) != 1:
             raise NotImplementedError(
-                "Currently alls initial conditions have to have "
-                "the same initial time."
+                "Currently all initial conditions have to have the same initial time."
             )
 
         return self._evolve_edmd_system(

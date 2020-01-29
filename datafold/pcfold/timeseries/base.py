@@ -8,13 +8,33 @@ import pandas.testing as pdtest
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame
 from datafold.pcfold.timeseries.metric import TSCMetric
+from datafold.utils.datastructure import if1dim_rowvec
 
-TRANF_TYPES = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
+INDICES_TYPES = Union[TSCDataFrame, pd.DataFrame]
+
+# types allowed for transformation
+TRANF_TYPES = Union[INDICES_TYPES, np.ndarray]
+
+# types allowed for predict
+PRE_FIT_TYPES = TSCDataFrame
+PRE_IC_TYPES = Union[pd.Series, pd.DataFrame, np.ndarray]
 
 
-class TSCTransformMixIn:
+class TSCBaseMixIn:
+    def _strictly_pandas_df(self, df):
+        return type(df) == pd.DataFrame
+
     def _has_indices(self, _obj):
         return isinstance(_obj, pd.DataFrame)
+
+    def _intern_X_as_numpy(self, X):
+        if self._has_indices(X):
+            X = X.to_numpy()
+            # a row in a df is always a single sample (which requires to be
+            # represented in a 2D matrix)
+            return if1dim_rowvec(X)
+        else:
+            return X
 
     def _save_columns(self, fit_columns: pd.Index, transform_columns: pd.Index = None):
         self._fit_columns = fit_columns
@@ -22,6 +42,8 @@ class TSCTransformMixIn:
         if transform_columns is not None:
             self._transform_columns = transform_columns
 
+
+class TSCTransformMixIn(TSCBaseMixIn):
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
         if self._has_indices(X):
             transform_columns = fit_params.pop("transform_columns", X.columns)
@@ -32,17 +54,24 @@ class TSCTransformMixIn:
                 )
 
             self._save_columns(X.columns, transform_columns=transform_columns)
+
         else:
             self._fit_columns = None
             self._transform_columns = None
 
+        self._fit_type = type(X)
+
     def transform(self, X: TRANF_TYPES):
         if self._has_indices(X):
+            if type(X) != pd.DataFrame and type(X) != TSCDataFrame:
+                raise TypeError(
+                    f"fit was called with type {self._fit_type} which does "
+                    f"not support indices. The model does not support types for "
+                    f"transform which support indices."
+                )
             self._check_fit_columns(X=X)
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
-        if self._has_indices(X):
-            self._save_columns(fit_columns=X.columns, transform_columns=X.columns)
         return self.fit(X, y, **fit_params).transform(X=X)
 
     def inverse_transform(self, X: TRANF_TYPES):
@@ -53,7 +82,13 @@ class TSCTransformMixIn:
         if not hasattr(self, "_fit_columns"):
             raise RuntimeError("_fit_columns is not set. Please report bug.")
 
-        pdtest.assert_index_equal(right=self._fit_columns, left=X.columns)
+        if self._has_indices(X):
+            if isinstance(X, pd.Series):
+                # if X is a Series, then the columns of the original data are in a Series
+                # this usually happens if X.iloc[0, :] --> returns a Series
+                pdtest.assert_index_equal(right=self._fit_columns, left=X.index)
+            else:
+                pdtest.assert_index_equal(right=self._fit_columns, left=X.columns)
 
     def _check_transform_columns(self, X: TRANF_TYPES):
         if not hasattr(self, "_transform_columns"):
@@ -85,13 +120,8 @@ class TSCTransformMixIn:
             raise TypeError
 
 
-PRE_FIT_TYPES = TSCDataFrame
-PRE_IC_TYPES = Union[pd.DataFrame, np.ndarray]
-
-
-class TSCPredictMixIn:
+class TSCPredictMixIn(TSCBaseMixIn):
     def fit(self, X: PRE_FIT_TYPES, **fit_params):
-        # NOTE: Currently, only TSCDataFrame is supported as input!
         raise NotImplementedError
 
     def predict(self, X: PRE_IC_TYPES, t, **predict_params):
@@ -116,6 +146,12 @@ class TSCPredictMixIn:
         mode="qoi",
         scaling="id",
         sample_weight: Optional[np.ndarray] = None,
+        multi_qoi="raw_values",
     ):
 
-        TSCMetric(metric=metric, mode=mode, scaling=scaling).score(y_true)
+        return TSCMetric(metric=metric, mode=mode, scaling=scaling).score(
+            y_true=X_true,
+            y_pred=X_pred,
+            sample_weight=sample_weight,
+            multi_qoi=multi_qoi,
+        )

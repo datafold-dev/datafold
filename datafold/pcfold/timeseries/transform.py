@@ -10,7 +10,11 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError
-from datafold.pcfold.timeseries.base import TSCTransformMixIn, TRANF_TYPES
+from datafold.pcfold.timeseries.base import (
+    TSCTransformMixIn,
+    TRANF_TYPES,
+    INDICES_TYPES,
+)
 
 
 class TSCQoiPreprocess(TSCTransformMixIn):
@@ -31,13 +35,15 @@ class TSCQoiPreprocess(TSCTransformMixIn):
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
         super(TSCQoiPreprocess, self).fit(X, y, **fit_params)
-        self.transform_cls_.fit(X.to_numpy())
+        X_intern = self._intern_X_as_numpy(X)
+        self.transform_cls_.fit(X_intern)
         return self
 
     def transform(self, X: TRANF_TYPES):
         super(TSCQoiPreprocess, self).transform(X)
 
-        values = self.transform_cls_.transform(X.to_numpy())
+        X_intern = self._intern_X_as_numpy(X)
+        values = self.transform_cls_.transform(X_intern)
         return self._same_type_X(X=X, values=values)
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
@@ -47,7 +53,8 @@ class TSCQoiPreprocess(TSCTransformMixIn):
 
     def inverse_transform(self, X: TRANF_TYPES):
         super(TSCQoiPreprocess, self).inverse_transform(X)
-        values = self.transform_cls_.inverse_transform(X.to_numpy())
+        X_intern = self._intern_X_as_numpy(X)
+        values = self.transform_cls_.inverse_transform(X_intern)
         return self._same_type_X(X=X, values=values)
 
 
@@ -122,12 +129,16 @@ class TSCPrincipalComponent(TSCTransformMixIn):
     def transform(self, X: TRANF_TYPES):
         super(TSCPrincipalComponent, self).transform(X)
 
-        pca_data = self._pca.transform(X.to_numpy())
+        X_intern = self._intern_X_as_numpy(X)
+        pca_data = self._pca.transform(X_intern)
+
         return self._same_type_X(X, values=pca_data, columns=self._transform_columns)
 
     def inverse_transform(self, X: TRANF_TYPES):
         super(TSCPrincipalComponent, self).inverse_transform(X)
-        data_orig_space = self._pca.inverse_transform(X.to_numpy())
+
+        X_intern = self._intern_X_as_numpy(X)
+        data_orig_space = self._pca.inverse_transform(X_intern)
 
         return self._same_type_X(X, values=data_orig_space, columns=self._fit_columns)
 
@@ -199,7 +210,7 @@ class TSCTakensEmbedding(TSCTransformMixIn):
     def _expand_single_delta_column(self, cols, delay_idx):
         return list(map(lambda q: ":d".join([q, str(delay_idx)]), cols))
 
-    def _allocate_delayed_qoi(self, tsc):
+    def _allocate_delayed_qois(self, tsc):
 
         # original columns + delayed columns
         total_nr_columns = tsc.shape[1] * (self.delays + 1)
@@ -240,34 +251,48 @@ class TSCTakensEmbedding(TSCTransformMixIn):
 
         return shifted_timeseries
 
-    def fit(self, X, y=None, **fit_params):
+    def _validate_X(self, X):
+        if isinstance(X, np.ndarray):
+            raise NotImplementedError(
+                f"Currently TSCTakensEmbedding is only supported for indexed types ("
+                f"TSCDataFrame and pd.DataFrame)."
+            )
 
-        # TODO: Check that there are no NaN values present. (the integrate the option
-        #  to remove fill in rows.
+        if not isinstance(X, TSCDataFrame):
+            if X.index.nlevels == 1:
+                # X is required to be TSC here
+                X = TSCDataFrame.from_single_timeseries(X)
+            else:
+                X = TSCDataFrame(X)
+
+        if not X.is_finite():
+            raise ValueError("The TSCDataFrame must only consist of finite values.")
+
+        if not X.is_const_dt():
+            raise TimeSeriesCollectionError("dt is not constant")
+
+        return X
+
+    def fit(self, X: INDICES_TYPES, y=None, **fit_params):
 
         self.delay_indices_ = self._precompute_delay_indices()
         transform_columns = self._expand_all_delay_columns(X.columns)
         super(TSCTakensEmbedding, self).fit(X, y, transform_columns=transform_columns)
         return self
 
-    def transform(self, X: TRANF_TYPES):
+    def transform(self, X: INDICES_TYPES):
 
-        self._check_fit_columns(X=X)
-
-        if not X.is_const_dt():
-            raise TimeSeriesCollectionError("dt is not constant")
-
-        if not X.is_finite():
-            raise ValueError("The TSCDataFrame must only consist of finite values.")
+        X = self._validate_X(X)
 
         if (X.lengths_time_series <= self.delay_indices_.max()).any():
             raise TimeSeriesCollectionError(
                 f"Mismatch of delay and time series length. Shortest time series has "
                 f"length {np.array(X.lengths_time_series).min()} and maximum delay is "
-                f"{self.delay_indices_.max()}"
+                f"{self.delay_indices_.max()}."
             )
+        self._check_fit_columns(X=X)
 
-        X = self._allocate_delayed_qoi(X)
+        X = self._allocate_delayed_qois(X)
 
         # Compute the shifts --> per single time series
         for i, ts in X.loc[:, self._fit_columns].itertimeseries():
@@ -278,18 +303,6 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         if self.fillin_handle == "remove":
             bool_idx = np.logical_not(np.sum(pd.isnull(X), axis=1).astype(np.bool))
             X = X.loc[bool_idx]
-
-            if isinstance(X, TSCDataFrame):
-                pass
-            elif isinstance(X, pd.DataFrame):
-                import warnings
-
-                # TODO: irregular time series could be removed completely (per option)
-                warnings.warn(
-                    "During Takens delay embedding the time series collection is "
-                    "not regular (due to large delays) and is returned as "
-                    "pd.DataFrame"
-                )
 
         return X
 

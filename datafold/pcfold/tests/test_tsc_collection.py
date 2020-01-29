@@ -313,7 +313,7 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = TSCDataFrame(self.simple_df).initial_states_df()
 
         idx = pd.MultiIndex.from_arrays(
-            [[0, 1, 15, 45], [0, 0, 0, 17]], names=["ID", "initial_time"]
+            [[0, 1, 15, 45], [0, 0, 0, 17]], names=["ID", "time"]
         )
         col = pd.Index(["A", "B"], name="qoi")
 
@@ -326,7 +326,7 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = TSCDataFrame(self.simple_df).final_states_df()
 
         idx = pd.MultiIndex.from_arrays(
-            [[0, 1, 15, 45], [1, 1, 1, 19]], names=["ID", "final_time"]
+            [[0, 1, 15, 45], [1, 1, 1, 19]], names=["ID", "time"]
         )
         col = pd.Index(["A", "B"], name="qoi")
 

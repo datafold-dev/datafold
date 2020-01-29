@@ -470,14 +470,10 @@ class TSCDataFrame(pd.DataFrame):
         """Returns the initial condition (first state) for each time series as a
         pd.DataFrame (because it no longer a time series).
         """
-        df = self.single_timeindex_df(0)
-        df.index.names = [self.IDX_ID_NAME, "_".join(["initial", self.IDX_TIME_NAME])]
-        return df
+        return self.single_timeindex_df(0)
 
     def final_states_df(self):
-        df = self.single_timeindex_df(-1)
-        df.index.names = [self.IDX_ID_NAME, "_".join(["final", self.IDX_TIME_NAME])]
-        return df
+        return self.single_timeindex_df(-1)
 
     def plot(self, **kwargs):
         ax = kwargs.pop("ax", None)
