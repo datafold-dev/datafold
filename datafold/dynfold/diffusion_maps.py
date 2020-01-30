@@ -183,6 +183,23 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         return dmap_embedding
 
+    def _validate(self, X, ensure_min_samples):
+        from sklearn.utils import check_array, check_scalar
+
+        # TODO: check also scalar parameter
+
+        check_array(
+            X,
+            accept_sparse=False,
+            copy=False,
+            force_all_finite=True,
+            ensure_2d=True,
+            allow_nd=False,
+            ensure_min_samples=ensure_min_samples,
+            ensure_min_features=1,
+            estimator=DiffusionMaps,
+        )
+
     def set_coords(self, indices) -> "DiffusionMaps":
 
         self.eigenvectors_ = if1dim_colvec(self.eigenvectors_[:, indices])
@@ -205,13 +222,15 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         # Need to hold X in class to be able to compute cdist distance matrix which is
         # required for out-of-sample transforms
-        self.X = PCManifold(
+        self.X_ = PCManifold(
             X,
             kernel=self.kernel_,
             cut_off=self.cut_off,
             dist_backend=self.dist_backend,
             **self.dist_backend_kwargs,
         )
+
+        self._validate(X, ensure_min_samples=2)
 
         # basis_change_matrix is None if not required
         # save kernel_matrix for now to use it for testing, but it may not be necessary
@@ -220,7 +239,7 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             self.kernel_matrix_,
             _basis_change_matrix,
             self._row_sums_alpha,
-        ) = self.X.compute_kernel_matrix()
+        ) = self.X_.compute_kernel_matrix()
 
         self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
@@ -255,7 +274,15 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         super(DiffusionMaps, self).transform(X)
 
-        kernel_matrix_cdist, _, _ = self.X.compute_kernel_matrix(
+        from sklearn.utils.validation import check_is_fitted
+
+        check_is_fitted(
+            self, ("X_", "eigenvalues_", "eigenvectors_", "kernel_", "kernel_matrix_")
+        )
+
+        self._validate(X, ensure_min_samples=1)
+
+        kernel_matrix_cdist, _, _ = self.X_.compute_kernel_matrix(
             X, row_sums_alpha_fit=self._row_sums_alpha
         )
 
@@ -286,7 +313,7 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         import scipy.linalg
 
         coeff_matrix = scipy.linalg.lstsq(
-            np.asarray(self.eigenvectors_), self.X, cond=1e-14
+            np.asarray(self.eigenvectors_), self.X_, cond=1e-14
         )[0]
 
         X_orig_space = np.asarray(X) @ coeff_matrix
@@ -313,15 +340,15 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
 
         # TODO: To implement: cut_off: float = np.inf (allow also sparsity!)
         super(DiffusionMapsVariable, self).__init__(
-            epsilon,
-            num_eigenpairs,
-            None,
-            False,
-            -1,
-            symmetrize_kernel,
-            use_cuda,
-            dist_backend,
-            dist_backend_kwargs,
+            epsilon=epsilon,
+            num_eigenpairs=num_eigenpairs,
+            cut_off=None,
+            is_stochastic=False,
+            alpha=-1,
+            symmetrize_kernel=symmetrize_kernel,
+            use_cuda=use_cuda,
+            dist_backend=dist_backend,
+            dist_backend_kwargs=dist_backend_kwargs,
         )
 
         self._kernel = DmapKernelVariable(
