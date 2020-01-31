@@ -308,3 +308,37 @@ class TSCMetric(object):
             raise RuntimeError("Bug. Please report.")
 
         return error_result
+
+
+from sklearn.model_selection import LeavePGroupsOut
+
+
+class TSCSplitSeries:
+    def __init__(self, time_series_out=3):
+        self.cv_splitter = LeavePGroupsOut(time_series_out)
+
+    def split(self, X, y=None, groups=None):
+        if groups is None:
+            groups = X.index.get_level_values(TSCDataFrame.IDX_ID_NAME)
+        return self.cv_splitter.split(X=X, y=y, groups=groups)
+
+    def get_n_splits(self, X, y=None, groups=None):
+        if groups is None:
+            groups = X.index.get_level_values(TSCDataFrame.IDX_ID_NAME)
+        return self.cv_splitter.get_n_splits(X, y=y, groups=groups)
+
+
+if __name__ == "__main__":
+    idx = pd.MultiIndex.from_arrays(
+        [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
+    )
+    col = ["A", "B"]
+    simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
+
+    X = TSCDataFrame(simple_df)
+
+    for train, test in TSCSplitSeries(1).split(X):
+        print(f"train {train} {X.iloc[train, :]}")
+        print(f"test {test} {X.iloc[test, :]}")
+
+    print(TSCSplitSeries(1).get_n_splits(X))

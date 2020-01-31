@@ -15,44 +15,40 @@ from datafold.pcfold.timeseries.base import (
     TSCTransformMixIn,
 )
 from datafold.pcfold.timeseries.transform import TSCIdentity
+from sklearn.base import BaseEstimator
 
 
-class EDMDDict(TSCTransformMixIn):
-    def __init__(self, steps=None):
+class EDMDDict(Pipeline, TSCTransformMixIn):
+    def __init__(self, steps, memory=None, verbose=True):
         """NOTE: the typing is different to the TSCTransformMixIn, Because this (meta-)
         transformer is used for DMD models.
 
         * in  fit a TSCDataFrame is required
         * in transform also initial conditions (pd.DataFrame or np.ndarray) are
           transformed
-        . """
-
-        if steps is None:
-            steps = [("id", TSCIdentity())]
-
-        self._pipeline = Pipeline(steps=steps, memory=None, verbose=True)
+        """
+        super(EDMDDict, self).__init__(steps, memory=memory, verbose=verbose)
 
     def fit(self, X: TSCDataFrame, y=None, **fit_params):
-        self._pipeline.fit(X=X, y=y, **fit_params)
-        return self
+        return super(EDMDDict, self).fit(X=X, y=y, **fit_params)
 
-    def transform(self, X: TRANF_TYPES):
+    def _transform(self, X: TRANF_TYPES):
         if isinstance(X, pd.Series):
             raise TypeError(
                 "Currently, all pd.Series have to be casted to pd.DataFrame"
             )
-        return self._pipeline.transform(X=X)
+        return super(EDMDDict, self)._transform(X=X)
 
     def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
-        return self._pipeline.fit_transform(X=X, y=y, **fit_params)
+        return super(EDMDDict, self).fit_transform(X=X, y=y, **fit_params)
 
-    def inverse_transform(self, X: TSCDataFrame):
-        return self._pipeline.inverse_transform(X)
+    def _inverse_transform(self, X: TSCDataFrame):
+        return super(EDMDDict, self)._inverse_transform(X=X)
 
 
-class EDMD(TSCPredictMixIn):
-    def __init__(self, steps=None, dmd_model: DMDBase = DMDFull()):
-        self.dmd_dict = EDMDDict(steps=steps)
+class EDMD(BaseEstimator, TSCPredictMixIn):
+    def __init__(self, dmd_dict: EDMDDict, dmd_model: DMDBase = DMDFull()):
+        self.dmd_dict = dmd_dict
         self.dmd_model = dmd_model
 
     def fit(self, X: PRE_FIT_TYPES, **fit_params) -> "EDMD":
