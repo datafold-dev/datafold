@@ -5,6 +5,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
 
 from datafold.pcfold.timeseries import TSCDataFrame
@@ -307,12 +308,6 @@ class TSCMetric(object):
             raise RuntimeError("Bug. Please report.")
 
         return error_result
-
-
-from sklearn.model_selection import BaseCrossValidator
-
-
-from sklearn.model_selection import KFold
 
 
 class TSCKfoldSeries:

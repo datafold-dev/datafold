@@ -247,7 +247,9 @@ class BruteForceDist(DistanceAlgorithm):
     def pdist(self, X, cut_off=None, exact_numeric=True, **backend_options):
 
         if exact_numeric:
-            distance_matrix = squareform(pdist(X, metric=self.metric))
+            X = np.array(X)
+            _pdist = pdist(X, metric=self.metric)
+            distance_matrix = squareform(_pdist)
         else:
             distance_matrix = pairwise_distances(X, metric=self.metric)
 

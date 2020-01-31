@@ -83,6 +83,16 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.num_points = self.points.shape[0]
         self.values = f(self.points)
 
+    def test_valid_sklearn_estimator(self):
+        from sklearn.utils.estimator_checks import check_estimator
+
+        for estimator, check in check_estimator(
+            GeometricHarmonicsInterpolator(num_eigenpairs=1, epsilon=1),
+            generate_only=True,
+        ):
+            print(check)
+            check(estimator)
+
     def test_geometric_harmonics_interpolator(self):
         logging.basicConfig(level=logging.DEBUG)
 
