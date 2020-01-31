@@ -2,7 +2,6 @@
 
 """
 
-import os
 import unittest
 
 import matplotlib.pyplot as plt
@@ -61,6 +60,18 @@ class DiffusionMapsTest(unittest.TestCase):
         logging.debug(f"Rayleigh quotients: {expected_ew}")
 
         nptest.assert_allclose(np.abs(actual_ew), np.abs(expected_ew))
+
+    def test_set_param(self):
+        dmap = DiffusionMaps(epsilon=1)
+        dmap.set_params(epsilon=2)
+
+        self.assertEqual(dmap.epsilon, 2)
+
+    def test_is_valid_sklearn_estimator(self):
+        from sklearn.utils.estimator_checks import check_estimator
+
+        # raises error if not valid:
+        check_estimator(DiffusionMaps)
 
     def test_multiple_epsilon_values(self):
         """Test from legacy code, not exactly sure what is tested here (Rayleigh

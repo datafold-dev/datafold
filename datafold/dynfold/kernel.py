@@ -63,15 +63,7 @@ class KernelMethod(BaseEstimator):
         self.symmetrize_kernel = symmetrize_kernel
         self.use_cuda = use_cuda
         self.dist_backend = dist_backend
-
-        if dist_backend_kwargs is None:
-            self.dist_backend_kwargs: dict = {}  # empty to use **kwargs
-        else:
-            self.dist_backend_kwargs = dist_backend_kwargs
-
-        # variables that need to be set by subclasses
-        self._kernel: Kernel
-        self.operator_matrix_ = None
+        self.dist_backend_kwargs = dist_backend_kwargs
 
     @property
     def kernel_(self):

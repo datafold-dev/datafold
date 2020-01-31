@@ -14,6 +14,7 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
+from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
@@ -83,13 +84,6 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             use_cuda,
             dist_backend,
             dist_backend_kwargs,
-        )
-
-        self._kernel = DmapKernelFixed(
-            epsilon=self.epsilon,
-            is_stochastic=self.is_stochastic,
-            alpha=self.alpha,
-            symmetrize_kernel=self.symmetrize_kernel,
         )
 
     @classmethod
@@ -186,9 +180,8 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
     def _validate(self, X, ensure_min_samples):
         from sklearn.utils import check_array, check_scalar
 
-        # TODO: check also scalar parameter
-
-        check_array(
+        # TODO: check also all other parameter
+        X = check_array(
             X,
             accept_sparse=False,
             copy=False,
@@ -198,6 +191,17 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             ensure_min_samples=ensure_min_samples,
             ensure_min_features=1,
             estimator=DiffusionMaps,
+        )
+        assert isinstance(X, np.ndarray)
+
+        return X
+
+    def _setup_kernel(self):
+        self._kernel = DmapKernelFixed(
+            epsilon=self.epsilon,
+            is_stochastic=self.is_stochastic,
+            alpha=self.alpha,
+            symmetrize_kernel=self.symmetrize_kernel,
         )
 
     def set_coords(self, indices) -> "DiffusionMaps":
@@ -216,6 +220,9 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             self
         """
 
+        X = self._validate(X=X, ensure_min_samples=2)
+        self._setup_kernel()
+
         super(DiffusionMaps, self).fit(
             X, y, transform_columns=[f"dmap{i}" for i in range(self.num_eigenpairs)]
         )
@@ -227,10 +234,10 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             kernel=self.kernel_,
             cut_off=self.cut_off,
             dist_backend=self.dist_backend,
-            **self.dist_backend_kwargs,
+            **(self.dist_backend_kwargs or {}),
         )
 
-        self._validate(X, ensure_min_samples=2)
+        X = self._validate(X, ensure_min_samples=2)
 
         # basis_change_matrix is None if not required
         # save kernel_matrix for now to use it for testing, but it may not be necessary
@@ -274,13 +281,11 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         super(DiffusionMaps, self).transform(X)
 
-        from sklearn.utils.validation import check_is_fitted
-
         check_is_fitted(
             self, ("X_", "eigenvalues_", "eigenvectors_", "kernel_", "kernel_matrix_")
         )
 
-        self._validate(X, ensure_min_samples=1)
+        X = self._validate(X, ensure_min_samples=1)
 
         kernel_matrix_cdist, _, _ = self.X_.compute_kernel_matrix(
             X, row_sums_alpha_fit=self._row_sums_alpha
@@ -301,6 +306,8 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
     def fit_transform(self, X, y=None, **fit_transform):
 
         self.fit(X, y)
+        X = self._validate(X, ensure_min_samples=2)
+
         dmap_embedding = self._perform_dmap_embedding(self.eigenvectors_)
 
         return self._same_type_X(
