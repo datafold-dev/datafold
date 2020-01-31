@@ -178,10 +178,9 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         return dmap_embedding
 
     def _validate(self, X, ensure_min_samples):
-        from sklearn.utils import check_array, check_scalar
+        from sklearn.utils import check_array
 
-        # TODO: check also all other parameter
-        X = check_array(
+        X_checked = check_array(
             X,
             accept_sparse=False,
             copy=False,
@@ -192,9 +191,13 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             ensure_min_features=1,
             estimator=DiffusionMaps,
         )
-        assert isinstance(X, np.ndarray)
 
-        return X
+        if self._has_indices(X):
+            # keep TSCDataFrame instance for X
+            # -- the restrictions of TSCDataFrame already fulfill most of above checks
+            return X
+        else:
+            return X_checked
 
     def _setup_kernel(self):
         self._kernel = DmapKernelFixed(
@@ -390,7 +393,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
             kernel=self.kernel_,
             cut_off=self.cut_off,
             dist_backend=self.dist_backend,
-            **self.dist_backend_kwargs,
+            **(self.dist_backend_kwargs or {}),
         )
 
         # basis_change_matrix is None if not required

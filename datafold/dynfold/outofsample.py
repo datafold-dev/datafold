@@ -74,7 +74,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             kernel=self.kernel_,
             cut_off=self.cut_off,
             dist_backend=self.dist_backend,
-            **self.dist_backend_kwargs,
+            **(self.dist_backend_kwargs or {}),
         )
 
         self.y = y

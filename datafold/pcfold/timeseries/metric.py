@@ -315,32 +315,46 @@ from sklearn.model_selection import BaseCrossValidator
 from sklearn.model_selection import KFold
 
 
-class TSCKfoldSeries(BaseCrossValidator):
-    def __init__(self, k_fold=3):
-        self.cv_splitter = LeavePGroupsOut(time_series_out)
+class TSCKfoldSeries:
+    def __init__(self, n_splits=3):
+        self.kfold_splitter = KFold(n_splits=n_splits, shuffle=True, random_state=None)
 
-    def split(self, X, y=None, groups=None):
-        if groups is None:
-            groups = X.index.get_level_values(TSCDataFrame.IDX_ID_NAME)
-        return self.cv_splitter.split(X=X, y=y, groups=groups)
+    def split(self, X: TSCDataFrame, y=None, groups=None):
+        if not X.is_same_ts_length():
+            raise NotImplementedError(
+                "Currently, all time series are required to have "
+                "the same length for this method."
+            )
+
+        n_time_series = X.nr_timeseries
+        len_time_series = X.lengths_time_series
+        n_samples = X.shape[0]
+
+        indices_matrix = np.arange(n_samples).reshape([n_time_series, len_time_series])
+
+        # uses the indices as samples and splits along the time series
+        # the indices (rows) are then collected and can be used to select from X
+        for train, test in self.kfold_splitter.split(indices_matrix):
+            train_indices = indices_matrix[train].flatten()
+            test_indices = indices_matrix[test].flatten()
+
+            yield train_indices, test_indices
 
     def get_n_splits(self, X, y=None, groups=None):
-        if groups is None:
-            groups = X.index.get_level_values(TSCDataFrame.IDX_ID_NAME)
-        return self.cv_splitter.get_n_splits(X, y=y, groups=groups)
+        return self.kfold_splitter.get_n_splits(X, y, groups=groups)
 
 
 if __name__ == "__main__":
     idx = pd.MultiIndex.from_arrays(
-        [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
+        [[0, 0, 1, 1, 15, 15, 45, 45], [0, 1, 0, 1, 0, 1, 0, 1]]
     )
     col = ["A", "B"]
-    simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
+    simple_df = pd.DataFrame(np.random.rand(8, 2), index=idx, columns=col)
 
     X = TSCDataFrame(simple_df)
 
-    for train, test in TSCKfoldSeries(1).split(X):
+    for train, test in TSCKfoldSeries(2).split(X):
         print(f"train {train} {X.iloc[train, :]}")
         print(f"test {test} {X.iloc[test, :]}")
 
-    print(TSCKfoldSeries(1).get_n_splits(X))
+    print(TSCKfoldSeries(2).get_n_splits(X))
