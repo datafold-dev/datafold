@@ -209,7 +209,7 @@ class TSCMetric(object):
     def _error_per_qoi(
         self, y_true: TSCDataFrame, y_pred: TSCDataFrame, sample_weight=None
     ):
-        # NOTE: score per qoi is never a multiouput, as a QoI is seen as a single scalar
+        # NOTE: score per qoi is never a multioutput, as a QoI is seen as a single scalar
         # quantity
 
         error_per_qoi = self.metric(
@@ -220,7 +220,6 @@ class TSCMetric(object):
         )
 
         error_per_qoi = pd.Series(error_per_qoi, index=y_true.columns,)
-        assert not error_per_qoi.isna().any()
         return error_per_qoi
 
     def _error_per_timestep(
@@ -310,11 +309,14 @@ class TSCMetric(object):
         return error_result
 
 
-from sklearn.model_selection import LeavePGroupsOut
+from sklearn.model_selection import BaseCrossValidator
 
 
-class TSCSplitSeries:
-    def __init__(self, time_series_out=3):
+from sklearn.model_selection import KFold
+
+
+class TSCKfoldSeries(BaseCrossValidator):
+    def __init__(self, k_fold=3):
         self.cv_splitter = LeavePGroupsOut(time_series_out)
 
     def split(self, X, y=None, groups=None):
@@ -337,8 +339,8 @@ if __name__ == "__main__":
 
     X = TSCDataFrame(simple_df)
 
-    for train, test in TSCSplitSeries(1).split(X):
+    for train, test in TSCKfoldSeries(1).split(X):
         print(f"train {train} {X.iloc[train, :]}")
         print(f"test {test} {X.iloc[test, :]}")
 
-    print(TSCSplitSeries(1).get_n_splits(X))
+    print(TSCKfoldSeries(1).get_n_splits(X))

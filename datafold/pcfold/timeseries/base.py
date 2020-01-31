@@ -117,7 +117,7 @@ class TSCTransformMixIn(TSCBaseMixIn):
         elif isinstance(X, np.ndarray):
             return values
         else:
-            raise TypeError
+            raise TypeError(f"input type {type(X)} is not supported")
 
 
 class TSCPredictMixIn(TSCBaseMixIn):
@@ -129,14 +129,14 @@ class TSCPredictMixIn(TSCBaseMixIn):
         # pd.DataFrame with all the information...
         raise NotImplementedError
 
-    def fit_predict(self, X: PRE_FIT_TYPES) -> TSCDataFrame:
+    def fit_predict(self, X: PRE_FIT_TYPES, y=None) -> TSCDataFrame:
         # TODO: to be consistent this would require **fit_params and **predict_params,
         #  no kwargs for now to handle this, in case this becomes an issue.
 
         # Note: this is an non-optimized way. To optimize this case, overwrite this.
         X_ic = X.initial_states_df()
         t = X.time_indices(unique_values=True)
-        return self.fit(X).predict(X_ic, t)
+        return self.fit(X=X, y=y).predict(X_ic, t)
 
     def score(
         self,

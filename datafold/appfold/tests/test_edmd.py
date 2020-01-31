@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.appfold.edmd import EDMDDict
+from datafold.appfold.edmd import EDMDDict, EDMD
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.transform import (
     TSCPrincipalComponent,

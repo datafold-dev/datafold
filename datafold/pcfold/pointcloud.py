@@ -44,10 +44,15 @@ class PCManifold(np.ndarray):
         # internally __array_finalize__
         obj = np.asarray(data).view(cls)
 
+        if obj.dtype.kind not in "biufc":
+            # See:
+            # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
+            raise ValueError("Point cloud has to be numeric.")
+
         if obj.ndim != 2:
             raise ValueError("Point cloud has to be represented by a 2-dim array.")
 
-        if np.isnan(obj).any() or np.isinf(obj).any():
+        if not np.isfinite(obj).all():
             raise ValueError("Point cloud has illegal values (nan or inf).")
 
         # Set the kernel according to user input
@@ -100,6 +105,37 @@ class PCManifold(np.ndarray):
 
         repr = "\n".join([attributes_line, super(PCManifold, self).__repr__()])
         return repr
+
+    def __reduce__(self):
+        # __reduce__ and __setstate__ are required for pickling (which is e.g. required
+        # if a model such as DiffusionMaps is stored)
+        # The solution is from (answer from Mike McKerns):
+        # https://stackoverflow.com/a/26599346
+
+        # Get the parent's __reduce__ tuple
+        pickled_state = super(PCManifold, self).__reduce__()
+
+        # Create own tuple to pass to __setstate__
+
+        new_state = pickled_state[2] + (
+            self._kernel,  # -4
+            self._cut_off,  # -3
+            self._dist_backend,  # -2
+            self._dist_params,  # -1
+        )
+
+        # Return a tuple that replaces the parent's __setstate__ tuple with own
+        return (pickled_state[0], pickled_state[1], new_state)
+
+    def __setstate__(self, state, *args, **kwargs):
+        # Set own attributes attached to every np.ndarray
+        self.kernel = state[-4]
+        self._cut_off = state[-3]
+        self._dist_backend = state[-2]
+        self._dist_params = state[-1]
+
+        # Call the parent's __setstate__ with the other tuple elements.
+        super(PCManifold, self).__setstate__(state[0:-4])
 
     @property
     def kernel(self):
