@@ -7,10 +7,9 @@ import unittest
 import matplotlib.pyplot as plt
 from sklearn.datasets import make_swiss_roll
 from sklearn.model_selection import ParameterGrid
+from sklearn.utils.estimator_checks import check_estimator
 
 from datafold.dynfold.kernel import DmapKernelFixed
-
-# from datafold.dynfold.operator import TSCEigfuncInterpolator
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
@@ -84,14 +83,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.values = f(self.points)
 
     def test_valid_sklearn_estimator(self):
-        from sklearn.utils.estimator_checks import check_estimator
-
-        for estimator, check in check_estimator(
-            GeometricHarmonicsInterpolator(num_eigenpairs=1, epsilon=1),
-            generate_only=True,
-        ):
-            print(check)
-            check(estimator)
+        check_estimator(GeometricHarmonicsInterpolator(num_eigenpairs=1))
 
     def test_geometric_harmonics_interpolator(self):
         logging.basicConfig(level=logging.DEBUG)
@@ -883,10 +875,10 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         eps_interp = 0.0005
         actual = DmapKernelFixed(epsilon=eps_interp, is_stochastic=False, alpha=1)
 
-        # diffusion map as argument
+        # GH must be trained before to set kernel
         gh = GeometricHarmonicsInterpolator(
             epsilon=eps_interp, num_eigenpairs=1, is_stochastic=False
-        )
+        ).fit(self.data_train, self.phi_train)
 
         self.assertEqual(gh.kernel_, actual)
 
@@ -970,6 +962,15 @@ class LaplacianPyramidsTest(unittest.TestCase):
         if lp is not None:
             lp.plot_eps_vs_residual()
 
+    def test_valid_sklearn_estimator(self):
+
+        for estimator, check in check_estimator(
+            LaplacianPyramidsInterpolator(initial_epsilon=100, auto_adaptive=True),
+            generate_only=True,
+        ):
+            print(check)
+            check(estimator)
+
     def test_synthetic_example_rabin(self, plot=False):
 
         # TODO: currently, there is a robustness issue. For very small scales,
@@ -1032,8 +1033,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_fern, self.y_fern)
 
-        train_eval = lp(self.X_fern)
-        test_eval = lp(self.X_fern_test)
+        train_eval = lp.predict(self.X_fern)
+        test_eval = lp.predict(self.X_fern_test)
 
         if plot:
             self._plot(
@@ -1056,8 +1057,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_fern, self.y_fern)
 
-        train_eval = lp(self.X_fern)
-        test_eval = lp(self.X_fern_test)
+        train_eval = lp.predict(self.X_fern)
+        test_eval = lp.predict(self.X_fern_test)
 
         if plot:
             self._plot(
@@ -1081,8 +1082,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
 
         lp = lp.fit(self.X_fern, y_target)
 
-        train_eval = lp(self.X_fern)
-        test_eval = lp(self.X_fern_test)
+        train_eval = lp.predict(self.X_fern)
+        test_eval = lp.predict(self.X_fern_test)
 
         if plot:
             self._plot(

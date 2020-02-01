@@ -646,4 +646,4 @@ def compute_distance_matrix(
 
 
 if __name__ == "__main__":
-    all_available_distance_algorithm()
+    print(all_available_distance_algorithm())

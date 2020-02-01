@@ -23,6 +23,7 @@ from datafold.dynfold.kernel import DmapKernelFixed, KernelMethod
 from datafold.dynfold.utils import to_ndarray
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.utils.maths import mat_dot_diagmat
+from sklearn.base import BaseEstimator
 
 
 class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMixin):
@@ -94,6 +95,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             "copy": copy,
             "accept_large_sparse": False,
             "dtype": "numeric",
+            "force_all_finite": True,
             "ensure_2d": True,
             "allow_nd": False,
             "ensure_min_samples": ensure_min_samples,
@@ -329,8 +331,8 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
 
         from datafold.pcfold import PCManifold
         from datafold.pcfold.kernels import RadialBasisKernel
-        from datafold.utils.math import diagmat_dot_mat
-        from datafold.utils.math import sort_eigenpairs
+        from datafold.utils.maths import diagmat_dot_mat
+        from datafold.utils.maths import sort_eigenpairs
         from scipy.sparse.linalg import eigsh
 
         mu_l_ = None
@@ -401,7 +403,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         )
 
 
-class LaplacianPyramidsInterpolator:
+class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
     # TODO: LIST OF THINGS TO IMPROVE; TRY OUT OR TO DO
     #   1. allow sparse matrix (integrate cut_off etc.) --> problem: For large scales,
     #       there is almost no memory saving
@@ -427,26 +429,74 @@ class LaplacianPyramidsInterpolator:
         alpha=0,
     ):
 
-        if residual_tol is None and not auto_adaptive:
+        self.initial_epsilon = initial_epsilon
+        self.mu = mu
+        self.residual_tol = residual_tol
+        self.auto_adaptive = auto_adaptive
+        self.alpha = alpha
+
+    def _validate(self, X, y=None, ensure_min_samples=1):
+
+        if self.residual_tol is None and not self.auto_adaptive:
             raise ValueError(
                 "Need to specify a stopping criteria by either providing a "
                 "residual tolerance or auto_adaptive=True"
             )
 
-        if residual_tol is not None and residual_tol < 0:
-            raise ValueError()
+        if self.residual_tol is not None:
+            check_scalar(
+                self.residual_tol,
+                name="residual_tol",
+                target_type=(float, np.floating),
+                min_val=0,
+                max_val=np.inf,
+            )
 
-        if mu <= 1:
-            raise ValueError()
+        check_scalar(
+            self.mu,
+            "mu",
+            target_type=(int, np.integer, float, np.floating),
+            min_val=1 + np.finfo(float).eps,
+            max_val=np.inf,
+        )
 
-        self.initial_epsilon = initial_epsilon
-        self.mu = mu
-        self.residual_tol = residual_tol
-        self.auto_adaptive = auto_adaptive
+        if isinstance(X, np.memmap):
+            copy = True
+        else:
+            copy = False
 
-        self.alpha = alpha
+        kwargs = {
+            "accept_sparse": False,
+            "copy": copy,
+            "force_all_finite": True,
+            "accept_large_sparse": False,
+            "dtype": "numeric",
+            "ensure_2d": True,
+            "allow_nd": False,
+            "ensure_min_samples": ensure_min_samples,
+            "ensure_min_features": 1,
+        }
 
+        if y is not None:
+            kwargs["multi_output"] = True
+            kwargs["y_numeric"] = True
+            X, y = check_X_y(X, y, **kwargs)
+
+            if y.ndim == 1:
+                y = y[:, np.newaxis]
+
+        else:
+            X = check_array(X, **kwargs)
+
+        return X, y
+
+    def _setup(self):
         self._level_tracker = dict()
+
+    def _get_tags(self):
+        _tags = super(LaplacianPyramidsInterpolator, self)._get_tags()
+        _tags["multioutput"] = True
+        return _tags
 
     def _termination_rules_single(self, current_residual_norm, last_residual_norm):
         signal = self.LoopCond.NO_TERMINATION
@@ -494,7 +544,7 @@ class LaplacianPyramidsInterpolator:
 
     def _distance_matrix(self, Y=None):
         return compute_distance_matrix(
-            X=self.X,
+            X=self.X_,
             Y=Y,
             metric="sqeuclidean",  # for now only Gaussian kernel
             backend="brute",  # for now no support for sparse distance matrix
@@ -704,27 +754,21 @@ class LaplacianPyramidsInterpolator:
 
     def fit(self, X: np.ndarray, y, **fit_params) -> "LaplacianPyramidsInterpolator":
 
-        if y.ndim == 1:
-            y = y[:, np.newaxis]
-
-        self.X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=False,
-            force_all_finite=True,
-            ensure_2d=True,
-            multi_output=True,
-            ensure_min_features=1,
-            y_numeric=True,
-        )
+        self.X_, y = self._validate(X, y, ensure_min_samples=2)
+        self._setup()
 
         self.nr_targets_ = y.shape[1]
-        self._laplacian_pyramid(self.X, y)
+        self._laplacian_pyramid(self.X_, y)
 
         return self
 
-    def __call__(self, X):
+    def predict(self, X):
 
+        X, _ = self._validate(X)
+
+        check_is_fitted(self, attributes=["X_", "nr_targets_", "_level_tracker",])
+
+        # allocate memory for return
         y_hat = np.zeros([X.shape[0], self.nr_targets_])
         distance_matrix = self._distance_matrix(Y=X)
 
@@ -737,10 +781,19 @@ class LaplacianPyramidsInterpolator:
             active_indices = level_content["active_indices"]
             y_hat[:, active_indices] += kernel_matrix @ level_content["target_values"]
 
+        if self.nr_targets_ == 1:
+            y_hat = y_hat.flatten()
+
         return y_hat
 
-    def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
-        pass  # TODO
+    # def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
+    #     return mean_squared_error(
+    #         self.predict(X),
+    #         y_pred=y,
+    #         sample_weight=sample_weight,
+    #         squared=True,
+    #         multioutput=multioutput,
+    #     )
 
     def plot_eps_vs_residual(self):
 
