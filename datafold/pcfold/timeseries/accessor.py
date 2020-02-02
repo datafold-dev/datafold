@@ -127,25 +127,36 @@ class TSCollectionMethods(object):
 
         return shift_left, shift_right
 
-    # def takens_embedding(
-    #     self,
-    #     lag=0,
-    #     delays=3,
-    #     frequency=1,
-    #     time_direction="backward",
-    #     attach=False,
-    #     fill_value: float = np.nan,
-    # ):
-    #     """Wrapper function for class TakensEmbedding"""
-    #
-    #     takens = TSCTakensEmbedding(lag, delays, frequency, time_direction, fill_value)
-    #     return_df = takens.apply(self._tsc_df)
-    #
-    #     if attach:
-    #         return_df = return_df.drop(self._tsc_df.columns, axis=1)
-    #         return_df = pd.concat([self._tsc_df, return_df], axis=1)
-    #
-    #     return return_df
+    def kfold_cv_reassign_ids(self, train_indices, test_indices):
+
+        # mark train samples as zero and test samples with 1
+        mask_train_test = np.zeros(self._tsc_df.shape[0])
+        mask_train_test[test_indices] = 1
+
+        change_fold_indicator = np.append(0, np.diff(mask_train_test)).astype(np.bool)
+        change_id_indicator = np.append(
+            0, np.diff(self._tsc_df.index.get_level_values("ID"))
+        ).astype(np.bool)
+
+        id_cum_sum_mask = np.logical_or(change_fold_indicator, change_id_indicator)
+        new_ids = np.cumsum(id_cum_sum_mask)
+
+        new_idx = pd.MultiIndex.from_arrays(
+            arrays=(new_ids, self._tsc_df.index.get_level_values("time"))
+        )
+
+        splitted_tsc = TSCDataFrame.from_same_indices_as(
+            self._tsc_df, values=self._tsc_df, except_index=new_idx
+        )
+
+        train_tsc = splitted_tsc.iloc[train_indices, :]
+        test_tsc = splitted_tsc.iloc[test_indices, :]
+
+        # asserts also assumption made in the algorithm (in hindsight)
+        assert isinstance(train_tsc, TSCDataFrame)
+        assert isinstance(test_tsc, TSCDataFrame)
+
+        return train_tsc, test_tsc
 
     def plot_density2d(self, time, xresolution: int, yresolution: int, covariance=None):
         """

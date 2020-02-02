@@ -7,10 +7,10 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.metric import TSCMetric
+from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime, TSCMetric
 
 
-class TestTscMetric(unittest.TestCase):
+class TestTSCMetric(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
         self._create_tsc_one()
@@ -276,3 +276,170 @@ class TestTscMetric(unittest.TestCase):
                 ),
                 actual.loc[t],
             )
+
+
+class TestTSCCV(unittest.TestCase):
+    def _simple_tsc(self):
+        idx = pd.MultiIndex.from_arrays(
+            [
+                [0, 0, 0, 0, 1, 1, 1, 1, 15, 15, 15, 15, 45, 45, 45, 45],
+                [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3],
+            ]
+        )
+        col = ["A", "B"]
+        data = np.arange(len(idx) * 2).reshape([len(idx), 2])
+        self.simple_tsc = TSCDataFrame(data, index=idx, columns=col)
+
+    def _single_id_tsc(self):
+        idx = pd.MultiIndex.from_arrays(
+            [[0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2, 3, 4, 5, 6, 7],]
+        )
+        col = ["A", "B"]
+        data = np.arange(len(idx) * 2).reshape([len(idx), 2])
+        single_ts = TSCDataFrame(data, index=idx, columns=col)
+
+        self.single_id_tsc = TSCDataFrame(single_ts)
+
+    def _two_id_tsc(self):
+        idx = pd.MultiIndex.from_arrays(
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7],
+            ]
+        )
+        col = ["A", "B"]
+        data = np.arange(len(idx) * 2).reshape([len(idx), 2])
+        single_ts = TSCDataFrame(data, index=idx, columns=col)
+
+        self.two_id_tsc = TSCDataFrame(single_ts)
+
+    def setUp(self) -> None:
+        self._simple_tsc()
+        self._single_id_tsc()
+        self._two_id_tsc()
+
+    def test_kfold_series_simple_tsc(self):
+
+        # there are 4 time series, so a 2-split should always contain 2 time series
+        n_splits = 2
+
+        for train, test in TSCKfoldSeries(n_splits).split(self.simple_tsc):
+            # print(f"train {train} {self.simple_tsc.iloc[train, :]}")
+            # print(f"test {test} {self.simple_tsc.iloc[test, :]}")
+
+            train_part = self.simple_tsc.iloc[train, :]
+            test_part = self.simple_tsc.iloc[test, :]
+
+            self.assertIsInstance(train_part, TSCDataFrame)
+            self.assertIsInstance(test_part, TSCDataFrame)
+
+            self.assertEqual(train_part.nr_timeseries, 2)
+            self.assertEqual(test_part.nr_timeseries, 2)
+
+            # should keep original length:
+            self.assertEquals(train_part.lengths_time_series, 4)
+            self.assertEquals(test_part.lengths_time_series, 4)
+
+            # checks that no time series id is in train and also test
+            self.assertFalse(np.in1d(train_part.ids, test_part.ids).any())
+
+    def test_kfold_series_single_id_tsc(self):
+        with self.assertRaises(ValueError):
+            # error is raised when trying to iterate it (also in sklearn)
+            for _, _ in TSCKfoldSeries(2).split(self.single_id_tsc):
+                pass
+
+    def test_kfold_time_simple_tsc(self):
+
+        # time series have all a length of 4, a n_splits should result into
+        n_splits = 2
+
+        for train, test in TSCKFoldTime(n_splits).split(self.simple_tsc):
+
+            train_part: TSCDataFrame = self.simple_tsc.iloc[train, :]
+            test_part: TSCDataFrame = self.simple_tsc.iloc[test, :]
+
+            self.assertIsInstance(train_part, TSCDataFrame)
+            self.assertIsInstance(test_part, TSCDataFrame)
+
+            # all time series are still present
+            self.assertEqual(train_part.nr_timeseries, 4)
+            self.assertEqual(test_part.nr_timeseries, 4)
+
+            # originally all time series are of length 4, now they should be 2
+            self.assertEqual(train_part.lengths_time_series, 2)
+            self.assertEqual(test_part.lengths_time_series, 2)
+
+            # this tests that there was no shuffle, all time series should still be
+            # connected
+            self.assertTrue(train_part.is_const_dt())
+            self.assertTrue(test_part.is_const_dt())
+
+            nptest.assert_array_equal(train_part.ids, test_part.ids)
+
+    def test_kfold_time_single_id_tsc(self):
+
+        # time series is 8 long, so there should be always 4 samples in each split
+        n_splits = 2
+
+        for train, test in TSCKFoldTime(n_splits).split(self.single_id_tsc):
+            # print(f"train{train} {self.single_id_tsc.iloc[train, :]}")
+            # print(f"test{train} {self.single_id_tsc.iloc[test, :]}")
+
+            train_part: TSCDataFrame = self.single_id_tsc.iloc[train, :]
+            test_part: TSCDataFrame = self.single_id_tsc.iloc[test, :]
+
+            self.assertIsInstance(train_part, TSCDataFrame)
+            self.assertIsInstance(test_part, TSCDataFrame)
+
+            self.assertEqual(train_part.nr_timeseries, 1)
+            self.assertEqual(test_part.nr_timeseries, 1)
+
+            # this tests that there was no shuffle, all time series should still be
+            # connected
+            self.assertTrue(train_part.is_const_dt())
+            self.assertTrue(test_part.is_const_dt())
+
+            nptest.assert_array_equal(train_part.ids, test_part.ids)
+
+    def test_kfold_time_single_id_tsc2(self):
+
+        n_splits = 4
+
+        for train, test in TSCKFoldTime(n_splits=n_splits).split(X=self.single_id_tsc):
+
+            train, test = self.single_id_tsc.tsc.kfold_cv_reassign_ids(train, test)
+
+            # print(f"train {train}")
+            # print(f"test {test}")
+
+            self.assertIsInstance(train, TSCDataFrame)
+            self.assertIsInstance(test, TSCDataFrame)
+
+            self.assertTrue(train.is_const_dt())
+            self.assertTrue(test.is_const_dt())
+
+            self.assertIn(len(train.ids), (1, 2))
+            self.assertIn(len(test.ids), (1, 2))
+
+            self.assertFalse(np.in1d(train.ids, test.ids).any())
+
+    def test_kfold_time_two_id_tsc(self):
+        n_splits = 4
+
+        for train, test in TSCKFoldTime(n_splits=n_splits).split(X=self.two_id_tsc):
+            train, test = self.two_id_tsc.tsc.kfold_cv_reassign_ids(train, test)
+
+            print(f"train {train}")
+            print(f"test {test}")
+
+            self.assertIsInstance(train, TSCDataFrame)
+            self.assertIsInstance(test, TSCDataFrame)
+
+            self.assertTrue(train.is_const_dt())
+            self.assertTrue(test.is_const_dt())
+
+            self.assertIn(len(train.ids), (2, 3, 4))
+            self.assertIn(len(test.ids), (2, 3, 4))
+
+            self.assertFalse(np.in1d(train.ids, test.ids).any())

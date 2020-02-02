@@ -73,7 +73,7 @@ class TSCDataFrame(pd.DataFrame):
     def from_same_indices_as(
         cls,
         indices_from: "TSCDataFrame",
-        values: np.ndarray,
+        values,
         except_index: Optional[PD_IDX_TYPE] = None,
         except_columns: Optional[PD_IDX_TYPE] = None,
     ):
@@ -84,6 +84,10 @@ class TSCDataFrame(pd.DataFrame):
                 "Cannot copy index or column from existing TSCDataFrame if both is "
                 "excluded."
             )
+
+        # view input as array (allows for different input, which is
+        # compatible with numpy.ndarray
+        values = np.asarray(values)
 
         if except_index is None:
             index = indices_from.index  # type: ignore  # mypy cannot infer type here

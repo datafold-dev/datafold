@@ -339,17 +339,61 @@ class TSCKfoldSeries:
         return self.kfold_splitter.get_n_splits(X, y, groups=groups)
 
 
+class TSCKFoldTime:
+    def __init__(self, n_splits=3):
+        self.kfold_splitter = KFold(n_splits=n_splits, shuffle=False, random_state=None)
+
+    def split(self, X: TSCDataFrame, y=None, groups=None):
+        if not X.is_equal_time_index():
+            raise NotImplementedError(
+                "Currently, each time series must have the same " "time indices."
+            )
+
+        n_timeseries = X.nr_timeseries
+        len_timeseries = X.lengths_time_series
+        n_samples = X.shape[0]
+
+        indices_matrix = np.arange(n_samples).reshape(
+            [len_timeseries, n_timeseries], order="F"
+        )
+
+        for train, test in self.kfold_splitter.split(indices_matrix):
+            train_indices = indices_matrix[train].flatten()
+            test_indices = indices_matrix[test].flatten()
+            yield train_indices, test_indices
+
+
 if __name__ == "__main__":
     idx = pd.MultiIndex.from_arrays(
-        [[0, 0, 1, 1, 15, 15, 45, 45], [0, 1, 0, 1, 0, 1, 0, 1]]
+        [
+            [0, 0, 0, 0, 1, 1, 1, 1, 15, 15, 15, 15, 45, 45, 45, 45],
+            [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3],
+        ]
     )
     col = ["A", "B"]
-    simple_df = pd.DataFrame(np.random.rand(8, 2), index=idx, columns=col)
+    simple_df = pd.DataFrame(np.random.rand(len(idx), 2), index=idx, columns=col)
+
+    idx = pd.MultiIndex.from_arrays(
+        [[0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2, 3, 4, 5, 6, 7],]
+    )
+    col = ["A", "B"]
+    single_ts = pd.DataFrame(np.random.rand(len(idx), 2), index=idx, columns=col)
 
     X = TSCDataFrame(simple_df)
+    X_single = TSCDataFrame(single_ts)
 
-    for train, test in TSCKfoldSeries(2).split(X):
-        print(f"train {train} {X.iloc[train, :]}")
-        print(f"test {test} {X.iloc[test, :]}")
+    # simple_df
+    # for train, test in TSCKfoldSeries(2).split(X):
+    #     print(f"train {train} {X.iloc[train, :]}")
+    #     print(f"test {test} {X.iloc[test, :]}")
+    #
+    # for train, test in TSCKFoldTime(2).split(X):
+    #     print(f"train{train} {X.iloc[train, :]}")
+    #     print(f"test{train} {X.iloc[test, :]}")
 
-    print(TSCKfoldSeries(2).get_n_splits(X))
+    # single_df -- should raise error
+    # TSCKfoldSeries(2).split(X_single)
+
+    for train, test in TSCKFoldTime(3).split(X_single):
+        print(f"train{train} {X_single.iloc[train, :]}")
+        print(f"test{train} {X_single.iloc[test, :]}")
