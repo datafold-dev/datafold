@@ -134,12 +134,7 @@ class DiffusionMapsTest(unittest.TestCase):
             dense_case.eigenvalues_, sparse_case.eigenvalues_, rtol=1e-13, atol=1e-14
         )
 
-        # TODO: due to the sparse component, it is a bit tricky to compare eigenvectors
-        #  (this requires more work),
-        #  things that can be checked, is eigenvec1 = -eigenvec2? are they self
-        #  orthogonal eigenvec @ eigenvec = 1, etc.
-        # self.assertTrue(np.allclose(dense_case.eigenvectors, sparse_case.eigenvectors,
-        #                             rtol=1E-13, atol=1E-14))
+        assert_equal_eigenvectors(dense_case.eigenvectors_, sparse_case.eigenvectors_)
 
     def test_symmetric_dense(self):
         data, _ = make_swiss_roll(2000, random_state=1)
