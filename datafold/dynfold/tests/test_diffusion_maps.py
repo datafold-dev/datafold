@@ -38,10 +38,6 @@ class DiffusionMapsTest(unittest.TestCase):
         rayleigh_quotients = np.sort(np.abs(rayleigh_quotients))
         return rayleigh_quotients[::-1]
 
-    @unittest.skip("TODO: write test")
-    def test_is_pickleable(self):
-        pass
-
     def test_accuracy(self):
         num_samples = 5000
         logging.debug(f"Computing diffusion maps on a matrix of size {num_samples}")
