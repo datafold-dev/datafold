@@ -114,6 +114,17 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             raise NotImplementedError(
                 "Currently all initial conditions have to have the same initial time."
             )
+        else:  # assumption required
+            initial_time = X.index.get_level_values("time")[0]
+            if (t < initial_time).any():
+                raise NotImplementedError(
+                    "Solving initial condition backwards in time "
+                    "is currently not supported."
+                )
+
+            if not (initial_time == t).any():
+                # always include the initial condition in the time to evaluate
+                t = np.append(initial_time, t)
 
         return self._evolve_edmd_system(
             X_ic=X, time_samples=t, post_map=post_map, qoi_columns=qoi_columns
