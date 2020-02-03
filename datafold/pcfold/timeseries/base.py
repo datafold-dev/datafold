@@ -44,7 +44,41 @@ class TSCBaseMixIn:
 
 
 class TSCTransformMixIn(TSCBaseMixIn):
+    def _validate(self, X, ensure_min_samples=1, enforce_index_type=False):
+        """Provides a general function to check data -- can be overwritten if an
+        implementation requires different checks."""
+        from sklearn.utils.validation import check_array
+
+        if enforce_index_type and not self._has_indices(X):
+            raise TypeError("")
+
+        if self._has_indices(X):
+            X_check = X.to_numpy()
+        else:
+            X_check = X
+
+        X_check = check_array(
+            X_check,
+            accept_sparse=False,
+            accept_large_sparse=False,
+            dtype="numeric",
+            order=None,
+            copy=False,
+            force_all_finite=True,
+            ensure_2d=True,
+            allow_nd=False,
+            ensure_min_samples=ensure_min_samples,
+            ensure_min_features=1,
+            estimator=self,
+        )
+
+        if self._has_indices(X):
+            return X
+        else:
+            return X_check
+
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
+
         if self._has_indices(X):
             transform_columns = fit_params.pop("transform_columns", X.columns)
 

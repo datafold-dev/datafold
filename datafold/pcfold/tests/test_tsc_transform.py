@@ -16,7 +16,16 @@ from datafold.pcfold.timeseries.transform import (
     TSCQoiPreprocess,
     TSCQoiScale,
     TSCTakensEmbedding,
+    TSCTransformMixIn,
 )
+
+
+# TODO: write a check_tsc_transform() ?
+
+
+def _all_tsc_transformers():
+    # only finds the ones that are importated (DMAP e.g. is not here)
+    print(TSCTransformMixIn.__subclasses__())
 
 
 class TestTSCTransform(unittest.TestCase):
@@ -43,6 +52,15 @@ class TestTSCTransform(unittest.TestCase):
     def setUp(self) -> None:
         self._setUp_simple_df()
         self._setUp_takens_df()
+
+    def test_is_valid_sklearn_estimator(self):
+        from sklearn.utils.estimator_checks import check_estimator
+
+        to_test = TSCIdentity
+
+        for estimator, check in check_estimator(TSCIdentity, generate_only=True):
+            print(check)
+            check(estimator)
 
     def test_identity(self):
         tsc = TSCDataFrame(self.simple_df)
@@ -239,4 +257,4 @@ class TestTSCTransform(unittest.TestCase):
         )
 
         with self.assertRaises(ValueError):
-            TSCTakensEmbedding(lag=0, delays=1, frequency=2)
+            TSCTakensEmbedding(lag=0, delays=1, frequency=2).fit(tsc)

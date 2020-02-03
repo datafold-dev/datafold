@@ -15,9 +15,10 @@ from datafold.pcfold.timeseries.base import (
     TRANF_TYPES,
     INDICES_TYPES,
 )
+from sklearn.base import BaseEstimator
 
 
-class TSCQoiPreprocess(TSCTransformMixIn):
+class TSCQoiPreprocess(BaseEstimator, TSCTransformMixIn):
     def __init__(self, cls, **kwargs):
         """
         See
@@ -34,12 +35,15 @@ class TSCQoiPreprocess(TSCTransformMixIn):
         self.transform_cls_ = cls(**kwargs)
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
+        X = self._validate(X)
         super(TSCQoiPreprocess, self).fit(X, y, **fit_params)
+
         X_intern = self._intern_X_as_numpy(X)
         self.transform_cls_.fit(X_intern)
         return self
 
     def transform(self, X: TRANF_TYPES):
+        X = self._validate(X)
         super(TSCQoiPreprocess, self).transform(X)
 
         X_intern = self._intern_X_as_numpy(X)
@@ -47,30 +51,45 @@ class TSCQoiPreprocess(TSCTransformMixIn):
         return self._same_type_X(X=X, values=values)
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
+        X = self._validate(X)
         super(TSCQoiPreprocess, self).fit_transform(X, y, **fit_params)
+
         values = self.transform_cls_.fit_transform(X)
         return self._same_type_X(X=X, values=values)
 
     def inverse_transform(self, X: TRANF_TYPES):
+        X = self._validate(X)
         super(TSCQoiPreprocess, self).inverse_transform(X)
         X_intern = self._intern_X_as_numpy(X)
         values = self.transform_cls_.inverse_transform(X_intern)
         return self._same_type_X(X=X, values=values)
 
 
-class TSCIdentity(TSCTransformMixIn):
+class TSCIdentity(BaseEstimator, TSCTransformMixIn):
     def __init__(self):
         pass
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
+        X = self._validate(X)
+        self.n_features_in_ = X.shape[1]
         super(TSCIdentity, self).fit(X, y, **fit_params)
         return self
 
     def transform(self, X: TRANF_TYPES):
+        X = self._validate(X)
+
+        if self.n_features_in_ != X.shape[1]:
+            raise ValueError("")  # TODO: make general error
+
         super(TSCIdentity, self).transform(X)
         return X
 
     def inverse_transform(self, X: TRANF_TYPES):
+        X = self._validate(X)
+
+        if self.n_features_in_ != X.shape[1]:
+            raise ValueError("")  # TODO: make general error
+
         super(TSCIdentity, self).inverse_transform(X)
         return X
 
@@ -143,7 +162,7 @@ class TSCPrincipalComponent(TSCTransformMixIn):
         return self._same_type_X(X, values=data_orig_space, columns=self._fit_columns)
 
 
-class TSCTakensEmbedding(TSCTransformMixIn):
+class TSCTakensEmbedding(BaseEstimator, TSCTransformMixIn):
     def __init__(
         self,
         lag: int = 0,
@@ -157,34 +176,48 @@ class TSCTakensEmbedding(TSCTransformMixIn):
             If 'value': all fill-ins will be set to this value
             If 'remove': all rows that are affected of fill-ins are removed.
         """
-        if lag < 0:
-            raise ValueError(f"Lag has to be non-negative. Got lag={lag}")
-
-        if delays < 1:
-            raise ValueError(
-                f"delays has to be an integer larger than zero. Got delays={frequency}"
-            )
-
-        if frequency < 1:
-            raise ValueError(
-                f"frequency has to be an integer larger than zero. Got frequency"
-                f"={frequency}"
-            )
-
-        if frequency > 1 and delays == 1:
-            raise ValueError("frequency must be 1, if delays=1")
-
-        if time_direction not in ["backward", "forward"]:
-            raise ValueError(
-                f"time_direction={time_direction} invalid. Valid choices: "
-                f"{['backward', 'forward']}"
-            )
 
         self.lag = lag
         self.delays = delays
         self.frequency = frequency
         self.time_direction = time_direction
         self.fillin_handle = fillin_handle
+
+    def _validate_parameter(self):
+        from sklearn.utils.validation import check_scalar
+
+        check_scalar(
+            self.lag, name="lag", target_type=(np.integer, int), min_val=0, max_val=None
+        )
+
+        check_scalar(
+            self.delays,
+            name="delays",
+            target_type=(np.integer, int),
+            min_val=1,
+            max_val=None,
+        )
+
+        check_scalar(
+            self.frequency,
+            name="delays",
+            target_type=(np.integer, int),
+            min_val=1,
+            max_val=None,
+        )
+
+        if self.frequency > 1 and self.delays <= 1:
+            raise ValueError(
+                f"if frequency (={self.frequency} is larger than 1, "
+                f"then number for delays (={self.delays}) has to be larger "
+                "than 1)"
+            )
+
+        if self.time_direction not in ["backward", "forward"]:
+            raise ValueError(
+                f"time_direction={self.time_direction} invalid. Valid choices: "
+                f"{['backward', 'forward']}"
+            )
 
     def _precompute_delay_indices(self):
         # zero delay (original data) is not treated
@@ -251,12 +284,10 @@ class TSCTakensEmbedding(TSCTransformMixIn):
 
         return shifted_timeseries
 
-    def _validate_X(self, X):
-        if isinstance(X, np.ndarray):
-            raise NotImplementedError(
-                f"Currently TSCTakensEmbedding is only supported for indexed types ("
-                f"TSCDataFrame and pd.DataFrame)."
-            )
+    def _validate_tsc_properties(self, X):
+
+        # TODO: ensure minimum of samples per ID, otherwise there are columns with only
+        #  fill-in
 
         if not isinstance(X, TSCDataFrame):
             if X.index.nlevels == 1:
@@ -265,15 +296,16 @@ class TSCTakensEmbedding(TSCTransformMixIn):
             else:
                 X = TSCDataFrame(X)
 
-        if not X.is_finite():
-            raise ValueError("The TSCDataFrame must only consist of finite values.")
-
         if not X.is_const_dt():
             raise TimeSeriesCollectionError("dt is not constant")
 
         return X
 
     def fit(self, X: INDICES_TYPES, y=None, **fit_params):
+
+        self._validate_parameter()
+        X = self._validate(X, ensure_min_samples=1, enforce_index_type=True)
+        X = self._validate_tsc_properties(X)
 
         self.delay_indices_ = self._precompute_delay_indices()
         transform_columns = self._expand_all_delay_columns(X.columns)
@@ -282,7 +314,8 @@ class TSCTakensEmbedding(TSCTransformMixIn):
 
     def transform(self, X: INDICES_TYPES):
 
-        X = self._validate_X(X)
+        X = self._validate(X, enforce_index_type=True)
+        X = self._validate_tsc_properties(X)
 
         if (X.lengths_time_series <= self.delay_indices_.max()).any():
             raise TimeSeriesCollectionError(
@@ -307,6 +340,9 @@ class TSCTakensEmbedding(TSCTransformMixIn):
         return X
 
     def inverse_transform(self, X: TRANF_TYPES):
+        X = self._validate(X)
+        X = self._validate_tsc_properties(X)
+
         self._check_transform_columns(X=X)
         return X.loc[:, self._fit_columns]
 
