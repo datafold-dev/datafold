@@ -311,8 +311,10 @@ class TSCMetric(object):
 
 
 class TSCKfoldSeries:
-    def __init__(self, n_splits=3):
-        self.kfold_splitter = KFold(n_splits=n_splits, shuffle=True, random_state=None)
+    def __init__(self, n_splits=3, shuffle=False, random_state=None):
+        self.kfold_splitter = KFold(
+            n_splits=n_splits, shuffle=shuffle, random_state=random_state
+        )
 
     def split(self, X: TSCDataFrame, y=None, groups=None):
         if not X.is_same_ts_length():
@@ -361,6 +363,9 @@ class TSCKFoldTime:
             train_indices = indices_matrix[train].flatten()
             test_indices = indices_matrix[test].flatten()
             yield train_indices, test_indices
+
+    def get_n_splits(self, X, y=None, groups=None):
+        return self.kfold_splitter.get_n_splits(X, y, groups=groups)
 
 
 if __name__ == "__main__":

@@ -318,6 +318,21 @@ class TestTSCCV(unittest.TestCase):
         self._single_id_tsc()
         self._two_id_tsc()
 
+    def test_sklearn_check_cv(self):
+
+        from sklearn.model_selection import check_cv
+        from datafold.appfold.edmd import EDMD
+
+        # NOTE: this is an import from internal module _split
+        #  -- there is no guarantee for backwards compatibility and there is no
+        #  deprecation cycle
+        from sklearn.model_selection._validation import is_classifier
+
+        self.assertFalse(is_classifier(EDMD))
+
+        check_cv(TSCKFoldTime, y=None, classifier=is_classifier(EDMD))
+        check_cv(TSCKfoldSeries, y=None, classifier=is_classifier(EDMD))
+
     def test_kfold_series_simple_tsc(self):
 
         # there are 4 time series, so a 2-split should always contain 2 time series

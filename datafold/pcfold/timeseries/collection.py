@@ -461,14 +461,11 @@ class TSCDataFrame(pd.DataFrame):
 
         return points_df
 
-    def single_time_df(self, time):
-        """Extract from each time series the row for time. If there is no corresponding
-        entry for 'time', then the time series is skipped. If no time series has an
-        entry for time, then an KeyError is raised."""
+    def select_times(self, time_points) -> Union[pd.DataFrame, "TSCDataFrame"]:
+        """Returns pd.DataFrame if it is not a legal definition of TSC anymore (e.g.
+        only one point for an ID)"""
         idx = pd.IndexSlice
-
-        # cast to DataFrame first, because this time series has to be at least of length 2
-        return pd.DataFrame(self).loc[idx[:, time], :]
+        return self.loc[idx[:, time_points], :]
 
     def initial_states_df(self) -> pd.DataFrame:
         """Returns the initial condition (first state) for each time series as a

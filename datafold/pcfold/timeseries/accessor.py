@@ -176,7 +176,7 @@ class TSCollectionMethods(object):
         if covariance is None:
             covariance = np.eye(2)
 
-        df = self._tsc_df.single_time_df(time=time)
+        df = self._tsc_df.single_time_df(time_point=time)
 
         xmin = df.iloc[:, 0].min()
         xmax = df.iloc[:, 0].max()
