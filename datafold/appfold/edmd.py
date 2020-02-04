@@ -25,7 +25,7 @@ from datafold.pcfold.timeseries.base import (
     PRE_FIT_TYPES,
     PRE_IC_TYPES,
     TRANF_TYPES,
-    TSCTransformMixIn,
+    TSCTransformerMixIn,
 )
 from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime, TSCMetric
 
@@ -90,7 +90,7 @@ class EDMD(Pipeline):
         assert X.is_const_dt()  # TODO: make proper error
 
         for (_, trans_str, transformer) in self._iter(with_final=False):
-            if not isinstance(transformer, TSCTransformMixIn):
+            if not isinstance(transformer, TSCTransformerMixIn):
                 raise TypeError(
                     "Currently, in the pipeline only supports transformers "
                     "that can handle indexed data structures (pd.DataFrame "

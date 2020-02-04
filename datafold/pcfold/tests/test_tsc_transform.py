@@ -16,7 +16,7 @@ from datafold.pcfold.timeseries.transform import (
     TSCQoiPreprocess,
     TSCQoiScale,
     TSCTakensEmbedding,
-    TSCTransformMixIn,
+    TSCTransformerMixIn,
 )
 
 
@@ -25,7 +25,7 @@ from datafold.pcfold.timeseries.transform import (
 
 def _all_tsc_transformers():
     # only finds the ones that are importated (DMAP e.g. is not here)
-    print(TSCTransformMixIn.__subclasses__())
+    print(TSCTransformerMixIn.__subclasses__())
 
 
 class TestTSCTransform(unittest.TestCase):
@@ -126,7 +126,7 @@ class TestTSCTransform(unittest.TestCase):
         ]
 
         for cls, kwargs in scaler:
-            scale = TSCQoiPreprocess(cls=cls, **kwargs)
+            scale = TSCQoiPreprocess(transform_cls=cls, **kwargs)
             tsc_transformed = scale.fit_transform(tsc_df)
 
             # Check the underlying array equals:
@@ -143,7 +143,7 @@ class TestTSCTransform(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             # Normalizer has no inverse_transform
-            TSCQoiPreprocess(cls=Normalizer)
+            TSCQoiPreprocess(transform_cls=Normalizer)
 
     def test_pca_transform(self):
 
