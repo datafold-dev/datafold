@@ -60,25 +60,29 @@ class TSCBaseMixIn:
             )
         self.features_out_ = (len(features_out), features_out)
 
-    def _is_indices_set_up(self):
-
+    def _check_indices_set_up(self):
+        check_attributes = ["features_in_", "features_out_"]
         try:
             check_is_fitted(
                 self, attributes=["features_in_", "features_out_"],
             )
         except NotFittedError:
-            return False
-        else:
-            return True
+            raise RuntimeError(
+                f"{check_attributes} are not available for estimator {self}. Please "
+                "report bug."
+            )
 
 
 class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
-    def _validate(self, X, enforce_index_type=False, **validate_kwargs):
+    def _validate(self, X, ensure_index_type=False, **validate_kwargs):
         """Provides a general function to check data -- can be overwritten if an
         implementation requires different checks."""
 
-        if enforce_index_type and not self._has_indices(X):
-            raise TypeError("")
+        if ensure_index_type and not self._has_indices(X):
+            raise TypeError(
+                f"X is of type {type(X)} but only indexable types ("
+                f"pd.DataFrame of TSCDataFrame) are supported."
+            )
 
         if self._has_indices(X):
             X_check = X.to_numpy()
@@ -113,8 +117,7 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
     def _validate_features_transform(self, X: TRANF_TYPES):
 
-        if not self._is_indices_set_up():
-            raise RuntimeError("_transform_columns is not set. Please report bug.")
+        self._check_indices_set_up()
 
         if self._has_indices(X):
             if self.features_in_[1] is None:
@@ -127,8 +130,7 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 raise ValueError("")
 
     def _validate_features_inverse_transform(self, X: TRANF_TYPES):
-        if not self._is_indices_set_up():
-            raise RuntimeError("_transform_columns is not set. Please report bug.")
+        self._check_indices_set_up()
 
         if self._has_indices(X):
             if self.features_in_[1] is None:

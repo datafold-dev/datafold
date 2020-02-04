@@ -44,7 +44,10 @@ class EDMDTest(unittest.TestCase):
         )
 
         forward_dict = _edmd_dict.fit_transform(X=self.sine_wave_tsc)
+        self.assertIsInstance(forward_dict, TSCDataFrame)
+
         inverse_dict = _edmd_dict.inverse_transform(X=forward_dict)
+        self.assertIsInstance(inverse_dict, TSCDataFrame)
 
         # index not the same because of Takens, so only check column
         pdtest.assert_index_equal(

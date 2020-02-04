@@ -80,7 +80,7 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
     def inverse_transform(self, X: TRANF_TYPES):
         X_intern = self._intern_X_to_numpy(X)
         values = self.transform_cls_.inverse_transform(X_intern)
-        return self._same_type_X(X=X, values=values, set_columns=self.features_out_[1])
+        return self._same_type_X(X=X, values=values, set_columns=self.features_in_[1])
 
 
 class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
@@ -187,6 +187,23 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
         pca_data = super(TSCPrincipalComponent, self).transform(X_intern)
 
         return self._same_type_X(X, values=pca_data, set_columns=self.features_out_[1])
+
+    def fit_transform(self, X, y=None):
+        if self._has_indices(X):
+            self._setup_indices_based_fit(
+                features_in=X.columns,
+                features_out=[f"pca{i}" for i in range(self.n_components)],
+            )
+        else:
+            self._setup_array_based_fit(
+                features_in=X.shape[1], features_out=self.n_components
+            )
+
+        X_intern = self._intern_X_to_numpy(X)
+        pca_values = super(TSCPrincipalComponent, self).fit_transform(X_intern, y=y)
+        return self._same_type_X(
+            X, values=pca_values, set_columns=self.features_out_[1]
+        )
 
     def inverse_transform(self, X: TRANF_TYPES):
         self._validate_features_inverse_transform(X)
@@ -342,7 +359,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
     def fit(self, X: INDICES_TYPES, y=None, **fit_params):
 
         self._validate_parameter()
-        X = self._validate(X, ensure_min_samples=1, enforce_index_type=True)
+        X = self._validate(X, ensure_index_type=True, ensure_min_samples=1)
         X = self._validate_tsc_properties(X)
 
         self.delay_indices_ = self._precompute_delay_indices()
@@ -356,7 +373,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
     def transform(self, X: INDICES_TYPES):
 
-        X = self._validate(X, enforce_index_type=True)
+        X = self._validate(X, ensure_index_type=True)
         X = self._validate_tsc_properties(X)
 
         if (X.lengths_time_series <= self.delay_indices_.max()).any():
@@ -382,11 +399,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         return X
 
     def inverse_transform(self, X: TRANF_TYPES):
-        X = self._validate(X)
+        X = self._validate(X, ensure_index_type=True)
         X = self._validate_tsc_properties(X)
         self._validate_features_inverse_transform(X)
 
-        return X.loc[:, self.features_out_[1]]
+        return X.loc[:, self.features_in_[1]]
 
 
 @DeprecationWarning  # TODO: implement if required...
