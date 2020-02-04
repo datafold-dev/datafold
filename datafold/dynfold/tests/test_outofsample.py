@@ -981,8 +981,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_rabin, self.y_rabin)
 
-        train_eval = lp(self.X_rabin)
-        test_eval = lp(self.X_rabin_test)
+        train_eval = lp.predict(self.X_rabin)
+        test_eval = lp.predict(self.X_rabin_test)
 
         if plot:
             self._plot(
@@ -1006,8 +1006,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_rabin, self.y_rabin)
 
-        train_eval = lp(self.X_rabin)
-        test_eval = lp(self.X_rabin_test)
+        train_eval = lp.predict(self.X_rabin)
+        test_eval = lp.predict(self.X_rabin_test)
 
         lp.score(self.X_rabin, self.y_rabin)
 
