@@ -15,14 +15,8 @@ from datafold.dynfold.plot import (
     plot_results,
 )
 
-try:
-    import ipywidgets as widgets
-    from IPython.display import display
-except ImportError:
-    print(
-        f"module {__name__} is not available because optional dependencies IPython "
-        f"and ipyidgets are not installed"
-    )
+import ipywidgets as widgets
+from IPython.display import display
 
 
 def _checkboxes(
