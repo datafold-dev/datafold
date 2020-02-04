@@ -7,12 +7,13 @@ import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.appfold.edmd import EDMDDict
+from datafold.appfold.edmd import EDMDDict, EDMD
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.transform import (
     TSCPrincipalComponent,
     TSCQoiScale,
     TSCTakensEmbedding,
+    TSCIdentity,
 )
 
 
@@ -23,7 +24,7 @@ class EDMDTest(unittest.TestCase):
         self.sine_wave_tsc = TSCDataFrame.from_single_timeseries(df)
 
     def test_id_dict(self):
-        _edmd_dict = EDMDDict().fit(self.sine_wave_tsc)
+        _edmd_dict = EDMDDict(steps=[("id", TSCIdentity())]).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
             _edmd_dict.transform(self.sine_wave_tsc), self.sine_wave_tsc
@@ -35,15 +36,18 @@ class EDMDTest(unittest.TestCase):
 
     def test_simple_sine_wave(self, plot=False):
         _edmd_dict = EDMDDict(
-            steps=(
+            steps=[
                 ("scale", TSCQoiScale(name="min-max")),
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=2)),
-            )
+            ]
         )
 
         forward_dict = _edmd_dict.fit_transform(X=self.sine_wave_tsc)
+        self.assertIsInstance(forward_dict, TSCDataFrame)
+
         inverse_dict = _edmd_dict.inverse_transform(X=forward_dict)
+        self.assertIsInstance(inverse_dict, TSCDataFrame)
 
         # index not the same because of Takens, so only check column
         pdtest.assert_index_equal(

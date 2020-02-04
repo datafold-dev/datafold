@@ -393,18 +393,65 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_single_time_df(self):
         tsc = TSCDataFrame(self.simple_df)
-        actual = tsc.single_time_df(time=0)
+        actual = tsc.select_times(time_points=0)
+
+        # cannot be a TSC anymore, because only one time point does not make a time series
+        self.assertIsInstance(actual, pd.DataFrame)
+
         expected = self.simple_df.iloc[[0, 2, 4], :]
         pdtest.assert_frame_equal(actual, expected)
 
         with self.assertRaises(KeyError):
-            tsc.single_time_df(time=100)  # no time series with this time
+            tsc.select_times(time_points=100)  # no time series with this time
 
-        actual = tsc.single_time_df(time=17)
-        expected = self.simple_df.iloc[
-            [6], :
-        ]  # in 'key' use a list to enforce a data frame, not a series
+        actual = tsc.select_times(time_points=17)
+
+        # in 'key' use a list to enforce a data frame, not a series
+        expected = self.simple_df.iloc[[6], :]
         pdtest.assert_frame_equal(actual, expected)
+
+    def test_multi_time_tsc(self):
+        ts = TSCDataFrame(self.simple_df)
+
+        new_ts = ts.select_times(time_points=np.array([0, 1, 17, 18]))
+
+        self.assertIsInstance(new_ts, TSCDataFrame)
+        self.assertNotIn(19, new_ts.index.get_level_values("time"))
+
+        self.assertTrue(np.in1d(ts.ids, new_ts.ids).all())
+
+        self.assertTrue(
+            np.in1d(new_ts.time_indices(unique_values=True), (0, 1, 17, 18)).all()
+        )
+
+    def test_multi_time_tsc2(self):
+        ts = TSCDataFrame(self.simple_df)
+
+        new_ts = ts.select_times(time_points=np.array([0, 1]))
+        self.assertIsInstance(new_ts, TSCDataFrame)
+
+        self.assertTrue(np.in1d(new_ts.time_indices(unique_values=True), (0, 1)).all())
+        self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
+
+    def test_multi_time_tsc3(self):
+        ts = TSCDataFrame(self.simple_df)
+        new_ts = ts.select_times(time_points=np.array([0]))
+
+        print(new_ts)
+
+    def test_multi_time_tsc4(self):
+        # behaviour if not all time points are present
+        ts = TSCDataFrame(self.simple_df)
+
+        # -1 is even an illegal
+        new_ts = ts.select_times(time_points=np.array([0, 1, -1]))
+
+        # TODO: the current behavior is, that -1 is simply ignored (no error raised)
+        #  -- error is only raised if none of the keys matches
+        #  -- therefore this is currently in accordance with pandas behavior, but may
+        #     change for pandas.version >= 1.0.0
+        self.assertTrue(np.in1d(new_ts.time_indices(unique_values=True), (0, 1)).all())
+        self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
 
     def test_index01(self):
         # get time series with ID = 0

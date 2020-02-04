@@ -14,16 +14,17 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
+from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
 from datafold.dynfold.utils import downsample
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries.base import TRANF_TYPES, TSCTransformMixIn
+from datafold.pcfold.timeseries.base import TRANF_TYPES, TSCTransformerMixIn
 from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat
 
 
-class DiffusionMaps(KernelMethod, TSCTransformMixIn):
+class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
     """Nonlinear dimension reduction by parametrizing a manifold with diffusion maps.
     Attributes:
 
@@ -83,13 +84,6 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             use_cuda,
             dist_backend,
             dist_backend_kwargs,
-        )
-
-        self._kernel = DmapKernelFixed(
-            epsilon=self.epsilon,
-            is_stochastic=self.is_stochastic,
-            alpha=self.alpha,
-            symmetrize_kernel=self.symmetrize_kernel,
         )
 
     @classmethod
@@ -183,6 +177,14 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         return dmap_embedding
 
+    def _setup_kernel(self):
+        self._kernel = DmapKernelFixed(
+            epsilon=self.epsilon,
+            is_stochastic=self.is_stochastic,
+            alpha=self.alpha,
+            symmetrize_kernel=self.symmetrize_kernel,
+        )
+
     def set_coords(self, indices) -> "DiffusionMaps":
 
         self.eigenvectors_ = if1dim_colvec(self.eigenvectors_[:, indices])
@@ -199,18 +201,28 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             self
         """
 
-        super(DiffusionMaps, self).fit(
-            X, y, transform_columns=[f"dmap{i}" for i in range(self.num_eigenpairs)]
-        )
+        X = self._validate(X=X, ensure_min_samples=2)
+
+        if self._has_indices(X):
+            self._setup_indices_based_fit(
+                features_in=X.columns,
+                features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
+            )
+        else:
+            self._setup_array_based_fit(
+                features_in=X.shape[1], features_out=self.num_eigenpairs
+            )
+
+        self._setup_kernel()
 
         # Need to hold X in class to be able to compute cdist distance matrix which is
         # required for out-of-sample transforms
-        self.X = PCManifold(
+        self.X_ = PCManifold(
             X,
             kernel=self.kernel_,
             cut_off=self.cut_off,
             dist_backend=self.dist_backend,
-            **self.dist_backend_kwargs,
+            **(self.dist_backend_kwargs or {}),
         )
 
         # basis_change_matrix is None if not required
@@ -220,14 +232,14 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
             self.kernel_matrix_,
             _basis_change_matrix,
             self._row_sums_alpha,
-        ) = self.X.compute_kernel_matrix()
+        ) = self.X_.compute_kernel_matrix()
 
         self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
         )
 
         self.eigenvectors_ = self._same_type_X(
-            X, values=self.eigenvectors_, columns=self._transform_columns
+            X, values=self.eigenvectors_, set_columns=self.features_out_[1]
         )
 
         if self.kernel_.is_symmetric_transform(is_pdist=True):
@@ -253,9 +265,14 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
 
         """
 
-        super(DiffusionMaps, self).transform(X)
+        check_is_fitted(
+            self, ("X_", "eigenvalues_", "eigenvectors_", "kernel_", "kernel_matrix_")
+        )
 
-        kernel_matrix_cdist, _, _ = self.X.compute_kernel_matrix(
+        X = self._validate(X, ensure_min_samples=1)
+        self._validate_features_transform(X)
+
+        kernel_matrix_cdist, _, _ = self.X_.compute_kernel_matrix(
             X, row_sums_alpha_fit=self._row_sums_alpha
         )
 
@@ -268,32 +285,38 @@ class DiffusionMaps(KernelMethod, TSCTransformMixIn):
         dmap_embedding = self._perform_dmap_embedding(eigvec_nystroem)
 
         return self._same_type_X(
-            X, values=dmap_embedding, columns=self._transform_columns
+            X, values=dmap_embedding, set_columns=self.features_out_[1]
         )
 
     def fit_transform(self, X, y=None, **fit_transform):
 
         self.fit(X, y)
+        X = self._validate(X, ensure_min_samples=2)
+
         dmap_embedding = self._perform_dmap_embedding(self.eigenvectors_)
 
         return self._same_type_X(
-            X, values=dmap_embedding, columns=self._transform_columns
+            X, values=dmap_embedding, set_columns=self.features_out_[1]
         )
 
     def inverse_transform(self, X: TRANF_TYPES):
-        super(DiffusionMaps, self).inverse_transform(X)
+
+        X = self._validate(X)
+        self._validate_features_inverse_transform(X)
 
         import scipy.linalg
 
         coeff_matrix = scipy.linalg.lstsq(
-            np.asarray(self.eigenvectors_), self.X, cond=1e-14
+            np.asarray(self.eigenvectors_), self.X_, cond=1e-14
         )[0]
 
         X_orig_space = np.asarray(X) @ coeff_matrix
-        return self._same_type_X(X, values=X_orig_space, columns=self._fit_columns)
+        return self._same_type_X(
+            X, values=X_orig_space, set_columns=self.features_in_[1]
+        )
 
 
-class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
+class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
     def __init__(
         self,
         epsilon=1.0,
@@ -313,15 +336,15 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
 
         # TODO: To implement: cut_off: float = np.inf (allow also sparsity!)
         super(DiffusionMapsVariable, self).__init__(
-            epsilon,
-            num_eigenpairs,
-            None,
-            False,
-            -1,
-            symmetrize_kernel,
-            use_cuda,
-            dist_backend,
-            dist_backend_kwargs,
+            epsilon=epsilon,
+            num_eigenpairs=num_eigenpairs,
+            cut_off=None,
+            is_stochastic=False,
+            alpha=-1,
+            symmetrize_kernel=symmetrize_kernel,
+            use_cuda=use_cuda,
+            dist_backend=dist_backend,
+            dist_backend_kwargs=dist_backend_kwargs,
         )
 
         self._kernel = DmapKernelVariable(
@@ -347,16 +370,24 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
-        super(DiffusionMapsVariable, self).fit(
-            X, y, transform_columns=[f"dmap{i}" for i in range(self.num_eigenpairs)]
-        )
+        X = self._validate(X, ensure_min_samples=2)
+
+        if self._has_indices(X):
+            self._setup_indices_based_fit(
+                features_in=X.columns,
+                features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
+            )
+        else:
+            self._setup_array_based_fit(
+                features_in=X.shape[1], features_out=self.num_eigenpairs
+            )
 
         pcm = PCManifold(
             X,
             kernel=self.kernel_,
             cut_off=self.cut_off,
             dist_backend=self.dist_backend,
-            **self.dist_backend_kwargs,
+            **(self.dist_backend_kwargs or {}),
         )
 
         # basis_change_matrix is None if not required
@@ -395,7 +426,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
         )
 
         self.eigenvectors_ = self._same_type_X(
-            X, values=self.eigenvectors_, columns=self._transform_columns
+            X, values=self.eigenvectors_, set_columns=self.features_out_[1]
         )
 
         return self
@@ -409,11 +440,22 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformMixIn):
         )
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
-        self.fit(X, y, **fit_params)
-        return self._same_type_X(X, self.eigenvectors_, self._transform_columns)
+        X = self._validate(X, ensure_min_samples=2)
+
+        if self._has_indices(X):
+            self._setup_indices_based_fit(
+                features_in=X.columns,
+                features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
+            )
+        else:
+            self._setup_array_based_fit(
+                features_in=X.shape[1], features_out=self.num_eigenpairs
+            )
+
+        return self._same_type_X(X, self.eigenvectors_, self.features_out_[1])
 
 
-class LocalRegressionSelection(TSCTransformMixIn):
+class LocalRegressionSelection(TSCTransformerMixIn):
 
     VALID_STRATEGY = ("dim", "threshold")
 
@@ -493,6 +535,24 @@ class LocalRegressionSelection(TSCTransformMixIn):
 
         self.eps_med_scale = eps_med_scale  # TODO: checks
         self.n_subsample = n_subsample  # TODO: checks
+
+    def _validate_parameter(self, num_eigenvectors):
+        if self.strategy == "dim":
+            if not (0 < self.intrinsic_dim < num_eigenvectors - 1):
+                # num_eigenpairs-1 because the first eigenvector is trivial.
+                raise ValueError(
+                    f"intrinsic_dim has to be an integer larger than 1 and smaller than "
+                    f"num_eigenpairs-1={num_eigenvectors}. Got intrinsic_dim"
+                    f"={self.intrinsic_dim}"
+                )
+        elif self.strategy == "threshold":
+            if not (0 < self.regress_threshold < 1):
+                raise ValueError(
+                    f"residual_threshold has to between [0, 1], exclusive. Got residual "
+                    f"threshold={self.regress_threshold}"
+                )
+        else:
+            raise ValueError(f"strategy={self.strategy} not known")
 
     def _single_residual_local_regression(
         self, domain_eigenvectors, target_eigenvector
@@ -634,7 +694,7 @@ class LocalRegressionSelection(TSCTransformMixIn):
                 ]
 
         # User provides a threshold for the residuals. All eigenfunctions above this value
-        # are incldued to parametrize the manifold.
+        # are included to parametrize the manifold.
         elif self.strategy == "threshold":
             self.evec_indices_ = np.where(residuals > self.regress_threshold)[0]
         else:
@@ -660,31 +720,11 @@ class LocalRegressionSelection(TSCTransformMixIn):
         # Note: this saves self._transform_columns = X.columns
         # Later on not all of these columns are required because of the selection
         # performed.
-        super(LocalRegressionSelection, self).fit(X, y, **fit_params)
 
+        X = self._validate(X, ensure_min_features=2)
         num_eigenvectors = X.shape[1]
 
-        if num_eigenvectors <= 1:
-            raise ValueError(
-                "There must be more than one eigenvector to compute the residual."
-            )
-
-        if self.strategy == "dim":
-            if not (0 < self.intrinsic_dim < num_eigenvectors - 1):
-                # num_eigenpairs-1 because the first eigenvector is trivial.
-                raise ValueError(
-                    f"intrinsic_dim has to be an integer larger than 1 and smaller than "
-                    f"num_eigenpairs-1={num_eigenvectors}. Got intrinsic_dim"
-                    f"={self.intrinsic_dim}"
-                )
-        elif self.strategy == "threshold":
-            if not (0 < self.regress_threshold < 1):
-                raise ValueError(
-                    f"residual_threshold has to between [0, 1], exclusive. Got residual "
-                    f"threshold={self.regress_threshold}"
-                )
-        else:
-            raise ValueError(f"strategy={self.strategy} not known")
+        self._validate_parameter(num_eigenvectors)
 
         if self.n_subsample is not None:
             eigvec = downsample(np.asarray(X), self.n_subsample)
@@ -703,6 +743,15 @@ class LocalRegressionSelection(TSCTransformMixIn):
 
         self._set_indices()
 
+        if self._has_indices(X):
+            self._setup_indices_based_fit(
+                features_in=X.columns, features_out=X.columns[self.evec_indices_],
+            )
+        else:
+            self._setup_array_based_fit(
+                features_in=X.shape[1], features_out=len(self.evec_indices_)
+            )
+
         return self
 
     def transform(self, X: Union[TRANF_TYPES, DiffusionMaps, DiffusionMapsVariable]):
@@ -710,19 +759,15 @@ class LocalRegressionSelection(TSCTransformMixIn):
         residuals from local linear least squares fit.
         """
 
+        X = self._validate(X)
+        self._validate_features_transform(X)
+
         if isinstance(X, (DiffusionMaps, DiffusionMapsVariable)):
             X = X.eigenvectors_
 
-        super(LocalRegressionSelection, self).transform(X)
-
-        if self._transform_columns is not None:
-            columns = self._transform_columns[self.evec_indices_]
-        else:
-            columns = None
-
         # choose eigenvectors
         X_selected = self._same_type_X(
-            X, np.asarray(X)[:, self.evec_indices_], columns=columns,
+            X, np.asarray(X)[:, self.evec_indices_], set_columns=self.features_out_[1],
         )
 
         return X_selected

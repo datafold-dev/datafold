@@ -81,8 +81,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             (self._time_interval[1] - self._normalize_shift) / self.dt_
         )
 
-    def fit(self, X: PRE_FIT_TYPES, **fit_params):
-        self._save_columns(fit_columns=X.columns, transform_columns=X.columns)
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+        self._setup_indices_based_fit(X, features_in=X.columns, features_out=X.columns)
         self._set_X_info(X)
 
     def predict(self, X: PRE_IC_TYPES, t, **predict_params):
@@ -114,6 +114,17 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             raise NotImplementedError(
                 "Currently all initial conditions have to have the same initial time."
             )
+        else:  # assumption required
+            initial_time = X.index.get_level_values("time")[0]
+            if (t < initial_time).any():
+                raise NotImplementedError(
+                    "Solving initial condition backwards in time "
+                    "is currently not supported."
+                )
+
+            if not (initial_time == t).any():
+                # always include the initial condition in the time to evaluate
+                t = np.append(initial_time, t)
 
         return self._evolve_edmd_system(
             X_ic=X, time_samples=t, post_map=post_map, qoi_columns=qoi_columns
@@ -233,7 +244,7 @@ class DMDFull(DMDBase):
         super(DMDFull, self).__init__()
         self.is_diagonalize = is_diagonalize
 
-    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
         super(DMDFull, self).fit(X, **fit_params)
 
         self.koopman_matrix_ = self._compute_koopman_matrix(X)
@@ -370,7 +381,7 @@ class DMDEco(DMDBase):
         self.k = svd_rank
         super(DMDEco, self).__init__()
 
-    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
         super(DMDEco, self).fit(X, **fit_params)
 
         self._compute_internals(X)
@@ -453,7 +464,7 @@ class PyDMDWrapper(DMDBase):
         else:
             raise ValueError(f"method={method} not known")
 
-    def fit(self, X: PRE_FIT_TYPES, **fit_params) -> "PyDMDWrapper":
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "PyDMDWrapper":
 
         super(PyDMDWrapper, self).fit(X=X)
 

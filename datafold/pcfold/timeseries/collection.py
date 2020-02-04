@@ -73,7 +73,7 @@ class TSCDataFrame(pd.DataFrame):
     def from_same_indices_as(
         cls,
         indices_from: "TSCDataFrame",
-        values: np.ndarray,
+        values,
         except_index: Optional[PD_IDX_TYPE] = None,
         except_columns: Optional[PD_IDX_TYPE] = None,
     ):
@@ -84,6 +84,10 @@ class TSCDataFrame(pd.DataFrame):
                 "Cannot copy index or column from existing TSCDataFrame if both is "
                 "excluded."
             )
+
+        # view input as array (allows for different input, which is
+        # compatible with numpy.ndarray
+        values = np.asarray(values)
 
         if except_index is None:
             index = indices_from.index  # type: ignore  # mypy cannot infer type here
@@ -457,14 +461,11 @@ class TSCDataFrame(pd.DataFrame):
 
         return points_df
 
-    def single_time_df(self, time):
-        """Extract from each time series the row for time. If there is no corresponding
-        entry for 'time', then the time series is skipped. If no time series has an
-        entry for time, then an KeyError is raised."""
+    def select_times(self, time_points) -> Union[pd.DataFrame, "TSCDataFrame"]:
+        """Returns pd.DataFrame if it is not a legal definition of TSC anymore (e.g.
+        only one point for an ID)"""
         idx = pd.IndexSlice
-
-        # cast to DataFrame first, because this time series has to be at least of length 2
-        return pd.DataFrame(self).loc[idx[:, time], :]
+        return self.loc[idx[:, time_points], :]
 
     def initial_states_df(self) -> pd.DataFrame:
         """Returns the initial condition (first state) for each time series as a

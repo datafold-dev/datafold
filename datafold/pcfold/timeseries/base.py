@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
-from typing import Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
+from sklearn.base import TransformerMixin
+from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_array, check_is_fitted
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame
 from datafold.pcfold.timeseries.metric import TSCMetric
@@ -22,12 +25,13 @@ PRE_IC_TYPES = Union[pd.Series, pd.DataFrame, np.ndarray]
 
 class TSCBaseMixIn:
     def _strictly_pandas_df(self, df):
+        # This returns False for subclasses (TSCDataFrame)
         return type(df) == pd.DataFrame
 
     def _has_indices(self, _obj):
         return isinstance(_obj, pd.DataFrame)
 
-    def _intern_X_as_numpy(self, X):
+    def _intern_X_to_numpy(self, X):
         if self._has_indices(X):
             X = X.to_numpy()
             # a row in a df is always a single sample (which requires to be
@@ -36,88 +40,146 @@ class TSCBaseMixIn:
         else:
             return X
 
-    def _save_columns(self, fit_columns: pd.Index, transform_columns: pd.Index = None):
-        self._fit_columns = fit_columns
+    def _setup_array_based_fit(self, features_in, features_out):
+        self.features_in_ = (features_in, None)
+        self.features_out_ = (features_out, None)
 
-        if transform_columns is not None:
-            self._transform_columns = transform_columns
+    def _setup_indices_based_fit(
+        self, features_in: pd.Index, features_out: Union[List[str], pd.Index]
+    ):
+        # TODO: checks about columns
+        #  -- no MultiIndex
+        #  -- no duplicates in columns
+        #  -- features_names_in needs to match X.shape[1]
+
+        self.features_in_ = (len(features_in), features_in)
+
+        if isinstance(features_out, list):
+            features_out = pd.Index(
+                features_out, dtype=np.str, name=TSCDataFrame.IDX_QOI_NAME,
+            )
+        self.features_out_ = (len(features_out), features_out)
+
+    def _check_indices_set_up(self):
+        check_attributes = ["features_in_", "features_out_"]
+        try:
+            check_is_fitted(
+                self, attributes=["features_in_", "features_out_"],
+            )
+        except NotFittedError:
+            raise RuntimeError(
+                f"{check_attributes} are not available for estimator {self}. Please "
+                "report bug."
+            )
 
 
-class TSCTransformMixIn(TSCBaseMixIn):
-    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
+class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
+    def _validate(self, X, ensure_index_type=False, **validate_kwargs):
+        """Provides a general function to check data -- can be overwritten if an
+        implementation requires different checks."""
+
+        if ensure_index_type and not self._has_indices(X):
+            raise TypeError(
+                f"X is of type {type(X)} but only indexable types ("
+                f"pd.DataFrame of TSCDataFrame) are supported."
+            )
+
         if self._has_indices(X):
-            transform_columns = fit_params.pop("transform_columns", X.columns)
-
-            if isinstance(transform_columns, list):
-                transform_columns = pd.Index(
-                    transform_columns, dtype=np.str, name=TSCDataFrame.IDX_QOI_NAME
-                )
-
-            self._save_columns(X.columns, transform_columns=transform_columns)
-
+            X_check = X.to_numpy()
         else:
-            self._fit_columns = None
-            self._transform_columns = None
+            X_check = X
 
-        self._fit_type = type(X)
+        X_check = check_array(
+            X_check,
+            accept_sparse=validate_kwargs.pop("accept_sparse", False),
+            accept_large_sparse=validate_kwargs.pop("accept_large_sparse", False),
+            dtype=validate_kwargs.pop("dtype", "numeric"),
+            order=validate_kwargs.pop("order", None),
+            copy=validate_kwargs.pop("copy", False),
+            force_all_finite=validate_kwargs.pop("force_all_finite", True),
+            ensure_2d=validate_kwargs.pop("ensure_2d", True),
+            allow_nd=validate_kwargs.pop("allow_nd", False),
+            ensure_min_samples=validate_kwargs.pop("ensure_min_samples", 1),
+            ensure_min_features=validate_kwargs.pop("ensure_min_features", 1),
+            estimator=self,
+        )
 
-    def transform(self, X: TRANF_TYPES):
+        if validate_kwargs != {}:
+            raise ValueError(
+                f"{validate_kwargs.keys()} are no valid validation keys. "
+                "Please report bug."
+            )
+
         if self._has_indices(X):
-            if type(X) != pd.DataFrame and type(X) != TSCDataFrame:
-                raise TypeError(
-                    f"fit was called with type {self._fit_type} which does "
-                    f"not support indices. The model does not support types for "
-                    f"transform which support indices."
-                )
-            self._check_fit_columns(X=X)
+            return X
+        else:
+            return X_check
 
-    def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
-        return self.fit(X, y, **fit_params).transform(X=X)
+    def _validate_features_transform(self, X: TRANF_TYPES):
 
-    def inverse_transform(self, X: TRANF_TYPES):
+        self._check_indices_set_up()
+
         if self._has_indices(X):
-            self._check_transform_columns(X=X)
+            if self.features_in_[1] is None:
+                # TODO -- fit was called with array but now try with DataFrame
+                raise ValueError("")
+            self._validate_feature_names(X=X, direction="transform")
+        else:
+            if self.features_in_[0] != X.shape[1]:
+                # TODO
+                raise ValueError("")
 
-    def _check_fit_columns(self, X: TRANF_TYPES):
-        if not hasattr(self, "_fit_columns"):
-            raise RuntimeError("_fit_columns is not set. Please report bug.")
+    def _validate_features_inverse_transform(self, X: TRANF_TYPES):
+        self._check_indices_set_up()
+
+        if self._has_indices(X):
+            if self.features_in_[1] is None:
+                # TODO -- fit was called with array but now try with DataFrame
+                raise ValueError("")
+
+            # TODO: this error is also raised if user forgot to call fit, so there
+            #  should be checked before
+
+            self._validate_feature_names(X, direction="inverse")
+
+    def _validate_feature_names(self, X: TRANF_TYPES, direction):
+
+        _check_features: Tuple[int, pd.Index]
+
+        if direction == "transform":
+            _check_features = self.features_in_
+        elif direction == "inverse":
+            _check_features = self.features_out_
+        else:
+            raise RuntimeError("Please report bug.")
 
         if self._has_indices(X):
             if isinstance(X, pd.Series):
                 # if X is a Series, then the columns of the original data are in a Series
                 # this usually happens if X.iloc[0, :] --> returns a Series
-                pdtest.assert_index_equal(right=self._fit_columns, left=X.index)
+                pdtest.assert_index_equal(right=_check_features[1], left=X.index)
             else:
-                pdtest.assert_index_equal(right=self._fit_columns, left=X.columns)
-
-    def _check_transform_columns(self, X: TRANF_TYPES):
-        if not hasattr(self, "_transform_columns"):
-            raise RuntimeError("_transform_columns is not set. Please report bug.")
-
-        pdtest.assert_index_equal(right=self._transform_columns, left=X.columns)
+                pdtest.assert_index_equal(right=_check_features[1], left=X.columns)
 
     def _same_type_X(
-        self, X: TRANF_TYPES, values: np.ndarray, columns=None
+        self, X: TRANF_TYPES, values: np.ndarray, set_columns
     ) -> TRANF_TYPES:
 
         _type = type(X)
-
-        if self._has_indices(X) and columns is None:
-            columns = X.columns
 
         if isinstance(X, TSCDataFrame):
             # NOTE: order is important here TSCDataFrame is also a DataFrame, so first
             # check for the special case, then for the more general case.
 
             return TSCDataFrame.from_same_indices_as(
-                X, values=values, except_columns=columns
+                X, values=values, except_columns=set_columns
             )
         elif isinstance(X, pd.DataFrame):
-            return pd.DataFrame(values, index=X.index, columns=columns)
+            return pd.DataFrame(values, index=X.index, columns=set_columns)
         elif isinstance(X, np.ndarray):
             return values
         else:
-            raise TypeError
+            raise TypeError(f"input type {type(X)} is not supported")
 
 
 class TSCPredictMixIn(TSCBaseMixIn):
@@ -129,14 +191,14 @@ class TSCPredictMixIn(TSCBaseMixIn):
         # pd.DataFrame with all the information...
         raise NotImplementedError
 
-    def fit_predict(self, X: PRE_FIT_TYPES) -> TSCDataFrame:
+    def fit_predict(self, X: PRE_FIT_TYPES, y=None) -> TSCDataFrame:
         # TODO: to be consistent this would require **fit_params and **predict_params,
         #  no kwargs for now to handle this, in case this becomes an issue.
 
         # Note: this is an non-optimized way. To optimize this case, overwrite this.
         X_ic = X.initial_states_df()
         t = X.time_indices(unique_values=True)
-        return self.fit(X).predict(X_ic, t)
+        return self.fit(X=X, y=y).predict(X_ic, t)
 
     def score(
         self,

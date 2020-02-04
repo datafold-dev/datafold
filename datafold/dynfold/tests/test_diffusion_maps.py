@@ -2,7 +2,6 @@
 
 """
 
-import os
 import unittest
 
 import matplotlib.pyplot as plt
@@ -61,6 +60,18 @@ class DiffusionMapsTest(unittest.TestCase):
         logging.debug(f"Rayleigh quotients: {expected_ew}")
 
         nptest.assert_allclose(np.abs(actual_ew), np.abs(expected_ew))
+
+    def test_set_param(self):
+        dmap = DiffusionMaps(epsilon=1)
+        dmap.set_params(epsilon=2)
+
+        self.assertEqual(dmap.epsilon, 2)
+
+    def test_is_valid_sklearn_estimator(self):
+        from sklearn.utils.estimator_checks import check_estimator
+
+        # raises error if not valid:
+        check_estimator(DiffusionMaps)
 
     def test_multiple_epsilon_values(self):
         """Test from legacy code, not exactly sure what is tested here (Rayleigh
@@ -123,12 +134,7 @@ class DiffusionMapsTest(unittest.TestCase):
             dense_case.eigenvalues_, sparse_case.eigenvalues_, rtol=1e-13, atol=1e-14
         )
 
-        # TODO: due to the sparse component, it is a bit tricky to compare eigenvectors
-        #  (this requires more work),
-        #  things that can be checked, is eigenvec1 = -eigenvec2? are they self
-        #  orthogonal eigenvec @ eigenvec = 1, etc.
-        # self.assertTrue(np.allclose(dense_case.eigenvectors, sparse_case.eigenvectors,
-        #                             rtol=1E-13, atol=1E-14))
+        assert_equal_eigenvectors(dense_case.eigenvectors_, sparse_case.eigenvectors_)
 
     def test_symmetric_dense(self):
         data, _ = make_swiss_roll(2000, random_state=1)

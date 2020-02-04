@@ -16,14 +16,14 @@ import numpy as np
 from sklearn.base import MultiOutputMixin, RegressorMixin
 from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
+from sklearn.utils.validation import check_is_fitted, check_scalar
 
 import datafold.pcfold as pcfold
-from datafold.dynfold.kernel import KernelMethod
+from datafold.dynfold.kernel import DmapKernelFixed, KernelMethod
 from datafold.dynfold.utils import to_ndarray
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.utils.maths import mat_dot_diagmat
-
-from datafold.dynfold.kernel import DmapKernelFixed
+from sklearn.base import BaseEstimator
 
 
 class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMixin):
@@ -56,67 +56,13 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             dist_backend_kwargs=dist_backend_kwargs,
         )
 
-        self._row_sums_alpha = None  # required if alpha > 1 and calling predict()
-
+    def _setup_kernel(self):
         self._kernel = DmapKernelFixed(
             epsilon=self.epsilon,
             is_stochastic=self.is_stochastic,
             alpha=self.alpha,
             symmetrize_kernel=self.symmetrize_kernel,
         )
-
-    def fit(self, X, y):
-
-        X, y = self._check_X_y(X, y)
-
-        self.X = pcfold.PCManifold(
-            X,
-            kernel=self.kernel_,
-            cut_off=self.cut_off,
-            dist_backend=self.dist_backend,
-            **self.dist_backend_kwargs,
-        )
-
-        self.y = y
-
-        (
-            self.kernel_matrix_,
-            _basis_change_matrix,
-            self._row_sums_alpha,
-        ) = self.X.compute_kernel_matrix()
-
-        self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
-            self.kernel_matrix_, _basis_change_matrix, self.use_cuda
-        )
-
-        if self.kernel_.is_symmetric_transform(is_pdist=True):
-            self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
-                kernel_matrix=self.kernel_matrix_,
-                basis_change_matrix=_basis_change_matrix,
-            )
-
-        self._precompute_aux()
-        return self
-
-    def score(self, X, y, sample_weight=None, multioutput="raw_values") -> float:
-
-        X, y = self._check_X_y(X, y)
-        y_pred = self(X)
-
-        score = mean_squared_error(
-            y, y_pred, sample_weight=None, multioutput=multioutput
-        )
-
-        if multioutput == "raw_values" and len(score) == 1:
-            # in case score is np.array([score])
-            score = score[0]
-
-        # root mean squared error (NOTE: if upgrading scikit learn > 0.22 , the
-        # mean_squared_error supports another input to get the RMSE
-        return np.sqrt(score)
-
-    def predict(self, X):
-        return self(X)
 
     def _precompute_aux(self) -> None:
         # TODO: [style] "aux" should get a better name
@@ -131,31 +77,47 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         # fast "n^2" complexity "AUX = EVEC @ 1/EVAL @ EVEC.T @ y"
         self._aux = mat_dot_diagmat(
             self.eigenvectors_, np.reciprocal(self.eigenvalues_)
-        ) @ (self.eigenvectors_.T @ self.y)
+        ) @ (self.eigenvectors_.T @ self.y_)
 
-    def _check_X_y(self, X: np.ndarray, y: np.ndarray = None) -> np.ndarray:
+    def _validate(
+        self, X: np.ndarray, y: np.ndarray = None, ensure_min_samples=1
+    ) -> np.ndarray:
 
         check_consistent_length(X, y)
 
+        if isinstance(X, np.memmap):
+            copy = True
+        else:
+            copy = False
+
         kwargs = {
             "accept_sparse": False,
+            "copy": copy,
             "accept_large_sparse": False,
             "dtype": "numeric",
+            "force_all_finite": True,
             "ensure_2d": True,
             "allow_nd": False,
-            "ensure_min_samples": 1,
+            "ensure_min_samples": ensure_min_samples,
             "ensure_min_features": 1,
         }
 
         if y is None:
-            return check_array(X, **kwargs)
+            X = check_array(X, **kwargs)
         else:
-            if y.ndim == 1:
+            if isinstance(y, np.ndarray) and y.ndim == 1:
                 y = y[:, np.newaxis]
 
             kwargs["multi_output"] = True
             kwargs["y_numeric"] = True
-            return check_X_y(X, y, **kwargs)
+            X, y = check_X_y(X, y, **kwargs)
+
+        return X, y
+
+    def _get_tags(self):
+        _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
+        _tags["multioutput"] = True
+        return _tags
 
     def __call__(self, X: np.ndarray) -> np.ndarray:
         """Evaluate interpolator at the given points.
@@ -167,18 +129,76 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             same manifold as the data used in the fit function.
         """
 
-        X = self._check_X_y(X)
+        check_is_fitted(
+            self,
+            attributes=[
+                "_kernel",
+                "X_",
+                "_aux",
+                "eigenvalues_",
+                "eigenvectors_",
+                "y_",
+                "_row_sums_alpha",
+            ],
+        )
+
+        X, _ = self._validate(X, ensure_min_samples=1)
         (
             kernel_matrix,
             _sanity_check_basis,
             _sanity_check_rowsamples,
-        ) = self.X.compute_kernel_matrix(Y=X, row_sums_alpha_fit=self._row_sums_alpha)
+        ) = self.X_.compute_kernel_matrix(Y=X, row_sums_alpha_fit=self._row_sums_alpha)
 
         assert (
             _sanity_check_basis is None and _sanity_check_rowsamples is None
         ), "cdist case, the symmetrize_kernel only works for the pdist case"
 
         return np.squeeze(kernel_matrix @ self._aux)
+
+    def fit(self, X, y):
+
+        X, y = self._validate(X, y=y, ensure_min_samples=2)
+        self._setup_kernel()
+
+        self.X_ = pcfold.PCManifold(
+            X,
+            kernel=self.kernel_,
+            cut_off=self.cut_off,
+            dist_backend=self.dist_backend,
+            **(self.dist_backend_kwargs or {}),
+        )
+
+        self.y_ = y
+
+        check_scalar(
+            self.num_eigenpairs,
+            "num_eigenpairs",
+            target_type=(np.integer, int),
+            min_val=1,
+            max_val=self.X_.shape[0] - 1,
+        )
+
+        (
+            self.kernel_matrix_,
+            _basis_change_matrix,
+            self._row_sums_alpha,
+        ) = self.X_.compute_kernel_matrix()
+
+        self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
+            self.kernel_matrix_, _basis_change_matrix, self.use_cuda
+        )
+
+        if self.kernel_.is_symmetric_transform(is_pdist=True):
+            self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
+                kernel_matrix=self.kernel_matrix_,
+                basis_change_matrix=_basis_change_matrix,
+            )
+
+        self._precompute_aux()
+        return self
+
+    def predict(self, X):
+        return self(X)
 
     def gradient(self, X: np.ndarray, vcol: Optional[int] = None) -> np.ndarray:
         """Evaluate gradient of interpolator at the given points.
@@ -205,28 +225,28 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         # TODO: generalize to all columns (if required...). Note that this will be a
         #  tensor then.
 
-        X = self._check_X_y(X)
+        X, _ = self._validate(X, ensure_min_samples=1)
 
-        assert self.X is not None and self.y is not None  # prevents mypy warnings
+        assert self.X_ is not None and self.y_ is not None  # prevents mypy warnings
 
-        if vcol is None and self.y.ndim > 1 and self.y.shape[1] > 1:
+        if vcol is None and self.y_.ndim > 1 and self.y_.shape[1] > 1:
             raise NotImplementedError(
                 "Currently vcol has to be provided to indicate for which values to get "
                 "the gradient. Jacobi matrix is currently not supported."
             )
 
-        if vcol is not None and not (0 <= vcol <= self.y.shape[1]):
+        if vcol is not None and not (0 <= vcol <= self.y_.shape[1]):
             raise ValueError(
                 f"vcol is not in the valid range between {0} and "
-                f"{self.y.shape[1]} (number of columns in values). Got vcol={vcol}"
+                f"{self.y_.shape[1]} (number of columns in values). Got vcol={vcol}"
             )
 
         if vcol is not None:
-            values = self.y[:, vcol]
+            values = self.y_[:, vcol]
         else:
-            values = self.y[:, 0]
+            values = self.y_[:, 0]
 
-        kernel_matrix, basis_change_matrix, _ = self.X.compute_kernel_matrix(
+        kernel_matrix, basis_change_matrix, _ = self.X_.compute_kernel_matrix(
             X
         )  # TODO: _
         assert basis_change_matrix is None  # TODO: catch this case before computing...
@@ -241,11 +261,28 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         # NOTE: see also file misc/microbenchmark_gradient.py, using numexpr can squeeze
         # out some computation speed for large numbers of xi.shape[0]
         grad = np.zeros_like(X)
-        v = np.empty_like(self.X)
+        v = np.empty_like(self.X_)
         for p in range(X.shape[0]):
-            np.subtract(X[p, :], self.X, out=v)
+            np.subtract(X[p, :], self.X_, out=v)
             np.matmul(v.T, ki_psis[p, :], out=grad[p, :])
         return grad
+
+    def score(self, X, y, sample_weight=None, multioutput="raw_values") -> float:
+
+        X, y = self._validate(X, y=y, ensure_min_samples=1)
+        y_pred = self(X)
+
+        score = mean_squared_error(
+            y, y_pred, sample_weight=None, multioutput=multioutput
+        )
+
+        if multioutput == "raw_values" and len(score) == 1:
+            # in case score is np.array([score])
+            score = score[0]
+
+        # root mean squared error (NOTE: if upgrading scikit learn > 0.22 , the
+        # mean_squared_error supports another input to get the RMSE
+        return np.sqrt(score)
 
 
 class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
@@ -294,8 +331,8 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
 
         from datafold.pcfold import PCManifold
         from datafold.pcfold.kernels import RadialBasisKernel
-        from datafold.utils.math import diagmat_dot_mat
-        from datafold.utils.math import sort_eigenpairs
+        from datafold.utils.maths import diagmat_dot_mat
+        from datafold.utils.maths import sort_eigenpairs
         from scipy.sparse.linalg import eigsh
 
         mu_l_ = None
@@ -338,7 +375,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         self._aux = phi_l_ @ diagmat_dot_mat(np.reciprocal(mu_l_), phi_l_.T) @ y
 
     def __call__(self, X):
-        X = self._check_X_y(X)
+        X, _ = self._validate(X=X, y=None, ensure_min_samples=1)
 
         kernel_matrix = self.X.compute_kernel_matrix(
             Y=X, row_sums_alpha_fit=self._row_sums_alpha
@@ -349,7 +386,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
     def fit(
         self, X: np.ndarray, y=None, **fit_params
     ) -> "MultiScaleGeometricHarmonicsInterpolator":
-        X, y = self._check_X_y(X, y)
+        X, y = self._validate(X, y=y, ensure_min_samples=2)
 
         self._multi_scale_optimize(X, y)
         # self._precompute_aux()
@@ -366,7 +403,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         )
 
 
-class LaplacianPyramidsInterpolator:
+class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
     # TODO: LIST OF THINGS TO IMPROVE; TRY OUT OR TO DO
     #   1. allow sparse matrix (integrate cut_off etc.) --> problem: For large scales,
     #       there is almost no memory saving
@@ -392,26 +429,74 @@ class LaplacianPyramidsInterpolator:
         alpha=0,
     ):
 
-        if residual_tol is None and not auto_adaptive:
+        self.initial_epsilon = initial_epsilon
+        self.mu = mu
+        self.residual_tol = residual_tol
+        self.auto_adaptive = auto_adaptive
+        self.alpha = alpha
+
+    def _validate(self, X, y=None, ensure_min_samples=1):
+
+        if self.residual_tol is None and not self.auto_adaptive:
             raise ValueError(
                 "Need to specify a stopping criteria by either providing a "
                 "residual tolerance or auto_adaptive=True"
             )
 
-        if residual_tol is not None and residual_tol < 0:
-            raise ValueError()
+        if self.residual_tol is not None:
+            check_scalar(
+                self.residual_tol,
+                name="residual_tol",
+                target_type=(float, np.floating),
+                min_val=0,
+                max_val=np.inf,
+            )
 
-        if mu <= 1:
-            raise ValueError()
+        check_scalar(
+            self.mu,
+            "mu",
+            target_type=(int, np.integer, float, np.floating),
+            min_val=1 + np.finfo(float).eps,
+            max_val=np.inf,
+        )
 
-        self.initial_epsilon = initial_epsilon
-        self.mu = mu
-        self.residual_tol = residual_tol
-        self.auto_adaptive = auto_adaptive
+        if isinstance(X, np.memmap):
+            copy = True
+        else:
+            copy = False
 
-        self.alpha = alpha
+        kwargs = {
+            "accept_sparse": False,
+            "copy": copy,
+            "force_all_finite": True,
+            "accept_large_sparse": False,
+            "dtype": "numeric",
+            "ensure_2d": True,
+            "allow_nd": False,
+            "ensure_min_samples": ensure_min_samples,
+            "ensure_min_features": 1,
+        }
 
+        if y is not None:
+            kwargs["multi_output"] = True
+            kwargs["y_numeric"] = True
+            X, y = check_X_y(X, y, **kwargs)
+
+            if y.ndim == 1:
+                y = y[:, np.newaxis]
+
+        else:
+            X = check_array(X, **kwargs)
+
+        return X, y
+
+    def _setup(self):
         self._level_tracker = dict()
+
+    def _get_tags(self):
+        _tags = super(LaplacianPyramidsInterpolator, self)._get_tags()
+        _tags["multioutput"] = True
+        return _tags
 
     def _termination_rules_single(self, current_residual_norm, last_residual_norm):
         signal = self.LoopCond.NO_TERMINATION
@@ -459,7 +544,7 @@ class LaplacianPyramidsInterpolator:
 
     def _distance_matrix(self, Y=None):
         return compute_distance_matrix(
-            X=self.X,
+            X=self.X_,
             Y=Y,
             metric="sqeuclidean",  # for now only Gaussian kernel
             backend="brute",  # for now no support for sparse distance matrix
@@ -669,27 +754,21 @@ class LaplacianPyramidsInterpolator:
 
     def fit(self, X: np.ndarray, y, **fit_params) -> "LaplacianPyramidsInterpolator":
 
-        if y.ndim == 1:
-            y = y[:, np.newaxis]
-
-        self.X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=False,
-            force_all_finite=True,
-            ensure_2d=True,
-            multi_output=True,
-            ensure_min_features=1,
-            y_numeric=True,
-        )
+        self.X_, y = self._validate(X, y, ensure_min_samples=2)
+        self._setup()
 
         self.nr_targets_ = y.shape[1]
-        self._laplacian_pyramid(self.X, y)
+        self._laplacian_pyramid(self.X_, y)
 
         return self
 
-    def __call__(self, X):
+    def predict(self, X):
 
+        X, _ = self._validate(X)
+
+        check_is_fitted(self, attributes=["X_", "nr_targets_", "_level_tracker",])
+
+        # allocate memory for return
         y_hat = np.zeros([X.shape[0], self.nr_targets_])
         distance_matrix = self._distance_matrix(Y=X)
 
@@ -702,10 +781,19 @@ class LaplacianPyramidsInterpolator:
             active_indices = level_content["active_indices"]
             y_hat[:, active_indices] += kernel_matrix @ level_content["target_values"]
 
+        if self.nr_targets_ == 1:
+            y_hat = y_hat.flatten()
+
         return y_hat
 
-    def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
-        pass  # TODO
+    # def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
+    #     return mean_squared_error(
+    #         self.predict(X),
+    #         y_pred=y,
+    #         sample_weight=sample_weight,
+    #         squared=True,
+    #         multioutput=multioutput,
+    #     )
 
     def plot_eps_vs_residual(self):
 
