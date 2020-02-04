@@ -52,9 +52,6 @@ class KernelMethod(BaseEstimator):
         dist_backend,
         dist_backend_kwargs,
     ):
-
-        super(KernelMethod, self).__init__()
-
         self.epsilon = epsilon
         self.num_eigenpairs = num_eigenpairs
         self.cut_off = cut_off
