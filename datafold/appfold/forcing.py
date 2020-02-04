@@ -1,16 +1,15 @@
 from typing import Optional, Union
 
+
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
-import datafold.dynfold.operator as operator
+import datafold.dynfold.diffusion_maps as operator
 import datafold.pcfold.timeseries as ts
 from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.accessor import NormalizeQoi, TimeSeriesError
-from datafold.utils.datastructure import if1dim_rowvec
 
 
 class ForcingKernelEigFuncDMD(object):
