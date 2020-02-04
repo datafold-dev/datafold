@@ -4,9 +4,7 @@
 
 from typing import Callable, List
 
-import ipywidgets as widgets
 import numpy as np
-from IPython.display import display
 
 from datafold.dynfold.diffusion_maps import DiffusionMaps
 from datafold.dynfold.plot import (
@@ -16,6 +14,15 @@ from datafold.dynfold.plot import (
     plot_l_vs_epsilon,
     plot_results,
 )
+
+try:
+    import ipywidgets as widgets
+    from IPython.display import display
+except ImportError:
+    print(
+        f"module {__name__} is not available because optional dependencies IPython "
+        f"and ipyidgets are not installed"
+    )
 
 
 def _checkboxes(
