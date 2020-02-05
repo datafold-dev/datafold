@@ -50,7 +50,6 @@ class TSCBaseMixIn:
         # TODO: checks about columns
         #  -- no MultiIndex
         #  -- no duplicates in columns
-        #  -- features_names_in needs to match X.shape[1]
 
         self.features_in_ = (len(features_in), features_in)
 
@@ -72,8 +71,6 @@ class TSCBaseMixIn:
                 "report bug."
             )
 
-
-class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
     def _validate(self, X, ensure_index_type=False, **validate_kwargs):
         """Provides a general function to check data -- can be overwritten if an
         implementation requires different checks."""
@@ -115,6 +112,8 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
         else:
             return X_check
 
+
+class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
     def _validate_features_transform(self, X: TRANF_TYPES):
 
         self._check_indices_set_up()
@@ -200,20 +199,5 @@ class TSCPredictMixIn(TSCBaseMixIn):
         t = X.time_indices(unique_values=True)
         return self.fit(X=X, y=y).predict(X_ic, t)
 
-    def score(
-        self,
-        X_true: PRE_FIT_TYPES,
-        X_pred: PRE_FIT_TYPES,
-        metric="rmse",
-        mode="qoi",
-        scaling="id",
-        sample_weight: Optional[np.ndarray] = None,
-        multi_qoi="raw_values",
-    ):
-
-        return TSCMetric(metric=metric, mode=mode, scaling=scaling).eval_metric(
-            y_true=X_true,
-            y_pred=X_pred,
-            sample_weight=sample_weight,
-            multi_qoi=multi_qoi,
-        )
+    def score(self, X_true: PRE_FIT_TYPES, X_pred: PRE_FIT_TYPES, **metric_kwargs):
+        raise NotImplementedError("")
