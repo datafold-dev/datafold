@@ -11,7 +11,7 @@ from datafold.appfold.edmd import EDMDDict, EDMD
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.transform import (
     TSCPrincipalComponent,
-    TSCQoiScale,
+    TSCQoiPreprocess,
     TSCTakensEmbedding,
     TSCIdentity,
 )
@@ -37,7 +37,7 @@ class EDMDTest(unittest.TestCase):
     def test_simple_sine_wave(self, plot=False):
         _edmd_dict = EDMDDict(
             steps=[
-                ("scale", TSCQoiScale(name="min-max")),
+                ("scale", TSCQoiPreprocess.scale(name="min-max")),
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=2)),
             ]

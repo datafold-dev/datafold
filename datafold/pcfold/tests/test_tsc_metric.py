@@ -4,10 +4,16 @@ import unittest
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
+import pandas.testing as pdtest
 from sklearn.metrics import mean_squared_error
 
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime, TSCMetric
+from datafold.pcfold.timeseries.metric import (
+    TSCKfoldSeries,
+    TSCKFoldTime,
+    TSCMetric,
+    make_tsc_scorer,
+)
 
 
 class TestTSCMetric(unittest.TestCase):
@@ -27,6 +33,8 @@ class TestTSCMetric(unittest.TestCase):
         self.tsc_one_left = TSCDataFrame.from_single_timeseries(
             df=self._create_multi_qoi_ts(10)
         )
+
+        # "left" and "right" refer to "y_true" and "y_pred" to measure the metric
         self.tsc_one_left = self.tsc_one_left.insert_ts(self._create_multi_qoi_ts(10))
         self.tsc_one_left = self.tsc_one_left.insert_ts(self._create_multi_qoi_ts(10))
 
@@ -40,6 +48,7 @@ class TestTSCMetric(unittest.TestCase):
         )
 
         # NOTE: here they have different length!
+        # "left" and "right" refer to "y_true" and "y_pred" to measure the metric
         self.tsc_two_left = self.tsc_two_left.insert_ts(self._create_multi_qoi_ts(5))
         self.tsc_two_left = self.tsc_two_left.insert_ts(self._create_multi_qoi_ts(20))
 
@@ -60,24 +69,24 @@ class TestTSCMetric(unittest.TestCase):
 
                         try:
                             if metric != "max":  # max does not support multi-output
-                                tsc_metric.score(
+                                tsc_metric.eval_metric(
                                     self.tsc_one_left,
                                     self.tsc_one_right,
                                     multi_qoi=multi_qoi,
                                 )
-                                tsc_metric.score(
+                                tsc_metric.eval_metric(
                                     self.tsc_two_left,
                                     self.tsc_two_right,
                                     multi_qoi=multi_qoi,
                                 )
                             else:
                                 with self.assertRaises(ValueError):
-                                    tsc_metric.score(
+                                    tsc_metric.eval_metric(
                                         self.tsc_one_left,
                                         self.tsc_one_right,
                                         multi_qoi=multi_qoi,
                                     )
-                                    tsc_metric.score(
+                                    tsc_metric.eval_metric(
                                         self.tsc_two_left,
                                         self.tsc_two_right,
                                         multi_qoi=multi_qoi,
@@ -93,7 +102,7 @@ class TestTSCMetric(unittest.TestCase):
 
     def test_error_per_timeseries1(self):
         multi_output = "uniform_average"
-        actual = TSCMetric(metric="mse", mode="timeseries").score(
+        actual = TSCMetric(metric="mse", mode="timeseries").eval_metric(
             self.tsc_one_left, self.tsc_one_right, multi_qoi=multi_output
         )
 
@@ -114,7 +123,7 @@ class TestTSCMetric(unittest.TestCase):
     def test_error_per_timeseries2(self):
         multi_output = "raw_values"
 
-        actual = TSCMetric(metric="mse", mode="timeseries").score(
+        actual = TSCMetric(metric="mse", mode="timeseries").eval_metric(
             self.tsc_one_left, self.tsc_one_right, multi_qoi=multi_output
         )
 
@@ -137,7 +146,7 @@ class TestTSCMetric(unittest.TestCase):
 
         multi_output = "raw_values"
 
-        actual = TSCMetric(metric="mse", mode="timeseries").score(
+        actual = TSCMetric(metric="mse", mode="timeseries").eval_metric(
             self.tsc_two_left, self.tsc_two_right, multi_qoi=multi_output
         )
 
@@ -157,7 +166,7 @@ class TestTSCMetric(unittest.TestCase):
 
     def test_error_per_qoi1(self):
         sample_weight = np.ones(self.tsc_one_left.shape[0])
-        actual = TSCMetric(metric="mse", mode="qoi").score(
+        actual = TSCMetric(metric="mse", mode="qoi").eval_metric(
             self.tsc_one_left, self.tsc_one_right, sample_weight=sample_weight
         )
 
@@ -174,7 +183,7 @@ class TestTSCMetric(unittest.TestCase):
         sample_weight = np.zeros(self.tsc_one_left.shape[0])
         sample_weight[0] = 1  # put whole weight on a single sample
 
-        actual = TSCMetric(metric="mse", mode="qoi").score(
+        actual = TSCMetric(metric="mse", mode="qoi").eval_metric(
             self.tsc_one_left, self.tsc_one_right, sample_weight=sample_weight
         )
 
@@ -192,7 +201,7 @@ class TestTSCMetric(unittest.TestCase):
 
     def test_error_per_qoi3(self):
         sample_weight = np.ones(self.tsc_two_left.shape[0])
-        actual = TSCMetric(metric="mse", mode="qoi").score(
+        actual = TSCMetric(metric="mse", mode="qoi").eval_metric(
             self.tsc_two_left, self.tsc_two_right, sample_weight=sample_weight
         )
 
@@ -207,7 +216,7 @@ class TestTSCMetric(unittest.TestCase):
 
     def test_error_per_timestep1(self):
         multi_qoi = "uniform_average"
-        actual = TSCMetric(metric="mse", mode="timestep").score(
+        actual = TSCMetric(metric="mse", mode="timestep").eval_metric(
             self.tsc_one_left, self.tsc_one_right, multi_qoi=multi_qoi
         )
 
@@ -232,7 +241,7 @@ class TestTSCMetric(unittest.TestCase):
             len(self.tsc_one_left.ids)
         )  # increasing weight for each time series (three)
 
-        actual = TSCMetric(metric="mse", mode="timestep").score(
+        actual = TSCMetric(metric="mse", mode="timestep").eval_metric(
             self.tsc_one_left,
             self.tsc_one_right,
             sample_weight=sample_weight,
@@ -258,7 +267,7 @@ class TestTSCMetric(unittest.TestCase):
         # For tsc_two
 
         multi_qoi = "uniform_average"
-        actual = TSCMetric(metric="mse", mode="timestep").score(
+        actual = TSCMetric(metric="mse", mode="timestep").eval_metric(
             self.tsc_two_left, self.tsc_two_right, multi_qoi=multi_qoi
         )
 
@@ -276,6 +285,44 @@ class TestTSCMetric(unittest.TestCase):
                 ),
                 actual.loc[t],
             )
+
+    def test_tsc_scorer(self):
+        _metric_callable_actual = TSCMetric.make_tsc_metric(
+            metric="rmse", mode="qoi", scaling="id"
+        )
+        _metric_callable_expected = TSCMetric(
+            metric="rmse", mode="qoi", scaling="id"
+        ).eval_metric
+
+        pdtest.assert_series_equal(
+            _metric_callable_expected(self.tsc_one_left, self.tsc_one_left),
+            _metric_callable_actual(self.tsc_one_left, self.tsc_one_left),
+        )
+
+    def test_qoi_uniform_avrg_score(self):
+
+        _metric = TSCMetric.make_tsc_metric(metric="rmse", mode="qoi", scaling="id")
+        _score = make_tsc_scorer(_metric)
+        _score_actual = _score(self.tsc_one_left, self.tsc_one_right)
+
+        _score_expected = _metric(self.tsc_one_left, self.tsc_one_right)
+        _score_expected = float(_score_expected.mean())
+
+        self.assertEqual(-1 * _score_expected, _score_actual)
+
+    def test_qoi_weighted_avrg_score(self):
+
+        sample_weight = np.array([1, 2, 3])
+        _metric = TSCMetric.make_tsc_metric(metric="rmse", mode="qoi", scaling="id")
+        _score = make_tsc_scorer(_metric)
+        _score_actual = _score(
+            self.tsc_one_left, self.tsc_one_right, sample_weight=sample_weight
+        )
+
+        _score_expected = _metric(self.tsc_one_left, self.tsc_one_right)
+        _score_expected = float(np.average(_score_expected, weights=sample_weight))
+
+        self.assertEqual(-1 * _score_expected, _score_actual)
 
 
 class TestTSCCV(unittest.TestCase):

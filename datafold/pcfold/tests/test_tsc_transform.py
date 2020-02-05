@@ -14,7 +14,6 @@ from datafold.pcfold.timeseries.transform import (
     TSCIdentity,
     TSCPrincipalComponent,
     TSCQoiPreprocess,
-    TSCQoiScale,
     TSCTakensEmbedding,
     TSCTransformerMixIn,
 )
@@ -55,12 +54,23 @@ class TestTSCTransform(unittest.TestCase):
 
     def test_is_valid_sklearn_estimator(self):
         from sklearn.utils.estimator_checks import check_estimator
+        from sklearn.preprocessing import MinMaxScaler
 
-        to_test = TSCIdentity
+        TEST_ESTIMATORS = (
+            TSCIdentity,
+            TSCPrincipalComponent,
+            TSCQoiPreprocess(MinMaxScaler()),
+            TSCQoiPreprocess(StandardScaler()),
+        )
 
-        for estimator, check in check_estimator(TSCIdentity, generate_only=True):
-            print(check)
-            check(estimator)
+        for test_estimator in TEST_ESTIMATORS:
+            for estimator, check in check_estimator(test_estimator, generate_only=True):
+                try:
+                    check(estimator)
+                except Exception as e:
+                    print(estimator)
+                    print(check)
+                    raise e
 
     def test_identity(self):
         tsc = TSCDataFrame(self.simple_df)
@@ -72,7 +82,7 @@ class TestTSCTransform(unittest.TestCase):
     def test_scale_min_max(self):
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiScale("min-max")
+        scale = TSCQoiPreprocess.scale("min-max")
         scaled_tsc = scale.fit_transform(tsc_df)
 
         # sanity check:
@@ -86,7 +96,7 @@ class TestTSCTransform(unittest.TestCase):
 
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiScale("standard")
+        scale = TSCQoiPreprocess.scale("standard")
         scaled_tsc = scale.fit_transform(tsc_df)
 
         nptest.assert_array_equal(
@@ -126,7 +136,7 @@ class TestTSCTransform(unittest.TestCase):
         ]
 
         for cls, kwargs in scaler:
-            scale = TSCQoiPreprocess(transform_cls=cls, **kwargs)
+            scale = TSCQoiPreprocess(sklearn_transformer=cls(**kwargs))
             tsc_transformed = scale.fit_transform(tsc_df)
 
             # Check the underlying array equals:
@@ -143,7 +153,7 @@ class TestTSCTransform(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             # Normalizer has no inverse_transform
-            TSCQoiPreprocess(transform_cls=Normalizer)
+            TSCQoiPreprocess(sklearn_transformer=Normalizer)
 
     def test_pca_transform(self):
 

@@ -211,7 +211,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
         multi_qoi="raw_values",
     ):
 
-        return TSCMetric(metric=metric, mode=mode, scaling=scaling).score(
+        return TSCMetric(metric=metric, mode=mode, scaling=scaling).eval_metric(
             y_true=X_true,
             y_pred=X_pred,
             sample_weight=sample_weight,

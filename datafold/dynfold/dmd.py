@@ -82,7 +82,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         )
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
-        self._setup_indices_based_fit(X, features_in=X.columns, features_out=X.columns)
+        self._setup_indices_based_fit(features_in=X.columns, features_out=X.columns)
         self._set_X_info(X)
 
     def predict(self, X: PRE_IC_TYPES, t, **predict_params):

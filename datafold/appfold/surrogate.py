@@ -11,7 +11,7 @@ import datafold.pcfold.timeseries as ts
 from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.metric import TSCMetric
-from datafold.pcfold.timeseries.transform import TSCQoiScale
+from datafold.pcfold.timeseries.transform import TSCQoiPreprocess
 from datafold.utils.datastructure import if1dim_rowvec
 
 
@@ -67,7 +67,7 @@ class SumoKernelEigFuncDMD(object):
         if normalize_strategy == "id":
             self.qoi_scale_ = None
         else:
-            self.qoi_scale_ = TSCQoiScale(normalize_strategy)
+            self.qoi_scale_ = TSCQoiPreprocess.scale(normalize_strategy)
 
     def _extract_dynamics_with_edmd(self, X_ts: TSCDataFrame):
         # transpose eigenvectors, because the eigenvectors are row-wise in pydmap
@@ -216,7 +216,7 @@ class SumoKernelEigFuncDMD(object):
         Y_pred = self.predict(X_ic, t=time_samples)
 
         tsc_metric = TSCMetric(metric=metric, mode=mode, scaling=normalize_strategy)
-        return tsc_metric.score(
+        return tsc_metric.eval_metric(
             y_true=Y_ts, y_pred=Y_pred, sample_weight=sample_weight, multi_qoi=multi_qoi
         )
 

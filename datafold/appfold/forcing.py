@@ -155,7 +155,7 @@ class ForcingKernelEigFuncDMD(object):
             metric=metric, mode=mode, normalize_strategy=normalize_strategy
         )
 
-        return tsc_error.score(
+        return tsc_error.eval_metric(
             y_true=Y_ts, y_pred=Y_pred, sample_weight=sample_weight, multi_qoi=multi_qoi
         )
 

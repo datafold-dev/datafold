@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Union
+from typing import Callable, Union
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.utils.datastructure import is_df_same_index, series_if_applicable
 
 
-class TSCMetric(object):
+class TSCMetric:
 
     VALID_MODE = ["timeseries", "timestep", "qoi"]
     VALID_METRIC = ["rmse", "rrmse", "mse", "mae", "max"]
@@ -34,6 +34,12 @@ class TSCMetric(object):
             raise ValueError(f"Invalid mode={mode}. Choose from {self.VALID_MODE}")
 
         self.scaling = self._select_scaling(name=scaling)
+
+    @classmethod
+    def make_tsc_metric(cls, metric: str, mode: str, scaling: str = "id") -> Callable:
+        """Metric measures difference between two datasets. Metrics can be
+        multidimensional. Returns a callable to the metric"""
+        return cls(metric=metric, mode=mode, scaling=scaling).eval_metric
 
     def _select_scaling(self, name):
 
@@ -131,23 +137,7 @@ class TSCMetric(object):
 
         return error_metric_handle
 
-    def _is_scalar_score(self, multioutput) -> bool:
-        """
-        Determines if the error is scalar, i.e. if there are multiple quantity of
-        interests, then these are combined to a single number (depending on the
-        multioutput parameter)
-
-        Parameters
-        ----------
-        multioutput
-            See sklearn.metrics documentation for valid arguments
-
-        Returns
-        -------
-        bool
-            Whether it is a scalar error.
-
-        """
+    def _is_scalar_multioutput(self, multioutput) -> bool:
 
         if (
             isinstance(multioutput, str) and multioutput == "uniform_average"
@@ -161,29 +151,29 @@ class TSCMetric(object):
             raise ValueError(f"Illegal argument of multioutput={multioutput}")
         return scalar_score
 
-    def _scalar_column_name(self, multioutput) -> list:
+    def _single_column_name(self, multioutput) -> list:
 
-        assert self._is_scalar_score(multioutput)
+        assert self._is_scalar_multioutput(multioutput)
 
         if isinstance(multioutput, str) and multioutput == "uniform_average":
-            column = ["error_uniform_average"]
+            column = ["metric_uniform_average"]
         elif isinstance(multioutput, np.ndarray):
-            column = ["error_user_weights"]
+            column = ["metric_user_weights"]
         else:
             raise ValueError(f"Illegal argument of multioutput={multioutput}")
 
         return column
 
-    def _error_per_timeseries(
+    def _metric_per_timeseries(
         self,
         y_true: TSCDataFrame,
         y_pred: TSCDataFrame,
         sample_weight=None,
-        multioutput="uniform_average",
+        multi_qoi="uniform_average",
     ) -> Union[pd.Series, pd.DataFrame]:
 
-        if self._is_scalar_score(multioutput=multioutput):
-            column = self._scalar_column_name(multioutput=multioutput)
+        if self._is_scalar_multioutput(multioutput=multi_qoi):
+            column = self._single_column_name(multioutput=multi_qoi)
 
             # Make in both cases a DataFrame and later convert to Series in the scalar
             # case this allows to use .loc[i, :] in the loop
@@ -202,12 +192,12 @@ class TSCMetric(object):
                 y_true_single,
                 y_pred_single,
                 sample_weight=sample_weight,
-                multioutput=multioutput,
+                multioutput=multi_qoi,
             )
 
         return series_if_applicable(error_per_timeseries)
 
-    def _error_per_qoi(
+    def _metric_per_qoi(
         self, y_true: TSCDataFrame, y_pred: TSCDataFrame, sample_weight=None
     ):
         # NOTE: score per qoi is never a multioutput, as a QoI is seen as a single scalar
@@ -223,18 +213,18 @@ class TSCMetric(object):
         error_per_qoi = pd.Series(error_per_qoi, index=y_true.columns,)
         return error_per_qoi
 
-    def _error_per_timestep(
+    def _metric_per_timestep(
         self,
         y_true: TSCDataFrame,
         y_pred: TSCDataFrame,
         sample_weight=None,
-        multioutput="uniform_average",
+        multi_qoi="uniform_average",
     ):
 
         time_indices = y_true.time_indices(unique_values=True)
 
-        if self._is_scalar_score(multioutput=multioutput):
-            column = self._scalar_column_name(multioutput=multioutput)
+        if self._is_scalar_multioutput(multioutput=multi_qoi):
+            column = self._single_column_name(multioutput=multi_qoi)
 
             # Make in both cases a DataFrame and later convert to Series in the scalar
             # case this allows to use .loc[i, :] in the loop
@@ -254,21 +244,28 @@ class TSCMetric(object):
             y_pred_t = pd.DataFrame(y_pred.loc[idx_slice[:, t], :])
 
             error_per_time.loc[t, :] = self.metric(
-                y_true_t,
-                y_pred_t,
-                sample_weight=sample_weight,
-                multioutput=multioutput,
+                y_true_t, y_pred_t, sample_weight=sample_weight, multioutput=multi_qoi,
             )
 
         return series_if_applicable(error_per_time)
 
-    def score(
+    def eval_metric(
         self,
         y_true: TSCDataFrame,
         y_pred: TSCDataFrame,
         sample_weight=None,
-        multi_qoi="uniform_average",
+        multi_qoi="raw_samples",
     ) -> Union[pd.Series, pd.DataFrame]:
+        """Note for docu:
+        These are "special" metrics for TSC and allow different "modes" to compare
+        errors between qoi, time or timeseries (see VALID_MODE).
+
+        The "multi_qoi" argument steers how to weight the QoI (e.g. when looking on
+        time).
+
+        Usually, all outputs are multi-dimensional and measure error and therefore are
+        not suited for scoring.
+        """
 
         if not is_df_same_index(y_true, y_pred):
             raise ValueError("y_true and y_pred must have the same index and columns")
@@ -277,23 +274,23 @@ class TSCMetric(object):
 
         # score depending on mode:
         if self.mode == "timeseries":
-            error_result = self._error_per_timeseries(
+            error_result = self._metric_per_timeseries(
                 y_true=y_true,
                 y_pred=y_pred,
                 sample_weight=sample_weight,
-                multioutput=multi_qoi,
+                multi_qoi=multi_qoi,
             )
 
         elif self.mode == "timestep":
-            error_result = self._error_per_timestep(
+            error_result = self._metric_per_timestep(
                 y_true=y_true,
                 y_pred=y_pred,
                 sample_weight=sample_weight,
-                multioutput=multi_qoi,
+                multi_qoi=multi_qoi,
             )
 
         elif self.mode == "qoi":
-            error_result = self._error_per_qoi(
+            error_result = self._metric_per_qoi(
                 y_true=y_true, y_pred=y_pred, sample_weight=sample_weight
             )
 
@@ -368,37 +365,41 @@ class TSCKFoldTime:
         return self.kfold_splitter.get_n_splits(X, y, groups=groups)
 
 
-if __name__ == "__main__":
-    idx = pd.MultiIndex.from_arrays(
-        [
-            [0, 0, 0, 0, 1, 1, 1, 1, 15, 15, 15, 15, 45, 45, 45, 45],
-            [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3],
-        ]
-    )
-    col = ["A", "B"]
-    simple_df = pd.DataFrame(np.random.rand(len(idx), 2), index=idx, columns=col)
+def make_tsc_scorer(metric_func, **metric_kwargs) -> Callable:
+    """
+    As specified by sklearn a score returns a floating point. Therefore, the output
+    of TSC metric needs to be further condensed.
+    """
 
-    idx = pd.MultiIndex.from_arrays(
-        [[0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2, 3, 4, 5, 6, 7],]
-    )
-    col = ["A", "B"]
-    single_ts = pd.DataFrame(np.random.rand(len(idx), 2), index=idx, columns=col)
+    def _tsc_scoring(y_true: TSCDataFrame, y_pred: TSCDataFrame, sample_weight=None):
+        """useage of sample_weight depends on the selected metric_func
+         * mode=qoi -> weight each qoi
+         * mode=timeseries -> weight each time series
+         * mode=time -> weight each time point
+        """
 
-    X = TSCDataFrame(simple_df)
-    X_single = TSCDataFrame(single_ts)
+        eval_tsc_metric: pd.Series = metric_func(
+            y_true=y_true,
+            y_pred=y_pred,
+            sample_weight=metric_kwargs.pop("sample_weight", None),
+            multi_qoi=metric_kwargs.pop("multi_qoi", "uniform_average"),
+        )
 
-    # simple_df
-    # for train, test in TSCKfoldSeries(2).split(X):
-    #     print(f"train {train} {X.iloc[train, :]}")
-    #     print(f"test {test} {X.iloc[test, :]}")
-    #
-    # for train, test in TSCKFoldTime(2).split(X):
-    #     print(f"train{train} {X.iloc[train, :]}")
-    #     print(f"test{train} {X.iloc[test, :]}")
+        if isinstance(eval_tsc_metric, pd.DataFrame):
+            raise ValueError(
+                "The metric_func must be configured such that only a "
+                "pd.Series is used for the scoring function."
+            )
 
-    # single_df -- should raise error
-    # TSCKfoldSeries(2).split(X_single)
+        if sample_weight is None:
+            score = np.mean(eval_tsc_metric.to_numpy())
+        elif isinstance(sample_weight, np.ndarray):
+            assert len(sample_weight) == len(eval_tsc_metric)
+            score = np.average(eval_tsc_metric.to_numpy(), weights=sample_weight)
+        else:
+            raise TypeError(f"sample_weight={sample_weight} is invalid.")
 
-    for train, test in TSCKFoldTime(3).split(X_single):
-        print(f"train{train} {X_single.iloc[train, :]}")
-        print(f"test{train} {X_single.iloc[test, :]}")
+        # score is "greater is better", all TSC metrics measure the error
+        return -1 * float(score)
+
+    return _tsc_scoring

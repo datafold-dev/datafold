@@ -27,7 +27,12 @@ from datafold.pcfold.timeseries.base import (
     TRANF_TYPES,
     TSCTransformerMixIn,
 )
-from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime, TSCMetric
+from datafold.pcfold.timeseries.metric import (
+    TSCKfoldSeries,
+    TSCKFoldTime,
+    TSCMetric,
+    make_tsc_scorer,
+)
 
 
 class EDMDDict(Pipeline):
@@ -70,6 +75,8 @@ class EDMD(Pipeline):
         self.dict_steps = dict_steps
         self.dmd_model = dmd_model
 
+        self._setup_default_score_and_metric()
+
         all_steps = self.dict_steps + [("dmd", self.dmd_model)]
         super(EDMD, self).__init__(steps=all_steps, memory=memory, verbose=verbose)
 
@@ -78,6 +85,12 @@ class EDMD(Pipeline):
         # TODO: not sure if it is better to make a getter?
         # probably better to do a deepcopy of steps
         return EDMDDict(steps=self.steps[:-1])
+
+    def _setup_default_score_and_metric(self):
+        self._metric_eval = TSCMetric.make_tsc_metric(
+            metric="rmse", mode="qoi", scaling="min-max"
+        )
+        self._score_eval = make_tsc_scorer(self._metric_eval)
 
     def _inverse_transform_latent_time_series(self, X):
         reverse_iter = reversed(list(self._iter(with_final=False)))
@@ -122,6 +135,8 @@ class EDMD(Pipeline):
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
         """Docu note: y is kept for consistency , but y is basically X_test"""
 
+        assert y is None
+
         Xt = X
         for _, name, transform in self._iter(with_final=False):
             Xt = transform.transform(Xt)
@@ -146,16 +161,7 @@ class EDMD(Pipeline):
             # recovered during inverse_transform (e.g. for Takens)
             X = X.select_times(time_points=X_est_ts.time_indices(unique_values=True))
 
-        score_per_qoi = TSCMetric(metric="rmse", mode="qoi", scaling="min-max").score(
-            y_true=X,
-            y_pred=X_est_ts,
-            sample_weight=sample_weight,
-            multi_qoi="uniform_average",
-        )
-
-        assert isinstance(score_per_qoi, pd.Series)
-
-        return float(score_per_qoi.mean())
+        return self._score_eval(X, X_est_ts, sample_weight)
 
 
 def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):

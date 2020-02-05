@@ -5,7 +5,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.utils.validation import check_is_fitted
@@ -20,7 +20,9 @@ from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError
 
 
 class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
-    def __init__(self, transform_cls, **kwargs):
+    VALID_SCALE_NAMES = ["min-max", "standard"]
+
+    def __init__(self, sklearn_transformer, **kwargs):
         """
         See
         https://scikit-learn.org/stable/modules/classes.html#module-sklearn.preprocessing
@@ -28,14 +30,27 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
         (for now) is that it supports an inverse mapping.
         """
 
-        if not hasattr(transform_cls, "transform") or not hasattr(
-            transform_cls, "inverse_transform"
+        self.sklearn_transformer = sklearn_transformer
+
+        if not hasattr(self.sklearn_transformer, "transform") or not hasattr(
+            sklearn_transformer, "inverse_transform"
         ):
             raise AttributeError(
-                f"transform cls {transform_cls} must provide a 'transform' "
+                f"transform cls {self.sklearn_transformer} must provide a 'transform' "
                 f"and 'inverse_transform' attribute"
             )
-        self.transform_cls_ = transform_cls(**kwargs)
+
+    @classmethod
+    def scale(cls, name):
+
+        if name == "min-max":
+            return cls(MinMaxScaler(feature_range=(0, 1), copy=True))
+        elif name == "standard":
+            return cls(StandardScaler(copy=True, with_mean=True, with_std=True))
+        else:
+            raise ValueError(
+                f"name='{name}' is not known. Choose from {cls.VALID_SCALE_NAMES}"
+            )
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
@@ -46,21 +61,23 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
         else:
             self._setup_array_based_fit(features_in=X.shape[1], features_out=X.shape[1])
 
-        X_intern = self._intern_X_to_numpy(X)
-        self.transform_cls_.fit(X_intern)
+        self.sklearn_transformer_fit_ = clone(
+            estimator=self.sklearn_transformer, safe=True
+        )
 
-        self.is_fit_ = True
+        X_intern = self._intern_X_to_numpy(X)
+        self.sklearn_transformer_fit_.fit(X_intern)
 
         return self
 
     def transform(self, X: TRANF_TYPES):
-        check_is_fitted(self, "is_fit_")
+        check_is_fitted(self, "sklearn_transformer_fit_")
 
         X = self._validate(X)
         self._validate_features_transform(X)
 
         X_intern = self._intern_X_to_numpy(X)
-        values = self.transform_cls_.transform(X_intern)
+        values = self.sklearn_transformer_fit_.transform(X_intern)
         return self._same_type_X(X=X, values=values, set_columns=self.features_out_[1])
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
@@ -72,14 +89,14 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
         else:
             self._setup_array_based_fit(features_in=X.shape[1], features_out=X.shape[1])
 
-        values = self.transform_cls_.fit_transform(X)
-        self.is_fit_ = True
+        self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
+        values = self.sklearn_transformer_fit_.fit_transform(X)
 
         return self._same_type_X(X=X, values=values, set_columns=self.features_out_[1])
 
     def inverse_transform(self, X: TRANF_TYPES):
         X_intern = self._intern_X_to_numpy(X)
-        values = self.transform_cls_.inverse_transform(X_intern)
+        values = self.sklearn_transformer_fit_.inverse_transform(X_intern)
         return self._same_type_X(X=X, values=values, set_columns=self.features_in_[1])
 
 
@@ -121,30 +138,10 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         return X
 
 
-class TSCQoiScale(TSCQoiPreprocess):
-
-    VALID_NAMES = ["min-max", "standard"]
-
-    def __init__(self, name):
-        """Convenience wrapper to use often used """
-        if name == "min-max":
-            _cls = MinMaxScaler
-            kwargs = dict(feature_range=(0, 1))
-        elif name == "standard":
-            _cls = StandardScaler
-            kwargs = dict(with_mean=True, with_std=True)
-        else:
-            raise ValueError(
-                f"name={name} is not known. Choose from {self.VALID_NAMES}"
-            )
-
-        super(TSCQoiScale, self).__init__(transform_cls=_cls, **kwargs)
-
-
 class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
     def __init__(
         self,
-        n_components,
+        n_components=2,
         copy=True,
         whiten=False,
         svd_solver="auto",
@@ -164,6 +161,8 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
+        X = self._validate(X)
+
         if self._has_indices(X):
             self._setup_indices_based_fit(
                 features_in=X.columns,
@@ -180,15 +179,19 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
         return super(TSCPrincipalComponent, self).fit(X_intern, y=y)
 
     def transform(self, X: TRANF_TYPES):
+        check_is_fitted(self)
+        X = self._validate(X)
 
         self._validate_features_transform(X)
 
         X_intern = self._intern_X_to_numpy(X)
         pca_data = super(TSCPrincipalComponent, self).transform(X_intern)
-
         return self._same_type_X(X, values=pca_data, set_columns=self.features_out_[1])
 
     def fit_transform(self, X, y=None):
+
+        X = self._validate(X)
+
         if self._has_indices(X):
             self._setup_indices_based_fit(
                 features_in=X.columns,
