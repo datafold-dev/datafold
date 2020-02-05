@@ -328,14 +328,14 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         print("-----------------")
         print("Residuum (train error):")
-        score_single_train = gh_single_interp.eval_metric(X_train, y_train)
+        score_single_train = gh_single_interp.score(X_train, y_train)
         score_multi_train = gh_multi_interp.score(X_train, y_train)
         print(f"gh single = {score_single_train}")
         print(f"gh multi = {score_multi_train}")
 
         print("---")
         print("Test error:")
-        score_single_test = gh_single_interp.eval_metric(X_oos, y_test)
+        score_single_test = gh_single_interp.score(X_oos, y_test)
         score_multi_test = gh_multi_interp.score(X_oos, y_test)
         print(f"gh single = {score_single_test}")
         print(f"gh multi = {score_multi_test}")
@@ -552,7 +552,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
             symmetrize_kernel=False,
         ).fit(data, values)
 
-        score = gh_interp.eval_metric(data, values)
+        score = gh_interp.score(data, values)
 
         # NOTE: if is_stochastic=True and alpha =0, the GH is not able to reproduce the
         # sin curve exactly.
@@ -598,7 +598,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         predicted_partial = gh_interp.predict(data[:10, :])
         predicted_all = gh_interp.predict(data_interp)
-        score = gh_interp.eval_metric(data, values)
+        score = gh_interp.score(data, values)
 
         # NOTE: if is_stochastic=True and alpha=1 the GH is able to reproduce the
         # sin curve more accurately.
