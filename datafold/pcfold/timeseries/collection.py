@@ -7,7 +7,8 @@ import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
 
-from datafold.utils.typing import PD_IDX_TYPE
+
+PD_IDX_TYPE = Union[pd.Index, List[str]]
 
 
 class TimeSeriesCollectionError(Exception):
