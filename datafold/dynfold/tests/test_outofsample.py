@@ -971,7 +971,7 @@ class LaplacianPyramidsTest(unittest.TestCase):
             print(check)
             check(estimator)
 
-    def test_synthetic_example_rabin(self, plot=True):
+    def test_synthetic_example_rabin(self, plot=False):
 
         # TODO: currently, there is a robustness issue. For very small scales,
         #  some cdist row-sums get zero -- the recisprocal therefore inf. Therefore,
