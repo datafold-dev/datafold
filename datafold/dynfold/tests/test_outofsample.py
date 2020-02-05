@@ -968,8 +968,12 @@ class LaplacianPyramidsTest(unittest.TestCase):
             LaplacianPyramidsInterpolator(initial_epsilon=100, auto_adaptive=True),
             generate_only=True,
         ):
-            print(check)
-            check(estimator)
+            try:
+                check(estimator)
+            except Exception as e:
+                print(check)
+                print(estimator)
+                raise e
 
     def test_synthetic_example_rabin(self, plot=False):
 
