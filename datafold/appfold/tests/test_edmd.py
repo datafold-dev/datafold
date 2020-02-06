@@ -174,11 +174,10 @@ class EDMDTest(unittest.TestCase):
             estimator=edmd,
             param_grid={"pca__n_components": [2, 4]},
             cv=TSCKFoldTime(4),
-            verbose=2,
+            verbose=False,
             return_train_score=True,
             n_jobs=1,
         )
 
         edmdcv.fit(self._setup_multi_sine_wave_data())
-        print(pd.DataFrame(edmdcv.cv_results_).T)
         self.assertIsInstance(edmdcv.cv_results_, dict)
