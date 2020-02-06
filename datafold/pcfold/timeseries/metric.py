@@ -267,8 +267,7 @@ class TSCMetric:
         not suited for scoring.
         """
 
-        if not is_df_same_index(y_true, y_pred):
-            raise ValueError("y_true and y_pred must have the same index and columns")
+        is_df_same_index(y_true, y_pred, handle="raise")
 
         self._scaling(y_true=y_true, y_pred=y_pred)
 

@@ -7,6 +7,7 @@ import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
 
+from datafold.utils.datastructure import is_integer
 
 PD_IDX_TYPE = Union[pd.Index, List[str]]
 
@@ -282,7 +283,7 @@ class TSCDataFrame(pd.DataFrame):
                 except AttributeError:
                     # Fallback if the sliced is not a valid TSC anymore
                     # returns to pd.Series or pd.DataFrame (depending on what the
-                    # sliced object of an pd.DataFrame is).
+                    # sliced object of a standard pd.DataFrame is).
                     return _type(sliced)
 
             def __setitem__(self, key, value):
@@ -294,7 +295,7 @@ class TSCDataFrame(pd.DataFrame):
         return LocHandler(self)
 
     @property
-    def dt(self) -> Union[pd.Series, float]:
+    def delta_time(self) -> Union[pd.Series, float]:
         """Returns float if all time deltas are identical, else returns Series."""
 
         if self._is_datetime_index():
@@ -341,7 +342,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_const_dt(self) -> bool:
         # If dt is a Series it means it shows "dt per ID" (because it is not constant).
-        return not isinstance(self.dt, pd.Series)
+        return not isinstance(self.delta_time, pd.Series)
 
     def is_same_ts_length(self):
         return isinstance(self.lengths_time_series, int)
@@ -369,22 +370,20 @@ class TSCDataFrame(pd.DataFrame):
         * constant time delta of 1"""
         if not self.is_const_dt():
             return False
-        return self.time_interval()[0] == 0 and self.dt == 1
+        return self.time_interval()[0] == 0 and self.delta_time == 1
 
     def is_finite(self):
         return np.isfinite(self).all().all()
 
-    def insert_ts(self, df, ts_id=None):
+    def insert_ts(self, df: pd.DataFrame, ts_id=None):
         if ts_id is None:
             ts_id = self.ids.max() + 1  # is unique and positive
 
         if ts_id in self.ids:
             raise ValueError(f"ID {ts_id} already present.")
 
-        if not isinstance(ts_id, numbers.Integral):
-            raise ValueError(
-                "ts_id has to be an integer not present in collection already."
-            )
+        if not is_integer(ts_id):
+            raise ValueError(f"ts_id has to be an integer type. Got={type(ts_id)}.")
 
         if self.nr_qoi != df.shape[1]:
             raise ValueError("TODO: Write error")  # TODO
@@ -434,7 +433,9 @@ class TSCDataFrame(pd.DataFrame):
             raise TimeSeriesCollectionError("Time delta is required to be constant.")
 
         start, end = self.time_interval()
-        return np.arange(start, np.nextafter(end, np.finfo(np.float).max), self.dt)
+        return np.arange(
+            start, np.nextafter(end, np.finfo(np.float).max), self.delta_time
+        )
 
     def qoi_to_ndarray(self, qoi: str):
 

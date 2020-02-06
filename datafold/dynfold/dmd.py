@@ -61,7 +61,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         if not X.is_const_dt():
             raise ValueError("Only data with constant frequency is supported.")
 
-        self.dt_ = X.dt
+        self.dt_ = X.delta_time
         self._qoi_columns = X.columns
 
         self._time_interval = X.time_interval()

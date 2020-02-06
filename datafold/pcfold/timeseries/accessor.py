@@ -57,7 +57,7 @@ class TSCollectionMethods(object):
             )
 
         convert_times = np.array(
-            (convert_times / self._tsc_df.dt) - min_time, dtype=np.int
+            (convert_times / self._tsc_df.delta_time) - min_time, dtype=np.int
         )
         convert_times = pd.Index(convert_times, name=self._tsc_df.index.names[1])
 

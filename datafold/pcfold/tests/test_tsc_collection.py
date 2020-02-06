@@ -336,7 +336,7 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(expected, actual)
 
     def test_time_delta(self):
-        actual = TSCDataFrame(self.simple_df).dt
+        actual = TSCDataFrame(self.simple_df).delta_time
         expected = 1.0
         self.assertEqual(actual, expected)
 
@@ -346,7 +346,7 @@ class TestTSCDataFrame(unittest.TestCase):
             4,
         ]  # "destroy" existing time delta of id 45
 
-        actual = TSCDataFrame(simple_df).dt
+        actual = TSCDataFrame(simple_df).delta_time
         expected = pd.Series(
             data=[1, 1, 1, np.nan],
             index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.IDX_ID_NAME),
