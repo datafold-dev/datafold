@@ -196,7 +196,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
         # Note: this is an non-optimized way. To optimize this case, overwrite this.
         X_ic = X.initial_states_df()
-        t = X.time_indices(unique_values=True)
+        t = X.time_values(unique_values=True)
         return self.fit(X=X, y=y).predict(X_ic, t)
 
     def score(self, X_true: PRE_FIT_TYPES, X_pred: PRE_FIT_TYPES, **metric_kwargs):

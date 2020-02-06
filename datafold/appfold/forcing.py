@@ -106,7 +106,7 @@ class ForcingKernelEigFuncDMD(object):
         )
 
         # is required to evaluate time
-        self._fit_time_index = X_ts.time_indices(unique_values=True)
+        self._fit_time_index = X_ts.time_values(unique_values=True)
         self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via GH-function basis

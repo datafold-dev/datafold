@@ -221,7 +221,7 @@ class TSCMetric:
         multi_qoi="uniform_average",
     ):
 
-        time_indices = y_true.time_indices(unique_values=True)
+        time_indices = y_true.time_values(unique_values=True)
 
         if self._is_scalar_multioutput(multioutput=multi_qoi):
             column = self._single_column_name(multioutput=multi_qoi)
@@ -342,7 +342,7 @@ class TSCKFoldTime:
         self.kfold_splitter = KFold(n_splits=n_splits, shuffle=False, random_state=None)
 
     def split(self, X: TSCDataFrame, y=None, groups=None):
-        if not X.is_equal_time_index():
+        if not X.is_equal_time_values():
             raise NotImplementedError(
                 "Currently, each time series must have the same " "time indices."
             )

@@ -117,7 +117,7 @@ class SumoKernelEigFuncDMD(object):
             X_ts = self.qoi_scale_.fit_transform(X_ts)
 
         # is required to evaluate time
-        self._fit_time_index = X_ts.time_indices(unique_values=True)
+        self._fit_time_index = X_ts.time_values(unique_values=True)
         self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via operator-function basis
@@ -212,7 +212,7 @@ class SumoKernelEigFuncDMD(object):
         multi_qoi: Union[str, np.ndarray] = "uniform_average",
     ):
 
-        time_samples = Y_ts.time_indices(unique_values=True)
+        time_samples = Y_ts.time_values(unique_values=True)
         Y_pred = self.predict(X_ic, t=time_samples)
 
         tsc_metric = TSCMetric(metric=metric, mode=mode, scaling=normalize_strategy)

@@ -223,7 +223,7 @@ class TestTSCMetric(unittest.TestCase):
         self.assertIsInstance(actual, pd.Series)
 
         idx_slice = pd.IndexSlice
-        for t in self.tsc_one_left.time_indices(unique_values=True):
+        for t in self.tsc_one_left.time_values(unique_values=True):
 
             nptest.assert_array_equal(
                 mean_squared_error(
@@ -251,7 +251,7 @@ class TestTSCMetric(unittest.TestCase):
         self.assertIsInstance(actual, pd.Series)
 
         idx_slice = pd.IndexSlice
-        for t in self.tsc_one_left.time_indices(unique_values=True):
+        for t in self.tsc_one_left.time_values(unique_values=True):
 
             nptest.assert_array_equal(
                 mean_squared_error(
@@ -274,7 +274,7 @@ class TestTSCMetric(unittest.TestCase):
         self.assertIsInstance(actual, pd.Series)
 
         idx_slice = pd.IndexSlice
-        for t in self.tsc_two_left.time_indices(unique_values=True):
+        for t in self.tsc_two_left.time_values(unique_values=True):
 
             nptest.assert_array_equal(
                 mean_squared_error(

@@ -22,6 +22,8 @@ class TSCDataFrame(pd.DataFrame):
     IDX_TIME_NAME = "time"
     IDX_QOI_NAME = "qoi"
 
+    FLOAT64_TIME_PRECISION_DECIMALS = 15
+
     def __init__(self, *args, **kwargs):
         # TODO: at the moment a sliced object is a Series, not a TSCSeries. Therefore,
         #  a single qoi, is also represented as a DataFrame
@@ -32,6 +34,7 @@ class TSCDataFrame(pd.DataFrame):
         super(TSCDataFrame, self).__init__(*args, **kwargs)
 
         self._validate()
+        # self._set_time_precision_float64()
         self.sort_index(level=[self.IDX_ID_NAME, self.IDX_TIME_NAME], inplace=True)
 
     @classmethod
@@ -193,9 +196,6 @@ class TSCDataFrame(pd.DataFrame):
                 f"{(time_index[time_index < 0])}"
             )
 
-        # if pd.isnull(self.values).any():
-        #    raise AttributeError("Contains invalid values (nan or inf).")
-
         if self.index.names is not None and not (
             isinstance(self.index.names, list) and len(self.index.names) == 2
         ):
@@ -220,6 +220,18 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         return True
+
+    def _set_time_precision_float64(self):
+        time_level = 1
+
+        # 1 is time, the call does not work by str here
+        current_time_values = self.index.levels[time_level]
+
+        if np.issubdtype(current_time_values, np.floating):
+            adapted_time_values = np.around(
+                current_time_values, decimals=self.FLOAT64_TIME_PRECISION_DECIMALS
+            )
+            self.index = self.index.set_levels(adapted_time_values, level=time_level)
 
     def _insert_index_names(self):
         self.index.names = [self.IDX_ID_NAME, self.IDX_TIME_NAME]
@@ -347,22 +359,23 @@ class TSCDataFrame(pd.DataFrame):
     def is_same_ts_length(self):
         return isinstance(self.lengths_time_series, int)
 
-    def is_equal_time_index(self) -> bool:
-        check_series = self.reset_index(level=1).loc[:, self.IDX_TIME_NAME]
+    def is_equal_time_values(self) -> bool:
 
-        if not self.is_equal_length():
+        length_time_series = self.lengths_time_series
+
+        if isinstance(length_time_series, pd.Series):
             return False
+        else:
+            # Check:
+            # If every time series is as long as all (unique) index levels, then they
+            # are all the same.
 
-        time_values = None
-
-        for i, current_time_values in check_series.groupby(self.IDX_ID_NAME):
-            if time_values is None:
-                time_values = current_time_values.to_numpy()
-            else:
-                if not np.array_equal(current_time_values.to_numpy(), time_values):
-                    return False
-                time_values = current_time_values.to_numpy()
-        return True
+            # This call is important, as the levels are usually not updated (even if
+            # they not appear in in the index).
+            # See: https://stackoverflow.com/a/43824296
+            self.index = self.index.remove_unused_levels()
+            n_time_level_values = len(self.index.levels[1])
+            return length_time_series == n_time_level_values
 
     def is_normalized_time(self):
         """Normalized time is defined as:
@@ -403,27 +416,19 @@ class TSCDataFrame(pd.DataFrame):
         """ts_id if None get global (over all time series) min/max value."""
 
         if ts_id is None:
-            time_values = self.time_indices()
+            time_values = self.time_values()
         else:
             time_values = self.loc[ts_id, :].index
 
         return time_values.min(), time_values.max()
 
-    # TODO: refactor this and time_index_fill (too difficult)
-    def time_indices(self, require_const_dt=False, unique_values=False):
-
-        # The comment-out line does not work, because levels are not update for DF slices:
-        # time_indices = self.index.levels[1].to_numpy()
-        time_indices = self.index.get_level_values(1)
-
-        if require_const_dt:
-            if not self.is_const_dt():
-                raise TimeSeriesCollectionError
+    def time_values(self, unique_values=False):
 
         if unique_values:
-            return np.unique(time_indices)
+            self.index = self.index.remove_unused_levels()
+            return self.index.levels[1]
         else:
-            return time_indices
+            return self.index.get_level_values(self.IDX_TIME_NAME)
 
     def time_index_fill(self):
         """Creates an time array over the entire interval and also fills potential
@@ -439,7 +444,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def qoi_to_ndarray(self, qoi: str):
 
-        if not self.is_equal_time_index():
+        if not self.is_equal_time_values():
             raise TimeSeriesCollectionError(
                 "The time series' time index are not the same for all time series."
             )

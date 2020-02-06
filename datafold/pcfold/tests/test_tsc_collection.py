@@ -264,15 +264,15 @@ class TestTSCDataFrame(unittest.TestCase):
         actual = TSCDataFrame(simple_df).tsc.normalize_time().is_normalized_time()
         self.assertTrue(actual)
 
-    def test_is_equal_time_points(self):
-        actual = TSCDataFrame(self.simple_df).is_equal_time_index()
+    def test_is_equal_time_values(self):
+        actual = TSCDataFrame(self.simple_df).is_equal_time_values()
         expected = False
         self.assertEqual(actual, expected)
 
         simple_df = self.simple_df.copy(deep=True)
         simple_df = simple_df.drop(labels=45, axis=0)
 
-        actual = TSCDataFrame(simple_df).is_equal_time_index()
+        actual = TSCDataFrame(simple_df).is_equal_time_values()
         expected = True
         self.assertEqual(actual, expected)
 
@@ -361,7 +361,7 @@ class TestTSCDataFrame(unittest.TestCase):
         simple_df.loc[pd.IndexSlice[45, 1], :] = [1, 2]
 
     def test_time_array(self):
-        actual = TSCDataFrame(self.simple_df).time_indices(unique_values=True)
+        actual = TSCDataFrame(self.simple_df).time_values(unique_values=True)
         expected = self.simple_df.index.levels[1].to_numpy()
         nptest.assert_equal(actual, expected)
 
@@ -373,7 +373,7 @@ class TestTSCDataFrame(unittest.TestCase):
             4,
         )
 
-        actual = TSCDataFrame(self.simple_df).time_indices(unique_values=True)
+        actual = TSCDataFrame(self.simple_df).time_values(unique_values=True)
         expected = np.unique(self.simple_df.index.levels[1].to_numpy())
         nptest.assert_equal(actual, expected)
 
@@ -421,7 +421,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(np.in1d(ts.ids, new_ts.ids).all())
 
         self.assertTrue(
-            np.in1d(new_ts.time_indices(unique_values=True), (0, 1, 17, 18)).all()
+            np.in1d(new_ts.time_values(unique_values=True), (0, 1, 17, 18)).all()
         )
 
     def test_multi_time_tsc2(self):
@@ -430,7 +430,7 @@ class TestTSCDataFrame(unittest.TestCase):
         new_ts = ts.select_times(time_points=np.array([0, 1]))
         self.assertIsInstance(new_ts, TSCDataFrame)
 
-        self.assertTrue(np.in1d(new_ts.time_indices(unique_values=True), (0, 1)).all())
+        self.assertTrue(np.in1d(new_ts.time_values(unique_values=True), (0, 1)).all())
         self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
 
     def test_multi_time_tsc3(self):
@@ -450,7 +450,7 @@ class TestTSCDataFrame(unittest.TestCase):
         #  -- error is only raised if none of the keys matches
         #  -- therefore this is currently in accordance with pandas behavior, but may
         #     change for pandas.version >= 1.0.0
-        self.assertTrue(np.in1d(new_ts.time_indices(unique_values=True), (0, 1)).all())
+        self.assertTrue(np.in1d(new_ts.time_values(unique_values=True), (0, 1)).all())
         self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
 
     def test_index01(self):

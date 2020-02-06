@@ -23,7 +23,7 @@ class EDMDDict(Pipeline):
     # TODO: need to check that all steps are TSCtransformers! --> overwrite and super()
     #  _validate
 
-    def __init__(self, steps, memory=None, verbose=True):
+    def __init__(self, steps, memory=None, verbose=False):
         """NOTE: the typing is different to the TSCTransformMixIn, Because this (meta-)
         transformer is used for DMD models.
 
@@ -52,7 +52,7 @@ class EDMDDict(Pipeline):
 
 class EDMD(Pipeline):
     def __init__(
-        self, dict_steps, dmd_model: DMDBase = DMDFull(), memory=None, verbose=True
+        self, dict_steps, dmd_model: DMDBase = DMDFull(), memory=None, verbose=False
     ):
 
         self.dict_steps = dict_steps
@@ -67,7 +67,7 @@ class EDMD(Pipeline):
     def edmd_dict(self):
         # TODO: not sure if it is better to make a getter?
         # probably better to do a deepcopy of steps
-        return EDMDDict(steps=self.steps[:-1])
+        return EDMDDict(steps=self.steps[:-1], memory=self.memory, verbose=self.verbose)
 
     def _setup_default_score_and_metric(self):
         self._metric_eval = TSCMetric.make_tsc_metric(
@@ -134,7 +134,7 @@ class EDMD(Pipeline):
         X_latent_ic = Xt.initial_states_df()
 
         X_latent_ts = self.steps[-1][-1].predict(
-            X=X_latent_ic, t=Xt.time_indices(unique_values=True)
+            X=X_latent_ic, t=Xt.time_values(unique_values=True)
         )
 
         X_est_ts = self._inverse_transform_latent_time_series(X_latent_ts)
@@ -142,6 +142,6 @@ class EDMD(Pipeline):
         if X.shape[0] > X_est_ts.shape[0]:
             # Adapt X if time series samples are discareded during transform, and not
             # recovered during inverse_transform (e.g. for Takens)
-            X = X.select_times(time_points=X_est_ts.time_indices(unique_values=True))
+            X = X.select_times(time_points=X_est_ts.time_values(unique_values=True))
 
         return self._score_eval(X, X_est_ts, sample_weight)
