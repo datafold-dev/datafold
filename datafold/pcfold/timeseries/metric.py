@@ -235,7 +235,9 @@ class TSCMetric:
                 np.nan, index=time_indices, columns=y_true.columns.to_list()
             )
 
-        error_per_time.index.name = "time"
+        error_per_time.index = error_per_time.index.set_names(
+            TSCDataFrame.IDX_TIME_NAME
+        )
 
         idx_slice = pd.IndexSlice
         for t in time_indices:

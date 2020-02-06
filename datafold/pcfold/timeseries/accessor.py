@@ -34,7 +34,7 @@ class TSCollectionMethods(object):
             return self._tsc_df
 
         convert_times = self._tsc_df.index.get_level_values(1) + shift_t
-        convert_times = pd.Index(convert_times, self._tsc_df.index.names[1])
+        convert_times = pd.Index(convert_times, name=TSCDataFrame.IDX_TIME_NAME)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
             [self._tsc_df.index.get_level_values(0), convert_times]
