@@ -112,7 +112,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         if len(np.unique(X.index.get_level_values("time"))) != 1:
             raise NotImplementedError(
-                "Currently all initial conditions have to have the same initial time."
+                "Currently, all initial conditions have to have the same initial time."
             )
         else:  # assumption required
             initial_time = X.index.get_level_values("time")[0]
@@ -126,14 +126,14 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
                 # always include the initial condition in the time to evaluate
                 t = np.append(initial_time, t)
 
-        return self._evolve_edmd_system(
-            X_ic=X, time_samples=t, post_map=post_map, qoi_columns=qoi_columns
+        return self._evolve_dmd_system(
+            X_ic=X, time_values=t, post_map=post_map, qoi_columns=qoi_columns
         )
 
-    def _evolve_edmd_system(
+    def _evolve_dmd_system(
         self,
         X_ic: pd.DataFrame,
-        time_samples: np.ndarray,
+        time_values: np.ndarray,
         time_invariant=True,
         post_map: Optional[np.ndarray] = None,
         qoi_columns=None,
@@ -146,7 +146,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         ic
             Initial condition in same space where EDMD was fit. The initial condition may
             be transformed internally.
-        time_samples
+        time_values
             Array of times where the dynamical system should be evaluated.
         dynmatrix
             If not provided, the dynmatrix corresponds to the eigenvectors of EDMD.
@@ -164,7 +164,10 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         """
 
         if not np.isin(X_ic.columns, self._qoi_columns).all():
-            raise ValueError("TODO")
+            raise ValueError(
+                "columns between initial condition and columns during fit "
+                "do not match"
+            )
         else:
             # sort, just in case they are given in a different order
             X_ic = X_ic.loc[:, self._qoi_columns]
@@ -197,7 +200,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             raise RuntimeError("EDMD is not properly fit.")
 
         if time_invariant:
-            shift = np.min(time_samples)
+            shift = np.min(time_values)
         else:
             # If the edmd time is shifted during data (e.g. the minimum processed data
             # starts with time=5, some positive value) then normalize the time_samples
@@ -205,7 +208,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             # zero.
             shift = self._normalize_shift
 
-        norm_time_samples = time_samples - shift
+        norm_time_samples = time_values - shift
 
         tsc_df = LinearDynamicalSystem(
             mode="continuous", time_invariant=True
@@ -221,8 +224,27 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         )
 
         # correct the time shift again to return the correct time according to the
-        # training data
-        tsc_df = tsc_df.tsc.shift_time(shift_t=shift)
+        # training data (not necessarily "normed time steps" [0, 1, 2, ...]
+        # One way is to shift the time again, i.e.
+        #
+        #    tsc_df.tsc.shift_time(shift_t=shift)
+        #
+        # However, this can sometimes introduce numerical noise (forward/backwards
+        # shifting), therefore the user-requested `time_values` set directly into the
+        # index. This way it matches for all time series.
+        #
+        # Because hard-setting the time indices can introduce problems, the following
+        # assert makes sure that both ways match (up to numerical differences).
+        assert (
+            tsc_df.tsc.shift_time(shift_t=shift).time_values(unique_values=True)
+            - time_values
+            < 1e-15
+        ).all()
+
+        # Hard set of time_values
+        tsc_df.index = tsc_df.index.set_levels(
+            time_values, level=1
+        ).remove_unused_levels()
 
         return tsc_df
 

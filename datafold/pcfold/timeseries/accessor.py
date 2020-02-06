@@ -158,6 +158,35 @@ class TSCollectionMethods(object):
 
         return train_tsc, test_tsc
 
+    def initial_states_folds(self):
+        """If splits are performed in time, then different time series have
+        different times at the initial condition (and different evalutation
+        times). This function provides an iterator which returns all time series
+        starting at the same time and the corresponding evaluation time.
+        """
+
+        # TODO [think about] maybe provide an extra TSC.accessor for Cross Validation
+        #  relevant operations?
+
+        for initial_time, initial_states_df in self._tsc_df.initial_states_df().groupby(
+            level="time"
+        ):
+            time_series_ids = initial_states_df.index.get_level_values(
+                TSCDataFrame.IDX_ID_NAME
+            )
+
+            tsc_fold = self._tsc_df.loc[time_series_ids, :]
+
+            if not tsc_fold.is_equal_time_values():
+                raise RuntimeError(
+                    "No equal time values in initial condition fold. In case assumptions "
+                    "are not met in the data the error has to be raised earlier. "
+                    "Please report bug. "
+                )
+
+            time_values_fold = tsc_fold.time_values(unique_values=True)
+            yield initial_states_df, time_values_fold
+
     def plot_density2d(self, time, xresolution: int, yresolution: int, covariance=None):
         """
         Plot the density for a given time_step. For this:

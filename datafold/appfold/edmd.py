@@ -96,8 +96,13 @@ class EDMD(Pipeline):
         return super(EDMD, self).fit(X=X, y=y, **fit_params)
 
     def predict(self, X: PRE_IC_TYPES, t=None, **predict_params):
-        # TODO. if X is an np.ndarray, it should be converted to a DataFrame that gives
+        # TODO: if X is an np.ndarray, it should be converted to a DataFrame that gives
         #  a description of the initial condition of the time series.
+
+        if t is None:
+            # Note it cannot simply take the time values from fit, as some time series
+            # may have started at different times (esp. during cross fitting)
+            raise NotImplementedError("")
 
         if isinstance(X, pd.Series):
             X = pd.DataFrame(X).T
@@ -116,32 +121,32 @@ class EDMD(Pipeline):
         return X_ts
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
-        """Docu note: y is kept for consistency , but y is basically X_test"""
-
+        """Docu note: y is kept for consistency to sklearn, but should always be None."""
         assert y is None
-
-        Xt = X
-        for _, name, transform in self._iter(with_final=False):
-            Xt = transform.transform(Xt)
 
         score_params = {}
         if sample_weight is not None:
             score_params["sample_weight"] = sample_weight
 
-        # get initial states in latent space.
-        # important note: during .transform() samples can be discarted (e.g. when
-        # applying Takens)
-        X_latent_ic = Xt.initial_states_df()
+        Xt = X
 
-        X_latent_ts = self.steps[-1][-1].predict(
-            X=X_latent_ic, t=Xt.time_values(unique_values=True)
-        )
+        # exclude last (the DMD model) because the
+        for _, name, dict_step in self._iter(with_final=False):
+            Xt = dict_step.transform(Xt)
 
+        X_latent_ts_folds = []
+        for X_latent_ic, time_values in Xt.tsc.initial_states_folds():
+            current_ts = self.steps[-1][-1].predict(X=X_latent_ic, t=time_values)
+            X_latent_ts_folds.append(current_ts)
+
+        X_latent_ts = pd.concat(X_latent_ts_folds, axis=0)
         X_est_ts = self._inverse_transform_latent_time_series(X_latent_ts)
 
+        # Important note for getting initial states in latent space:
+        # during .transform() samples can be discarted (e.g. when applying Takens)
+        # This means that in the latent space there can be less samples than in the
+        # "pyhsical" space and this is corrected:
         if X.shape[0] > X_est_ts.shape[0]:
-            # Adapt X if time series samples are discareded during transform, and not
-            # recovered during inverse_transform (e.g. for Takens)
             X = X.select_times(time_points=X_est_ts.time_values(unique_values=True))
 
         return self._score_eval(X, X_est_ts, sample_weight)
