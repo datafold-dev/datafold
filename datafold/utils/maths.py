@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 
 import numpy as np
 import scipy.sparse
@@ -88,3 +88,41 @@ def remove_numeric_noise_symmetric_matrix(
         matrix = np.divide(matrix, 2, out=matrix)
 
     return matrix
+
+
+def random_subsample(data: np.ndarray, n_samples: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Randomly sample a subset of a data set while preserving order.
+
+    The sampling is done without replacement.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Array whose 0-th axis indexes the data points.
+    n_samples : int
+        Number of items to randomly (uniformly) sample from the data.  This is typically
+        less than the total number of elements in the data set.
+
+    Returns
+    -------
+    sampled_data : np.ndarray
+        A total of `num_samples` uniformly randomly sampled data points from `data`.
+    """
+
+    from sklearn.utils.validation import check_scalar, check_array
+
+    data = check_array(data, force_all_finite=False, ensure_min_samples=2,)
+    assert isinstance(data, np.ndarray)
+
+    n_samples_data = data.shape[0]
+
+    check_scalar(
+        n_samples,
+        name="n_samples",
+        target_type=(int, np.integer),
+        min_val=1,
+        max_val=n_samples_data - 1,
+    )
+
+    indices = np.random.permutation(n_samples_data)[:n_samples]
+    return data[indices, :], indices

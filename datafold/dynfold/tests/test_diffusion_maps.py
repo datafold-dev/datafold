@@ -10,9 +10,9 @@ from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 from sklearn.metrics import mean_squared_error
 
-from datafold.dynfold.utils import downsample
 from datafold.dynfold.diffusion_maps import DiffusionMapsVariable
 from datafold.dynfold.tests.helper import *
+from datafold.utils.maths import random_subsample
 
 
 class DiffusionMapsTest(unittest.TestCase):
@@ -43,7 +43,7 @@ class DiffusionMapsTest(unittest.TestCase):
         logging.debug(f"Computing diffusion maps on a matrix of size {num_samples}")
         num_eigenpairs = 10
         epsilon = 5e-1
-        downsampled_data = downsample(self.data, num_samples)
+        downsampled_data, _ = random_subsample(self.data, num_samples)
 
         # symmetrize_kernel=False, because the rayleigh_quotient requires the
         # kernel_matrix_
@@ -82,7 +82,7 @@ class DiffusionMapsTest(unittest.TestCase):
         epsilon_min, epsilon_max = 1e-1, 1e1
         epsilons = np.logspace(np.log10(epsilon_min), np.log10(epsilon_max), num_maps)
 
-        downsampled_data = downsample(self.data, num_samples)
+        downsampled_data, _ = random_subsample(self.data, num_samples)
 
         eigvects = np.zeros((num_maps, downsampled_data.shape[0], num_eigenpairs))
         eigvals = np.zeros((num_maps, num_eigenpairs))

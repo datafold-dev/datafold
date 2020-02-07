@@ -8,6 +8,7 @@ import scipy.sparse
 import pandas as pd
 from typing import Union
 
+from datafold.utils.maths import random_subsample
 from datafold.pcfold.distance import (
     compute_distance_matrix,
     get_backend_distance_algorithm,
@@ -216,21 +217,27 @@ class PCManifold(np.ndarray):
         return cut_off, epsilon
 
 
-def subsample(
-    pcm, min_distance=None, tol=1e-4, n_samples=100, random_state=None, randomized=False
+def pcm_subsample(
+    pcm,
+    min_distance=None,
+    n_samples=100,
+    min_added_per_iteration=1,
+    randomized=False,
+    random_state=None,
 ):
     """
     Returns a new PCManifold that has a converged subsampling of the given points.
     randomized: False (default, will subsample iteratively) True (will randomly pick
-    indices uniformly. Very fast)
+    indices, but not necessarily uniformly distributed over the manifold. Very fast)
+    min_added_per_iteration: default (1), number of points that need to be added per
+    iteration to keep going. Setting it to zero will search the entire dataset.
     """
 
-    if not isinstance(pcm, PCManifold):
-        raise TypeError(
-            "point cloud not valid"
-        )  # TODO: for now enforce that we deal only with a PCM
+    # if not randomized, then we need the kernel
+    if not randomized and not isinstance(pcm, PCManifold):
+        raise TypeError(f"type={type(pcm)} not valid")
 
-    if min_distance is None:
+    if min_distance is None and pcm.cut_off is not None:
         min_distance = pcm.cut_off / 2
 
     if min_distance is None:
@@ -241,25 +248,25 @@ def subsample(
     if random_state is not None:
         np.random.seed(random_state)
 
-    orig_n_samples = pcm.shape[0]
+    n_samples_pcm = pcm.shape[0]
 
     if randomized:
-        max_samples = 10000
-        n_samples = np.max([max_samples, int(np.sqrt(orig_n_samples))])
-        subsample_indices = np.random.permutation(orig_n_samples)[:n_samples]
-        subsample_points = pcm[subsample_indices, :]
+        # for convenience, the function also allows "classic" randomized subsampling
+        subsample_points, subsample_indices = random_subsample(pcm, n_samples=n_samples)
     else:
-        all_indices = np.random.permutation(pcm.shape[0])
-        indices_splits = np.array_split(all_indices, pcm.shape[0] // n_samples + 1)
+        all_indices = np.random.permutation(n_samples_pcm)
+        indices_splits = np.array_split(all_indices, n_samples_pcm // n_samples + 1)
 
         # choose first block of random samples as a basis
         subsample_indices = indices_splits[0]
         subsample_points = pcm[subsample_indices, :]
 
-        # block-wise iteration of other shuffled blocks
+        # block-wise iteration of other blocks
         for iteration_indices in indices_splits[1:]:
             iteration_points = pcm[iteration_indices, :]
 
+            # TODO: "guess_optimal" may be justified here, or what is set in PCM?
+            #  if iteration points is not too big, backend could also be brute force
             distances = compute_distance_matrix(
                 X=subsample_points,
                 Y=iteration_points,
@@ -268,22 +275,18 @@ def subsample(
                 backend="scipy.kdtree",
             )
 
-            cond_1 = distances.getnnz(axis=0) == 0
-            cond_2 = distances.min(axis=0).toarray().ravel() >= min_distance
-            bool_mask_select_indices = np.logical_or(cond_1, cond_2)
+            cond_1 = distances.getnnz(axis=1) == 0
+            cond_2 = distances.min(axis=1).toarray().ravel() >= min_distance
+            bool_mask_select_indices = np.logical_or(cond_1, cond_2, out=cond_1)
 
             current_indices_selected = iteration_indices[bool_mask_select_indices]
 
-            if bool_mask_select_indices.sum() < int(n_samples * tol) + 1:
-                # TODO: not sure why we need this condition -- break out of look and we
-                #  don't look at other chunks.
-                #  Original code:
-                #  if len(new_indices_k) < int(n_samples * tol) + 1:
-                #     break
-                break
-
             subsample_indices = np.append(subsample_indices, current_indices_selected)
             subsample_points = pcm[subsample_indices, :]
+
+            if bool_mask_select_indices.sum() <= min_added_per_iteration:
+                # prematurely end loop, if not enough points are added
+                break
 
     return (
         PCManifold(subsample_points, kernel=copy.deepcopy(pcm.kernel)),
@@ -401,18 +404,14 @@ if __name__ == "__main__":
     print(pcm.compute_kernel_matrix(cdist_cmp_array))
 
     subsmaple_array = np.random.rand(5000, 5)
-    pcm_subsample = PCManifold(subsmaple_array)
+    pcm_subs = PCManifold(subsmaple_array)
 
-    print(subsample(pcm_subsample, min_distance=1.5))
+    print(pcm_subsample(pcm_subs, min_distance=1.5))
 
-    remove_outliers(pcm_subsample, kmin=2, cut_off=1)
+    remove_outliers(pcm_subs, kmin=2, cut_off=1)
 
     # pdist case
-    print(pcm_subsample.compute_distance_matrix(metric="mahalanobis"))
+    print(pcm_subs.compute_distance_matrix(metric="mahalanobis"))
 
     # cdist case
-    print(
-        pcm_subsample.compute_distance_matrix(
-            pcm_subsample[0:3, :], metric="mahalanobis"
-        )
-    )
+    print(pcm_subs.compute_distance_matrix(pcm_subs[0:3, :], metric="mahalanobis"))

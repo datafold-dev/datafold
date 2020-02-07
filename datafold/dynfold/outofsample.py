@@ -13,6 +13,7 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.sparse
 from sklearn.base import MultiOutputMixin, RegressorMixin
 from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
@@ -20,7 +21,6 @@ from sklearn.utils.validation import check_is_fitted, check_scalar
 
 import datafold.pcfold as pcfold
 from datafold.dynfold.kernel import DmapKernelFixed, KernelMethod
-from datafold.dynfold.utils import to_ndarray
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.utils.maths import mat_dot_diagmat
 from sklearn.base import BaseEstimator
@@ -253,7 +253,11 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
 
         # TODO: see issue #54 the to_ndarray() kills memory, when many points
         #  (xi.shape[0]) are requested
-        kernel_matrix = to_ndarray(kernel_matrix)
+
+        if isinstance(kernel_matrix, scipy.sparse.coo_matrix):
+            kernel_matrix = np.squeeze(kernel_matrix.toarray())
+        elif isinstance(kernel_matrix, scipy.sparse.csr_matrix):
+            kernel_matrix = kernel_matrix.toarray()
 
         # Gradient computation
         ki_psis = kernel_matrix * values

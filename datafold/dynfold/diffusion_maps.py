@@ -17,7 +17,7 @@ import scipy.spatial
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
-from datafold.dynfold.utils import downsample
+from datafold.utils.maths import random_subsample
 from datafold.pcfold.pointcloud import PCManifold
 from datafold.pcfold.timeseries.base import TRANF_TYPES, TSCTransformerMixIn
 from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
@@ -727,7 +727,7 @@ class LocalRegressionSelection(TSCTransformerMixIn):
         self._validate_parameter(num_eigenvectors)
 
         if self.n_subsample is not None:
-            eigvec = downsample(np.asarray(X), self.n_subsample)
+            eigvec, _ = random_subsample(X, self.n_subsample)
         else:
             eigvec = np.asarray(X)
 
