@@ -18,7 +18,7 @@ from sklearn.base import TransformerMixin
 
 import datafold.pcfold as pcfold
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
-from datafold.dynfold.utils import downsample
+from datafold.utils.maths import random_subsample
 from datafold.utils.datastructure import is_float, is_integer
 from datafold.utils.maths import mat_dot_diagmat
 
@@ -536,7 +536,7 @@ class LocalRegressionSelection(TransformerMixin):
         if self.n_subsample is not None:
             # TODO: see issue #44, currently the eigenvectors have to often be transposed
             #  (or adapt the function accordingly so that it is consistent)
-            eigvec = downsample(X.T, self.n_subsample)
+            eigvec, _ = random_subsample(X.T, self.n_subsample)
         else:
             eigvec = X.T  # TODO #44
 
