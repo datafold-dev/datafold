@@ -1,13 +1,19 @@
-"""This file contains functions that are copied and modified from scikit-learn v. 0.22.1.
-Specifically, this applies to the following functions:
+"""This file contains code that is copied and modified from
+
+scikit-learn
+version 0.22.1.
+repository: https://github.com/scikit-learn/scikit-learn/
+project homepage: https://scikit-learn.org/stable/
+
+Specifically, this applies to the following code parts:
 
 Sources copied from original source (filepath, function)
 
-*  from: (sklearn/model_selection/_validation.py, _fit_and_score)
-   to: (datafold/appfold/_edmd.py, _fit_and_score_edmd)
+*  from:  (sklearn/model_selection/_validation.py, _fit_and_score)
+   to:    (datafold/appfold/_edmd.py, _fit_and_score_edmd)
 
 *  from: sklearn/model_selection/_search.py BaseSearchCV.fit
-   to: (datafold/appfold/_edmd.py,  EDMDCV.fit())
+   to:   (datafold/appfold/_edmd.py,  EDMDCV.fit())
 
 For the datafold module "_edmd.py" (this file) the following license from the
 scikit-learn project is added in addition to the datafold license (see LICENSE file)
@@ -57,30 +63,20 @@ from itertools import product
 from traceback import format_exception_only
 
 import numpy as np
-import pandas as pd
 from joblib import Parallel, delayed
 from sklearn.base import clone
 from sklearn.exceptions import FitFailedWarning
 from sklearn.metrics._scorer import _check_multimetric_scoring
 from sklearn.model_selection import GridSearchCV, check_cv
 from sklearn.model_selection._validation import is_classifier
-from sklearn.pipeline import Pipeline
 from sklearn.utils import _message_with_time
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
 from datafold.pcfold import TSCDataFrame
-from datafold.pcfold.timeseries.base import (
-    PRE_FIT_TYPES,
-    PRE_IC_TYPES,
-    TRANF_TYPES,
-    TSCPredictMixIn,
-    TSCTransformerMixIn,
-)
+from datafold.pcfold.timeseries.base import TSCPredictMixIn
 from datafold.pcfold.timeseries.metric import (
     TSCKfoldSeries,
     TSCKFoldTime,
-    TSCMetric,
-    make_tsc_scorer,
 )
 from datafold.utils.datastructure import is_integer
 
@@ -91,8 +87,7 @@ def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):
     )
 
     # TODO: make proper error, the folds are likely too small if assert fails
-    assert isinstance(X_train, TSCDataFrame) and (X_test, TSCDataFrame)
-
+    assert isinstance(X_train, TSCDataFrame) and isinstance(X_test, TSCDataFrame)
     return X_train, X_test
 
 
