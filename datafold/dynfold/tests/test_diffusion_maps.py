@@ -44,7 +44,7 @@ class DiffusionMapsTest(unittest.TestCase):
         logging.debug(f"Computing diffusion maps on a matrix of size {num_samples}")
         num_eigenpairs = 10
         epsilon = 5e-1
-        downsampled_data = random_subsample(self.data, num_samples)
+        downsampled_data, _ = random_subsample(self.data, num_samples)
 
         # symmetrize_kernel=False, because the rayleigh_quotient requires the
         # kernel_matrix_
