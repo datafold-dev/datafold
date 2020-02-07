@@ -142,6 +142,26 @@ class EDMDTest(unittest.TestCase):
 
         pdtest.assert_frame_equal(expected_results, actual_results)
 
+    def test_edmdcv_seriescv_no_error(self):
+        edmd = EDMD(
+            dict_steps=[
+                # NOTE: in Takens fill-in handle *cannot* be "remove", because sklearn cv
+                #  will because the number of samples changes during transformation (
+                #  EDMDCV could handle this)
+                ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
+                ("pca", TSCPrincipalComponent(n_components=5)),
+            ]
+        )
+
+        EDMDCV(
+            estimator=edmd,
+            param_grid={"pca__n_components": [5, 10]},
+            cv=TSCKfoldSeries(4),
+            verbose=False,
+            return_train_score=True,
+            n_jobs=-1,
+        ).fit(self.multi_sine_wave_tsc)
+
     def test_edmdcv_parallel_no_error(self):
         edmd = EDMD(
             dict_steps=[
@@ -157,9 +177,8 @@ class EDMDTest(unittest.TestCase):
             verbose=False,
             return_train_score=True,
             n_jobs=-1,
-        )
+        ).fit(self.multi_sine_wave_tsc)
 
-        edmdcv.fit(self._setup_multi_sine_wave_data())
         self.assertIsInstance(edmdcv.cv_results_, dict)
 
     def test_edmdcv_timecv_no_error(self):
@@ -177,7 +196,6 @@ class EDMDTest(unittest.TestCase):
             verbose=False,
             return_train_score=True,
             n_jobs=1,
-        )
+        ).fit(self.multi_sine_wave_tsc)
 
-        edmdcv.fit(self._setup_multi_sine_wave_data())
         self.assertIsInstance(edmdcv.cv_results_, dict)
