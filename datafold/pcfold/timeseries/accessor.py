@@ -9,24 +9,91 @@ import pandas as pd
 from scipy.stats import multivariate_normal
 
 from datafold.pcfold.timeseries.collection import (
-    TimeSeriesCollectionError,
+    TSCException,
     TSCDataFrame,
 )
-from datafold.utils.datastructure import is_integer
+from datafold.utils.datastructure import is_integer, is_float
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
 class TSCollectionMethods(object):
-    def __init__(self, tsc_df):
+    def __init__(self, tsc_df: TSCDataFrame):
 
         # NOTE: cannot call TSCDataFrame(tsc_df) here to transform in case it is a normal
         # DataFrame. This is because the accessor has to know when updating this object.
         if not isinstance(tsc_df, TSCDataFrame):
-            raise ValueError(
+            raise TypeError(
                 "Can use 'tsc' extension only for type TSCDataFrame (convert before)."
             )
 
-        self._tsc_df = tsc_df
+        self._tsc_df: TSCDataFrame = tsc_df
+
+    def check_tsc(
+        self,
+        force_all_finite=True,
+        ensure_same_length=False,
+        ensure_const_delta_time=True,
+        ensure_delta_time=None,
+        ensure_same_time_values=False,
+        ensure_normalized_time=False,
+        ensure_n_timeseries=None,
+    ) -> TSCDataFrame:
+
+        if ensure_same_length and not self._tsc_df.is_equal_length():
+            raise TSCException.not_same_length(
+                actual_lengths=self._tsc_df.is_equal_length()
+            )
+
+        if ensure_const_delta_time or ensure_delta_time is not None:
+            # save only once, as it can be expensive...
+            actual_time_delta = self._tsc_df.delta_time
+        else:
+            actual_time_delta = None
+
+        if ensure_const_delta_time and isinstance(actual_time_delta, pd.Series):
+            raise TSCException.not_const_delta_time(actual_time_delta)
+
+        if ensure_delta_time is not None:
+
+            if (
+                isinstance(actual_time_delta, pd.Series)
+                and is_float(ensure_delta_time)
+                or is_float(actual_time_delta)
+                and isinstance(ensure_delta_time, pd.Series)
+            ):
+                raise TSCException.not_required_delta_time(
+                    required_delta_time=ensure_delta_time,
+                    actual_delta_time=actual_time_delta,
+                )
+
+            if isinstance(actual_time_delta, pd.Series) and isinstance(
+                ensure_delta_time, pd.Series
+            ):
+                if not (actual_time_delta == ensure_delta_time).all():
+                    raise TSCException.not_required_delta_time(
+                        required_delta_time=ensure_delta_time,
+                        actual_delta_time=actual_time_delta,
+                    )
+
+        if force_all_finite and not self._tsc_df.is_finite():
+            raise TSCException.not_finite()
+
+        if ensure_same_time_values and self._tsc_df.is_same_time_values():
+            raise TSCException.not_same_time_values()
+
+        if ensure_normalized_time and self._tsc_df.is_normalized_time():
+            raise TSCException.not_normalized_time()
+
+        if (
+            ensure_n_timeseries is not None
+            and self._tsc_df.n_timeseries != ensure_n_timeseries
+        ):
+            raise TSCException.not_required_n_timeseries(
+                required_n_timeseries=ensure_n_timeseries,
+                actual_n_timeseries=self._tsc_df.n_timeseries,
+            )
+
+        return self._tsc_df
 
     def shift_time(self, shift_t):
 
@@ -51,7 +118,7 @@ class TSCollectionMethods(object):
         min_time, _ = self._tsc_df.time_interval()
 
         if not self._tsc_df.is_const_dt():
-            raise TimeSeriesCollectionError(
+            raise TSCException(
                 "To normalize the time index it is required that the time time delta is "
                 "constant."
             )
@@ -74,7 +141,7 @@ class TSCollectionMethods(object):
     ) -> Tuple[np.ndarray, np.ndarray]:
 
         if not self._tsc_df.is_const_dt():
-            raise TimeSeriesCollectionError(
+            raise TSCException(
                 "Cannot compute shift matrices: Time series are required to have the "
                 "same time delta."
             )
@@ -83,19 +150,19 @@ class TSCollectionMethods(object):
 
         if is_integer(ts_counts):
             ts_counts = pd.Series(
-                np.ones(self._tsc_df.nr_timeseries, dtype=np.int) * ts_counts,
+                np.ones(self._tsc_df.n_timeseries, dtype=np.int) * ts_counts,
                 index=self._tsc_df.ids,
             )
 
         nr_shift_snapshots = (ts_counts.subtract(1)).sum()
         insert_indices = np.append(0, (ts_counts.subtract(1)).cumsum().to_numpy())
 
-        assert len(insert_indices) == self._tsc_df.nr_timeseries + 1
+        assert len(insert_indices) == self._tsc_df.n_timeseries + 1
 
         if snapshot_orientation == "column":
-            shift_left = np.zeros([self._tsc_df.nr_qoi, nr_shift_snapshots])
+            shift_left = np.zeros([self._tsc_df.n_features, nr_shift_snapshots])
         elif snapshot_orientation == "row":
-            shift_left = np.zeros([nr_shift_snapshots, self._tsc_df.nr_qoi])
+            shift_left = np.zeros([nr_shift_snapshots, self._tsc_df.n_features])
         else:
             raise ValueError(f"snapshot_orientation={snapshot_orientation} not known")
 
@@ -177,7 +244,7 @@ class TSCollectionMethods(object):
 
             tsc_fold = self._tsc_df.loc[time_series_ids, :]
 
-            if not tsc_fold.is_equal_time_values():
+            if not tsc_fold.is_same_time_values():
                 raise RuntimeError(
                     "No equal time values in initial condition fold. In case assumptions "
                     "are not met in the data the error has to be raised earlier. "
@@ -205,7 +272,7 @@ class TSCollectionMethods(object):
         if covariance is None:
             covariance = np.eye(2)
 
-        df = self._tsc_df.select_times(time_points=time)
+        df = self._tsc_df.select_times_values(time_values=time)
 
         xmin = df.iloc[:, 0].min()
         xmax = df.iloc[:, 0].max()

@@ -38,7 +38,7 @@ class EDMDTest(unittest.TestCase):
             else:
                 tsc = tsc.insert_ts(df)
 
-        self.assertTrue(tsc.is_equal_time_values())
+        self.assertTrue(tsc.is_same_time_values())
 
         return tsc
 

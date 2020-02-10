@@ -395,8 +395,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertIsInstance(train_part, TSCDataFrame)
             self.assertIsInstance(test_part, TSCDataFrame)
 
-            self.assertEqual(train_part.nr_timeseries, 2)
-            self.assertEqual(test_part.nr_timeseries, 2)
+            self.assertEqual(train_part.n_timeseries, 2)
+            self.assertEqual(test_part.n_timeseries, 2)
 
             # should keep original length:
             self.assertEquals(train_part.lengths_time_series, 4)
@@ -425,8 +425,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertIsInstance(test_part, TSCDataFrame)
 
             # all time series are still present
-            self.assertEqual(train_part.nr_timeseries, 4)
-            self.assertEqual(test_part.nr_timeseries, 4)
+            self.assertEqual(train_part.n_timeseries, 4)
+            self.assertEqual(test_part.n_timeseries, 4)
 
             # originally all time series are of length 4, now they should be 2
             self.assertEqual(train_part.lengths_time_series, 2)
@@ -454,8 +454,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertIsInstance(train_part, TSCDataFrame)
             self.assertIsInstance(test_part, TSCDataFrame)
 
-            self.assertEqual(train_part.nr_timeseries, 1)
-            self.assertEqual(test_part.nr_timeseries, 1)
+            self.assertEqual(train_part.n_timeseries, 1)
+            self.assertEqual(test_part.n_timeseries, 1)
 
             # this tests that there was no shuffle, all time series should still be
             # connected

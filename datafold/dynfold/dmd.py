@@ -56,80 +56,6 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         self.eigenvalues_ = None
         self.eigenvectors_right_ = None
 
-    def _set_X_info(self, X: PRE_FIT_TYPES):
-
-        if not X.is_const_dt():
-            raise ValueError("Only data with constant frequency is supported.")
-
-        self.dt_ = X.delta_time
-        self._qoi_columns = X.columns
-
-        self._time_interval = X.time_interval()
-        self._normalize_shift = self._time_interval[0]
-
-        # TODO: this needs more investigation, it is annoying that there are can
-        #  be so large differences... investigate if there is a better numberical
-        #  way...?
-        assert (
-            np.around(
-                (self._time_interval[1] - self._normalize_shift) / self.dt_, decimals=5
-            )
-            % 1
-            == 0
-        )
-        self._max_normtime = int(
-            (self._time_interval[1] - self._normalize_shift) / self.dt_
-        )
-
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
-        self._setup_indices_based_fit(features_in=X.columns, features_out=X.columns)
-        self._set_X_info(X)
-
-    def predict(self, X: PRE_IC_TYPES, t, **predict_params):
-
-        if t.ndim != 1:
-            raise ValueError("TODO")
-
-        if (t < 0).any():
-            raise ValueError("TODO")
-
-        t = np.sort(t)
-
-        if isinstance(X, np.ndarray):
-            # TODO: it'd be better to have a DataFrame that describes initial conditions
-            assert X.ndim == 2
-            nr_ic = X.shape[0]
-            index = pd.MultiIndex.from_arrays(
-                [np.arange(nr_ic), np.ones(X.shape[0]) * t[0]], names=["ID", "time"],
-            )
-            X = pd.DataFrame(X, index=index, columns=self._fit_columns)
-
-        post_map = predict_params.pop("post_map", None)
-        qoi_columns = predict_params.pop("qoi_columns", None)
-
-        if len(predict_params.keys()) > 0:
-            raise ValueError("TODO")
-
-        if len(np.unique(X.index.get_level_values("time"))) != 1:
-            raise NotImplementedError(
-                "Currently, all initial conditions have to have the same initial time."
-            )
-        else:  # assumption required
-            initial_time = X.index.get_level_values("time")[0]
-            if (t < initial_time).any():
-                raise NotImplementedError(
-                    "Solving initial condition backwards in time "
-                    "is currently not supported."
-                )
-
-            if not (initial_time == t).any():
-                # always include the initial condition in the time to evaluate
-                t = np.append(initial_time, t)
-
-        return self._evolve_dmd_system(
-            X_ic=X, time_values=t, post_map=post_map, qoi_columns=qoi_columns
-        )
-
     def _evolve_dmd_system(
         self,
         X_ic: pd.DataFrame,
@@ -163,17 +89,17 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         """
 
-        if not np.isin(X_ic.columns, self._qoi_columns).all():
+        if not np.isin(X_ic.columns, self.features_in_[1]).all():
             raise ValueError(
                 "columns between initial condition and columns during fit "
                 "do not match"
             )
         else:
             # sort, just in case they are given in a different order
-            X_ic = X_ic.loc[:, self._qoi_columns]
+            X_ic = X_ic.loc[:, self.features_in_[1]]
 
         if qoi_columns is None:
-            qoi_columns = self._qoi_columns
+            qoi_columns = self.features_in_[1]
 
         # initial condition is numerical only, from now on
         ic = X_ic.to_numpy().T
@@ -195,18 +121,17 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             ic = np.linalg.lstsq(self.eigenvectors_right_, ic, rcond=1e-15)[0]
 
         else:
-            # TODO: make this closer to scikit-learn (a "is_fit" function), probably best to
-            #  do this at top of function
-            raise RuntimeError("EDMD is not properly fit.")
+            # TODO: Raise non-fitted error
+            raise RuntimeError("DMD is not properly fit.")
 
         if time_invariant:
             shift = np.min(time_values)
         else:
-            # If the edmd time is shifted during data (e.g. the minimum processed data
+            # If the dmd time is shifted during data (e.g. the minimum processed data
             # starts with time=5, some positive value) then normalize the time_samples
             # with this shift. The linear system handles the shifted time start as time
             # zero.
-            shift = self._normalize_shift
+            shift = self.time_interval_[0]
 
         norm_time_samples = time_values - shift
 
@@ -248,6 +173,55 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         return tsc_df
 
+    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        raise NotImplementedError("base class")
+
+    def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
+
+        # TODO: this functionality can be more general than here...
+        if time_values is None:
+            time_values = self.time_values_in_[1]
+
+        if isinstance(X, np.ndarray):
+            assert X.ndim == 2
+            nr_ic = X.shape[0]
+            index = pd.Index(data=np.arange(nr_ic), name="ID")
+            X = pd.DataFrame(X, index=index, columns=self.features_in_[1])
+
+        self._validate_data(X)
+        self._validate_features_and_time_values(X=X, time_values=time_values)
+
+        # This is for compatibility with the koopman based surrogate model
+        post_map = predict_params.pop("post_map", None)
+        qoi_columns = predict_params.pop("qoi_columns", None)
+        if len(predict_params.keys()) > 0:
+            raise KeyError(f"predict_params are invalid: {predict_params.keys()}")
+
+        return self._evolve_dmd_system(
+            X_ic=X, time_values=time_values, post_map=post_map, qoi_columns=qoi_columns
+        )
+
+    def reconstruct(self, X: TSCDataFrame):
+        self._validate_data(X)
+        self._validate_feature_names(X)
+
+        X_latent_ts_folds = []
+        for X_latent_ic, time_values in X.tsc.initial_states_folds():
+            current_ts = self.predict(X=X_latent_ic, time_values=time_values)
+            X_latent_ts_folds.append(current_ts)
+
+        X_est_ts = pd.concat(X_latent_ts_folds, axis=0)
+        return X_est_ts
+
+    def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
+        return self.fit(X, **fit_params).reconstruct(X)
+
+    def score(self, X: TSCDataFrame, y=None, **score_params):
+        # TODO: this is a bit more complicated...
+        raise NotImplementedError(
+            "TODO: look at EDMD, and at TSCMetric, make_tsc_scorer"
+        )
+
 
 class DMDFull(DMDBase):
     r"""Full (i.e. using entire data matrix) EDMD method.
@@ -266,21 +240,8 @@ class DMDFull(DMDBase):
         super(DMDFull, self).__init__()
         self.is_diagonalize = is_diagonalize
 
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
-        super(DMDFull, self).fit(X, **fit_params)
-
-        self.koopman_matrix_ = self._compute_koopman_matrix(X)
-        self._compute_right_eigenpairs()
-
-        if self.is_diagonalize:
-            self._diagonalize_left_eigenvectors()
-
-        return self
-
     def _compute_right_eigenpairs(self):
-        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
-            *np.linalg.eig(self.koopman_matrix_)
-        )
+        return sort_eigenpairs(*np.linalg.eig(self.koopman_matrix_))
 
     def _diagonalize_left_eigenvectors(self):
         """Compute right eigenvectors (not normed) such that
@@ -364,6 +325,19 @@ class DMDFull(DMDBase):
         koopman_matrix = koopman_matrix.T
         return koopman_matrix
 
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+        self._setup_features_and_time_fit(
+            X=X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
+        )
+
+        self.koopman_matrix_ = self._compute_koopman_matrix(X)
+        self.eigenvalues_, self.eigenvectors_right_ = self._compute_right_eigenpairs()
+
+        if self.is_diagonalize:
+            self._diagonalize_left_eigenvectors()
+
+        return self
+
 
 class DMDEco(DMDBase):
     r"""Approximates the Koopman matrix economically (compared to EDMDFull). It computes
@@ -403,12 +377,6 @@ class DMDEco(DMDBase):
         self.k = svd_rank
         super(DMDEco, self).__init__()
 
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
-        super(DMDEco, self).fit(X, **fit_params)
-
-        self._compute_internals(X)
-        return self
-
     def _compute_internals(self, X: TSCDataFrame):
         # TODO: different orientations are good for different cases:
         #  1 more snapshots than quantities
@@ -441,6 +409,14 @@ class DMDEco(DMDBase):
         )  # (1.23)
 
         return koopman_matrix_low_rank
+
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+        self._setup_features_and_time_fit(
+            X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
+        )
+
+        self._compute_internals(X)
+        return self
 
 
 class PyDMDWrapper(DMDBase):
@@ -488,11 +464,13 @@ class PyDMDWrapper(DMDBase):
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "PyDMDWrapper":
 
-        super(PyDMDWrapper, self).fit(X=X)
+        self._setup_features_and_time_fit(
+            X=X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
+        )
 
         if len(X.ids) > 1:
             raise NotImplementedError(
-                "Provided DMD methods only allow single time " "series analysis."
+                "Provided DMD methods only allow single time series analysis."
             )
 
         # data is column major

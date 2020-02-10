@@ -5,22 +5,22 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
+import scipy.sparse
 from sklearn.base import TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from datafold.pcfold.timeseries.collection import TSCDataFrame
-from datafold.pcfold.timeseries.metric import TSCMetric
+from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.utils.datastructure import if1dim_rowvec
 
-INDICES_TYPES = Union[TSCDataFrame, pd.DataFrame]
+FEATURE_NAME_TYPES = Union[TSCDataFrame, pd.DataFrame]
 
 # types allowed for transformation
-TRANF_TYPES = Union[INDICES_TYPES, np.ndarray]
+TRANF_TYPES = Union[FEATURE_NAME_TYPES, np.ndarray]
 
 # types allowed for predict
 PRE_FIT_TYPES = TSCDataFrame
-PRE_IC_TYPES = Union[pd.Series, pd.DataFrame, np.ndarray]
+PRE_IC_TYPES = Union[TSCDataFrame, pd.DataFrame, pd.Series, np.ndarray]
 
 
 class TSCBaseMixIn:
@@ -28,11 +28,11 @@ class TSCBaseMixIn:
         # This returns False for subclasses (TSCDataFrame)
         return type(df) == pd.DataFrame
 
-    def _has_indices(self, _obj):
+    def _has_feature_names(self, _obj):
         return isinstance(_obj, pd.DataFrame)
 
-    def _intern_X_to_numpy(self, X):
-        if self._has_indices(X):
+    def _X_to_numpy(self, X):
+        if self._has_feature_names(X):
             X = X.to_numpy()
             # a row in a df is always a single sample (which requires to be
             # represented in a 2D matrix)
@@ -40,11 +40,109 @@ class TSCBaseMixIn:
         else:
             return X
 
-    def _setup_array_based_fit(self, features_in, features_out):
-        self.features_in_ = (features_in, None)
-        self.features_out_ = (features_out, None)
+    def _check_attributes_set_up(self, check_attributes):
+        try:
+            check_is_fitted(
+                self, attributes=check_attributes,
+            )
+        except NotFittedError:
+            raise RuntimeError(
+                f"{check_attributes} are not available for estimator {self}. "
+                f"Please report bug."
+            )
 
-    def _setup_indices_based_fit(
+    def _validate_data(
+        self,
+        X,
+        ensure_feature_name_type=False,
+        validate_array_kwargs=None,
+        validate_tsc_kwargs=None,
+    ):
+        """Provides a general function to check data -- can be overwritten if an
+        implementation requires different checks."""
+
+        if validate_array_kwargs is None:
+            validate_array_kwargs = {}
+
+        if validate_tsc_kwargs is None:
+            validate_tsc_kwargs = {}
+
+        if ensure_feature_name_type and not self._has_feature_names(X):
+            raise TypeError(
+                f"X is of type {type(X)} but frame types ("
+                f"pd.DataFrame of TSCDataFrame) are required."
+            )
+
+        if not isinstance(X, TSCDataFrame):
+            # Currently, a pd.DataFrame is treated like data (there is not even a time
+            # involvement required).
+
+            validate_tsc_kwargs = {}  # no need to check
+
+            if self._strictly_pandas_df(X):
+                assert isinstance(X, pd.DataFrame)  # for mypy checking
+                revert_to_data_frame = True
+                idx, col = X.index, X.columns
+            else:
+                revert_to_data_frame = False
+                idx, col = [None] * 2
+
+            X = check_array(
+                X,
+                accept_sparse=validate_array_kwargs.pop("accept_sparse", False),
+                accept_large_sparse=validate_array_kwargs.pop(
+                    "accept_large_sparse", False
+                ),
+                dtype=validate_array_kwargs.pop("dtype", "numeric"),
+                order=validate_array_kwargs.pop("order", None),
+                copy=validate_array_kwargs.pop("copy", False),
+                force_all_finite=validate_array_kwargs.pop("force_all_finite", True),
+                ensure_2d=validate_array_kwargs.pop("ensure_2d", True),
+                allow_nd=validate_array_kwargs.pop("allow_nd", False),
+                ensure_min_samples=validate_array_kwargs.pop("ensure_min_samples", 1),
+                ensure_min_features=validate_array_kwargs.pop("ensure_min_features", 1),
+                estimator=self,
+            )
+
+            if revert_to_data_frame:
+                X = pd.DataFrame(X, index=idx, columns=col)
+
+        else:
+
+            validate_array_kwargs = {}  # no need to check
+
+            X = X.tsc.check_tsc(
+                force_all_finite=validate_tsc_kwargs.pop("finite", True),
+                ensure_same_length=validate_tsc_kwargs.pop("same_length", False),
+                ensure_delta_time=validate_tsc_kwargs.pop("delta_time", None),
+                ensure_same_time_values=validate_tsc_kwargs.pop(
+                    "same_time_values", False
+                ),
+                ensure_normalized_time=validate_tsc_kwargs.pop(
+                    "normalized_time", False
+                ),
+                ensure_n_timeseries=validate_tsc_kwargs.pop("n_timeseries", None),
+            )
+
+        if validate_array_kwargs != {} or validate_tsc_kwargs != {}:
+            # validate_kwargs have to be empty and must only contain key-values that can
+            # be handled to check_array / check_tsc
+
+            left_over_keys = list(validate_array_kwargs.keys()) + list(
+                validate_tsc_kwargs.keys()
+            )
+            raise ValueError(
+                f"{left_over_keys} are no valid validation keys. Please report bug."
+            )
+
+        return X
+
+
+class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
+
+    _FEAT_ATTR = ["features_in_", "features_out_"]
+
+    def _setup_features_input_fit(
         self, features_in: pd.Index, features_out: Union[List[str], pd.Index]
     ):
         # TODO: checks about columns
@@ -59,66 +157,14 @@ class TSCBaseMixIn:
             )
         self.features_out_ = (len(features_out), features_out)
 
-    def _check_indices_set_up(self):
-        check_attributes = ["features_in_", "features_out_"]
-        try:
-            check_is_fitted(
-                self, attributes=["features_in_", "features_out_"],
-            )
-        except NotFittedError:
-            raise RuntimeError(
-                f"{check_attributes} are not available for estimator {self}. Please "
-                "report bug."
-            )
+    def _setup_array_input_fit(self, features_in, features_out):
+        self.features_in_ = (features_in, None)
+        self.features_out_ = (features_out, None)
 
-    def _validate(self, X, ensure_index_type=False, **validate_kwargs):
-        """Provides a general function to check data -- can be overwritten if an
-        implementation requires different checks."""
-
-        if ensure_index_type and not self._has_indices(X):
-            raise TypeError(
-                f"X is of type {type(X)} but only indexable types ("
-                f"pd.DataFrame of TSCDataFrame) are supported."
-            )
-
-        if self._has_indices(X):
-            X_check = X.to_numpy()
-        else:
-            X_check = X
-
-        X_check = check_array(
-            X_check,
-            accept_sparse=validate_kwargs.pop("accept_sparse", False),
-            accept_large_sparse=validate_kwargs.pop("accept_large_sparse", False),
-            dtype=validate_kwargs.pop("dtype", "numeric"),
-            order=validate_kwargs.pop("order", None),
-            copy=validate_kwargs.pop("copy", False),
-            force_all_finite=validate_kwargs.pop("force_all_finite", True),
-            ensure_2d=validate_kwargs.pop("ensure_2d", True),
-            allow_nd=validate_kwargs.pop("allow_nd", False),
-            ensure_min_samples=validate_kwargs.pop("ensure_min_samples", 1),
-            ensure_min_features=validate_kwargs.pop("ensure_min_features", 1),
-            estimator=self,
-        )
-
-        if validate_kwargs != {}:
-            raise ValueError(
-                f"{validate_kwargs.keys()} are no valid validation keys. "
-                "Please report bug."
-            )
-
-        if self._has_indices(X):
-            return X
-        else:
-            return X_check
-
-
-class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
     def _validate_features_transform(self, X: TRANF_TYPES):
+        self._check_attributes_set_up(self._FEAT_ATTR)
 
-        self._check_indices_set_up()
-
-        if self._has_indices(X):
+        if self._has_feature_names(X):
             if self.features_in_[1] is None:
                 # TODO -- fit was called with array but now try with DataFrame
                 raise ValueError("")
@@ -129,9 +175,9 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 raise ValueError("")
 
     def _validate_features_inverse_transform(self, X: TRANF_TYPES):
-        self._check_indices_set_up()
+        self._check_attributes_set_up(self._FEAT_ATTR)
 
-        if self._has_indices(X):
+        if self._has_feature_names(X):
             if self.features_in_[1] is None:
                 # TODO -- fit was called with array but now try with DataFrame
                 raise ValueError("")
@@ -152,7 +198,7 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
         else:
             raise RuntimeError("Please report bug.")
 
-        if self._has_indices(X):
+        if self._has_feature_names(X):
             if isinstance(X, pd.Series):
                 # if X is a Series, then the columns of the original data are in a Series
                 # this usually happens if X.iloc[0, :] --> returns a Series
@@ -182,22 +228,95 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
 
 class TSCPredictMixIn(TSCBaseMixIn):
-    def fit(self, X: PRE_FIT_TYPES, **fit_params):
-        raise NotImplementedError
 
-    def predict(self, X: PRE_IC_TYPES, t, **predict_params):
+    _FEAT_ATTR = ["features_in_", "time_values_in_", "dt_"]
+
+    @property
+    def time_interval_(self):
+        self._check_attributes_set_up(check_attributes="time_values_in_")
+        return (self.time_values_in_[1][0], self.time_values_in_[1][-1])
+
+    def _setup_features_and_time_fit(
+        self, X: TSCDataFrame, features_in: pd.Index, time_values_in: np.ndarray,
+    ):
+        # TODO: all information is available from X, so features_in and time_values_in
+        #  would not be required dedicated inputs (however, this makes it a bit more
+        #  explicit...
+
+        self.time_values_in_ = (len(time_values_in), time_values_in)
+        self._validate_time_values(self.time_values_in_[1])
+
+        self.dt_ = X.delta_time
+        if isinstance(self.dt_, pd.Series):
+            raise NotImplementedError(
+                "Currently, all methods assume a constant time "
+                f"delta. Got X.time_delta={X.time_delta}"
+            )
+
+        # TODO: check this closer:
+        assert (
+            np.around(
+                (self.time_interval_[1] - self.time_interval_[0]) / self.dt_, decimals=5
+            )
+            % 1
+            == 0
+        )
+
+        self.features_in_ = (len(features_in), features_in)
+
+    def _validate_time_values(self, time_values: np.ndarray):
+
+        self._check_attributes_set_up(check_attributes=["time_values_in_"])
+
+        if (time_values < 0).any():
+            raise ValueError("in time_values no negative values are allowed")
+
+        if time_values.ndim != 1:
+            raise ValueError("time_values must be be one dimensional")
+
+        if time_values.dtype.kind not in "iufM":
+            # see
+            # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
+            raise TypeError(f"time_values.dtype {time_values.dtype} not supported")
+
+        if not (np.diff(time_values) >= 0).all():
+            raise ValueError("time_values must be sorted")
+
+    def _validate_data(self, X, **validate_array_kwargs):
+        return super(TSCPredictMixIn, self)._validate_data(
+            X, ensure_feature_name_type=True, **validate_array_kwargs
+        )
+
+    def _validate_feature_names(self, X: TRANF_TYPES):
+        self._check_attributes_set_up(check_attributes=["features_in_"])
+
+        if isinstance(X, pd.Series):
+            # if X is a Series, then the columns of the original data are in a Series
+            # this usually happens if X.iloc[0, :] --> returns a Series
+            pdtest.assert_index_equal(right=self.features_in_[1], left=X.index)
+        else:
+            pdtest.assert_index_equal(right=self.features_in_[1], left=X.columns)
+
+    def _validate_features_and_time_values(
+        self, X: FEATURE_NAME_TYPES, time_values: np.ndarray
+    ):
+
+        if not self._has_feature_names(X):
+            raise TypeError("only types that support feature names are supported")
+
+        self._validate_time_values(time_values=time_values)
+        self._validate_feature_names(X)
+
+    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        raise NotImplementedError("base class")
+
+    def reconstruct(self, X: TSCDataFrame):
+        raise NotImplementedError("base class")
+
+    def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
+        raise NotImplementedError("base class")
+
+    def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
         # NOTE the definition of predict cannot be a TSC. Best is provided as a
         # pd.DataFrame with all the information...
-        raise NotImplementedError
-
-    def fit_predict(self, X: PRE_FIT_TYPES, y=None) -> TSCDataFrame:
-        # TODO: to be consistent this would require **fit_params and **predict_params,
-        #  no kwargs for now to handle this, in case this becomes an issue.
-
-        # Note: this is an non-optimized way. To optimize this case, overwrite this.
-        X_ic = X.initial_states_df()
-        t = X.time_values(unique_values=True)
-        return self.fit(X=X, y=y).predict(X_ic, t)
-
-    def score(self, X_true: PRE_FIT_TYPES, X_pred: PRE_FIT_TYPES, **metric_kwargs):
-        raise NotImplementedError("")
+        raise NotImplementedError("base class")

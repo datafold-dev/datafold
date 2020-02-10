@@ -201,15 +201,15 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
             self
         """
 
-        X = self._validate(X=X, ensure_min_samples=2)
+        X = self._validate_data(X=X, validate_array_kwargs=dict(ensure_min_samples=2))
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
                 features_in=X.columns,
                 features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
             )
         else:
-            self._setup_array_based_fit(
+            self._setup_array_input_fit(
                 features_in=X.shape[1], features_out=self.num_eigenpairs
             )
 
@@ -269,7 +269,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
             self, ("X_", "eigenvalues_", "eigenvectors_", "kernel_", "kernel_matrix_")
         )
 
-        X = self._validate(X, ensure_min_samples=1)
+        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=1))
         self._validate_features_transform(X)
 
         kernel_matrix_cdist, _, _ = self.X_.compute_kernel_matrix(
@@ -291,7 +291,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
     def fit_transform(self, X, y=None, **fit_transform):
 
         self.fit(X, y)
-        X = self._validate(X, ensure_min_samples=2)
+        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
 
         dmap_embedding = self._perform_dmap_embedding(self.eigenvectors_)
 
@@ -301,7 +301,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
 
     def inverse_transform(self, X: TRANF_TYPES):
 
-        X = self._validate(X)
+        X = self._validate_data(X)
         self._validate_features_inverse_transform(X)
 
         import scipy.linalg
@@ -370,15 +370,15 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
-        X = self._validate(X, ensure_min_samples=2)
+        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
                 features_in=X.columns,
                 features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
             )
         else:
-            self._setup_array_based_fit(
+            self._setup_array_input_fit(
                 features_in=X.shape[1], features_out=self.num_eigenpairs
             )
 
@@ -440,15 +440,15 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
         )
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
-        X = self._validate(X, ensure_min_samples=2)
+        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
                 features_in=X.columns,
                 features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
             )
         else:
-            self._setup_array_based_fit(
+            self._setup_array_input_fit(
                 features_in=X.shape[1], features_out=self.num_eigenpairs
             )
 
@@ -721,7 +721,7 @@ class LocalRegressionSelection(TSCTransformerMixIn):
         # Later on not all of these columns are required because of the selection
         # performed.
 
-        X = self._validate(X, ensure_min_features=2)
+        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_features=2))
         num_eigenvectors = X.shape[1]
 
         self._validate_parameter(num_eigenvectors)
@@ -743,12 +743,12 @@ class LocalRegressionSelection(TSCTransformerMixIn):
 
         self._set_indices()
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
                 features_in=X.columns, features_out=X.columns[self.evec_indices_],
             )
         else:
-            self._setup_array_based_fit(
+            self._setup_array_input_fit(
                 features_in=X.shape[1], features_out=len(self.evec_indices_)
             )
 
@@ -759,7 +759,7 @@ class LocalRegressionSelection(TSCTransformerMixIn):
         residuals from local linear least squares fit.
         """
 
-        X = self._validate(X)
+        X = self._validate_data(X)
         self._validate_features_transform(X)
 
         if isinstance(X, (DiffusionMaps, DiffusionMapsVariable)):

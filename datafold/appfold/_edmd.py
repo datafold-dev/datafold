@@ -254,7 +254,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
     def fit(self, X: TSCDataFrame, y=None, groups=None, **fit_params):
 
         self._validate_settings_edmd()
-        X = self._validate(X, ensure_index_type=True)
+        X = self._validate_data(X)
 
         cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
 

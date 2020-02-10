@@ -321,7 +321,7 @@ class TSCKfoldSeries:
                 "the same length for this method."
             )
 
-        n_time_series = X.nr_timeseries
+        n_time_series = X.n_timeseries
         len_time_series = X.lengths_time_series
         n_samples = X.shape[0]
 
@@ -344,12 +344,12 @@ class TSCKFoldTime:
         self.kfold_splitter = KFold(n_splits=n_splits, shuffle=False, random_state=None)
 
     def split(self, X: TSCDataFrame, y=None, groups=None):
-        if not X.is_equal_time_values():
+        if not X.is_same_time_values():
             raise NotImplementedError(
                 "Currently, each time series must have the same " "time indices."
             )
 
-        n_timeseries = X.nr_timeseries
+        n_timeseries = X.n_timeseries
         len_timeseries = X.lengths_time_series
         n_samples = X.shape[0]
 

@@ -14,6 +14,7 @@ from datafold.pcfold.timeseries.base import (
     PRE_IC_TYPES,
     TRANF_TYPES,
     TSCTransformerMixIn,
+    TSCPredictMixIn,
 )
 from datafold.pcfold.timeseries.metric import TSCMetric, make_tsc_scorer
 
@@ -50,7 +51,7 @@ class EDMDDict(Pipeline):
         return super(EDMDDict, self)._inverse_transform(X=X)
 
 
-class EDMD(Pipeline):
+class EDMD(Pipeline, TSCPredictMixIn):
     def __init__(
         self, dict_steps, dmd_model: DMDBase = DMDFull(), memory=None, verbose=False
     ):
@@ -81,9 +82,7 @@ class EDMD(Pipeline):
             X = transform.inverse_transform(X)
         return X
 
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "Pipeline":
-
-        assert X.is_const_dt()  # TODO: make proper error
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "EDMD":
 
         for (_, trans_str, transformer) in self._iter(with_final=False):
             if not isinstance(transformer, TSCTransformerMixIn):
@@ -93,60 +92,106 @@ class EDMD(Pipeline):
                     "and TSCDataFrame)"
                 )
 
+        self._setup_features_and_time_fit(
+            X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
+        )
+
         return super(EDMD, self).fit(X=X, y=y, **fit_params)
 
-    def predict(self, X: PRE_IC_TYPES, t=None, **predict_params):
+    def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
         # TODO: if X is an np.ndarray, it should be converted to a DataFrame that gives
         #  a description of the initial condition of the time series.
 
-        if t is None:
-            # Note it cannot simply take the time values from fit, as some time series
-            # may have started at different times (esp. during cross fitting)
-            raise NotImplementedError("")
+        # TODO: when applying Takens, etc. an initial condition in X must be a time
+        #  series. During fit there should be a way to compute how many samples are
+        #  needed to make one IC -- this would allow a good error msg. here if X does
+        #  not meet this requirement here.
+
+        # TODO: check on X: all should be the same length (assuming they have the right
+        #  length), same dt_ as during fit, there could be warning if the time points
+        #  do not match, nut ultimately the time_values argument counts
+
+        if time_values is None:
+            time_values = self.time_values_in_[1]
+
+        if isinstance(X, np.ndarray):
+            raise NotImplementedError("make proper handling of np.ndarray input later")
 
         if isinstance(X, pd.Series):
+            # TODO: proper implementation and decision how to treat pd.Series input
             X = pd.DataFrame(X).T
             X.index.names = [TSCDataFrame.IDX_ID_NAME, TSCDataFrame.IDX_TIME_NAME]
 
-        if isinstance(X, np.ndarray) and X.ndim == 1:
-            raise ValueError("1D arrays are ambiguous, input must be 2D")
+        self._validate_features_and_time_values(X=X, time_values=time_values)
 
-        X_latent_ts = super(EDMD, self).predict(X=X, t=t, **predict_params)
+        Xt = X
+        for _, name, transform in self._iter(with_final=False):
+            Xt = transform.transform(Xt)
+
+        # Needs a better check...
+        assert isinstance(Xt, pd.DataFrame), (
+            "at the lowest level there is only one "
+            "sample per IC (at the highest level, "
+            "many samples may be required. There is a "
+            "proper check required. "
+        )
+
+        X_latent_ts = self.steps[-1][-1].predict(Xt, **predict_params)
+
         X_ts = self._inverse_transform_latent_time_series(X_latent_ts)
         return X_ts
 
-    def fit_predict(self, X: TSCDataFrame, y=None, **fit_params):
-        X_latent_ts = super(EDMD, self).fit_predict(X=X, y=y, **fit_params)
-        X_ts = self._inverse_transform_latent_time_series(X_latent_ts)
-        return X_ts
+    def reconstruct(self, X: TSCDataFrame):
+        # TODO: here a valuable parameter can be inferred:
+        #  how many time samples are required to make a I.C.?
+
+        self._validate_data(X)
+        self._validate_feature_names(X)
+
+        Xt = X
+
+        # exclude last (the DMD model) and transform input data
+        for _, name, dict_step in self._iter(with_final=False):
+            Xt = dict_step.transform(Xt)
+
+        # extract time series with different initial times
+        # NOTE: usually for the DMD model is irrelevant (as it treads every initial
+        # condition as time=0, but to correctly shift the time back for the
+        # reconstruction athe time series are called separately.
+        # NOTE2: this feature is especially important for cross-validation, where the
+        # folds are split in time
+        X_latent_ts_folds = []
+        for X_latent_ic, time_values in Xt.tsc.initial_states_folds():
+            current_ts = self.steps[-1][-1].predict(
+                X=X_latent_ic, time_values=time_values
+            )
+            X_latent_ts_folds.append(current_ts)
+
+        X_latent_ts = pd.concat(X_latent_ts_folds, axis=0)
+        X_est_ts = self._inverse_transform_latent_time_series(X_latent_ts)
+        # NOTE: time series contained in X_est_ts can be shorter in length, as some
+        # TSCTransform models drop samples (e.g. Takens)
+        return X_est_ts
+
+    def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
+        return self.fit(X, **fit_params).reconstruct(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
         """Docu note: y is kept for consistency to sklearn, but should always be None."""
         assert y is None
 
-        score_params = {}
-        if sample_weight is not None:
-            score_params["sample_weight"] = sample_weight
-
-        Xt = X
-
-        # exclude last (the DMD model) because the
-        for _, name, dict_step in self._iter(with_final=False):
-            Xt = dict_step.transform(Xt)
-
-        X_latent_ts_folds = []
-        for X_latent_ic, time_values in Xt.tsc.initial_states_folds():
-            current_ts = self.steps[-1][-1].predict(X=X_latent_ic, t=time_values)
-            X_latent_ts_folds.append(current_ts)
-
-        X_latent_ts = pd.concat(X_latent_ts_folds, axis=0)
-        X_est_ts = self._inverse_transform_latent_time_series(X_latent_ts)
+        # does the checking:
+        X_est_ts = self.reconstruct(X)
 
         # Important note for getting initial states in latent space:
         # during .transform() samples can be discarted (e.g. when applying Takens)
         # This means that in the latent space there can be less samples than in the
-        # "pyhsical" space and this is corrected:
+        # "physical" space and this is corrected:
         if X.shape[0] > X_est_ts.shape[0]:
-            X = X.select_times(time_points=X_est_ts.time_values(unique_values=True))
+            X = X.loc[X_est_ts.index, :]
+
+        score_params = {}
+        if sample_weight is not None:
+            score_params["sample_weight"] = sample_weight
 
         return self._score_eval(X, X_est_ts, sample_weight)

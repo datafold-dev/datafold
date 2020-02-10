@@ -12,11 +12,11 @@ from sklearn.utils.validation import check_is_fitted
 
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.base import (
-    INDICES_TYPES,
+    FEATURE_NAME_TYPES,
     TRANF_TYPES,
     TSCTransformerMixIn,
 )
-from datafold.pcfold.timeseries.collection import TimeSeriesCollectionError
+from datafold.pcfold.timeseries.collection import TSCException
 
 
 class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
@@ -54,18 +54,20 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
-        X = self._validate(X)
+        X = self._validate_data(X)
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(features_in=X.columns, features_out=X.columns)
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
+                features_in=X.columns, features_out=X.columns
+            )
         else:
-            self._setup_array_based_fit(features_in=X.shape[1], features_out=X.shape[1])
+            self._setup_array_input_fit(features_in=X.shape[1], features_out=X.shape[1])
 
         self.sklearn_transformer_fit_ = clone(
             estimator=self.sklearn_transformer, safe=True
         )
 
-        X_intern = self._intern_X_to_numpy(X)
+        X_intern = self._X_to_numpy(X)
         self.sklearn_transformer_fit_.fit(X_intern)
 
         return self
@@ -73,21 +75,23 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
     def transform(self, X: TRANF_TYPES):
         check_is_fitted(self, "sklearn_transformer_fit_")
 
-        X = self._validate(X)
+        X = self._validate_data(X)
         self._validate_features_transform(X)
 
-        X_intern = self._intern_X_to_numpy(X)
+        X_intern = self._X_to_numpy(X)
         values = self.sklearn_transformer_fit_.transform(X_intern)
         return self._same_type_X(X=X, values=values, set_columns=self.features_out_[1])
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
 
-        X = self._validate(X)
+        X = self._validate_data(X)
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(features_in=X.columns, features_out=X.columns)
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
+                features_in=X.columns, features_out=X.columns
+            )
         else:
-            self._setup_array_based_fit(features_in=X.shape[1], features_out=X.shape[1])
+            self._setup_array_input_fit(features_in=X.shape[1], features_out=X.shape[1])
 
         self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
         values = self.sklearn_transformer_fit_.fit_transform(X)
@@ -95,7 +99,7 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
         return self._same_type_X(X=X, values=values, set_columns=self.features_out_[1])
 
     def inverse_transform(self, X: TRANF_TYPES):
-        X_intern = self._intern_X_to_numpy(X)
+        X_intern = self._X_to_numpy(X)
         values = self.sklearn_transformer_fit_.inverse_transform(X_intern)
         return self._same_type_X(X=X, values=values, set_columns=self.features_in_[1])
 
@@ -106,12 +110,14 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
-        X = self._validate(X)
+        X = self._validate_data(X)
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(features_in=X.columns, features_out=X.columns)
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
+                features_in=X.columns, features_out=X.columns
+            )
         else:
-            self._setup_array_based_fit(features_in=X.shape[1], features_out=X.shape[1])
+            self._setup_array_input_fit(features_in=X.shape[1], features_out=X.shape[1])
 
         # "dummy" attribute to indicate
         self.is_fit_ = True
@@ -122,7 +128,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
 
         check_is_fitted(self, "is_fit_")
 
-        X = self._validate(X)
+        X = self._validate_data(X)
         self._validate_features_transform(X)
 
         if self.features_in_[0] != X.shape[1]:
@@ -133,7 +139,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
     def inverse_transform(self, X: TRANF_TYPES):
 
         check_is_fitted(self, "is_fit_")
-        X = self._validate(X)
+        X = self._validate_data(X)
         self._validate_features_inverse_transform(X)
         return X
 
@@ -161,48 +167,48 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
 
     def fit(self, X: TRANF_TYPES, y=None, **fit_params):
 
-        X = self._validate(X)
+        X = self._validate_data(X)
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
                 features_in=X.columns,
                 features_out=[f"pca{i}" for i in range(self.n_components)],
             )
         else:
-            self._setup_array_based_fit(
+            self._setup_array_input_fit(
                 features_in=X.shape[1], features_out=self.n_components
             )
 
-        X_intern = self._intern_X_to_numpy(X)
+        X_intern = self._X_to_numpy(X)
 
         # validate happens here:
         return super(TSCPrincipalComponent, self).fit(X_intern, y=y)
 
     def transform(self, X: TRANF_TYPES):
         check_is_fitted(self)
-        X = self._validate(X)
+        X = self._validate_data(X)
 
         self._validate_features_transform(X)
 
-        X_intern = self._intern_X_to_numpy(X)
+        X_intern = self._X_to_numpy(X)
         pca_data = super(TSCPrincipalComponent, self).transform(X_intern)
         return self._same_type_X(X, values=pca_data, set_columns=self.features_out_[1])
 
     def fit_transform(self, X, y=None):
 
-        X = self._validate(X)
+        X = self._validate_data(X)
 
-        if self._has_indices(X):
-            self._setup_indices_based_fit(
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
                 features_in=X.columns,
                 features_out=[f"pca{i}" for i in range(self.n_components)],
             )
         else:
-            self._setup_array_based_fit(
+            self._setup_array_input_fit(
                 features_in=X.shape[1], features_out=self.n_components
             )
 
-        X_intern = self._intern_X_to_numpy(X)
+        X_intern = self._X_to_numpy(X)
         pca_values = super(TSCPrincipalComponent, self).fit_transform(X_intern, y=y)
         return self._same_type_X(
             X, values=pca_values, set_columns=self.features_out_[1]
@@ -211,7 +217,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
     def inverse_transform(self, X: TRANF_TYPES):
         self._validate_features_inverse_transform(X)
 
-        X_intern = self._intern_X_to_numpy(X)
+        X_intern = self._X_to_numpy(X)
         data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X_intern)
 
         return self._same_type_X(
@@ -355,32 +361,36 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
                 X = TSCDataFrame(X)
 
         if not X.is_const_dt():
-            raise TimeSeriesCollectionError("dt is not constant")
+            raise TSCException("dt is not constant")
 
         return X
 
-    def fit(self, X: INDICES_TYPES, y=None, **fit_params):
+    def fit(self, X: FEATURE_NAME_TYPES, y=None, **fit_params):
 
         self._validate_parameter()
-        X = self._validate(X, ensure_index_type=True, ensure_min_samples=1)
+        X = self._validate_data(
+            X,
+            ensure_feature_name_type=True,
+            validate_array_kwargs=dict(ensure_min_samples=1),
+        )
         X = self._validate_tsc_properties(X)
 
         self.delay_indices_ = self._precompute_delay_indices()
         features_out = self._expand_all_delay_columns(X.columns)
 
         # only TSCDataFrame works here
-        self._setup_indices_based_fit(
+        self._setup_features_input_fit(
             features_in=X.columns, features_out=features_out,
         )
         return self
 
-    def transform(self, X: INDICES_TYPES):
+    def transform(self, X: FEATURE_NAME_TYPES):
 
-        X = self._validate(X, ensure_index_type=True)
+        X = self._validate_data(X, ensure_feature_name_type=True)
         X = self._validate_tsc_properties(X)
 
         if (X.lengths_time_series <= self.delay_indices_.max()).any():
-            raise TimeSeriesCollectionError(
+            raise TSCException(
                 f"Mismatch of delay and time series length. Shortest time series has "
                 f"length {np.array(X.lengths_time_series).min()} and maximum delay is "
                 f"{self.delay_indices_.max()}."
@@ -402,7 +412,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         return X
 
     def inverse_transform(self, X: TRANF_TYPES):
-        X = self._validate(X, ensure_index_type=True)
+        X = self._validate_data(X, ensure_feature_name_type=True)
         X = self._validate_tsc_properties(X)
         self._validate_features_inverse_transform(X)
 
