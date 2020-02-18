@@ -293,7 +293,7 @@ class TSCDataFrame(pd.DataFrame):
     def ids(self) -> np.ndarray:
         # update index by removing potentially unused levels
         self.index = self.index.remove_unused_levels()  # type: ignore
-        return np.asarray(self.index.levels[0])
+        return self.index.levels[0]
 
     @property
     def delta_time(self) -> Union[pd.Series, float]:
@@ -314,6 +314,7 @@ class TSCDataFrame(pd.DataFrame):
 
         diff_times = np.diff(self.index.get_level_values(self.IDX_TIME_NAME))
         id_indexer = self.index.get_level_values(self.IDX_ID_NAME)
+
         for id_ in self.ids:
             id_diff_times = diff_times[id_indexer.get_indexer_for([id_])[:-1]]
 
