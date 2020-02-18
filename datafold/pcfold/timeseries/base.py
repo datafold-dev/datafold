@@ -20,7 +20,7 @@ TRANF_TYPES = Union[FEATURE_NAME_TYPES, np.ndarray]
 
 # types allowed for predict
 PRE_FIT_TYPES = TSCDataFrame
-PRE_IC_TYPES = Union[TSCDataFrame, pd.DataFrame, pd.Series, np.ndarray]
+PRE_IC_TYPES = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
 
 
 class TSCBaseMixIn:
@@ -145,16 +145,25 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
     def _setup_features_input_fit(
         self, features_in: pd.Index, features_out: Union[List[str], pd.Index]
     ):
-        # TODO: checks about columns
-        #  -- no MultiIndex
-        #  -- no duplicates in columns
-
-        self.features_in_ = (len(features_in), features_in)
-
+        # For convenience features_out can be set as a list (better readability in the
+        # implementations)
         if isinstance(features_out, list):
             features_out = pd.Index(
                 features_out, dtype=np.str, name=TSCDataFrame.IDX_QOI_NAME,
             )
+
+        if features_in.has_duplicates or features_out.has_duplicates:
+            raise ValueError(
+                "duplicated indices detected. \n"
+                f"features_in={features_in.duplicated()} \n"
+                f"features_out={features_out.duplicated()}"
+            )
+
+        if features_in.ndim != 1 or features_out.ndim != 1:
+            raise ValueError("feature names must be 1-dim.")
+
+        self.features_in_ = (len(features_in), features_in)
+
         self.features_out_ = (len(features_out), features_out)
 
     def _setup_array_input_fit(self, features_in, features_out):
@@ -166,25 +175,29 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
         if self._has_feature_names(X):
             if self.features_in_[1] is None:
-                # TODO -- fit was called with array but now try with DataFrame
-                raise ValueError("")
+                raise ValueError(
+                    "fit method was called with np.ndarray, there is no "
+                    "support for pd.DataFrame for transform or "
+                    "inverse_transform"
+                )
             self._validate_feature_names(X=X, direction="transform")
         else:
             if self.features_in_[0] != X.shape[1]:
-                # TODO
-                raise ValueError("")
+                raise ValueError(
+                    f"shape mismatch expected {self.features_in_[0]} "
+                    f"got {X.shape[1]}"
+                )
 
     def _validate_features_inverse_transform(self, X: TRANF_TYPES):
         self._check_attributes_set_up(self._FEAT_ATTR)
 
         if self._has_feature_names(X):
             if self.features_in_[1] is None:
-                # TODO -- fit was called with array but now try with DataFrame
-                raise ValueError("")
-
-            # TODO: this error is also raised if user forgot to call fit, so there
-            #  should be checked before
-
+                raise ValueError(
+                    "fit method was called with np.ndarray, there is no "
+                    "support for pd.DataFrame for transform or "
+                    "inverse_transform"
+                )
             self._validate_feature_names(X, direction="inverse")
 
     def _validate_feature_names(self, X: TRANF_TYPES, direction):
@@ -236,14 +249,11 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self._check_attributes_set_up(check_attributes="time_values_in_")
         return (self.time_values_in_[1][0], self.time_values_in_[1][-1])
 
-    def _setup_features_and_time_fit(
-        self, X: TSCDataFrame, features_in: pd.Index, time_values_in: np.ndarray,
-    ):
-        # TODO: all information is available from X, so features_in and time_values_in
-        #  would not be required dedicated inputs (however, this makes it a bit more
-        #  explicit...
+    def _setup_features_and_time_fit(self, X: TSCDataFrame):
+        time_values = X.time_values(unique_values=True)
+        features_in = X.columns
 
-        self.time_values_in_ = (len(time_values_in), time_values_in)
+        self.time_values_in_ = (len(time_values), time_values)
         self._validate_time_values(self.time_values_in_[1])
 
         self.dt_ = X.delta_time
@@ -253,7 +263,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
                 f"delta. Got X.time_delta={X.time_delta}"
             )
 
-        # TODO: check this closer:
+        # TODO: check this closer why are there 5 decimals required?
         assert (
             np.around(
                 (self.time_interval_[1] - self.time_interval_[0]) / self.dt_, decimals=5
@@ -275,7 +285,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
             raise ValueError("time_values must be be one dimensional")
 
         if time_values.dtype.kind not in "iufM":
-            # see
+            # see for dtype.kind values:
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
             raise TypeError(f"time_values.dtype {time_values.dtype} not supported")
 
@@ -286,6 +296,19 @@ class TSCPredictMixIn(TSCBaseMixIn):
         return super(TSCPredictMixIn, self)._validate_data(
             X, ensure_feature_name_type=True, **validate_array_kwargs
         )
+
+    def _validate_delta_time(self, delta_time):
+        self._check_attributes_set_up(check_attributes=["dt_"])
+
+        if isinstance(delta_time, pd.Series):
+            raise NotImplementedError(
+                "Currently, all methods assume that dt_ is const."
+            )
+
+        if delta_time != self.dt_:
+            raise ValueError(
+                f"delta_time during fit was {self.dt_}, " f"now it is {delta_time}"
+            )
 
     def _validate_feature_names(self, X: TRANF_TYPES):
         self._check_attributes_set_up(check_attributes=["features_in_"])
@@ -305,6 +328,13 @@ class TSCPredictMixIn(TSCBaseMixIn):
             raise TypeError("only types that support feature names are supported")
 
         self._validate_time_values(time_values=time_values)
+
+        if isinstance(X, TSCDataFrame):
+            # sometimes also for initial conditions a TSCDataFrame is required (e.g.
+            # for transformation with Takens) -- for this case check also that the
+            # delta_time matches.
+            self._validate_delta_time(delta_time=X.delta_time)
+
         self._validate_feature_names(X)
 
     def fit(self, X: PRE_FIT_TYPES, **fit_params):

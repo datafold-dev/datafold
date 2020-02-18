@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import copy
+
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
@@ -13,17 +15,13 @@ from datafold.pcfold.timeseries.base import (
     PRE_FIT_TYPES,
     PRE_IC_TYPES,
     TRANF_TYPES,
-    TSCTransformerMixIn,
     TSCPredictMixIn,
+    TSCTransformerMixIn,
 )
 from datafold.pcfold.timeseries.metric import TSCMetric, make_tsc_scorer
 
 
 class EDMDDict(Pipeline):
-
-    # TODO: need to check that all steps are TSCtransformers! --> overwrite and super()
-    #  _validate
-
     def __init__(self, steps, memory=None, verbose=False):
         """NOTE: the typing is different to the TSCTransformMixIn, Because this (meta-)
         transformer is used for DMD models.
@@ -40,7 +38,7 @@ class EDMDDict(Pipeline):
     def _transform(self, X: TRANF_TYPES):
         if isinstance(X, pd.Series):
             raise TypeError(
-                "Currently, all pd.Series have to be casted to pd.DataFrame"
+                "Currently, all pd.Series have to be casted to pd.DataFrame before."
             )
         return super(EDMDDict, self)._transform(X=X)
 
@@ -64,11 +62,13 @@ class EDMD(Pipeline, TSCPredictMixIn):
         all_steps = self.dict_steps + [("dmd", self.dmd_model)]
         super(EDMD, self).__init__(steps=all_steps, memory=memory, verbose=verbose)
 
-    @property
-    def edmd_dict(self):
-        # TODO: not sure if it is better to make a getter?
+    def get_edmd_dict(self):
         # probably better to do a deepcopy of steps
-        return EDMDDict(steps=self.steps[:-1], memory=self.memory, verbose=self.verbose)
+        return EDMDDict(
+            steps=copy.deepcopy(self.steps[:-1]),
+            memory=self.memory,
+            verbose=self.verbose,
+        )
 
     def _setup_default_score_and_metric(self):
         self._metric_eval = TSCMetric.make_tsc_metric(
@@ -92,35 +92,26 @@ class EDMD(Pipeline, TSCPredictMixIn):
                     "and TSCDataFrame)"
                 )
 
-        self._setup_features_and_time_fit(
-            X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
-        )
+        self._setup_features_and_time_fit(X)
 
         return super(EDMD, self).fit(X=X, y=y, **fit_params)
 
     def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
-        # TODO: if X is an np.ndarray, it should be converted to a DataFrame that gives
-        #  a description of the initial condition of the time series.
 
         # TODO: when applying Takens, etc. an initial condition in X must be a time
         #  series. During fit there should be a way to compute how many samples are
         #  needed to make one IC -- this would allow a good error msg. here if X does
         #  not meet this requirement here.
 
-        # TODO: check on X: all should be the same length (assuming they have the right
-        #  length), same dt_ as during fit, there could be warning if the time points
-        #  do not match, nut ultimately the time_values argument counts
+        if isinstance(X, pd.Series):
+            raise TypeError(f"X has to be of the following types {PRE_IC_TYPES}")
+
+        if isinstance(X, np.ndarray):
+            # TODO: this requires some assumptions, especially if
+            raise NotImplementedError("make proper handling of np.ndarray input later")
 
         if time_values is None:
             time_values = self.time_values_in_[1]
-
-        if isinstance(X, np.ndarray):
-            raise NotImplementedError("make proper handling of np.ndarray input later")
-
-        if isinstance(X, pd.Series):
-            # TODO: proper implementation and decision how to treat pd.Series input
-            X = pd.DataFrame(X).T
-            X.index.names = [TSCDataFrame.IDX_ID_NAME, TSCDataFrame.IDX_TIME_NAME]
 
         self._validate_features_and_time_values(X=X, time_values=time_values)
 
@@ -128,17 +119,17 @@ class EDMD(Pipeline, TSCPredictMixIn):
         for _, name, transform in self._iter(with_final=False):
             Xt = transform.transform(Xt)
 
-        # Needs a better check...
+        # TODO: needs a better check...
         assert isinstance(Xt, pd.DataFrame), (
-            "at the lowest level there is only one "
+            "at the lowest level there must be only one "
             "sample per IC (at the highest level, "
             "many samples may be required. There is a "
             "proper check required. "
         )
 
         X_latent_ts = self.steps[-1][-1].predict(Xt, **predict_params)
-
         X_ts = self._inverse_transform_latent_time_series(X_latent_ts)
+
         return X_ts
 
     def reconstruct(self, X: TSCDataFrame):

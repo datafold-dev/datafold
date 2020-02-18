@@ -326,9 +326,7 @@ class DMDFull(DMDBase):
         return koopman_matrix
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
-        self._setup_features_and_time_fit(
-            X=X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
-        )
+        self._setup_features_and_time_fit(X=X)
 
         self.koopman_matrix_ = self._compute_koopman_matrix(X)
         self.eigenvalues_, self.eigenvectors_right_ = self._compute_right_eigenpairs()
@@ -411,9 +409,7 @@ class DMDEco(DMDBase):
         return koopman_matrix_low_rank
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
-        self._setup_features_and_time_fit(
-            X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
-        )
+        self._setup_features_and_time_fit(X)
 
         self._compute_internals(X)
         return self
@@ -464,9 +460,7 @@ class PyDMDWrapper(DMDBase):
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "PyDMDWrapper":
 
-        self._setup_features_and_time_fit(
-            X=X, features_in=X.columns, time_values_in=X.time_values(unique_values=True)
-        )
+        self._setup_features_and_time_fit(X=X)
 
         if len(X.ids) > 1:
             raise NotImplementedError(

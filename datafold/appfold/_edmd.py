@@ -86,8 +86,12 @@ def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):
         train_indices=train_indices, test_indices=test_indices
     )
 
-    # TODO: make proper error, the folds are likely too small if assert fails
-    assert isinstance(X_train, TSCDataFrame) and isinstance(X_test, TSCDataFrame)
+    if not isinstance(X_train, TSCDataFrame) or not isinstance(X_test, TSCDataFrame):
+        raise RuntimeError(
+            "X_train or X_test is not a TSCDataFrame anymore. "
+            "Potential reason is too small folds."
+        )
+
     return X_train, X_test
 
 
