@@ -95,11 +95,11 @@ class SumoKernelEigFuncDMD(object):
         # obs_basis * data_coeff = data
         self.coeff_matrix_, res = np.linalg.lstsq(self.dict_data, X, rcond=1e-14)[:2]
 
-    def _compute_sumo_timeseries(self, X_ic_edmd, time_samples) -> TSCDataFrame:
+    def _compute_sumo_timeseries(self, X_ic_edmd, time_values) -> TSCDataFrame:
 
         tsc_result = self.edmd_.predict(
             X_ic_edmd,
-            t=time_samples,
+            time_values=time_values,
             # post_map=self.coeff_matrix_.T,
             # qoi_columns=self._fit_qoi_columns,
         )
@@ -138,18 +138,18 @@ class SumoKernelEigFuncDMD(object):
     def __call__(self, X_ic: np.ndarray, t) -> TSCDataFrame:
         return self.predict(X_ic, t)
 
-    def _transform_dmd_ic(self, t, X_ic):
+    def _transform_dmd_ic(self, time_values, X_ic):
 
         # Time samples to evaluate the dmd model:
-        if t is None:
+        if time_values is None:
             time_samples = self._fit_time_index
-        elif isinstance(t, (float, int)):
+        elif isinstance(time_values, (float, int)):
             shift = self.edmd_._normalize_shift
-            time_samples = np.arange(shift, shift + t + 1)
-        elif isinstance(t, np.ndarray):
-            time_samples = t
+            time_samples = np.arange(shift, shift + time_values + 1)
+        elif isinstance(time_values, np.ndarray):
+            time_samples = time_values
         else:
-            raise TypeError(f"type(t)={type(t)} currently not supported.")
+            raise TypeError(f"type(t)={type(time_values)} currently not supported.")
 
         # Initial condition for the DMD (needs to be transformed)
         if isinstance(X_ic, np.ndarray):
@@ -191,12 +191,14 @@ class SumoKernelEigFuncDMD(object):
 
         return time_samples, X_ic_dmd
 
-    def predict(self, X_ic, t=None) -> TSCDataFrame:
+    def predict(self, X_ic, time_values=None) -> TSCDataFrame:
 
-        time_samples, X_ic_dmd = self._transform_dmd_ic(t=t, X_ic=X_ic)
+        time_samples, X_ic_dmd = self._transform_dmd_ic(
+            time_values=time_values, X_ic=X_ic
+        )
 
         tsc_predicted = self._compute_sumo_timeseries(
-            X_ic_edmd=X_ic_dmd, time_samples=time_samples,
+            X_ic_edmd=X_ic_dmd, time_values=time_samples,
         )
 
         return tsc_predicted
@@ -212,8 +214,8 @@ class SumoKernelEigFuncDMD(object):
         multi_qoi: Union[str, np.ndarray] = "uniform_average",
     ):
 
-        time_samples = Y_ts.time_values(unique_values=True)
-        Y_pred = self.predict(X_ic, t=time_samples)
+        time_values = Y_ts.time_values(unique_values=True)
+        Y_pred = self.predict(X_ic, time_values=time_values)
 
         tsc_metric = TSCMetric(metric=metric, mode=mode, scaling=normalize_strategy)
         return tsc_metric.eval_metric(

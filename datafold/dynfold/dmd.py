@@ -173,23 +173,26 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         return tsc_df
 
-    def fit(self, X: PRE_FIT_TYPES, **fit_params):
-        raise NotImplementedError("base class")
-
-    def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
-
-        # TODO: this functionality can be more general than here...
-        if time_values is None:
-            time_values = self.time_values_in_[1]
-
+    def _convert_array2frame(self, X):
         if isinstance(X, np.ndarray):
             assert X.ndim == 2
             nr_ic = X.shape[0]
             index = pd.Index(data=np.arange(nr_ic), name="ID")
             X = pd.DataFrame(X, index=index, columns=self.features_in_[1])
 
+        return X
+
+    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+        raise NotImplementedError("base class")
+
+    def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
+
+        X = self._convert_array2frame(X)
         self._validate_data(X)
-        self._validate_features_and_time_values(X=X, time_values=time_values)
+
+        X, time_values = self._validate_features_and_time_values(
+            X=X, time_values=time_values
+        )
 
         # This is for compatibility with the koopman based surrogate model
         post_map = predict_params.pop("post_map", None)
@@ -410,7 +413,6 @@ class DMDEco(DMDBase):
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
         self._setup_features_and_time_fit(X)
-
         self._compute_internals(X)
         return self
 

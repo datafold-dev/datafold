@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import numbers
 from typing import Generator, List, Optional, Tuple, Union
 
 import matplotlib.colors as mclrs
@@ -29,12 +28,18 @@ class TSCException(Exception):
     @classmethod
     def not_required_length(cls, required_length, actual_length):
         return cls(
-            f"time series have not required length {required_length}. Got: {actual_length}"
+            f"time series have not required length {required_length}. "
+            f"Got: {actual_length}"
         )
 
     @classmethod
-    def not_const_delta_time(cls, actual_delta_time):
-        return cls(f"not const delta time \n {actual_delta_time}")
+    def not_const_delta_time(cls, actual_delta_time=None):
+        msg = "not const delta time"
+
+        if actual_delta_time is not None:
+            msg += f"\n {actual_delta_time}"
+
+        return cls(msg)
 
     @classmethod
     def not_required_delta_time(cls, required_delta_time, actual_delta_time):
@@ -82,11 +87,8 @@ class TSCDataFrame(pd.DataFrame):
 
     @classmethod
     def from_tensor(
-        cls, tensor: np.ndarray, time_series_ids=None, columns=None, time_index=None
+        cls, tensor: np.ndarray, time_series_ids=None, columns=None, time_values=None
     ):
-
-        # TODO: [minor] need to make sure, that if pandas implements from_tensor in
-        #  pd.DataFrame, then this needs to be renamed!
 
         if tensor.ndim != 3:
             raise ValueError(
@@ -108,14 +110,15 @@ class TSCDataFrame(pd.DataFrame):
         if columns is None:
             columns = [f"qoi_{i}" for i in range(n_qoi)]
 
-        if time_index is None:
-            time_index = np.arange(n_timesteps)
+        if time_values is None:
+            time_values = np.arange(n_timesteps)
 
-        full_time_index = np.resize(time_index, n_timeseries * n_timesteps)
+        # entire column, repeating for every time series
+        col_time_values = np.resize(time_values, n_timeseries * n_timesteps)
+        idx = pd.MultiIndex.from_arrays([time_series_ids, col_time_values])
 
-        df_index = pd.MultiIndex.from_arrays([time_series_ids, full_time_index])
         data = tensor.reshape(n_timeseries * n_timesteps, n_qoi)
-        return cls(data=data, index=df_index, columns=columns)
+        return cls(data=data, index=idx, columns=columns)
 
     @classmethod
     def from_same_indices_as(
@@ -184,12 +187,9 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def _constructor_expanddim(self):
-        raise NotImplementedError(
-            "Currently, there is no intension to expand the "
-            "dimension of a TSCDataFrame"
-        )
+        raise NotImplementedError("expanddim is not required for TSCDataFrame")
 
-    def _validate(self):
+    def _validate(self) -> bool:
         if self.index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(
@@ -291,6 +291,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def ids(self) -> np.ndarray:
+        # update index by removing potentially unused levels
         self.index = self.index.remove_unused_levels()  # type: ignore
         return self.index.levels[0]
 
@@ -323,11 +324,13 @@ class TSCDataFrame(pd.DataFrame):
             if len(id_dt) == 1:
                 dt_series[id_] = id_dt[0]
 
-        nr_different_dt = len(np.unique(dt_series))
+        n_different_dts = len(np.unique(dt_series))
 
-        if nr_different_dt == 1:
+        if n_different_dts == 1:
+            # return single number
             return dt_series.iloc[0]
         else:
+            # return series listing delta_time per time series
             return dt_series
 
     @property
@@ -339,9 +342,8 @@ class TSCDataFrame(pd.DataFrame):
             return int(n_time_elements.iloc[0])
         else:
             n_time_elements.index.name = self.IDX_ID_NAME
-            n_time_elements.sort_index(
-                inplace=True
-            )  # seems not to be sorted in the first place.
+            # seems not to be sorted in the first place.
+            n_time_elements.sort_index(inplace=True)
             n_time_elements.name = "counts"
             return n_time_elements
 
@@ -392,7 +394,7 @@ class TSCDataFrame(pd.DataFrame):
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
         for i, ts in self.groupby(level=self.IDX_ID_NAME):
             # cast single time series back to DataFrame
-            yield (i, pd.DataFrame(ts.loc[i, :]))
+            yield i, pd.DataFrame(ts.loc[i, :])
 
     def to_pcmanifold(self):
         raise NotImplementedError("To implement")
@@ -447,10 +449,10 @@ class TSCDataFrame(pd.DataFrame):
             raise ValueError(f"ts_id has to be an integer type. Got={type(ts_id)}.")
 
         if self.n_features != df.shape[1]:
-            raise ValueError("TODO: Write error")  # TODO
+            raise ValueError("number of features do not match")
 
         if not (self.columns == df.columns).all():
-            raise ValueError("TODO: Write error")  # TODO
+            raise ValueError("columns do not match")
 
         # Add the id to the first level of the MultiIndex
         df.index = pd.MultiIndex.from_arrays(
@@ -474,16 +476,16 @@ class TSCDataFrame(pd.DataFrame):
 
         if unique_values:
             self.index = self.index.remove_unused_levels()
-            return self.index.levels[1]
+            return np.asarray(self.index.levels[1])
         else:
-            return self.index.get_level_values(self.IDX_TIME_NAME)
+            return np.asarray(self.index.get_level_values(self.IDX_TIME_NAME))
 
     def time_index_fill(self):
         """Creates an time array over the entire interval and also fills potential
         gaps. Requires const time delta. """
 
         if not self.is_const_dt():
-            raise TSCException("Time delta is required to be constant.")
+            raise TSCException.not_const_delta_time()
 
         start, end = self.time_interval()
         return np.arange(
@@ -493,9 +495,7 @@ class TSCDataFrame(pd.DataFrame):
     def qoi_to_ndarray(self, qoi: str):
 
         if not self.is_same_time_values():
-            raise TSCException(
-                "The time series' time index are not the same for all time series."
-            )
+            raise TSCException.not_same_time_values()
 
         return np.reshape(
             self.loc[:, qoi].to_numpy(), (self.n_timeseries, self.lengths_time_series)

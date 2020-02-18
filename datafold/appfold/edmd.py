@@ -110,10 +110,9 @@ class EDMD(Pipeline, TSCPredictMixIn):
             # TODO: this requires some assumptions, especially if
             raise NotImplementedError("make proper handling of np.ndarray input later")
 
-        if time_values is None:
-            time_values = self.time_values_in_[1]
-
-        self._validate_features_and_time_values(X=X, time_values=time_values)
+        X, time_values = self._validate_features_and_time_values(
+            X=X, time_values=time_values
+        )
 
         Xt = X
         for _, name, transform in self._iter(with_final=False):

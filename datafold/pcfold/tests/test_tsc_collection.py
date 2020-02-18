@@ -158,7 +158,7 @@ class TestTSCDataFrame(unittest.TestCase):
         qoi_column = pd.Index(["A", "B"])
 
         actual = TSCDataFrame.from_tensor(
-            matrix, columns=qoi_column, time_index=np.array([100, 200])
+            matrix, columns=qoi_column, time_values=np.array([100, 200])
         )
 
         time_index_expected = pd.MultiIndex.from_arrays(

@@ -324,6 +324,10 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self, X: FEATURE_NAME_TYPES, time_values: np.ndarray
     ):
 
+        self._check_attributes_set_up(check_attributes=["time_values_in_"])
+        if time_values is None:
+            time_values = self.time_values_in_[1]
+
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")
 
@@ -336,6 +340,8 @@ class TSCPredictMixIn(TSCBaseMixIn):
             self._validate_delta_time(delta_time=X.delta_time)
 
         self._validate_feature_names(X)
+
+        return X, time_values
 
     def fit(self, X: PRE_FIT_TYPES, **fit_params):
         raise NotImplementedError("base class")
