@@ -11,6 +11,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold.timeseries.metric import TSCMetric, make_tsc_scorer
 from datafold.utils.datastructure import if1dim_rowvec
 
 FEATURE_NAME_TYPES = Union[TSCDataFrame, pd.DataFrame]
@@ -112,16 +113,21 @@ class TSCBaseMixIn:
             validate_array_kwargs = {}  # no need to check
 
             X = X.tsc.check_tsc(
-                force_all_finite=validate_tsc_kwargs.pop("finite", True),
-                ensure_same_length=validate_tsc_kwargs.pop("same_length", False),
-                ensure_delta_time=validate_tsc_kwargs.pop("delta_time", None),
+                force_all_finite=validate_tsc_kwargs.pop("force_all_finite", True),
+                ensure_same_length=validate_tsc_kwargs.pop("ensure_same_length", False),
+                ensure_const_delta_time=validate_tsc_kwargs.pop(
+                    "ensure_const_delta_time", False
+                ),
+                ensure_delta_time=validate_tsc_kwargs.pop("ensure_delta_time", None),
                 ensure_same_time_values=validate_tsc_kwargs.pop(
-                    "same_time_values", False
+                    "ensure_same_time_values", False
                 ),
                 ensure_normalized_time=validate_tsc_kwargs.pop(
-                    "normalized_time", False
+                    "ensure_normalized_time", False
                 ),
-                ensure_n_timeseries=validate_tsc_kwargs.pop("n_timeseries", None),
+                ensure_n_timeseries=validate_tsc_kwargs.pop(
+                    "ensure_n_timeseries", None
+                ),
             )
 
         if validate_array_kwargs != {} or validate_tsc_kwargs != {}:
@@ -249,6 +255,12 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self._check_attributes_set_up(check_attributes="time_values_in_")
         return (self.time_values_in_[1][0], self.time_values_in_[1][-1])
 
+    def _setup_default_tsc_scorer_and_metric(self):
+        self._metric_eval = TSCMetric.make_tsc_metric(
+            metric="rmse", mode="qoi", scaling="min-max"
+        )
+        self._score_eval = make_tsc_scorer(self._metric_eval)
+
     def _setup_features_and_time_fit(self, X: TSCDataFrame):
         time_values = X.time_values(unique_values=True)
         features_in = X.columns
@@ -291,11 +303,6 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
         if not (np.diff(time_values) >= 0).all():
             raise ValueError("time_values must be sorted")
-
-    def _validate_data(self, X, **validate_array_kwargs):
-        return super(TSCPredictMixIn, self)._validate_data(
-            X, ensure_feature_name_type=True, **validate_array_kwargs
-        )
 
     def _validate_delta_time(self, delta_time):
         self._check_attributes_set_up(check_attributes=["dt_"])

@@ -86,8 +86,8 @@ class SumoKernelEigFuncDMD(object):
         # self.dict_data = pd.concat([self.dict_data, X_ts], axis=1)
         # # # TODO: end experimental
 
-        self.edmd_ = DMDFull(is_diagonalize=True)
-        self.edmd_ = self.edmd_.fit(self.dict_data)
+        self.dmd_ = DMDFull(is_diagonalize=True)
+        self.dmd_ = self.dmd_.fit(self.dict_data)
 
     def _coeff_matrix_least_square(self, X):
         # TODO: check residual somehow, user info etc.
@@ -97,7 +97,7 @@ class SumoKernelEigFuncDMD(object):
 
     def _compute_sumo_timeseries(self, X_ic_edmd, time_values) -> TSCDataFrame:
 
-        tsc_result = self.edmd_.predict(
+        tsc_result = self.dmd_.predict(
             X_ic_edmd,
             time_values=time_values,
             # post_map=self.coeff_matrix_.T,
@@ -144,7 +144,7 @@ class SumoKernelEigFuncDMD(object):
         if time_values is None:
             time_samples = self._fit_time_index
         elif isinstance(time_values, (float, int)):
-            shift = self.edmd_._normalize_shift
+            shift = self.dmd_.time_interval_[0]
             time_samples = np.arange(shift, shift + time_values + 1)
         elif isinstance(time_values, np.ndarray):
             time_samples = time_values

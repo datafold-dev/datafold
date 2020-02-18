@@ -293,7 +293,7 @@ class TSCDataFrame(pd.DataFrame):
     def ids(self) -> np.ndarray:
         # update index by removing potentially unused levels
         self.index = self.index.remove_unused_levels()  # type: ignore
-        return self.index.levels[0]
+        return np.asarray(self.index.levels[0])
 
     @property
     def delta_time(self) -> Union[pd.Series, float]:
@@ -371,8 +371,8 @@ class TSCDataFrame(pd.DataFrame):
                 _type = type(sliced)
 
                 try:
-                    # TODO: at the moment there is no TSCSeries, so always use
-                    #  TSCDataFrame, even when sliced is a pd.Series
+                    # there is no "TSCSeries", so always use TSCDataFrame, even when
+                    # sliced has only 1 column and is a pd.Series.
                     return TSCDataFrame(sliced)
                 except AttributeError:
                     # Fallback if the sliced is not a valid TSC anymore

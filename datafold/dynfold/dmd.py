@@ -3,17 +3,19 @@ from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
+import pydmd
 import scipy.linalg
 import scipy.sparse
 from sklearn.base import BaseEstimator
+from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
-from datafold.utils.datastructure import if1dim_rowvec
+from sklearn.utils.validation import check_is_fitted
+
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.base import TSCPredictMixIn, PRE_FIT_TYPES, PRE_IC_TYPES
+from datafold.pcfold.timeseries.base import PRE_FIT_TYPES, PRE_IC_TYPES, TSCPredictMixIn
+from datafold.utils.datastructure import if1dim_rowvec
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
-
-import pydmd
 
 
 class DMDBase(BaseEstimator, TSCPredictMixIn):
@@ -51,11 +53,6 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
     generally full matrix :math:`K^k`.
     """
 
-    def __init__(self):
-        self.koopman_matrix_ = None
-        self.eigenvalues_ = None
-        self.eigenvectors_right_ = None
-
     def _evolve_dmd_system(
         self,
         X_ic: pd.DataFrame,
@@ -89,15 +86,6 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         """
 
-        if not np.isin(X_ic.columns, self.features_in_[1]).all():
-            raise ValueError(
-                "columns between initial condition and columns during fit "
-                "do not match"
-            )
-        else:
-            # sort, just in case they are given in a different order
-            X_ic = X_ic.loc[:, self.features_in_[1]]
-
         if qoi_columns is None:
             qoi_columns = self.features_in_[1]
 
@@ -121,8 +109,10 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             ic = np.linalg.lstsq(self.eigenvectors_right_, ic, rcond=1e-15)[0]
 
         else:
-            # TODO: Raise non-fitted error
-            raise RuntimeError("DMD is not properly fit.")
+            raise NotFittedError(
+                "DMD is not properly fit. "
+                "Missing attributes: eigenvectors_left_ / eigenvectors_right_ "
+            )
 
         if time_invariant:
             shift = np.min(time_values)
@@ -186,7 +176,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         raise NotImplementedError("base class")
 
     def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
-
+        check_is_fitted(self)
         X = self._convert_array2frame(X)
         self._validate_data(X)
 
@@ -205,6 +195,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         )
 
     def reconstruct(self, X: TSCDataFrame):
+        check_is_fitted(self)
+
         self._validate_data(X)
         self._validate_feature_names(X)
 
@@ -219,11 +211,17 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
     def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
         return self.fit(X, **fit_params).reconstruct(X)
 
-    def score(self, X: TSCDataFrame, y=None, **score_params):
-        # TODO: this is a bit more complicated...
-        raise NotImplementedError(
-            "TODO: look at EDMD, and at TSCMetric, make_tsc_scorer"
-        )
+    def score(self, X: TSCDataFrame, y=None, sample_weight=None):
+        self._check_attributes_set_up(check_attributes=["_score_eval"])
+        assert y is None
+
+        X_est_ts = self.reconstruct(X)
+
+        score_params = {}
+        if sample_weight is not None:
+            score_params["sample_weight"] = sample_weight
+
+        return self._score_eval(X, X_est_ts, sample_weight)
 
 
 class DMDFull(DMDBase):
@@ -240,7 +238,7 @@ class DMDFull(DMDBase):
     """
 
     def __init__(self, is_diagonalize: bool = False):
-        super(DMDFull, self).__init__()
+        self._setup_default_tsc_scorer_and_metric()
         self.is_diagonalize = is_diagonalize
 
     def _compute_right_eigenpairs(self):
@@ -329,6 +327,12 @@ class DMDFull(DMDBase):
         return koopman_matrix
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+
+        self._validate_data(
+            X=X,
+            ensure_feature_name_type=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
         self._setup_features_and_time_fit(X=X)
 
         self.koopman_matrix_ = self._compute_koopman_matrix(X)
@@ -375,8 +379,8 @@ class DMDEco(DMDBase):
     """
 
     def __init__(self, svd_rank=10):
+        self._setup_default_tsc_scorer_and_metric()
         self.k = svd_rank
-        super(DMDEco, self).__init__()
 
     def _compute_internals(self, X: TSCDataFrame):
         # TODO: different orientations are good for different cases:
@@ -412,6 +416,11 @@ class DMDEco(DMDBase):
         return koopman_matrix_low_rank
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+        self._validate_data(
+            X,
+            ensure_feature_name_type=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
         self._setup_features_and_time_fit(X)
         self._compute_internals(X)
         return self
@@ -421,7 +430,7 @@ class PyDMDWrapper(DMDBase):
     def __init__(
         self, method: str, svd_rank, tlsq_rank, exact, opt, **init_params,
     ):
-        super(PyDMDWrapper, self).__init__()
+        self._setup_default_tsc_scorer_and_metric()
 
         self.method_ = method.lower()
 
@@ -462,6 +471,11 @@ class PyDMDWrapper(DMDBase):
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "PyDMDWrapper":
 
+        self._validate_data(
+            X,
+            ensure_feature_name_type=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
         self._setup_features_and_time_fit(X=X)
 
         if len(X.ids) > 1:

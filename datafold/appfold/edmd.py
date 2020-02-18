@@ -5,6 +5,7 @@ import copy
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
+from sklearn.utils.validation import check_is_fitted
 
 # import not used in this file, but leave it such that
 # 'from datafold.appfold.edmd import EDMDCV' works too
@@ -57,7 +58,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         self.dict_steps = dict_steps
         self.dmd_model = dmd_model
 
-        self._setup_default_score_and_metric()
+        self._setup_default_tsc_scorer_and_metric()
 
         all_steps = self.dict_steps + [("dmd", self.dmd_model)]
         super(EDMD, self).__init__(steps=all_steps, memory=memory, verbose=verbose)
@@ -69,12 +70,6 @@ class EDMD(Pipeline, TSCPredictMixIn):
             memory=self.memory,
             verbose=self.verbose,
         )
-
-    def _setup_default_score_and_metric(self):
-        self._metric_eval = TSCMetric.make_tsc_metric(
-            metric="rmse", mode="qoi", scaling="min-max"
-        )
-        self._score_eval = make_tsc_scorer(self._metric_eval)
 
     def _inverse_transform_latent_time_series(self, X):
         reverse_iter = reversed(list(self._iter(with_final=False)))
@@ -92,6 +87,11 @@ class EDMD(Pipeline, TSCPredictMixIn):
                     "and TSCDataFrame)"
                 )
 
+        self._validate_data(
+            X,
+            ensure_feature_name_type=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
         self._setup_features_and_time_fit(X)
 
         return super(EDMD, self).fit(X=X, y=y, **fit_params)
@@ -102,14 +102,10 @@ class EDMD(Pipeline, TSCPredictMixIn):
         #  series. During fit there should be a way to compute how many samples are
         #  needed to make one IC -- this would allow a good error msg. here if X does
         #  not meet this requirement here.
-
-        if isinstance(X, pd.Series):
-            raise TypeError(f"X has to be of the following types {PRE_IC_TYPES}")
-
-        if isinstance(X, np.ndarray):
-            # TODO: this requires some assumptions, especially if
-            raise NotImplementedError("make proper handling of np.ndarray input later")
-
+        check_is_fitted(self)
+        self._validate_data(
+            X, ensure_feature_name_type=True,
+        )
         X, time_values = self._validate_features_and_time_values(
             X=X, time_values=time_values
         )
@@ -134,13 +130,12 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def reconstruct(self, X: TSCDataFrame):
         # TODO: here a valuable parameter can be inferred:
         #  how many time samples are required to make a I.C.?
-
+        check_is_fitted(self)
         self._validate_data(X)
         self._validate_feature_names(X)
 
         Xt = X
-
-        # exclude last (the DMD model) and transform input data
+        # only transform input data
         for _, name, dict_step in self._iter(with_final=False):
             Xt = dict_step.transform(Xt)
 
@@ -151,9 +146,9 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # NOTE2: this feature is especially important for cross-validation, where the
         # folds are split in time
         X_latent_ts_folds = []
-        for X_latent_ic, time_values in Xt.tsc.initial_states_folds():
+        for X_latent_ic, time_series_time_values in Xt.tsc.initial_states_folds():
             current_ts = self.steps[-1][-1].predict(
-                X=X_latent_ic, time_values=time_values
+                X=X_latent_ic, time_values=time_series_time_values
             )
             X_latent_ts_folds.append(current_ts)
 
@@ -169,6 +164,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
         """Docu note: y is kept for consistency to sklearn, but should always be None."""
         assert y is None
+        self._check_attributes_set_up(check_attributes=["_score_eval"])
 
         # does the checking:
         X_est_ts = self.reconstruct(X)

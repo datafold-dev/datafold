@@ -79,6 +79,7 @@ from datafold.pcfold.timeseries.metric import (
     TSCKFoldTime,
 )
 from datafold.utils.datastructure import is_integer
+from typing import Dict
 
 
 def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):
@@ -118,12 +119,14 @@ def _fit_and_score_edmd(
         else:
             msg = "%s" % (", ".join("%s=%s" % (k, v) for k, v in parameters.items()))
         print("[CV] %s %s" % (msg, (64 - len(msg)) * "."))
+    else:
+        msg = ""
 
     # Adjust length of sample weights
     fit_params = fit_params if fit_params is not None else {}
     fit_params = _check_fit_params(X, fit_params, train)
 
-    train_scores = {}
+    train_scores: Dict[str, numbers.Number] = {}
     if parameters is not None:
         # clone after setting parameters in case any parameters
         # are estimators (like pipeline steps)
@@ -152,9 +155,9 @@ def _fit_and_score_edmd(
                 if return_train_score:
                     train_scores = test_scores.copy()
             else:
-                test_scores = error_score
+                test_scores = {"score": error_score}
                 if return_train_score:
-                    train_scores = error_score
+                    train_scores = {"score": error_score}
             warnings.warn(
                 "Estimator fit failed. The score on this train-test"
                 f" partition for these parameters will be set to {error_score}. "
@@ -182,21 +185,21 @@ def _fit_and_score_edmd(
             for scorer_name in sorted(test_scores):
                 msg += f", {scorer_name}="
                 if return_train_score:
-                    msg += "(train=%.3f," % train_scores[scorer_name]
-                    msg += " test=%.3f)" % test_scores[scorer_name]
+                    msg += f"(train={train_scores[scorer_name]:.3f},"
+                    msg += f" test={test_scores[scorer_name]:.3f})"
                 else:
-                    msg += "%.3f" % test_scores[scorer_name]
+                    msg += f"{test_scores[scorer_name]:.3f}"
         else:
             msg += ", score="
             msg += (
-                "%.3f" % test_scores
+                f"{test_scores:.3f}"
                 if not return_train_score
-                else "(train=%.3f, test=%.3f)" % (train_scores, test_scores)
+                else f"(train={train_scores:.3f}, test={test_scores:.3f})"
             )
 
     if verbose > 1:
         total_time = score_time + fit_time
-        print(_message_with_time("CV", msg, total_time))
+        print(_message_with_time("CV", msg, int(total_time)))
 
     ret = [train_scores, test_scores] if return_train_score else [test_scores]
 
