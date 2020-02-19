@@ -146,7 +146,7 @@ class LinearDynamicalSystem:
             time_series_tensor,
             time_series_ids=time_series_ids,
             columns=qoi_columns,
-            time_index=time_samples,
+            time_values=time_samples,
         )
 
     def evolve_edmd_forcing_system(

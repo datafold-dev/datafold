@@ -1,16 +1,15 @@
 from typing import Optional, Union
 
+
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
-import datafold.dynfold.operator as operator
+import datafold.dynfold.diffusion_maps as operator
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import DMDEco, DMDFull
+from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.accessor import NormalizeQoi, TimeSeriesError
-from datafold.utils.datastructure import if1dim_rowvec
 
 
 class ForcingKernelEigFuncDMD(object):
@@ -34,13 +33,13 @@ class ForcingKernelEigFuncDMD(object):
                 eigfunc_kwargs = {}
 
             # call from with name
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator.from_name(
+            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator.from_operator_name(
                 name=eigfunc_name, **eigfunc_kwargs
             )
 
         elif eigfunc_kwargs is not None:
             # call __init__
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator(
+            self.eigfunc_interpolator = operator.TSCEigfuncInterpolator(
                 **eigfunc_kwargs
             )
         else:
@@ -107,7 +106,7 @@ class ForcingKernelEigFuncDMD(object):
         )
 
         # is required to evaluate time
-        self._fit_time_index = X_ts.time_indices(unique_values=True)
+        self._fit_time_index = X_ts.time_values(unique_values=True)
         self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via GH-function basis
@@ -156,7 +155,7 @@ class ForcingKernelEigFuncDMD(object):
             metric=metric, mode=mode, normalize_strategy=normalize_strategy
         )
 
-        return tsc_error.score(
+        return tsc_error.eval_metric(
             y_true=Y_ts, y_pred=Y_pred, sample_weight=sample_weight, multi_qoi=multi_qoi
         )
 

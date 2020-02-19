@@ -9,24 +9,91 @@ import pandas as pd
 from scipy.stats import multivariate_normal
 
 from datafold.pcfold.timeseries.collection import (
-    TimeSeriesCollectionError,
+    TSCException,
     TSCDataFrame,
 )
-from datafold.utils.datastructure import is_integer
+from datafold.utils.datastructure import is_integer, is_float
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
 class TSCollectionMethods(object):
-    def __init__(self, tsc_df):
+    def __init__(self, tsc_df: TSCDataFrame):
 
         # NOTE: cannot call TSCDataFrame(tsc_df) here to transform in case it is a normal
         # DataFrame. This is because the accessor has to know when updating this object.
         if not isinstance(tsc_df, TSCDataFrame):
-            raise ValueError(
+            raise TypeError(
                 "Can use 'tsc' extension only for type TSCDataFrame (convert before)."
             )
 
-        self._tsc_df = tsc_df
+        self._tsc_df: TSCDataFrame = tsc_df
+
+    def check_tsc(
+        self,
+        force_all_finite=True,
+        ensure_same_length=False,
+        ensure_const_delta_time=True,
+        ensure_delta_time=None,
+        ensure_same_time_values=False,
+        ensure_normalized_time=False,
+        ensure_n_timeseries=None,
+    ) -> TSCDataFrame:
+
+        if ensure_same_length and not self._tsc_df.is_equal_length():
+            raise TSCException.not_same_length(
+                actual_lengths=self._tsc_df.is_equal_length()
+            )
+
+        if ensure_const_delta_time or ensure_delta_time is not None:
+            # save only once, as it can be expensive...
+            actual_time_delta = self._tsc_df.delta_time
+        else:
+            actual_time_delta = None
+
+        if ensure_const_delta_time and isinstance(actual_time_delta, pd.Series):
+            raise TSCException.not_const_delta_time(actual_time_delta)
+
+        if ensure_delta_time is not None:
+
+            if (
+                isinstance(actual_time_delta, pd.Series)
+                and is_float(ensure_delta_time)
+                or is_float(actual_time_delta)
+                and isinstance(ensure_delta_time, pd.Series)
+            ):
+                raise TSCException.not_required_delta_time(
+                    required_delta_time=ensure_delta_time,
+                    actual_delta_time=actual_time_delta,
+                )
+
+            if isinstance(actual_time_delta, pd.Series) and isinstance(
+                ensure_delta_time, pd.Series
+            ):
+                if not (actual_time_delta == ensure_delta_time).all():
+                    raise TSCException.not_required_delta_time(
+                        required_delta_time=ensure_delta_time,
+                        actual_delta_time=actual_time_delta,
+                    )
+
+        if force_all_finite and not self._tsc_df.is_finite():
+            raise TSCException.not_finite()
+
+        if ensure_same_time_values and self._tsc_df.is_same_time_values():
+            raise TSCException.not_same_time_values()
+
+        if ensure_normalized_time and self._tsc_df.is_normalized_time():
+            raise TSCException.not_normalized_time()
+
+        if (
+            ensure_n_timeseries is not None
+            and self._tsc_df.n_timeseries != ensure_n_timeseries
+        ):
+            raise TSCException.not_required_n_timeseries(
+                required_n_timeseries=ensure_n_timeseries,
+                actual_n_timeseries=self._tsc_df.n_timeseries,
+            )
+
+        return self._tsc_df
 
     def shift_time(self, shift_t):
 
@@ -34,7 +101,7 @@ class TSCollectionMethods(object):
             return self._tsc_df
 
         convert_times = self._tsc_df.index.get_level_values(1) + shift_t
-        convert_times = pd.Index(convert_times, self._tsc_df.index.names[1])
+        convert_times = pd.Index(convert_times, name=TSCDataFrame.IDX_TIME_NAME)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
             [self._tsc_df.index.get_level_values(0), convert_times]
@@ -51,13 +118,13 @@ class TSCollectionMethods(object):
         min_time, _ = self._tsc_df.time_interval()
 
         if not self._tsc_df.is_const_dt():
-            raise TimeSeriesCollectionError(
+            raise TSCException(
                 "To normalize the time index it is required that the time time delta is "
                 "constant."
             )
 
         convert_times = np.array(
-            (convert_times / self._tsc_df.dt) - min_time, dtype=np.int
+            (convert_times / self._tsc_df.delta_time) - min_time, dtype=np.int
         )
         convert_times = pd.Index(convert_times, name=self._tsc_df.index.names[1])
 
@@ -74,7 +141,7 @@ class TSCollectionMethods(object):
     ) -> Tuple[np.ndarray, np.ndarray]:
 
         if not self._tsc_df.is_const_dt():
-            raise TimeSeriesCollectionError(
+            raise TSCException(
                 "Cannot compute shift matrices: Time series are required to have the "
                 "same time delta."
             )
@@ -83,19 +150,19 @@ class TSCollectionMethods(object):
 
         if is_integer(ts_counts):
             ts_counts = pd.Series(
-                np.ones(self._tsc_df.nr_timeseries, dtype=np.int) * ts_counts,
+                np.ones(self._tsc_df.n_timeseries, dtype=np.int) * ts_counts,
                 index=self._tsc_df.ids,
             )
 
         nr_shift_snapshots = (ts_counts.subtract(1)).sum()
         insert_indices = np.append(0, (ts_counts.subtract(1)).cumsum().to_numpy())
 
-        assert len(insert_indices) == self._tsc_df.nr_timeseries + 1
+        assert len(insert_indices) == self._tsc_df.n_timeseries + 1
 
         if snapshot_orientation == "column":
-            shift_left = np.zeros([self._tsc_df.nr_qoi, nr_shift_snapshots])
+            shift_left = np.zeros([self._tsc_df.n_features, nr_shift_snapshots])
         elif snapshot_orientation == "row":
-            shift_left = np.zeros([nr_shift_snapshots, self._tsc_df.nr_qoi])
+            shift_left = np.zeros([nr_shift_snapshots, self._tsc_df.n_features])
         else:
             raise ValueError(f"snapshot_orientation={snapshot_orientation} not known")
 
@@ -127,25 +194,65 @@ class TSCollectionMethods(object):
 
         return shift_left, shift_right
 
-    # def takens_embedding(
-    #     self,
-    #     lag=0,
-    #     delays=3,
-    #     frequency=1,
-    #     time_direction="backward",
-    #     attach=False,
-    #     fill_value: float = np.nan,
-    # ):
-    #     """Wrapper function for class TakensEmbedding"""
-    #
-    #     takens = TSCTakensEmbedding(lag, delays, frequency, time_direction, fill_value)
-    #     return_df = takens.apply(self._tsc_df)
-    #
-    #     if attach:
-    #         return_df = return_df.drop(self._tsc_df.columns, axis=1)
-    #         return_df = pd.concat([self._tsc_df, return_df], axis=1)
-    #
-    #     return return_df
+    def kfold_cv_reassign_ids(self, train_indices, test_indices):
+
+        # mark train samples as zero and test samples with 1
+        mask_train_test = np.zeros(self._tsc_df.shape[0])
+        mask_train_test[test_indices] = 1
+
+        change_fold_indicator = np.append(0, np.diff(mask_train_test)).astype(np.bool)
+        change_id_indicator = np.append(
+            0, np.diff(self._tsc_df.index.get_level_values("ID"))
+        ).astype(np.bool)
+
+        id_cum_sum_mask = np.logical_or(change_fold_indicator, change_id_indicator)
+        new_ids = np.cumsum(id_cum_sum_mask)
+
+        new_idx = pd.MultiIndex.from_arrays(
+            arrays=(new_ids, self._tsc_df.index.get_level_values("time"))
+        )
+
+        splitted_tsc = TSCDataFrame.from_same_indices_as(
+            self._tsc_df, values=self._tsc_df, except_index=new_idx
+        )
+
+        train_tsc = splitted_tsc.iloc[train_indices, :]
+        test_tsc = splitted_tsc.iloc[test_indices, :]
+
+        # asserts also assumption made in the algorithm (in hindsight)
+        assert isinstance(train_tsc, TSCDataFrame)
+        assert isinstance(test_tsc, TSCDataFrame)
+
+        return train_tsc, test_tsc
+
+    def initial_states_folds(self):
+        """If splits are performed in time, then different time series have
+        different times at the initial condition (and different evalutation
+        times). This function provides an iterator which returns all time series
+        starting at the same time and the corresponding evaluation time.
+        """
+
+        # TODO [think about] maybe provide an extra TSC.accessor for Cross Validation
+        #  relevant operations?
+
+        for initial_time, initial_states_df in self._tsc_df.initial_states_df().groupby(
+            level="time"
+        ):
+            time_series_ids = initial_states_df.index.get_level_values(
+                TSCDataFrame.IDX_ID_NAME
+            )
+
+            tsc_fold = self._tsc_df.loc[time_series_ids, :]
+
+            if not tsc_fold.is_same_time_values():
+                raise RuntimeError(
+                    "No equal time values in initial condition fold. In case assumptions "
+                    "are not met in the data the error has to be raised earlier. "
+                    "Please report bug. "
+                )
+
+            time_values_fold = tsc_fold.time_values(unique_values=True)
+            yield initial_states_df, time_values_fold
 
     def plot_density2d(self, time, xresolution: int, yresolution: int, covariance=None):
         """
@@ -165,7 +272,7 @@ class TSCollectionMethods(object):
         if covariance is None:
             covariance = np.eye(2)
 
-        df = self._tsc_df.single_time_df(time=time)
+        df = self._tsc_df.select_times_values(time_values=time)
 
         xmin = df.iloc[:, 0].min()
         xmax = df.iloc[:, 0].max()

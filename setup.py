@@ -24,7 +24,7 @@ setup(
     package_dir={"datafold": "datafold"},
     package_data={"": ["LICENSE"]},
     python_requires=">=3.6",  # uses f-strings
-    install_requires=["numpy", "scikit-learn", "scipy", "pandas"],
+    install_requires=["numpy", "scikit-learn", "scipy", "pandas", "pydmd"],
     test_suite="nose.collector",
     tests_require=["nose"],
     extras_require={

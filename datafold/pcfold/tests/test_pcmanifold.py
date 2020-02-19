@@ -2,10 +2,30 @@
 
 import unittest
 import sklearn.datasets
-
+import pickle
 from datafold.pcfold import *
 
 import datafold.pcfold.tests.allutils
+
+
+class TestPCManifold(unittest.TestCase):
+    def setUp(self) -> None:
+        pass
+
+    def test_pickleable(self):
+
+        data = np.array([[1, 2, 3]])
+        pcm = PCManifold(data)
+
+        pickled_estimator = pickle.dumps(pcm)
+        unpickled_estimator = pickle.loads(pickled_estimator)
+
+        # Check if after pickling all attributes are recovered:
+        self.assertTrue(hasattr(unpickled_estimator, "kernel"))
+        self.assertTrue(hasattr(unpickled_estimator, "_cut_off"))
+        self.assertTrue(hasattr(unpickled_estimator, "_dist_backend"))
+        self.assertTrue(hasattr(unpickled_estimator, "_dist_params"))
+
 
 # --------------------------------------------------
 # people who contributed code

@@ -52,9 +52,6 @@ class KernelMethod(BaseEstimator):
         dist_backend,
         dist_backend_kwargs,
     ):
-
-        super(KernelMethod, self).__init__()
-
         self.epsilon = epsilon
         self.num_eigenpairs = num_eigenpairs
         self.cut_off = cut_off
@@ -63,15 +60,7 @@ class KernelMethod(BaseEstimator):
         self.symmetrize_kernel = symmetrize_kernel
         self.use_cuda = use_cuda
         self.dist_backend = dist_backend
-
-        if dist_backend_kwargs is None:
-            self.dist_backend_kwargs: dict = {}  # empty to use **kwargs
-        else:
-            self.dist_backend_kwargs = dist_backend_kwargs
-
-        # variables that need to be set by subclasses
-        self._kernel: Kernel
-        self.operator_matrix_ = None
+        self.dist_backend_kwargs = dist_backend_kwargs
 
     @property
     def kernel_(self):
@@ -151,9 +140,9 @@ class KernelMethod(BaseEstimator):
             )
 
         if basis_change_matrix is not None:
-            # NOTE: this order has to be reverted, when eigenvectors are
-            # column-wise (TODO: #44)
-            eigvect = eigvect @ basis_change_matrix
+            # TODO: [minor] could use diag_dot_mat from utils and simply read the
+            #  diagonal from basis_change_matrix
+            eigvect = basis_change_matrix @ eigvect
 
         if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
             raise NumericalMathError(
@@ -166,7 +155,7 @@ class KernelMethod(BaseEstimator):
         eigvals, eigvect = np.real(eigvals), np.real(eigvect)
 
         # normalize eigenvectors to 1 (change if required differently).
-        eigvect /= np.linalg.norm(eigvect, axis=1)[:, np.newaxis]
+        eigvect /= np.linalg.norm(eigvect, axis=0)[np.newaxis, :]
 
         return eigvals, eigvect
 
@@ -220,9 +209,8 @@ class KernelMethod(BaseEstimator):
             # can include zero or numerical noise imaginary part
             eigvects = np.real(eigvects)
 
-        # TODO: #44 -- that the eigvects are row-wise is an issue from the legacy code
         eigvals, eigvects = sort_eigenpairs(
-            eigvals, eigvects.T, eigenvector_orientation="row"
+            eigvals, eigvects, eigenvector_orientation="column"
         )
 
         return eigvals, eigvects
@@ -247,22 +235,23 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         symmetrize_kernel=True,
     ):
 
-        self.row_sums_init = None
+        self.epsilon = epsilon
         # TODO: not sure if I need this length_scale_bounds?! Check in the scikit learn
         #  doc what this is about
+        self.length_scale_bounds = length_scale_bounds
 
-        self.epsilon = epsilon
+        self.is_stochastic = is_stochastic
 
         if not (0 <= alpha <= 1):
             raise ValueError(f"alpha has to be between [0, 1]. Got alpha={alpha}")
         self.alpha = alpha
+        self.symmetrize_kernel = symmetrize_kernel
 
-        self.is_stochastic = is_stochastic
         self._internal_rbf_kernel = RadialBasisKernel(
-            self.epsilon, length_scale_bounds=length_scale_bounds
+            self.epsilon, length_scale_bounds=self.length_scale_bounds
         )
 
-        if not is_stochastic or symmetrize_kernel:
+        if not self.is_stochastic or self.symmetrize_kernel:
             # If not stochastic, the kernel is always symmetric
             # `symmetrize_kernel` indicates if the user wants the kernel to use
             # similarity transformations to solve the
@@ -274,6 +263,8 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
             self.is_symmetric = True
         else:
             self.is_symmetric = False
+
+        self.row_sums_init = None
 
         # TODO: check if the super call is reaching the Kernel class, currently the
         #  output does not show the params

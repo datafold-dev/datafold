@@ -7,9 +7,9 @@ import unittest
 import matplotlib.pyplot as plt
 from sklearn.datasets import make_swiss_roll
 from sklearn.model_selection import ParameterGrid
+from sklearn.utils.estimator_checks import check_estimator
 
 from datafold.dynfold.kernel import DmapKernelFixed
-from datafold.dynfold.operator import KernelEigenfunctionInterpolator
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
@@ -82,6 +82,9 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.num_points = self.points.shape[0]
         self.values = f(self.points)
 
+    def test_valid_sklearn_estimator(self):
+        check_estimator(GeometricHarmonicsInterpolator(num_eigenpairs=1))
+
     def test_geometric_harmonics_interpolator(self):
         logging.basicConfig(level=logging.DEBUG)
 
@@ -119,7 +122,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         # plt.tight_layout()
         # plt.show()
 
-    def test_eigenfunctions(self):
+    def test_eigenfunctions(self, plot=False):
         logging.basicConfig(level=logging.DEBUG)
 
         eps = 1e1
@@ -131,12 +134,11 @@ class GeometricHarmonicsTest(unittest.TestCase):
         dm = DiffusionMaps(
             epsilon=eps, num_eigenpairs=num_eigenpairs, cut_off=1e100
         ).fit(points)
-        ev = dm.eigenvectors_
 
         # plt.subplot(1, 2, 1)
-        # plt.scatter(points[:, 0], points[:, 1], c=ev[1, :], cmap='RdBu_r')
+        # plt.scatter(points[:, 0], points[:, 1], c=dm.eigenvectors_[:, 1], cmap='RdBu_r')
         # plt.subplot(1, 2, 2)
-        # plt.scatter(points[:, 0], points[:, 1], c=ev[2, :], cmap='RdBu_r')
+        # plt.scatter(points[:, 0], points[:, 1], c=dm.eigenvectors_[:, 2], cmap='RdBu_r')
         # plt.show()
 
         setting = {
@@ -146,29 +148,32 @@ class GeometricHarmonicsTest(unittest.TestCase):
             "is_stochastic": False,
         }
 
-        ev1 = GeometricHarmonicsInterpolator(**setting).fit(points, ev[1, :])
-        ev2 = GeometricHarmonicsInterpolator(**setting).fit(points, ev[2, :])
-
-        # new_points = make_points(50, 0, 0, 1, 1e-1)
-        # ev1i = ev1(new_points)
-        # ev2i = ev2(new_points)
-        # plt.subplot(1, 2, 1)
-        # plt.scatter(new_points[:, 0], new_points[:, 1], c=ev1i,
-        #             cmap='RdBu_r')
-        # plt.subplot(1, 2, 2)
-        # plt.scatter(new_points[:, 0], new_points[:, 1], c=ev2i,
-        #             cmap='RdBu_r')
-        # plt.show()
-
-        rel_err1 = np.linalg.norm(ev[1, :] - ev1(points), np.inf) / np.linalg.norm(
-            ev[1, :], np.inf
+        ev1 = GeometricHarmonicsInterpolator(**setting).fit(
+            points, dm.eigenvectors_[:, 1]
         )
+        ev2 = GeometricHarmonicsInterpolator(**setting).fit(
+            points, dm.eigenvectors_[:, 2]
+        )
+
+        rel_err1 = np.linalg.norm(
+            dm.eigenvectors_[:, 1] - ev1(points), np.inf
+        ) / np.linalg.norm(dm.eigenvectors_[:, 1], np.inf)
         self.assertAlmostEqual(rel_err1, 0, places=1)
 
-        rel_err2 = np.linalg.norm(ev[2, :] - ev2(points), np.inf) / np.linalg.norm(
-            ev[2, :], np.inf
-        )
+        rel_err2 = np.linalg.norm(
+            dm.eigenvectors_[:, 2] - ev2(points), np.inf
+        ) / np.linalg.norm(dm.eigenvectors_[:, 2], np.inf)
         self.assertAlmostEqual(rel_err2, 0, places=1)
+
+        if plot:
+            new_points = make_points(50, 0, 0, 1, 1e-1)
+            ev1i = ev1(new_points)
+            ev2i = ev2(new_points)
+            plt.subplot(1, 2, 1)
+            plt.scatter(new_points[:, 0], new_points[:, 1], c=ev1i, cmap="RdBu_r")
+            plt.subplot(1, 2, 2)
+            plt.scatter(new_points[:, 0], new_points[:, 1], c=ev2i, cmap="RdBu_r")
+            plt.show()
 
     def test_dense_sparse(self):
         data, _ = make_swiss_roll(n_samples=1000, noise=0, random_state=1)
@@ -188,7 +193,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         }
 
         dmap_dense = DiffusionMaps(**dense_setting).fit(data)
-        values = dmap_dense.eigenvectors_[1, :]
+        values = dmap_dense.eigenvectors_[:, 1]
 
         dmap_sparse = DiffusionMaps(**sparse_setting).fit(data)
 
@@ -613,31 +618,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
             plt.show()
 
 
-class GeometricHarmonicsFunctionBasisTest(unittest.TestCase):
-    def test_geometric_harmonics_function_basis(self):
-        data, _ = make_swiss_roll(3000, noise=0, random_state=0)
-
-        dmap = DiffusionMaps(epsilon=1.25, num_eigenpairs=50, is_stochastic=False).fit(
-            data
-        )
-
-        actual_interp = KernelEigenfunctionInterpolator(
-            epsilon=1.25, num_eigenpairs=50
-        ).fit(data)
-        # TODO: issue #44
-        expected_interp = GeometricHarmonicsInterpolator(
-            epsilon=1.25, num_eigenpairs=50
-        ).fit(data, dmap.eigenvectors_.T)
-
-        nptest.assert_array_equal(
-            actual_interp.kernel_matrix_, expected_interp.kernel_matrix_
-        )
-
-        nptest.assert_allclose(
-            actual_interp(data), expected_interp(data), rtol=1e-16, atol=1e-15
-        )
-
-
 class GeometricHarmonicsLegacyTest(unittest.TestCase):
     # We want to produce exactly the same results as the forked DMAP repository. These
     # are test to make sure this is the case.
@@ -652,7 +632,7 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
             self.data
         )
 
-        self.phi_all = dmap.eigenvectors_[[1, 5], :].T  # column wise like X_all
+        self.phi_all = dmap.eigenvectors_[:, [1, 5]]  # column wise like X_all
 
         train_idx_stop = int(self.data.shape[0] * 2 / 3)
         self.data_train = self.data[:train_idx_stop, :]
@@ -895,10 +875,10 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         eps_interp = 0.0005
         actual = DmapKernelFixed(epsilon=eps_interp, is_stochastic=False, alpha=1)
 
-        # diffusion map as argument
+        # GH must be trained before to set kernel
         gh = GeometricHarmonicsInterpolator(
             epsilon=eps_interp, num_eigenpairs=1, is_stochastic=False
-        )
+        ).fit(self.data_train, self.phi_train)
 
         self.assertEqual(gh.kernel_, actual)
 
@@ -982,6 +962,19 @@ class LaplacianPyramidsTest(unittest.TestCase):
         if lp is not None:
             lp.plot_eps_vs_residual()
 
+    def test_valid_sklearn_estimator(self):
+
+        for estimator, check in check_estimator(
+            LaplacianPyramidsInterpolator(initial_epsilon=100, auto_adaptive=True),
+            generate_only=True,
+        ):
+            try:
+                check(estimator)
+            except Exception as e:
+                print(check)
+                print(estimator)
+                raise e
+
     def test_synthetic_example_rabin(self, plot=False):
 
         # TODO: currently, there is a robustness issue. For very small scales,
@@ -992,8 +985,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_rabin, self.y_rabin)
 
-        train_eval = lp(self.X_rabin)
-        test_eval = lp(self.X_rabin_test)
+        train_eval = lp.predict(self.X_rabin)
+        test_eval = lp.predict(self.X_rabin_test)
 
         if plot:
             self._plot(
@@ -1017,8 +1010,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_rabin, self.y_rabin)
 
-        train_eval = lp(self.X_rabin)
-        test_eval = lp(self.X_rabin_test)
+        train_eval = lp.predict(self.X_rabin)
+        test_eval = lp.predict(self.X_rabin_test)
 
         lp.score(self.X_rabin, self.y_rabin)
 
@@ -1044,8 +1037,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_fern, self.y_fern)
 
-        train_eval = lp(self.X_fern)
-        test_eval = lp(self.X_fern_test)
+        train_eval = lp.predict(self.X_fern)
+        test_eval = lp.predict(self.X_fern_test)
 
         if plot:
             self._plot(
@@ -1068,8 +1061,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
         )
         lp = lp.fit(self.X_fern, self.y_fern)
 
-        train_eval = lp(self.X_fern)
-        test_eval = lp(self.X_fern_test)
+        train_eval = lp.predict(self.X_fern)
+        test_eval = lp.predict(self.X_fern_test)
 
         if plot:
             self._plot(
@@ -1093,8 +1086,8 @@ class LaplacianPyramidsTest(unittest.TestCase):
 
         lp = lp.fit(self.X_fern, y_target)
 
-        train_eval = lp(self.X_fern)
-        test_eval = lp(self.X_fern_test)
+        train_eval = lp.predict(self.X_fern)
+        test_eval = lp.predict(self.X_fern_test)
 
         if plot:
             self._plot(

@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
-import datafold.dynfold.operator as operator
+import datafold.dynfold.diffusion_maps as dmap
 import datafold.pcfold.timeseries as ts
-from datafold.dynfold.koopman import DMDEco, DMDFull
+from datafold.dynfold.dmd import DMDEco, DMDFull
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.transform import TSCQoiScale
 from datafold.pcfold.timeseries.metric import TSCMetric
+from datafold.pcfold.timeseries.transform import TSCQoiPreprocess
 from datafold.utils.datastructure import if1dim_rowvec
 
 
@@ -48,15 +48,13 @@ class SumoKernelEigFuncDMD(object):
                 eigfunc_kwargs = {}
 
             # call from with name
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator.from_name(
+            self.eigfunc_interpolator = dmap.DiffusionMaps.from_operator_name(
                 name=eigfunc_name, **eigfunc_kwargs
             )
 
         elif eigfunc_kwargs is not None:
             # call __init__
-            self.eigfunc_interpolator = operator.KernelEigenfunctionInterpolator(
-                **eigfunc_kwargs
-            )
+            self.eigfunc_interpolator = dmap.DiffusionMaps(**eigfunc_kwargs)
         else:
             self.eigfunc_interpolator = eigfunc_exist
             # TODO: for now, the fit() function has to be called already for the
@@ -69,16 +67,18 @@ class SumoKernelEigFuncDMD(object):
         if normalize_strategy == "id":
             self.qoi_scale_ = None
         else:
-            self.qoi_scale_ = TSCQoiScale(normalize_strategy)
+            self.qoi_scale_ = TSCQoiPreprocess.scale(normalize_strategy)
 
     def _extract_dynamics_with_edmd(self, X_ts: TSCDataFrame):
         # transpose eigenvectors, because the eigenvectors are row-wise in pydmap
-        eig_func_values = self.eigfunc_interpolator.eigenvectors_.T
+        # eig_func_values = self.eigfunc_interpolator.eigenvectors_.T
 
-        columns = [f"phi{i}" for i in range(eig_func_values.shape[1])]
-        self.dict_data = ts.TSCDataFrame.from_same_indices_as(
-            indices_from=X_ts, values=eig_func_values, except_columns=columns
-        )
+        # columns = [f"phi{i}" for i in range(eig_func_values.shape[1])]
+        # self.dict_data = ts.TSCDataFrame.from_same_indices_as(
+        #     indices_from=X_ts, values=eig_func_values, except_columns=columns
+        # )
+
+        self.dict_data = self.eigfunc_interpolator.eigenvectors_
 
         # TODO: provide as option --> include the identity observable state?
         # # # TODO: experimental: add const vector to eig_func_values
@@ -86,8 +86,8 @@ class SumoKernelEigFuncDMD(object):
         # self.dict_data = pd.concat([self.dict_data, X_ts], axis=1)
         # # # TODO: end experimental
 
-        self.edmd_ = DMDFull(is_diagonalize=True)
-        self.edmd_ = self.edmd_.fit(self.dict_data)
+        self.dmd_ = DMDFull(is_diagonalize=True)
+        self.dmd_ = self.dmd_.fit(self.dict_data)
 
     def _coeff_matrix_least_square(self, X):
         # TODO: check residual somehow, user info etc.
@@ -95,14 +95,16 @@ class SumoKernelEigFuncDMD(object):
         # obs_basis * data_coeff = data
         self.coeff_matrix_, res = np.linalg.lstsq(self.dict_data, X, rcond=1e-14)[:2]
 
-    def _compute_sumo_timeseries(self, X_ic_edmd, time_samples) -> TSCDataFrame:
+    def _compute_sumo_timeseries(self, X_ic_edmd, time_values) -> TSCDataFrame:
 
-        tsc_result = self.edmd_.predict(
+        tsc_result = self.dmd_.predict(
             X_ic_edmd,
-            t=time_samples,
-            post_map=self.coeff_matrix_.T,
-            qoi_columns=self._fit_qoi_columns,
+            time_values=time_values,
+            # post_map=self.coeff_matrix_.T,
+            # qoi_columns=self._fit_qoi_columns,
         )
+
+        tsc_result = self.eigfunc_interpolator.inverse_transform(tsc_result)
 
         if self.qoi_scale_ is not None:
             tsc_result = self.qoi_scale_.inverse_transform(tsc_result)
@@ -114,10 +116,8 @@ class SumoKernelEigFuncDMD(object):
         if self.qoi_scale_ is not None:
             X_ts = self.qoi_scale_.fit_transform(X_ts)
 
-        print("transformed data")
-
         # is required to evaluate time
-        self._fit_time_index = X_ts.time_indices(unique_values=True)
+        self._fit_time_index = X_ts.time_values(unique_values=True)
         self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via operator-function basis
@@ -125,37 +125,31 @@ class SumoKernelEigFuncDMD(object):
         if not hasattr(self.eigfunc_interpolator, "eigenvectors_") and not hasattr(
             self.eigfunc_interpolator, "eigenvalues_"
         ):  # if not already fit...
-            self.eigfunc_interpolator = self.eigfunc_interpolator.fit(X_ts.to_numpy())
-
-        print("fitted eigunc_interpolator")
+            self.eigfunc_interpolator = self.eigfunc_interpolator.fit(X=X_ts)
 
         # 2. Compute Koopman matrix via DMD
         self._extract_dynamics_with_edmd(X_ts)
 
-        print("extracted dynamics")
-
-        # 3. Linear map from new observable space to qoi data space
-        self._coeff_matrix_least_square(X_ts)
-
-        print("fit sumo")
+        # # 3. Linear map from new observable space to qoi data space
+        # self._coeff_matrix_least_square(X_ts)
 
         return self
 
     def __call__(self, X_ic: np.ndarray, t) -> TSCDataFrame:
         return self.predict(X_ic, t)
 
-    def _transform_dmd_ic(self, t, X_ic):
+    def _transform_dmd_ic(self, time_values, X_ic):
 
         # Time samples to evaluate the dmd model:
-        if t is None:
+        if time_values is None:
             time_samples = self._fit_time_index
-        elif isinstance(t, (float, int)):
-            shift = self.edmd_._normalize_shift
-            time_samples = np.arange(shift, shift + t + 1)
-        elif isinstance(t, np.ndarray):
-            time_samples = t
+        elif isinstance(time_values, (float, int)):
+            shift = self.dmd_.time_interval_[0]
+            time_samples = np.arange(shift, shift + time_values + 1)
+        elif isinstance(time_values, np.ndarray):
+            time_samples = time_values
         else:
-            raise TypeError(f"type(t)={type(t)} currently not supported.")
+            raise TypeError(f"type(t)={type(time_values)} currently not supported.")
 
         # Initial condition for the DMD (needs to be transformed)
         if isinstance(X_ic, np.ndarray):
@@ -187,7 +181,7 @@ class SumoKernelEigFuncDMD(object):
             X_ic = self.qoi_scale_.transform(X_ic)
 
         # Transform the initial conditions to obervable functions evaluations
-        ic_obs_space = self.eigfunc_interpolator(X_ic.to_numpy())
+        ic_obs_space = self.eigfunc_interpolator.transform(X_ic.to_numpy())
 
         X_ic_dmd = pd.DataFrame(
             if1dim_rowvec(ic_obs_space),
@@ -197,12 +191,14 @@ class SumoKernelEigFuncDMD(object):
 
         return time_samples, X_ic_dmd
 
-    def predict(self, X_ic, t=None) -> TSCDataFrame:
+    def predict(self, X_ic, time_values=None) -> TSCDataFrame:
 
-        time_samples, X_ic_dmd = self._transform_dmd_ic(t=t, X_ic=X_ic)
+        time_samples, X_ic_dmd = self._transform_dmd_ic(
+            time_values=time_values, X_ic=X_ic
+        )
 
         tsc_predicted = self._compute_sumo_timeseries(
-            X_ic_edmd=X_ic_dmd, time_samples=time_samples,
+            X_ic_edmd=X_ic_dmd, time_values=time_samples,
         )
 
         return tsc_predicted
@@ -218,11 +214,11 @@ class SumoKernelEigFuncDMD(object):
         multi_qoi: Union[str, np.ndarray] = "uniform_average",
     ):
 
-        time_samples = Y_ts.time_indices(unique_values=True)
-        Y_pred = self.predict(X_ic, t=time_samples)
+        time_values = Y_ts.time_values(unique_values=True)
+        Y_pred = self.predict(X_ic, time_values=time_values)
 
         tsc_metric = TSCMetric(metric=metric, mode=mode, scaling=normalize_strategy)
-        return tsc_metric.score(
+        return tsc_metric.eval_metric(
             y_true=Y_ts, y_pred=Y_pred, sample_weight=sample_weight, multi_qoi=multi_qoi
         )
 

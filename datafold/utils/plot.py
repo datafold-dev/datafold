@@ -25,11 +25,11 @@ def plot_eigenvalues(eigenvalues, plot_unit_circle=False, semilogy=False):
             plt.plot(np.arange(len(eigenvalues)), eigenvalues, "+")
 
 
-def plot_eigenvalues_time(eigenvalues, nr_timesteps):
-    vander_matrix = np.vander(np.abs(eigenvalues), nr_timesteps, increasing=True)
+def plot_eigenvalues_time(eigenvalues, n_timesteps):
+    vander_matrix = np.vander(np.abs(eigenvalues), n_timesteps, increasing=True)
 
     plt.figure()
-    plt.plot(np.arange(nr_timesteps), vander_matrix.T, "-")
+    plt.plot(np.arange(n_timesteps), vander_matrix.T, "-")
 
 
 def plot_eigenfunction_along_axis(X_axis_values, evec_evals):

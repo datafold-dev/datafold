@@ -29,8 +29,12 @@ def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
     return ds
 
 
-def is_df_same_index_columns(
-    df_left: pd.DataFrame, df_right: pd.DataFrame, check_index=True, check_column=True
+def is_df_same_index(
+    df_left: pd.DataFrame,
+    df_right: pd.DataFrame,
+    check_index=True,
+    check_column=True,
+    handle="raise",
 ):
 
     assert check_index + check_column >= 1
@@ -42,6 +46,8 @@ def is_df_same_index_columns(
         try:
             pdtest.assert_index_equal(df_left.index, df_right.index, check_names=True)
         except AssertionError:
+            if handle == "raise":
+                raise
             is_index_same = False
 
     if check_column:
@@ -50,6 +56,8 @@ def is_df_same_index_columns(
                 df_left.columns, df_right.columns, check_names=True
             )
         except AssertionError:
+            if handle == "raise":
+                raise
             is_columns_same = False
 
     return is_index_same and is_columns_same
