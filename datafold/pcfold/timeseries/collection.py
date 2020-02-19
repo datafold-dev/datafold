@@ -337,9 +337,9 @@ class TSCDataFrame(pd.DataFrame):
     @property
     def lengths_time_series(self) -> Union[pd.Series, int]:
         n_time_elements = self.index.get_level_values(0).value_counts()
-        nr_unique_elements = len(np.unique(n_time_elements))
+        n_unique_elements = len(np.unique(n_time_elements))
 
-        if nr_unique_elements == 1:
+        if n_unique_elements == 1:
             return int(n_time_elements.iloc[0])
         else:
             n_time_elements.index.name = self.IDX_ID_NAME
