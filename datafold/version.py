@@ -2,10 +2,10 @@ class Version:
     """Current version."""
 
     # set only integers:
-    year = 2019
-    month = 10
-    day = 18
-    v_nr = 1
+    year: int = 2020
+    month: int = 2
+    day: int = 19
+    v_nr: int = 1
 
     assert 1 <= day <= 31
     assert v_nr >= 1
