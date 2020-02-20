@@ -26,3 +26,7 @@ venv/
 *.pdf
 *.jar
 examples/untracked/
+
+# Local scripts
+sync_minimuc.sh
+login_sync_minimuc.sh
