@@ -14,14 +14,13 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
-from datafold.utils.maths import random_subsample
 from datafold.pcfold.pointcloud import PCManifold
 from datafold.pcfold.timeseries.base import TRANF_TYPES, TSCTransformerMixIn
 from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
-from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat
+from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, random_subsample
 
 
 class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
@@ -57,7 +56,8 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         dist_backend="guess_optimal",
         dist_backend_kwargs=None,
     ) -> None:
-
+        # TODO: following the new convention:
+        #   rename num_eigenpairs to n_eigenpairs
         """Initialize base of diffusion maps object.
 
         This function computes the eigen-decomposition of the transition matrix
@@ -68,9 +68,6 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
           RadialBasisKernel, so this option is only for convenience.
 
         """
-
-        if time_exponent < 0:
-            raise ValueError("'time_exponent' must be greater than zero")
 
         self.time_exponent = time_exponent
 
@@ -169,6 +166,15 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         return kernel_cdist @ mat_dot_diagmat(eigvec, np.reciprocal(eigvals))
 
     def _perform_dmap_embedding(self, eigenvectors: np.ndarray) -> np.ndarray:
+
+        check_scalar(
+            self.time_exponent,
+            "time_exponent",
+            target_type=(float, np.floating, int, np.integer),
+            min_val=0,
+            max_val=None,
+        )
+
         if self.time_exponent == 0:
             dmap_embedding = eigenvectors
         else:
@@ -186,7 +192,6 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         )
 
     def set_coords(self, indices) -> "DiffusionMaps":
-
         self.eigenvectors_ = if1dim_colvec(self.eigenvectors_[:, indices])
         self.eigenvalues_ = self.eigenvalues_[indices]
 
