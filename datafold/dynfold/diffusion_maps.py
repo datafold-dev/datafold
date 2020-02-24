@@ -445,18 +445,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
         )
 
     def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
-        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
-
-        if self._has_feature_names(X):
-            self._setup_features_input_fit(
-                features_in=X.columns,
-                features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
-            )
-        else:
-            self._setup_array_input_fit(
-                features_in=X.shape[1], features_out=self.num_eigenpairs
-            )
-
+        self.fit(X=X, y=y, **fit_params)
         return self._same_type_X(X, self.eigenvectors_, self.features_out_[1])
 
 

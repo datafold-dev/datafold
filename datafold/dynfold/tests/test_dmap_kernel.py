@@ -10,17 +10,16 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         # Note: in this case the alpha value is ignored
         k1 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=True)
         self.assertTrue(k1.is_symmetric)
-        self.assertFalse(
-            k1.is_symmetric_transform(is_pdist=True)
-        )  # No transformation is required
 
-        k2 = DmapKernelFixed(
-            is_stochastic=False, symmetrize_kernel=False
-        )  # Even now the symmetric kernel is true
+        # No transformation to symmetrize the kernel is required
+        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
+
+        # Because the kernel is not stochastic, the kernel remains symmetric
+        k2 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=False)
         self.assertTrue(k2.is_symmetric)
-        self.assertFalse(
-            k1.is_symmetric_transform(is_pdist=True)
-        )  # No transformation is required
+
+        # No transformation is required
+        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
 
     def test_is_symmetric02(self):
         # symmetric_kernel and alpha == 0
@@ -43,7 +42,7 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         self.assertTrue(k2.is_symmetric_transform(is_pdist=True))
 
     def test_is_symmetric04(self):
-        # ways False when is_pdist==False
+        # when is_pdist is False
         k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
         self.assertFalse(k1.is_symmetric_transform(is_pdist=False))
 
