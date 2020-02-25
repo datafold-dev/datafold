@@ -125,13 +125,13 @@ def plot_number_eigenvectors_vs_error(
         Upper bound for the number of eigenpairs to evaluate.
     diffusion_maps_options: Optional[Dict] = None
         Options to pass to the diffusion maps used for interpolation. The parameter
-        'num_eigenpairs' is changed according to values in 'number_of_eigenpairs'.
+        'n_eigenpairs' is changed according to values in 'number_of_eigenpairs'.
     """
 
     cv_errors = np.zeros(number_of_eigenpairs.shape[0])
     for n in number_of_eigenpairs:
         # TODO: broken, should use the GridSearchCV from sklearn
-        # cv_error = k_fold_error(points, values, 0.7, epsilon, num_eigenpairs=n, k=k)
+        # cv_error = k_fold_error(points, values, 0.7, epsilon, n_eigenpairs=n, k=k)
         # cv_errors[n - 1] = cv_error
         pass
 
@@ -146,7 +146,7 @@ def plot_eps_vs_error(
     points: np.array,
     values: np.array,
     epsilons: np.ndarray,
-    num_eigenpairs: int,
+    n_eigenpairs: int,
     k: int = 4,
 ) -> None:
     """Plot epsilon vs. error.
@@ -162,7 +162,7 @@ def plot_eps_vs_error(
         Training targets.
     epsilons: np.ndarray
         Epsilons for which to plot the error. Array must be one dimensional.
-    num_eigenpairs: int
+    n_eigenpairs: int
         Number of eigenpairs to use in gometric harmonics.
     k: int
         Number of folds in cross-validation
@@ -170,7 +170,7 @@ def plot_eps_vs_error(
 
     cv_errors = np.zeros(len(epsilons))
     for i, eps in enumerate(epsilons):
-        cv_errors[i] = k_fold_error(points, values, 0.7, eps, num_eigenpairs, k)
+        cv_errors[i] = k_fold_error(points, values, 0.7, eps, n_eigenpairs, k)
 
     plt.rc("text", usetex=True)
     plt.title(fr"$\varepsilon$ vs. {k}-fold-cross-validated error", size=15)
@@ -508,7 +508,7 @@ class LookupDmapsEpsilon(object):
         for eps in epsilons:
             try:
                 dmap = DiffusionMaps(
-                    epsilon=eps, num_eigenpairs=11, is_stochastic=normalize_kernel
+                    epsilon=eps, n_eigenpairs=11, is_stochastic=normalize_kernel
                 ).fit(data)
                 self._dmaps.append(dmap)
             except Exception as e:

@@ -30,7 +30,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
     def __init__(
         self,
         epsilon: float = 1.0,
-        num_eigenpairs: int = 10,
+        n_eigenpairs: int = 10,
         cut_off: float = np.inf,
         is_stochastic: bool = False,
         alpha: float = 1,
@@ -46,7 +46,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         """
         super(GeometricHarmonicsInterpolator, self).__init__(
             epsilon=epsilon,
-            num_eigenpairs=num_eigenpairs,
+            n_eigenpairs=n_eigenpairs,
             cut_off=cut_off,
             is_stochastic=is_stochastic,
             alpha=alpha,
@@ -171,8 +171,8 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         self.y_ = y
 
         check_scalar(
-            self.num_eigenpairs,
-            "num_eigenpairs",
+            self.n_eigenpairs,
+            "n_eigenpairs",
             target_type=(np.integer, int),
             min_val=1,
             max_val=self.X_.shape[0] - 1,
@@ -184,7 +184,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
             self._row_sums_alpha,
         ) = self.X_.compute_kernel_matrix()
 
-        self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
+        self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
         )
 
@@ -296,7 +296,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
     def __init__(
         self,
         initial_scale=1.0,
-        num_eigenpairs: int = 11,
+        n_eigenpairs: int = 11,
         condition=1.0,  # nu
         admissible_error=1.0,  # tau
         cut_off: float = np.inf,
@@ -314,7 +314,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         """
         super(MultiScaleGeometricHarmonicsInterpolator, self).__init__(
             epsilon=-1,
-            num_eigenpairs=num_eigenpairs,
+            n_eigenpairs=n_eigenpairs,
             cut_off=cut_off,
             is_stochastic=is_stochastic,
             alpha=alpha,

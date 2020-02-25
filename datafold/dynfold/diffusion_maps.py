@@ -44,7 +44,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
     def __init__(
         self,
         epsilon: float = 1.0,
-        num_eigenpairs: int = 10,
+        n_eigenpairs: int = 10,
         # Note for docu: exponent in embedding \lambda^time_exponent \psi
         time_exponent=0,
         cut_off: float = np.inf,  # TODO: can provide to optimize the cut_off via PCM
@@ -72,15 +72,15 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         self.time_exponent = time_exponent
 
         super(DiffusionMaps, self).__init__(
-            epsilon,
-            num_eigenpairs,
-            cut_off,
-            is_stochastic,
-            alpha,
-            symmetrize_kernel,
-            use_cuda,
-            dist_backend,
-            dist_backend_kwargs,
+            epsilon=epsilon,
+            n_eigenpairs=n_eigenpairs,
+            cut_off=cut_off,
+            is_stochastic=is_stochastic,
+            alpha=alpha,
+            symmetrize_kernel=symmetrize_kernel,
+            use_cuda=use_cuda,
+            dist_backend=dist_backend,
+            dist_backend_kwargs=dist_backend_kwargs,
         )
 
     @classmethod
@@ -109,11 +109,11 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
 
     @classmethod
     def laplace_beltrami(
-        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
     ):
         return cls(
             epsilon=epsilon,
-            num_eigenpairs=num_eigenpairs,
+            n_eigenpairs=n_eigenpairs,
             is_stochastic=True,
             alpha=1.0,
             **kwargs,
@@ -121,11 +121,11 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
 
     @classmethod
     def fokker_planck(
-        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
     ):
         return cls(
             epsilon=epsilon,
-            num_eigenpairs=num_eigenpairs,
+            n_eigenpairs=n_eigenpairs,
             is_stochastic=True,
             alpha=0.5,
             **kwargs,
@@ -133,11 +133,11 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
 
     @classmethod
     def graph_laplacian(
-        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
     ):
         return cls(
             epsilon=epsilon,
-            num_eigenpairs=num_eigenpairs,
+            n_eigenpairs=n_eigenpairs,
             is_stochastic=True,
             alpha=0.0,
             **kwargs,
@@ -145,13 +145,10 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
 
     @classmethod
     def rbf(
-        cls, epsilon=1.0, num_eigenpairs=10, **kwargs,
+        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
     ):
         return cls(
-            epsilon=epsilon,
-            num_eigenpairs=num_eigenpairs,
-            is_stochastic=False,
-            **kwargs,
+            epsilon=epsilon, n_eigenpairs=n_eigenpairs, is_stochastic=False, **kwargs,
         )
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals):
@@ -192,8 +189,12 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         )
 
     def set_coords(self, indices) -> "DiffusionMaps":
-        self.eigenvectors_ = if1dim_colvec(self.eigenvectors_[:, indices])
-        self.eigenvalues_ = self.eigenvalues_[indices]
+
+        check_is_fitted(self, attributes=["eigenvectors_", "eigenvalues_"])
+
+        # type hints for mypy
+        self.eigenvectors_: np.ndarray = if1dim_colvec(self.eigenvectors_[:, indices])
+        self.eigenvalues_: np.ndarray = self.eigenvalues_[indices]
 
         return self
 
@@ -211,11 +212,11 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         if self._has_feature_names(X):
             self._setup_features_input_fit(
                 features_in=X.columns,
-                features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
+                features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)],
             )
         else:
             self._setup_array_input_fit(
-                features_in=X.shape[1], features_out=self.num_eigenpairs
+                features_in=X.shape[1], features_out=self.n_eigenpairs
             )
 
         self._setup_kernel()
@@ -239,7 +240,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
             self._row_sums_alpha,
         ) = self.X_.compute_kernel_matrix()
 
-        self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
+        self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
             self.kernel_matrix_, _basis_change_matrix, self.use_cuda
         )
 
@@ -325,7 +326,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
     def __init__(
         self,
         epsilon=1.0,
-        num_eigenpairs=10,
+        n_eigenpairs=10,
         nn_bandwidth=10,
         expected_dim=2,
         beta=-0.5,
@@ -342,7 +343,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
         # TODO: To implement: cut_off: float = np.inf (allow also sparsity!)
         super(DiffusionMapsVariable, self).__init__(
             epsilon=epsilon,
-            num_eigenpairs=num_eigenpairs,
+            n_eigenpairs=n_eigenpairs,
             cut_off=None,
             is_stochastic=False,
             alpha=-1,
@@ -380,11 +381,11 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
         if self._has_feature_names(X):
             self._setup_features_input_fit(
                 features_in=X.columns,
-                features_out=[f"dmap{i}" for i in range(self.num_eigenpairs)],
+                features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)],
             )
         else:
             self._setup_array_input_fit(
-                features_in=X.shape[1], features_out=self.num_eigenpairs
+                features_in=X.shape[1], features_out=self.n_eigenpairs
             )
 
         pcm = PCManifold(
@@ -405,7 +406,7 @@ class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
             self.q_eps_s_,
         ) = pcm.compute_kernel_matrix()
 
-        self.eigenvalues_, self.eigenvectors_ = self.solve_eigenproblem(
+        self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
             self.operator_matrix_, _basis_change_matrix, self.use_cuda
         )
 

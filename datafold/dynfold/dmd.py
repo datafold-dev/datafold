@@ -86,6 +86,11 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         """
 
+        # type hints for mypy
+        self.eigenvectors_left_: Optional[np.ndarray]
+        self.eigenvectors_right_: np.ndarray
+        self.eigenvalues_: np.ndarray
+
         if qoi_columns is None:
             qoi_columns = self.features_in_[1]
 
@@ -177,6 +182,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
     def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
         check_is_fitted(self)
+
         X = self._convert_array2frame(X)
         self._validate_data(X)
 
@@ -240,9 +246,6 @@ class DMDFull(DMDBase):
     def __init__(self, is_diagonalize: bool = False):
         self._setup_default_tsc_scorer_and_metric()
         self.is_diagonalize = is_diagonalize
-
-    def _compute_right_eigenpairs(self):
-        return sort_eigenpairs(*np.linalg.eig(self.koopman_matrix_))
 
     def _diagonalize_left_eigenvectors(self):
         """Compute right eigenvectors (not normed) such that
@@ -336,7 +339,9 @@ class DMDFull(DMDBase):
         self._setup_features_and_time_fit(X=X)
 
         self.koopman_matrix_ = self._compute_koopman_matrix(X)
-        self.eigenvalues_, self.eigenvectors_right_ = self._compute_right_eigenpairs()
+        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
+            *np.linalg.eig(self.koopman_matrix_)
+        )
 
         if self.is_diagonalize:
             self._diagonalize_left_eigenvectors()
