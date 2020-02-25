@@ -14,7 +14,7 @@ from datafold.dynfold.diffusion_maps import DiffusionMaps, LocalRegressionSelect
 class LocalRegressionSelectionTest(unittest.TestCase):
     def test_automatic_eigendirection_selection_swiss_roll(self):
         points, color = make_swiss_roll(n_samples=5000, noise=0.01, random_state=1)
-        dm = DiffusionMaps(epsilon=2.1, num_eigenpairs=6).fit(points)
+        dm = DiffusionMaps(epsilon=2.1, n_eigenpairs=6).fit(points)
 
         # import matplotlib.pyplot as plt
         # f, ax = plt.subplots(figsize=[9, 9])
@@ -42,7 +42,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             y_direction = np.random.uniform(0, 1, size=(nsamples, 1))
             data = np.hstack([x_direction, y_direction])
 
-            dmap = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
+            dmap = DiffusionMaps(0.1, n_eigenpairs=10).fit(data)
 
             loc_regress = LocalRegressionSelection(n_subsample=1000)
             loc_regress.fit(dmap.eigenvectors_)
@@ -81,7 +81,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             y_direction = np.random.uniform(0, 1, size=(nsamples, 1))
             data = np.hstack([x_direction, y_direction])
 
-            dmap = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
+            dmap = DiffusionMaps(0.1, n_eigenpairs=10).fit(data)
 
             loc_regress_dim = LocalRegressionSelection(
                 n_subsample=1000, strategy="dim", intrinsic_dim=2
@@ -121,12 +121,12 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             # dmap1 = DiffusionMaps(
             #     0.1,
-            #     num_eigenpairs=10,
+            #     n_eigenpairs=10,
             #     parametrization_strategy="locregress_intrinsic_dim",
             #     locregress_intrinsic_dim=2,
             # ).fit(data)
 
-            dmap1 = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
+            dmap1 = DiffusionMaps(0.1, n_eigenpairs=10).fit(data)
 
             loc_regress_dim = LocalRegressionSelection(
                 n_subsample=1000, strategy="dim", intrinsic_dim=2
@@ -142,7 +142,7 @@ class LocalRegressionSelectionTest(unittest.TestCase):
 
             # -----------------------------------
 
-            dmap2 = DiffusionMaps(0.1, num_eigenpairs=10).fit(data)
+            dmap2 = DiffusionMaps(0.1, n_eigenpairs=10).fit(data)
             loc_regress_thresh = LocalRegressionSelection(
                 n_subsample=1000, strategy="threshold", regress_threshold=0.9
             )

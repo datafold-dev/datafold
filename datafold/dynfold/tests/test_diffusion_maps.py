@@ -41,14 +41,14 @@ class DiffusionMapsTest(unittest.TestCase):
     def test_accuracy(self):
         num_samples = 5000
         logging.debug(f"Computing diffusion maps on a matrix of size {num_samples}")
-        num_eigenpairs = 10
+        n_eigenpairs = 10
         epsilon = 5e-1
         downsampled_data, _ = random_subsample(self.data, num_samples)
 
         # symmetrize_kernel=False, because the rayleigh_quotient requires the
         # kernel_matrix_
         dm = DiffusionMaps(
-            epsilon, symmetrize_kernel=False, num_eigenpairs=num_eigenpairs
+            epsilon, symmetrize_kernel=False, n_eigenpairs=n_eigenpairs
         ).fit(downsampled_data)
 
         actual_ew = dm.eigenvalues_
@@ -119,8 +119,8 @@ class DiffusionMapsTest(unittest.TestCase):
 
         data, _ = make_swiss_roll(1000, random_state=1)
 
-        dense_case = DiffusionMaps(epsilon=1.25, num_eigenpairs=11).fit(data)
-        sparse_case = DiffusionMaps(epsilon=1.25, num_eigenpairs=11, cut_off=1e100).fit(
+        dense_case = DiffusionMaps(epsilon=1.25, n_eigenpairs=11).fit(data)
+        sparse_case = DiffusionMaps(epsilon=1.25, n_eigenpairs=11, cut_off=1e100).fit(
             data
         )
 
@@ -139,13 +139,13 @@ class DiffusionMapsTest(unittest.TestCase):
     def test_symmetric_dense(self):
         data, _ = make_swiss_roll(2000, random_state=1)
 
-        dmap1 = DiffusionMaps(
-            epsilon=1.5, num_eigenpairs=5, symmetrize_kernel=True
-        ).fit(data)
+        dmap1 = DiffusionMaps(epsilon=1.5, n_eigenpairs=5, symmetrize_kernel=True).fit(
+            data
+        )
 
-        dmap2 = DiffusionMaps(
-            epsilon=1.5, num_eigenpairs=5, symmetrize_kernel=False
-        ).fit(data)
+        dmap2 = DiffusionMaps(epsilon=1.5, n_eigenpairs=5, symmetrize_kernel=False).fit(
+            data
+        )
 
         # make sure that the symmetric transformation is really used
         self.assertTrue(dmap1.kernel_.is_symmetric_transform(is_pdist=True))
@@ -162,10 +162,10 @@ class DiffusionMapsTest(unittest.TestCase):
         data, _ = make_swiss_roll(1500, random_state=2)
 
         dmap1 = DiffusionMaps(
-            epsilon=3, num_eigenpairs=5, cut_off=1e100, symmetrize_kernel=True
+            epsilon=3, n_eigenpairs=5, cut_off=1e100, symmetrize_kernel=True
         ).fit(data)
         dmap2 = DiffusionMaps(
-            epsilon=3, num_eigenpairs=5, cut_off=1e100, symmetrize_kernel=False
+            epsilon=3, n_eigenpairs=5, cut_off=1e100, symmetrize_kernel=False
         ).fit(data)
 
         # make sure that the symmetric transformation is really used
@@ -187,7 +187,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
         setting = {
             "epsilon": 1.7,
-            "num_eigenpairs": 7,
+            "n_eigenpairs": 7,
             "is_stochastic": True,
             "alpha": 1,
             "symmetrize_kernel": True,
@@ -292,7 +292,7 @@ class DiffusionMapsTest(unittest.TestCase):
         X_all = sample_1dsprial(phis)
         X_oos = sample_1dsprial(phis_oos)
 
-        dmap_embed = DiffusionMaps(epsilon=0.9, num_eigenpairs=2).fit(X_all)
+        dmap_embed = DiffusionMaps(epsilon=0.9, n_eigenpairs=2).fit(X_all)
 
         expected_oos = (
             dmap_embed.eigenvectors_[:-1, 1] + dmap_embed.eigenvectors_[1:, 1]
@@ -311,12 +311,8 @@ class DiffusionMapsTest(unittest.TestCase):
 
             plt.figure()
             plt.plot(expected_oos, np.zeros(49), "+")
-            plt.plot(
-                dmap_embed.set_coords(indices=[1]).transform(X_all), np.zeros(50), "-*"
-            )
-            plt.plot(
-                dmap_embed.set_coords(indices=[1]).transform(X_oos), np.zeros(49), "."
-            )
+            plt.plot(dmap_embed.transform(X_all), np.zeros(50), "-*")
+            plt.plot(dmap_embed.transform(X_oos), np.zeros(49), ".")
 
             plt.show()
 
@@ -333,7 +329,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
         setting = {
             "epsilon": 1.9,
-            "num_eigenpairs": 7,
+            "n_eigenpairs": 7,
             "is_stochastic": True,
             "alpha": 1,
             "symmetrize_kernel": True,
@@ -383,7 +379,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         data, epsilon = circle_data()
 
         actual = DiffusionMaps(
-            epsilon=epsilon, num_eigenpairs=11, symmetrize_kernel=False
+            epsilon=epsilon, n_eigenpairs=11, symmetrize_kernel=False
         ).fit(data)
         expected = legacy_dmap.DiffusionMaps(points=data, epsilon=epsilon)
 
@@ -393,7 +389,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         data, epsilon = circle_data()
 
         actual = DiffusionMaps(
-            epsilon=epsilon, num_eigenpairs=11, symmetrize_kernel=False
+            epsilon=epsilon, n_eigenpairs=11, symmetrize_kernel=False
         ).fit(data)
         expected = legacy_dmap.DenseDiffusionMaps(points=data, epsilon=epsilon)
 
@@ -403,7 +399,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         data, epsilon = circle_data(nsamples=1000)
 
         actual = DiffusionMaps(
-            epsilon=epsilon, num_eigenpairs=11, cut_off=1e100, symmetrize_kernel=False
+            epsilon=epsilon, n_eigenpairs=11, cut_off=1e100, symmetrize_kernel=False
         ).fit(data)
         expected = legacy_dmap.SparseDiffusionMaps(points=data, epsilon=epsilon)
 
@@ -419,7 +415,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         data, _ = make_swiss_roll(n_samples=1000, noise=0.01, random_state=1)
 
         actual = DiffusionMaps(
-            epsilon=1.25, num_eigenpairs=11, symmetrize_kernel=False
+            epsilon=1.25, n_eigenpairs=11, symmetrize_kernel=False
         ).fit(data)
         expected = legacy_dmap.DenseDiffusionMaps(points=data, epsilon=1.25)
 
@@ -436,7 +432,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         ne = 5
         for co in cut_off:
             actual1 = DiffusionMaps(
-                epsilon=1e-3, num_eigenpairs=ne, cut_off=co, symmetrize_kernel=False
+                epsilon=1e-3, n_eigenpairs=ne, cut_off=co, symmetrize_kernel=False
             ).fit(data1)
             expected1 = legacy_dmap.DiffusionMaps(
                 points=data1, epsilon=1e-3, num_eigenpairs=ne, cut_off=co
@@ -445,7 +441,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_eigenpairs(actual1, expected1)
 
             actual2 = DiffusionMaps(
-                epsilon=epsilon2, num_eigenpairs=ne, cut_off=co, symmetrize_kernel=False
+                epsilon=epsilon2, n_eigenpairs=ne, cut_off=co, symmetrize_kernel=False
             ).fit(data2)
             expected2 = legacy_dmap.DiffusionMaps(
                 points=data2, epsilon=epsilon2, num_eigenpairs=ne, cut_off=co
@@ -459,7 +455,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         epsilon = 1.25
 
         # actual = DiffusionMaps(
-        #     epsilon=epsilon, num_eigenpairs=11, is_stochastic=False
+        #     epsilon=epsilon, n_eigenpairs=11, is_stochastic=False
         # ).fit(data)
         # expected = legacy_dmap.DenseDiffusionMaps(
         #     data, epsilon=1.25, normalize_kernel=False
@@ -467,7 +463,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         # cmp_kernel_matrix(actual, expected, rtol=1e-14, atol=1e-14)
         #
         # actual = DiffusionMaps(
-        #     epsilon=epsilon, num_eigenpairs=11, is_stochastic=True
+        #     epsilon=epsilon, n_eigenpairs=11, is_stochastic=True
         # ).fit(data)
         # expected = legacy_dmap.DenseDiffusionMaps(
         #     data, epsilon=1.25, normalize_kernel=True
@@ -476,7 +472,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
         # Sparse case
         actual = DiffusionMaps(
-            epsilon=epsilon, num_eigenpairs=11, cut_off=3, is_stochastic=False
+            epsilon=epsilon, n_eigenpairs=11, cut_off=3, is_stochastic=False
         ).fit(data)
 
         expected = legacy_dmap.SparseDiffusionMaps(
@@ -487,7 +483,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
         actual = DiffusionMaps(
             epsilon=epsilon,
-            num_eigenpairs=11,
+            n_eigenpairs=11,
             cut_off=3,
             is_stochastic=True,
             symmetrize_kernel=False,
@@ -503,7 +499,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
         for factor in nfactor:
             actual = DiffusionMaps(
-                epsilon=1.25, num_eigenpairs=11, symmetrize_kernel=False, alpha=factor
+                epsilon=1.25, n_eigenpairs=11, symmetrize_kernel=False, alpha=factor
             ).fit(data)
             expected = legacy_dmap.DenseDiffusionMaps(
                 data, epsilon=1.25, renormalization=factor
@@ -512,7 +508,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
             actual = DiffusionMaps(
                 epsilon=1.25,
-                num_eigenpairs=11,
+                n_eigenpairs=11,
                 cut_off=3,
                 symmetrize_kernel=False,
                 alpha=factor,
@@ -526,21 +522,24 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
         data, _ = make_swiss_roll(1000, random_state=123)
         epsilons = np.linspace(1.2, 1.7, 5)[1:]
-        ne = 5
+        n_eigenpairs = 5
         for eps in epsilons:
             actual_dense = DiffusionMaps(
-                epsilon=eps, num_eigenpairs=ne, symmetrize_kernel=False,
+                epsilon=eps, n_eigenpairs=n_eigenpairs, symmetrize_kernel=False,
             ).fit(data)
             expected_dense = legacy_dmap.DenseDiffusionMaps(
-                points=data, num_eigenpairs=ne, epsilon=eps
+                points=data, num_eigenpairs=n_eigenpairs, epsilon=eps
             )
 
             try:
                 actual_sparse = DiffusionMaps(
-                    epsilon=eps, num_eigenpairs=ne, cut_off=1, symmetrize_kernel=False
+                    epsilon=eps,
+                    n_eigenpairs=n_eigenpairs,
+                    cut_off=1,
+                    symmetrize_kernel=False,
                 ).fit(data)
                 expected_sparse = legacy_dmap.SparseDiffusionMaps(
-                    points=data, epsilon=eps, num_eigenpairs=ne, cut_off=1
+                    points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=1
                 )
 
             except scipy.sparse.linalg.eigen.arpack.ArpackNoConvergence as e:
@@ -557,23 +556,26 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
     def test_num_eigenpairs(self):
 
         data, _ = make_swiss_roll(1000)
-        num_eigenpairs = np.linspace(10, 50, 5).astype(np.int)
+        all_n_eigenpairs = np.linspace(10, 50, 5).astype(np.int)
 
-        for ne in num_eigenpairs:
+        for n_eigenpairs in all_n_eigenpairs:
             actual = DiffusionMaps(
-                epsilon=1.25, num_eigenpairs=ne, symmetrize_kernel=False
+                epsilon=1.25, n_eigenpairs=n_eigenpairs, symmetrize_kernel=False
             ).fit(data)
             expected = legacy_dmap.DenseDiffusionMaps(
-                data, epsilon=1.25, num_eigenpairs=ne
+                data, epsilon=1.25, num_eigenpairs=n_eigenpairs
             )
 
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
 
             actual = DiffusionMaps(
-                epsilon=1.25, num_eigenpairs=ne, cut_off=3, symmetrize_kernel=False
+                epsilon=1.25,
+                n_eigenpairs=n_eigenpairs,
+                cut_off=3,
+                symmetrize_kernel=False,
             ).fit(data)
             expected = legacy_dmap.SparseDiffusionMaps(
-                data, epsilon=1.25, cut_off=3, num_eigenpairs=ne
+                data, epsilon=1.25, cut_off=3, num_eigenpairs=n_eigenpairs
             )
 
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
@@ -658,7 +660,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         from scipy.special import erfinv
 
         nr_samples = 5000
-        num_eigenpairs = 20
+        n_eigenpairs = 20
 
         def compute_nice_ou(N):
             # non-random sampling
@@ -673,7 +675,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
 
         dmap = DiffusionMapsVariable(
             epsilon=0.001,
-            num_eigenpairs=num_eigenpairs,
+            n_eigenpairs=n_eigenpairs,
             nn_bandwidth=100,
             expected_dim=1,
             beta=-0.5,

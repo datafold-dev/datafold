@@ -13,6 +13,7 @@ from sklearn.gaussian_process.kernels import Kernel, StationaryKernelMixin
 from sklearn.preprocessing import normalize
 
 from datafold.pcfold.distance import compute_distance_matrix
+from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
 from datafold.pcfold.kernels import PCManifoldKernelMixin, RadialBasisKernel
 from datafold.utils.datastructure import is_float, is_integer
 from datafold.utils.maths import (
@@ -20,30 +21,14 @@ from datafold.utils.maths import (
     is_symmetric_matrix,
     mat_dot_diagmat,
     remove_numeric_noise_symmetric_matrix,
-    sort_eigenpairs,
 )
-
-try:
-    from pydmap.gpu_eigensolver import eigensolver as gpu_eigsolve
-except ImportError:
-    gpu_eigsolve: Optional[Callable] = None  # type: ignore
-
-    # variable is used to warn user when requesting GPU eigensolver
-    SUCCESS_GPU_IMPORT = False
-else:
-    SUCCESS_GPU_IMPORT = True
-
-
-class NumericalMathError(Exception):
-    """Use for numerical problems/issues, such as singular matrices or too large
-    imaginary part."""
 
 
 class KernelMethod(BaseEstimator):
     def __init__(
         self,
         epsilon: float,
-        num_eigenpairs: int,
+        n_eigenpairs: int,
         cut_off,
         is_stochastic: bool,
         alpha: float,
@@ -53,7 +38,7 @@ class KernelMethod(BaseEstimator):
         dist_backend_kwargs,
     ):
         self.epsilon = epsilon
-        self.num_eigenpairs = num_eigenpairs
+        self.n_eigenpairs = n_eigenpairs
         self.cut_off = cut_off
         self.is_stochastic = is_stochastic
         self.alpha = alpha
@@ -79,141 +64,38 @@ class KernelMethod(BaseEstimator):
 
         return inv_basis_change_matrix @ kernel_matrix @ inv_basis_change_matrix
 
-    def _select_eigsolver_kwargs(self, n):
-        """Selects the parametrization for the eigen value solver depending on the
-        properties of the kernel.
+    def _solve_eigenproblem(
+        self, kernel_matrix, basis_change_matrix, use_cuda
+    ) -> Tuple[np.ndarray, np.ndarray]:
 
-        This is also a result of the microbenchmark_kernel_eigvect.py file, which looks
-        at the quality and convergence speed.
-        """
-
-        solver_kwargs = {
-            "k": self.num_eigenpairs,
-            "which": "LM",
-            "v0": np.ones(n),
-            "tol": 1e-14,
-        }
-
-        if self.kernel_.is_symmetric and self.is_stochastic:
-            # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
-            # setting sigma=1 resulted into a slower computation.
-            NUMERICAL_EXACT_BREAKER = 0.1
-            solver_kwargs["sigma"] = 1.0 + NUMERICAL_EXACT_BREAKER
-            solver_kwargs["mode"] = "normal"
+        if not use_cuda:
+            backend = "scipy"
         else:
-            solver_kwargs["sigma"] = None
+            backend = "gpu"
 
-        return solver_kwargs
-
-    def solve_eigenproblem(self, kernel_matrix, basis_change_matrix, use_cuda):
-        """Solve eigenproblem (eigenvalues and eigenvectors) using CPU or GPU solver.
-        """
-
-        if use_cuda and SUCCESS_GPU_IMPORT:
-            # Note: the GPU eigensolver is not maintained. It cannot handle the special
-            # case of is_symmetric=True
-            eigvals, eigvect = gpu_eigsolve(kernel_matrix, self.num_eigenpairs)
-        else:
-            if use_cuda and not SUCCESS_GPU_IMPORT:
-                logging.warning(
-                    "Importing GPU eigensolver failed, falling back to CPU eigensolver."
-                )
-
-            solver_kwargs = self._select_eigsolver_kwargs(n=kernel_matrix.shape[0])
-
-            # TODO: this is just to test this experimental feature and will be included
-            #  properly if useful (default=False).
-            test_sparsify = False
-            if test_sparsify:
-
-                SPARSIFY_CUTOFF = 1e-14
-
-                if scipy.sparse.issparse(kernel_matrix):
-                    kernel_matrix.data[np.abs(kernel_matrix.data) < SPARSIFY_CUTOFF] = 0
-                    kernel_matrix.eliminate_zeros()
-                else:
-                    kernel_matrix[np.abs(kernel_matrix) < SPARSIFY_CUTOFF] = 0
-                    kernel_matrix = scipy.sparse.csr_matrix(kernel_matrix)
-
-            eigvals, eigvect = self.cpu_eigensolver(
-                kernel_matrix, is_symmetric=self.kernel_.is_symmetric, **solver_kwargs
+        try:
+            eigvals, eigvect = compute_kernel_eigenpairs(
+                matrix=kernel_matrix,
+                n_eigenpairs=self.n_eigenpairs,
+                is_symmetric=self.kernel_.is_symmetric,
+                is_stochastic=self.is_stochastic,
+                backend=backend,
             )
-
-        if basis_change_matrix is not None:
-            # TODO: [minor] could use diag_dot_mat from utils and simply read the
-            #  diagonal from basis_change_matrix
-            eigvect = basis_change_matrix @ eigvect
-
-        if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
+        except NumericalMathError:
+            # re-raise with more details for the DMAP
             raise NumericalMathError(
                 "Eigenvalues have non-negligible imaginary part (larger than "
                 f"{1e2 * sys.float_info.epsilon}. First try to use "
-                f"the option 'symmetrize_kernel=True' (numerically more stable) and "
-                f"only if this is not working try to adjust epsilon."
+                f"parameter 'symmetrize_kernel=True' (improves numerical stability) and "
+                f"only if this is not working adjust epsilon."
             )
 
-        eigvals, eigvect = np.real(eigvals), np.real(eigvect)
+        if basis_change_matrix is not None:
+            eigvect = basis_change_matrix @ eigvect
 
-        # normalize eigenvectors to 1 (change if required differently).
         eigvect /= np.linalg.norm(eigvect, axis=0)[np.newaxis, :]
 
-        return eigvals, eigvect
-
-    @staticmethod
-    def cpu_eigensolver(
-        matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
-        is_symmetric: bool,
-        **solver_kwargs,
-    ):
-        """Solve eigenvalue problem for sparse matrix.
-
-        Parameters
-        ----------
-        matrix : np.ndarray (dense) or scipy.sparse.csr_matrix (sparse)
-            Matrix to solve the eigenproblem for.
-        is_symmetric : bool,
-            If symmetric matrix scipy.eigsh solver is used, else scipy.eigs
-        **solver_kwargs : kwargs
-            All parameter handed to eigenproblem solver, see documentation:
-            symmetric case:
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html
-            non-symmetric case:
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html#scipy.sparse.linalg.eigs
-
-        Returns
-        -------
-        eigenvalues : np.ndarray
-            Eigenvalues in descending order of magnitude.
-        eigenvectors : np.ndarray
-            Eigenvectors corresponding to the eigenvalues.
-        """
-
-        # TODO: currently the sparse implementation is used (also for dense kernels),
-        #  possibly solve with the numpy.eig solver for dense case? The problem with
-        #  the sparse solvers is, that they are not able to compute *all* eigenpairs (
-        #  see doc), but the numpy/dense case can.
-
-        if is_symmetric:
-            assert is_symmetric_matrix(matrix)
-            eigvals, eigvects = scipy.sparse.linalg.eigsh(matrix, **solver_kwargs)
-        else:
-            eigvals, eigvects = scipy.sparse.linalg.eigs(matrix, **solver_kwargs)
-
-        if np.isnan(eigvals).any() or np.isnan(eigvects).any():
-            raise RuntimeError(
-                "eigenvalues or eigenvector contains NaN values. Maybe try a larger "
-                "epsilon value."
-            )
-
-        if is_symmetric:
-            # can include zero or numerical noise imaginary part
-            eigvects = np.real(eigvects)
-
-        eigvals, eigvects = sort_eigenpairs(
-            eigvals, eigvects, eigenvector_orientation="column"
-        )
-
-        return eigvals, eigvects
+        return np.real(eigvals), np.real(eigvect)
 
 
 class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):

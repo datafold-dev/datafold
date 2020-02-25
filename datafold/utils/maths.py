@@ -4,33 +4,25 @@ import numpy as np
 import scipy.sparse
 
 
-def sort_eigenpairs(
-    eigenvalues, eigenvectors, ascending=False, eigenvector_orientation="column"
-):
-    eigenvector_orientation = eigenvector_orientation.lower()
-
-    if eigenvector_orientation not in ["row", "column"]:
-        raise ValueError(f"Invalid eigenvector orientation '{eigenvector_orientation}'")
-
+def sort_eigenpairs(eigenvalues, eigenvectors, ascending=False):
+    """
+    eigenvectors are assumed to be column wise
+    """
     if eigenvalues.ndim != 1 or eigenvectors.ndim != 2:
-        raise ValueError("eigenvalues has to be 1-dim. and eigenvectors 2-dim.")
+        raise ValueError(
+            "eigenvalues have to be 1-dim and eigenvectors "
+            "2-dim np.ndarray respectively"
+        )
 
-    # Sort eigenvectors accordingly:
+    # Sort eigenvectors according to absolute value of eigenvalue:
     idx = np.abs(eigenvalues).argsort()
+
     if not ascending:
-        # creates a view on array and is most efficient way for flipping
-        # see:
-        # https://stackoverflow.com/questions/6771428/most-efficient-way-to-reverse-a-numpy-array
+        # creates a view on array and is most efficient way for reversing order
+        # see: https://stackoverflow.com/q/6771428
         idx = idx[::-1]
 
-    eigenvalues = eigenvalues[idx]
-
-    if eigenvector_orientation == "column":
-        eigenvectors = eigenvectors[:, idx]
-    else:
-        eigenvectors = eigenvectors[idx, :]
-
-    return eigenvalues, eigenvectors
+    return eigenvalues[idx], eigenvectors[:, idx]
 
 
 def mat_dot_diagmat(matrix, diag_elements, out=None):

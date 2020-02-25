@@ -83,7 +83,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.values = f(self.points)
 
     def test_valid_sklearn_estimator(self):
-        check_estimator(GeometricHarmonicsInterpolator(num_eigenpairs=1))
+        check_estimator(GeometricHarmonicsInterpolator(n_eigenpairs=1))
 
     def test_geometric_harmonics_interpolator(self):
         logging.basicConfig(level=logging.DEBUG)
@@ -91,7 +91,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         eps = 1e-1
 
         ghi = GeometricHarmonicsInterpolator(
-            epsilon=eps, num_eigenpairs=self.num_points - 3, cut_off=1e1 * eps
+            epsilon=eps, n_eigenpairs=self.num_points - 3, cut_off=1e1 * eps
         )
         ghi = ghi.fit(self.points, self.values)
 
@@ -127,13 +127,13 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         eps = 1e1
         cut_off = 1e1 * eps
-        num_eigenpairs = 3
+        n_eigenpairs = 3
 
         points = make_strip(0, 0, 1, 1e-1, 3000)
 
-        dm = DiffusionMaps(
-            epsilon=eps, num_eigenpairs=num_eigenpairs, cut_off=1e100
-        ).fit(points)
+        dm = DiffusionMaps(epsilon=eps, n_eigenpairs=n_eigenpairs, cut_off=1e100).fit(
+            points
+        )
 
         # plt.subplot(1, 2, 1)
         # plt.scatter(points[:, 0], points[:, 1], c=dm.eigenvectors_[:, 1], cmap='RdBu_r')
@@ -143,7 +143,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         setting = {
             "epsilon": eps,
-            "num_eigenpairs": num_eigenpairs,
+            "n_eigenpairs": n_eigenpairs,
             "cut_off": cut_off,
             "is_stochastic": False,
         }
@@ -181,13 +181,13 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         dense_setting = {
             "epsilon": dim_red_eps,
-            "num_eigenpairs": 6,
+            "n_eigenpairs": 6,
             "cut_off": np.inf,
             "is_stochastic": False,
         }
         sparse_setting = {
             "epsilon": dim_red_eps,
-            "num_eigenpairs": 6,
+            "n_eigenpairs": 6,
             "cut_off": 1e100,
             "is_stochastic": False,
         }
@@ -250,7 +250,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         for setting in parameter_grid:
             gh = GeometricHarmonicsInterpolator(
-                epsilon=0.01, num_eigenpairs=3, **setting
+                epsilon=0.01, n_eigenpairs=3, **setting
             ).fit(data, values)
 
             oos_data = np.random.randn(
@@ -314,7 +314,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         gh_single_interp = GeometricHarmonicsInterpolator(
             epsilon=13.0,
-            num_eigenpairs=130,
+            n_eigenpairs=130,
             alpha=0,
             is_stochastic=False
             # condition=1.0,
@@ -323,7 +323,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         ).fit(X_train, y_train)
 
         gh_multi_interp = MultiScaleGeometricHarmonicsInterpolator(
-            initial_scale=50, num_eigenpairs=11, condition=50, admissible_error=0.4
+            initial_scale=50, n_eigenpairs=11, condition=50, admissible_error=0.4
         ).fit(X_train, y_train)
 
         print("-----------------")
@@ -467,17 +467,17 @@ class GeometricHarmonicsTest(unittest.TestCase):
         data, _ = make_swiss_roll(1000, random_state=1)
 
         eps_interp = 100  # in this case much larger compared to 1.25 for dim. reduction
-        num_eigenpairs = 50
+        n_eigenpairs = 50
 
         setting = {
             "epsilon": eps_interp,
-            "num_eigenpairs": num_eigenpairs,
+            "n_eigenpairs": n_eigenpairs,
             "cut_off": 1e100,
             "dist_backend": "rdist",
         }
         setting2 = {
             "epsilon": eps_interp,
-            "num_eigenpairs": num_eigenpairs,
+            "n_eigenpairs": n_eigenpairs,
             "cut_off": 1e100,
             "dist_backend": "scipy.kdtree",
         }
@@ -516,7 +516,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
     #     ).T
     #     target_values = zz.reshape(np.product(zz.shape))
     #
-    #     gh_interp = GeometricHarmonicsInterpolator(epsilon=100, num_eigenpairs=50)
+    #     gh_interp = GeometricHarmonicsInterpolator(epsilon=100, n_eigenpairs=50)
     #     gh_interp = gh_interp.fit(data_points, target_values)
     #     score = gh_interp.score(data_points, target_values)
     #     print(f"score={score}")
@@ -545,7 +545,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         gh_interp = GeometricHarmonicsInterpolator(
             epsilon=20,
-            num_eigenpairs=30,
+            n_eigenpairs=30,
             cut_off=np.inf,
             is_stochastic=True,
             alpha=0,
@@ -587,7 +587,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         gh_interp = GeometricHarmonicsInterpolator(
             epsilon=20,
-            num_eigenpairs=30,
+            n_eigenpairs=30,
             cut_off=np.inf,
             is_stochastic=True,
             alpha=1,
@@ -628,7 +628,7 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
 
         dim_red_eps = 1.25
 
-        dmap = DiffusionMaps(epsilon=dim_red_eps, num_eigenpairs=6, cut_off=1e100).fit(
+        dmap = DiffusionMaps(epsilon=dim_red_eps, n_eigenpairs=6, cut_off=1e100).fit(
             self.data
         )
 
@@ -645,21 +645,21 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         # out-of-samples case.
 
         eps_interp = 100  # in this case much larger compared to 1.25 for dim. reduction
-        num_eigenpairs = 50
+        n_eigenpairs = 50
 
         # Because the distances were changed (to consistently squared) the
         # interpolation DMAP has to be computed again for the legacy case.
         legacy_dmap_interp = legacy_dmap.SparseDiffusionMaps(
             points=self.data_train,  # use part of data
             epsilon=eps_interp,  # eps. for interpolation
-            num_eigenpairs=num_eigenpairs,  # number of basis functions
+            num_eigenpairs=n_eigenpairs,  # number of basis functions
             cut_off=np.inf,
             normalize_kernel=False,
         )
 
         setting = {
             "epsilon": eps_interp,
-            "num_eigenpairs": num_eigenpairs,
+            "n_eigenpairs": n_eigenpairs,
             "cut_off": 1e100,
         }
 
@@ -747,19 +747,19 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         eps_interp = 0.0005
         # in this case much smaller compared to 1.25 for dim. reduction or 100 for the
         # forward map
-        num_eigenpairs = 100
+        n_eigenpairs = 100
 
         legacy_dmap_interp = legacy_dmap.SparseDiffusionMaps(
             points=self.phi_train,  # (!!) we use phi now
             epsilon=eps_interp,  # new eps. for interpolation
-            num_eigenpairs=num_eigenpairs,
+            num_eigenpairs=n_eigenpairs,
             cut_off=1e100,
             normalize_kernel=False,
         )
 
         setting = {
             "epsilon": eps_interp,
-            "num_eigenpairs": num_eigenpairs,
+            "n_eigenpairs": n_eigenpairs,
             "is_stochastic": False,
             "cut_off": 1e100,
         }
@@ -877,7 +877,7 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
 
         # GH must be trained before to set kernel
         gh = GeometricHarmonicsInterpolator(
-            epsilon=eps_interp, num_eigenpairs=1, is_stochastic=False
+            epsilon=eps_interp, n_eigenpairs=1, is_stochastic=False
         ).fit(self.data_train, self.phi_train)
 
         self.assertEqual(gh.kernel_, actual)
