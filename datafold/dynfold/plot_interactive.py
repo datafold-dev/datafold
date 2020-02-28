@@ -4,7 +4,9 @@
 
 from typing import Callable, List
 
+import ipywidgets as widgets
 import numpy as np
+from IPython.display import display
 
 from datafold.dynfold.diffusion_maps import DiffusionMaps
 from datafold.dynfold.plot import (
@@ -14,9 +16,6 @@ from datafold.dynfold.plot import (
     plot_l_vs_epsilon,
     plot_results,
 )
-
-import ipywidgets as widgets
-from IPython.display import display
 
 
 def _checkboxes(

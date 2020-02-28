@@ -8,8 +8,8 @@ import numpy as np
 import scipy.sparse
 import scipy.spatial
 from scipy.spatial.distance import _METRICS, cdist, pdist, squareform
-from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
 from sklearn.metrics import pairwise_distances
+from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
 
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-import unittest
-import sklearn.datasets
 import pickle
-from datafold.pcfold import *
+import unittest
+
+import sklearn.datasets
 
 import datafold.pcfold.tests.allutils
+from datafold.pcfold import *
 
 
 class TestPCManifold(unittest.TestCase):

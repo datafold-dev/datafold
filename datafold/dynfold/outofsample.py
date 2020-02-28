@@ -14,16 +14,16 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse
-from sklearn.base import MultiOutputMixin, RegressorMixin
+from sklearn.base import BaseEstimator, MultiOutputMixin, RegressorMixin
 from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 import datafold.pcfold as pcfold
+from datafold.decorators import warn_experimental_class, warn_known_bug
 from datafold.dynfold.kernel import DmapKernelFixed, KernelMethod
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.utils.maths import mat_dot_diagmat
-from sklearn.base import BaseEstimator
 
 
 class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMixin):
@@ -200,6 +200,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
     def predict(self, X):
         return self(X)
 
+    @warn_known_bug(gitlab_issue=16)
     def gradient(self, X: np.ndarray, vcol: Optional[int] = None) -> np.ndarray:
         """Evaluate gradient of interpolator at the given points.
 
@@ -289,6 +290,7 @@ class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMi
         return np.sqrt(score)
 
 
+@warn_experimental_class
 class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
     # TODO: use (*args, **kwargs) and simply note that it is the same as in
     #  GeometricHarmonicsInterpolator?
@@ -816,6 +818,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
 
 
 if __name__ == "__main__":
+
     from sklearn.datasets import make_swiss_roll
     from sklearn.model_selection import GridSearchCV, ParameterGrid
 

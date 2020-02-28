@@ -2,8 +2,13 @@
 unittests:
   script:
     - pip3 install -r requirements-dev.txt -q --user
-    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ -Iplot_interactive.py -Igpu_* datafold/ -v
+    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ -Iplot_interactive.py -Igpu_* -Ilegacy_dmap_code/ datafold/ -v
   allow_failure: false
+
+functional_tests:
+  script:
+    - pip3 install -r requirements-dev.txt -q --user
+    - nosetests examples/ -v
 
 is_blackd:
   script:

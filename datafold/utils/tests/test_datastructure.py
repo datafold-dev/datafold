@@ -2,9 +2,10 @@
 import unittest
 
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
-import numpy.testing as nptest
+
 from datafold.utils.datastructure import *
 
 
