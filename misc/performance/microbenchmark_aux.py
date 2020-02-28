@@ -5,6 +5,7 @@
 
 import functools
 import timeit
+
 import numpy as np
 
 try:

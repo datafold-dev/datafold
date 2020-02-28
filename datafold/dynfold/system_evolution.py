@@ -8,7 +8,7 @@ from datafold.utils.datastructure import if1dim_colvec
 from datafold.utils.maths import diagmat_dot_mat
 
 
-class LinearDynamicalSystem:
+class LinearDynamicalSystem(object):
     VALID_MODES = ("continuous", "discrete")
 
     def __init__(self, mode="continuous", time_invariant=True):

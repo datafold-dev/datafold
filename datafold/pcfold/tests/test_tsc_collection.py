@@ -5,10 +5,7 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.pcfold.timeseries.collection import (
-    TSCDataFrame,
-    TSCException,
-)
+from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
 
 
 class TestTSCDataFrame(unittest.TestCase):

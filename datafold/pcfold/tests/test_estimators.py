@@ -2,8 +2,8 @@
 
 import unittest
 
-from datafold.pcfold import *
 import datafold.pcfold.tests.allutils
+from datafold.pcfold import *
 
 # --------------------------------------------------
 # people who contributed code

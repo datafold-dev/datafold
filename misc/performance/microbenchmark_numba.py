@@ -1,9 +1,10 @@
 """This is a microbenchmark example which makes use of the Python package numba. It is not related to
 Diffusion Maps. """
 
-from numba import jit
-import numpy as np
 import time
+
+import numpy as np
+from numba import jit
 
 x = np.arange(10000).reshape(100, 100)
 

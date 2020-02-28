@@ -1,8 +1,9 @@
 import unittest
-from datafold.utils.maths import *
 
 import numpy as np
 import numpy.testing as nptest
+
+from datafold.utils.maths import *
 
 
 class TestMathUtils(unittest.TestCase):

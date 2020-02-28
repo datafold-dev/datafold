@@ -103,7 +103,3 @@ def estimate_dimension(pcm):
     Estimates the intrinsic dimension of the given manifold.
     """
     raise NotImplementedError()
-
-
-if __name__ == "__main__":
-    pass

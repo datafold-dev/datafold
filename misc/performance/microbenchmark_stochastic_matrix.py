@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-from sklearn.preprocessing import normalize
+import timeit
+
+import numexpr
 import numpy as np
 import scipy.sparse
-import numexpr
-import timeit
+from sklearn.preprocessing import normalize
 
 N = 10000
 matrix_dense = np.random.rand(N, N)

@@ -8,11 +8,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import multivariate_normal
 
-from datafold.pcfold.timeseries.collection import (
-    TSCException,
-    TSCDataFrame,
-)
-from datafold.utils.datastructure import is_integer, is_float
+from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
+from datafold.utils.datastructure import is_float, is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")

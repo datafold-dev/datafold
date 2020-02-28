@@ -1,10 +1,13 @@
-import numpy as np
-from numba import jit, float64, int64, prange, njit
-from math import pi
-import timeit
 import functools
+import timeit
+from math import pi
+
 import matplotlib.pyplot as plt
 import numexpr
+import numpy as np
+from numba import float64, int64, jit, njit, prange
+
+from datafold.pcfold import PCManifold
 
 N = 10000
 x = np.random.rand(N) * 2 * pi
@@ -16,7 +19,6 @@ gitlab issue #16"""
 
 
 # Define random matrix, and use it as kernel matrix
-from datafold.pcfold import PCManifold
 
 
 ps = PCManifold(np.random.rand(1000, 1000))

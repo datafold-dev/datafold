@@ -61,6 +61,7 @@ import time
 import warnings
 from itertools import product
 from traceback import format_exception_only
+from typing import Dict
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -74,12 +75,8 @@ from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexab
 
 from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.timeseries.base import TSCPredictMixIn
-from datafold.pcfold.timeseries.metric import (
-    TSCKfoldSeries,
-    TSCKFoldTime,
-)
+from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime
 from datafold.utils.datastructure import is_integer
-from typing import Dict
 
 
 def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):

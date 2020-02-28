@@ -18,7 +18,6 @@ from datafold.pcfold.timeseries.transform import (
     TSCTransformerMixIn,
 )
 
-
 # TODO: write a check_tsc_transform() ?
 
 

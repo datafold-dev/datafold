@@ -1,6 +1,8 @@
-from datafold.dynfold.kernel import DmapKernelFixed
 import unittest
+
 import numpy as np
+
+from datafold.dynfold.kernel import DmapKernelFixed
 
 
 class TestDiffusionMapsKernelTest(unittest.TestCase):

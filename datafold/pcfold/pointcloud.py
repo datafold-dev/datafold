@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 
 import copy
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.sparse
 import pandas as pd
-from typing import Union
+import scipy.sparse
 
-from datafold.utils.maths import random_subsample
 from datafold.pcfold.distance import (
     compute_distance_matrix,
     get_backend_distance_algorithm,
 )
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 from datafold.pcfold.kernels import Kernel, RadialBasisKernel
+from datafold.utils.maths import random_subsample
 
 # TODO: Consider to have a separate methods section in documentation for the methods
 #  that are only for PCManifold

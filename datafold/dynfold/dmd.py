@@ -11,6 +11,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
+from datafold.decorators import warn_experimental_class
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.pcfold.timeseries.base import PRE_FIT_TYPES, PRE_IC_TYPES, TSCPredictMixIn
@@ -496,6 +497,7 @@ class PyDMDWrapper(DMDBase):
         return self
 
 
+@warn_experimental_class
 class PCMKoopman(object):
     """
     Koopman operator on the point cloud manifold.
@@ -507,11 +509,6 @@ class PCMKoopman(object):
         rcond:  condition number used as minimum tolerance. default: 1e-10
         verbosity_level: 0 (silent), 1 (some messages)
         """
-
-        # experimental code -- de-deprecate if required (refactor to above base class!)
-        import warnings
-
-        warnings.warn("Experimental code. Use with caution.")
 
         self._pcm = pcm
         self._rcond = rcond
@@ -591,7 +588,7 @@ class PCMKoopman(object):
 
         # predict one step
         for it in range(NT):
-            result_dt.append(phinew_dt @ self._C)
+            result_dt.append(phinew_dt.T @ self._C)
             phinew_dt = phinew_dt @ self._koopman
 
         # project back

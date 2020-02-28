@@ -7,9 +7,7 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_is_fitted
 
-# import not used in this file, but leave it such that
-# 'from datafold.appfold.edmd import EDMDCV' works too
-from datafold.appfold._edmd import EDMDCV
+from datafold.appfold._edmd import EDMDCV  # do not remove, even if unseed here
 from datafold.dynfold.dmd import DMDBase, DMDFull
 from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.timeseries.base import (
