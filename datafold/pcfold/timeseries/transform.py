@@ -360,7 +360,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
             else:
                 X = TSCDataFrame(X)
 
-        if not X.is_const_dt():
+        if not X.is_const_delta_time():
             raise TSCException("dt is not constant")
 
         return X

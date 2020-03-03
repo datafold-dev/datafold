@@ -111,25 +111,36 @@ class TSCollectionMethods(object):
 
     def normalize_time(self):
 
-        convert_times = self._tsc_df.index.get_level_values(1)
+        convert_times = self._tsc_df.index.get_level_values(TSCDataFrame.IDX_TIME_NAME)
         min_time, _ = self._tsc_df.time_interval()
+        delta_time = self._tsc_df.delta_time
 
-        if not self._tsc_df.is_const_dt():
+        if not self._tsc_df.is_const_delta_time():
             raise TSCException(
                 "To normalize the time index it is required that the time time delta is "
                 "constant."
             )
 
+        if self._tsc_df.is_datetime_time_values():
+            convert_times = convert_times.astype(np.int64)
+            min_time = min_time.astype(np.int64)
+            delta_time = delta_time.astype(np.int64)
+
         convert_times = np.array(
-            (convert_times / self._tsc_df.delta_time) - min_time, dtype=np.int
+            (convert_times - min_time) / delta_time, dtype=np.int64
         )
-        convert_times = pd.Index(convert_times, name=self._tsc_df.index.names[1])
+        convert_times = pd.Index(convert_times, name=TSCDataFrame.IDX_TIME_NAME)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
-            [self._tsc_df.index.get_level_values(0), convert_times]
+            [
+                self._tsc_df.index.get_level_values(TSCDataFrame.IDX_ID_NAME),
+                convert_times,
+            ]
         )
         self._tsc_df.index = new_tsc_index
         self._tsc_df._validate()
+
+        assert self._tsc_df.is_normalized_time()
 
         return self._tsc_df
 
@@ -137,7 +148,7 @@ class TSCollectionMethods(object):
         self, snapshot_orientation="column"
     ) -> Tuple[np.ndarray, np.ndarray]:
 
-        if not self._tsc_df.is_const_dt():
+        if not self._tsc_df.is_const_delta_time():
             raise TSCException(
                 "Cannot compute shift matrices: Time series are required to have the "
                 "same time delta."
@@ -193,24 +204,32 @@ class TSCollectionMethods(object):
 
     def kfold_cv_reassign_ids(self, train_indices, test_indices):
 
-        # mark train samples as zero and test samples with 1
+        # mark train samples with 0 and test samples with 1
         mask_train_test = np.zeros(self._tsc_df.shape[0])
         mask_train_test[test_indices] = 1
 
+        # usage of np.diff -> dectect changes in
+        # i) new fold or ii) new ID (i.e. time series)
+        # -- both change detections are required to reassign new IDs
+
+        # i) detect switch between test / train
         change_fold_indicator = np.append(0, np.diff(mask_train_test)).astype(np.bool)
+
+        # ii) detect switch of new ID
         change_id_indicator = np.append(
             0, np.diff(self._tsc_df.index.get_level_values("ID"))
         ).astype(np.bool)
 
+        # cumulative sum of on or the other change and reassign IDs
         id_cum_sum_mask = np.logical_or(change_fold_indicator, change_id_indicator)
         new_ids = np.cumsum(id_cum_sum_mask)
 
-        new_idx = pd.MultiIndex.from_arrays(
+        reassigned_ids_idx = pd.MultiIndex.from_arrays(
             arrays=(new_ids, self._tsc_df.index.get_level_values("time"))
         )
 
         splitted_tsc = TSCDataFrame.from_same_indices_as(
-            self._tsc_df, values=self._tsc_df, except_index=new_idx
+            self._tsc_df, values=self._tsc_df, except_index=reassigned_ids_idx
         )
 
         train_tsc = splitted_tsc.iloc[train_indices, :]

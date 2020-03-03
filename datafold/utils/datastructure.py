@@ -6,11 +6,10 @@ import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
 
-import datafold.pcfold.timeseries
-
 
 def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
     """Turns a DataFrame with only one column into a Series."""
+    import datafold.pcfold.timeseries
 
     if isinstance(ds, pd.Series):
         pass  # do nothing and return same object

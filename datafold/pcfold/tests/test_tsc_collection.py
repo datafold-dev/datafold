@@ -200,7 +200,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_is_const_dt(self):
-        actual = TSCDataFrame(self.simple_df).is_const_dt()
+        actual = TSCDataFrame(self.simple_df).is_const_delta_time()
         expected = True
 
         self.assertEqual(actual, expected)
@@ -487,7 +487,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertFalse(isinstance(sliced_df, TSCDataFrame))
         self.assertTrue(isinstance(sliced_df, pd.DataFrame))
 
-    def test_index_05(self):
+    def test_index05(self):
         tc = TSCDataFrame(self.simple_df)
 
         # Here we expect to obtain a pd.Series, it is not a valid TSCDataFrame anymore
@@ -496,7 +496,7 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_series_equal(tc.loc[1, "A"], self.simple_df.loc[1, "A"])
         pdtest.assert_series_equal(tc.loc[1, "B"], self.simple_df.loc[1, "B"])
 
-    def test_index_06(self):
+    def test_index06(self):
         tc = TSCDataFrame(self.simple_df)
 
         actual_a = tc.loc[:, "A"]
@@ -512,6 +512,28 @@ class TestTSCDataFrame(unittest.TestCase):
 
         pdtest.assert_frame_equal(actual_a, expected_a)
         pdtest.assert_frame_equal(actual_b, expected_b)
+
+    def test_index07(self):
+        df = self.simple_df.copy()
+
+        # index is float64 but can be converted to int64 without loss
+        df.index.set_levels(
+            df.index.levels[0].astype(np.float64), level=0, inplace=True
+        )
+
+        # index must be the same
+        pdtest.assert_frame_equal(TSCDataFrame(df), TSCDataFrame(self.simple_df))
+
+    def test_index08(self):
+        df = self.simple_df.copy()
+
+        # index is float64 and cannot be converted to int64 without loss
+        df.index.set_levels(
+            df.index.levels[0].astype(np.float64) + 0.01, level=0, inplace=True
+        )
+
+        with self.assertRaises(AttributeError):
+            TSCDataFrame(df)
 
     def test_slice01(self):
         tsc = TSCDataFrame(self.simple_df)

@@ -9,6 +9,7 @@ import pandas as pd
 from datafold.utils.datastructure import is_integer
 
 PD_IDX_TYPE = Union[pd.Index, List[str]]
+TSC_TIME_TYPE = Union[int, float, np.datetime64]
 
 
 class TSCException(Exception):
@@ -62,6 +63,59 @@ class TSCException(Exception):
             f"there are {actual_n_timeseries} time series present. "
             f"Required: {required_n_timeseries}"
         )
+
+
+class _LocHandler(object):
+    """Required for overwriting the behavior of TSCDataFrame.loc.
+    iloc is currently not supported, see #61"""
+
+    def __init__(self, tsc, method):
+        # cast for the request back to a DataFrame
+        self.tsc_as_df = pd.DataFrame(tsc)
+        self._method = method
+
+    # TODO: best would be to wrap all attributes through getattr
+    #  unfortunately this seems not to work with magic functions as __call__ when
+    #  they depending on how they are used:
+    #    self.loc.__call__ --> prints "got here" and returns the right attribute
+    #    self.loc() --> Error cannot be called, has no __call__ function
+    # def __getattr__(self, attr, *args, **kwargs):
+    #     print("got here")
+    #     return getattr(self.tsc_as_df.loc, attr)
+
+    def __call__(self, axis):
+        if self._method == "loc":
+            return self.tsc_as_df.loc(axis=axis)
+        else:
+            return self.tsc_as_df.iloc(axis=axis)
+
+    def __getitem__(self, item):
+        if self._method == "loc":
+            sliced = self.tsc_as_df.loc[item]
+        else:
+            sliced = self.tsc_as_df.iloc[item]
+
+        _type = type(sliced)
+
+        try:
+            # there is no "TSCSeries", so always use TSCDataFrame, even when
+            # sliced has only 1 column and is a pd.Series.
+            return TSCDataFrame(sliced)
+        except AttributeError:
+            # Fallback if the sliced is not a valid TSC anymore
+            # returns to pd.Series or pd.DataFrame (depending on what the
+            # sliced object of a standard pd.DataFrame is).
+            return _type(sliced)
+
+    def __setitem__(self, key, value):
+        if self._method == "loc":
+            self.tsc_as_df.loc[key] = value
+        else:
+            self.tsc_as_df.iloc[key] = value
+
+        # may raise AttributeError, when after the insertion it is not a valid
+        # TSCDataFrame
+        return TSCDataFrame(self.tsc_as_df)
 
 
 class TSCDataFrame(pd.DataFrame):
@@ -198,7 +252,11 @@ class TSCDataFrame(pd.DataFrame):
                 f"Second level: time. Got: {self.index.nlevels}"
             )
 
-        self._insert_index_names()
+        # Insert required index names:
+        #  -- Note: this overwrites potential previous names.
+        self.index.names = [self.IDX_ID_NAME, self.IDX_TIME_NAME]
+        self.columns.name = self.IDX_QOI_NAME
+
         ids_index = self.index.get_level_values(self.IDX_ID_NAME)
         time_index = self.index.get_level_values(self.IDX_TIME_NAME)
 
@@ -210,12 +268,21 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         if ids_index.dtype != np.int:
-            # The ids have to be integer values
-            raise AttributeError(
-                "Time series IDs must be of integer value. Got "
-                f"self.index.get_level_values(0). "
-                f"dtype={self.index.get_level_values(0).dtype}"
-            )
+            # convert to int64 if it is possible to transform without loss,
+            # else raise Attribute error
+            if (ids_index.astype(np.int64) == ids_index).all():
+                self.index.set_levels(
+                    self.index.levels[0].astype(np.int64),
+                    level=self.IDX_ID_NAME,
+                    inplace=True,
+                )
+            else:
+                # The ids have to be integer values
+                raise AttributeError(
+                    "Time series IDs must be of integer value. Got "
+                    f"self.index.get_level_values(0). "
+                    f"dtype={self.index.get_level_values(0).dtype}"
+                )
 
         if (ids_index < 0).any():
             unique_ids = np.unique(ids_index)
@@ -277,10 +344,6 @@ class TSCDataFrame(pd.DataFrame):
             )
             self.index = self.index.set_levels(adapted_time_values, level=time_level)
 
-    def _insert_index_names(self):
-        self.index.names = [self.IDX_ID_NAME, self.IDX_TIME_NAME]
-        self.columns.name = self.IDX_QOI_NAME
-
     @property
     def n_timeseries(self) -> int:
         return len(self.ids)
@@ -301,38 +364,44 @@ class TSCDataFrame(pd.DataFrame):
 
         INDEX_NAME = "delta_time"
 
-        if self._is_datetime_index():
+        if self.is_datetime_time_values():
             # TODO: are there ways to better deal with timedeltas?
             #  E.g. could cast internally to float64
             # NaT = Not a Time (cmp. to NaN)
-            dt_series = pd.Series(
+            dt_result_series = pd.Series(
                 np.timedelta64("NaT"), index=self.ids, name=INDEX_NAME
             )
-            dt_series = dt_series.astype("timedelta64[ns]")
+            dt_result_series = dt_result_series.astype("timedelta64[ns]")
         else:
-            dt_series = pd.Series(np.nan, index=self.ids, name=INDEX_NAME)
+            dt_result_series = pd.Series(np.nan, index=self.ids, name=INDEX_NAME)
 
         diff_times = np.diff(self.index.get_level_values(self.IDX_TIME_NAME))
         id_indexer = self.index.get_level_values(self.IDX_ID_NAME)
 
-        for id_ in self.ids:
-            id_diff_times = diff_times[id_indexer.get_indexer_for([id_])[:-1]]
+        for timeseries_id in self.ids:
+            deltatimes_id = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
 
-            if not self._is_datetime_index():
-                id_diff_times = np.around(id_diff_times, decimals=14)
-            id_dt = np.unique(id_diff_times)
+            if not self.is_datetime_time_values():
+                deltatimes_id = np.around(deltatimes_id, decimals=14)
 
-            if len(id_dt) == 1:
-                dt_series[id_] = id_dt[0]
+            unique_deltatimes = np.unique(deltatimes_id)
 
-        n_different_dts = len(np.unique(dt_series))
+            if len(unique_deltatimes) == 1:
+                dt_result_series[timeseries_id] = unique_deltatimes[0]
 
-        if n_different_dts == 1:
-            # return single number
-            return dt_series.iloc[0]
+        n_different_dts = len(np.unique(dt_result_series))
+
+        if self.n_timeseries == 1 or n_different_dts == 1:
+            single_value = dt_result_series.iloc[0]
+
+            if isinstance(single_value, pd.Timedelta):
+                # Somehow single_value gets turned into pd.Timedelta when calling .iloc[0]
+                single_value = single_value.to_timedelta64()
+
+            return single_value
         else:
             # return series listing delta_time per time series
-            return dt_series
+            return dt_result_series
 
     @property
     def lengths_time_series(self) -> Union[pd.Series, int]:
@@ -350,47 +419,14 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def loc(self):
-        class LocHandler:
-            def __init__(self, tsc):
-                # cast for the request back to a DataFrame
-                self.tsc_as_df = pd.DataFrame(tsc)
+        return _LocHandler(self, method="loc")
 
-            # TODO: best would be to wrap all attributes through getattr
-            #  unfortunately this seems not to work with magic functions as __call__ when
-            #  they depending on how they are used:
-            #    self.loc.__call__ --> prints "got here" and returns the right attribute
-            #    self.loc() --> Error cannot be called, has no __call__ function
-            # def __getattr__(self, attr, *args, **kwargs):
-            #     print("got here")
-            #     return getattr(self.tsc_as_df.loc, attr)
+    # @property
+    # def iloc(self):
+    #     return LocHandler(self, method="iloc")
 
-            def __call__(self, axis):
-                return self.tsc_as_df.loc(axis=axis)
-
-            def __getitem__(self, item):
-                sliced = self.tsc_as_df.loc[item]
-                _type = type(sliced)
-
-                try:
-                    # there is no "TSCSeries", so always use TSCDataFrame, even when
-                    # sliced has only 1 column and is a pd.Series.
-                    return TSCDataFrame(sliced)
-                except AttributeError:
-                    # Fallback if the sliced is not a valid TSC anymore
-                    # returns to pd.Series or pd.DataFrame (depending on what the
-                    # sliced object of a standard pd.DataFrame is).
-                    return _type(sliced)
-
-            def __setitem__(self, key, value):
-                self.tsc_as_df.loc[key] = value
-                # may raise AttributeError, when after the insertion it is not a valid
-                # TSCDataFrame
-                return TSCDataFrame(self.tsc_as_df)
-
-        return LocHandler(self)
-
-    def _is_datetime_index(self):
-        return self.index.get_level_values(1).dtype.kind == "M"
+    def is_datetime_time_values(self):
+        return self.index.get_level_values(self.IDX_TIME_NAME).dtype.kind == "M"
 
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
         for i, ts in self.groupby(level=self.IDX_ID_NAME):
@@ -403,9 +439,14 @@ class TSCDataFrame(pd.DataFrame):
     def is_equal_length(self) -> bool:
         return len(np.unique(self.lengths_time_series)) == 1
 
-    def is_const_dt(self) -> bool:
+    def is_const_delta_time(self) -> bool:
         # If dt is a Series it means it shows "dt per ID" (because it is not constant).
-        return not isinstance(self.delta_time, pd.Series)
+        _dt = self.delta_time
+
+        if isinstance(_dt, pd.Series):
+            return False
+
+        return np.isfinite(_dt)
 
     def is_same_ts_length(self):
         return isinstance(self.lengths_time_series, int)
@@ -432,7 +473,7 @@ class TSCDataFrame(pd.DataFrame):
         """Normalized time is defined as:
         * first time record is zero, in any of the time series
         * constant time delta of 1"""
-        if not self.is_const_dt():
+        if not self.is_const_delta_time():
             return False
         return self.time_interval()[0] == 0 and self.delta_time == 1
 
@@ -463,7 +504,7 @@ class TSCDataFrame(pd.DataFrame):
         # 'self' has to appear first to keep TSCDataFrame type.
         return pd.concat([self, df], sort=False, axis=0)
 
-    def time_interval(self, ts_id=None) -> Tuple[int, int]:
+    def time_interval(self, ts_id=None) -> Tuple[TSC_TIME_TYPE, TSC_TIME_TYPE]:
         """ts_id if None get global (over all time series) min/max value."""
 
         if ts_id is None:
@@ -485,7 +526,7 @@ class TSCDataFrame(pd.DataFrame):
         """Creates an time array over the entire interval and also fills potential
         gaps. Requires const time delta. """
 
-        if not self.is_const_dt():
+        if not self.is_const_delta_time():
             raise TSCException.not_const_delta_time()
 
         start, end = self.time_interval()

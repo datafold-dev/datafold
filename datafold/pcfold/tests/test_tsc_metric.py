@@ -434,8 +434,8 @@ class TestTSCCV(unittest.TestCase):
 
             # this tests that there was no shuffle, all time series should still be
             # connected
-            self.assertTrue(train_part.is_const_dt())
-            self.assertTrue(test_part.is_const_dt())
+            self.assertTrue(train_part.is_const_delta_time())
+            self.assertTrue(test_part.is_const_delta_time())
 
             nptest.assert_array_equal(train_part.ids, test_part.ids)
 
@@ -459,8 +459,8 @@ class TestTSCCV(unittest.TestCase):
 
             # this tests that there was no shuffle, all time series should still be
             # connected
-            self.assertTrue(train_part.is_const_dt())
-            self.assertTrue(test_part.is_const_dt())
+            self.assertTrue(train_part.is_const_delta_time())
+            self.assertTrue(test_part.is_const_delta_time())
 
             nptest.assert_array_equal(train_part.ids, test_part.ids)
 
@@ -478,8 +478,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertIsInstance(train, TSCDataFrame)
             self.assertIsInstance(test, TSCDataFrame)
 
-            self.assertTrue(train.is_const_dt())
-            self.assertTrue(test.is_const_dt())
+            self.assertTrue(train.is_const_delta_time())
+            self.assertTrue(test.is_const_delta_time())
 
             self.assertIn(len(train.ids), (1, 2))
             self.assertIn(len(test.ids), (1, 2))
@@ -498,8 +498,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertIsInstance(train, TSCDataFrame)
             self.assertIsInstance(test, TSCDataFrame)
 
-            self.assertTrue(train.is_const_dt())
-            self.assertTrue(test.is_const_dt())
+            self.assertTrue(train.is_const_delta_time())
+            self.assertTrue(test.is_const_delta_time())
 
             self.assertIn(len(train.ids), (2, 3, 4))
             self.assertIn(len(test.ids), (2, 3, 4))

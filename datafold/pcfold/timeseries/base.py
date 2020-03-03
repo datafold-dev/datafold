@@ -290,18 +290,23 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
         self._check_attributes_set_up(check_attributes=["time_values_in_"])
 
-        if (time_values < 0).any():
-            raise ValueError("in time_values no negative values are allowed")
-
-        if time_values.ndim != 1:
-            raise ValueError("time_values must be be one dimensional")
-
         if time_values.dtype.kind not in "iufM":
             # see for dtype.kind values:
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
             raise TypeError(f"time_values.dtype {time_values.dtype} not supported")
 
-        if not (np.diff(time_values) >= 0).all():
+        _is_datetime = time_values.dtype.kind == "M"
+
+        if not _is_datetime and (time_values < 0).any():
+            # "datetime" cannot be negative and cannot be checked with "< 0"
+            raise ValueError("in time_values no negative values are allowed")
+
+        if time_values.ndim != 1:
+            raise ValueError("time_values must be be one dimensional")
+
+        if not (np.diff(time_values).astype(np.float64) >= 0).all():
+            # as "float64" is required in case of datetime where the differences are in
+            # terms of "np.timedelta"
             raise ValueError("time_values must be sorted")
 
     def _validate_delta_time(self, delta_time):

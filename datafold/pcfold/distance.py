@@ -11,6 +11,8 @@ from scipy.spatial.distance import _METRICS, cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
 
+from datafold.utils.datastructure import if1dim_colvec
+
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only
     # when one attempts to use rdist and the import was not successful
@@ -577,6 +579,16 @@ def compute_distance_matrix(
     :param backend_options: dict - handling for specific options to the selected algorithm
     :return: distance matrix
     """
+
+    if not isinstance(X, np.ndarray):
+        X = np.asarray(X)
+
+    X = if1dim_colvec(X)
+
+    if X.shape[0] <= 1:
+        raise ValueError(
+            f"number of samples has to be greater than 1. Got {X.shape[ß]}"
+        )
 
     logger.info("Setting up computation of distance matrix.")
 
