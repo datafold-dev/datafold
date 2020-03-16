@@ -5,11 +5,11 @@ Unit test for the Geometric Harmonics module.
 import unittest
 
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.datasets import make_swiss_roll
 from sklearn.model_selection import ParameterGrid
 from sklearn.utils.estimator_checks import check_estimator
 
-from datafold.dynfold.kernel import DmapKernelFixed
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
@@ -17,6 +17,7 @@ from datafold.dynfold.outofsample import (
 )
 from datafold.dynfold.tests.helper import *
 from datafold.pcfold.distance import IS_IMPORTED_RDIST
+from datafold.pcfold.kernels import DmapKernelFixed
 
 
 def plot_scatter(points: np.ndarray, values: np.ndarray, **kwargs) -> None:

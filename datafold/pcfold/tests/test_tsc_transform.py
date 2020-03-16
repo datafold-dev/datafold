@@ -14,6 +14,7 @@ from datafold.pcfold.timeseries.transform import (
     TSCIdentity,
     TSCPrincipalComponent,
     TSCQoiPreprocess,
+    TSCRadialBasis,
     TSCTakensEmbedding,
     TSCTransformerMixIn,
 )
@@ -267,3 +268,84 @@ class TestTSCTransform(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             TSCTakensEmbedding(lag=0, delays=1, frequency=2).fit(tsc)
+
+    def test_rbf_1d(self):
+        func = lambda x: np.exp(x * np.cos(3 * np.pi * x)) - 1
+        x_vals = np.linspace(0, 1, 100)
+        y_vals = func(x_vals)
+
+        df = pd.DataFrame(y_vals, index=x_vals, columns=["qoi"])
+
+        tsc = TSCDataFrame.from_single_timeseries(df)
+
+        rbf = TSCRadialBasis(epsilon=None, function="multiquadric").fit(tsc)
+        rbf_coeff = rbf.transform(tsc)
+
+        rbf_coeff_inverse = rbf.inverse_transform(rbf_coeff)
+        pdtest.assert_frame_equal(tsc, rbf_coeff_inverse, check_exact=False)
+
+    def test_rbf_2d(self):
+        func = lambda x: np.exp(x * np.cos(3 * np.pi * x)) - 1
+        x_vals = np.linspace(0, 1, 15)
+        y_vals = func(x_vals)
+
+        df = pd.DataFrame(np.column_stack([x_vals, y_vals]), columns=["qoi1", "qoi2"])
+
+        tsc = TSCDataFrame.from_single_timeseries(df)
+
+        rbf = TSCRadialBasis(epsilon=None, function="multiquadric").fit(tsc)
+        rbf_coeff = rbf.transform(tsc)
+
+        rbf_coeff_inverse = rbf.inverse_transform(rbf_coeff)
+        pdtest.assert_frame_equal(tsc, rbf_coeff_inverse, check_exact=False)
+
+    def test_rbf_centers(self):
+        func = lambda x: np.exp(x * np.cos(3 * np.pi * x)) - 1
+        x_vals = np.linspace(0, 1, 15)
+        y_vals = func(x_vals)
+
+        df = pd.DataFrame(np.column_stack([x_vals, y_vals]), columns=["qoi1", "qoi2"])
+
+        tsc = TSCDataFrame.from_single_timeseries(df)
+
+        # Use centers at another location than the data. These can be selected in a
+        # optimization routine (such as kmean), or randomly put into the phase space.
+        x_vals_centers = np.linspace(0, 1, 10)
+        y_vals_centers = func(x_vals_centers)
+
+        centers = np.column_stack([x_vals_centers, y_vals_centers])
+
+        rbf = TSCRadialBasis(
+            centers=centers, epsilon=None, function="multiquadric"
+        ).fit(tsc)
+        rbf_coeff = rbf.transform(tsc)
+
+        rbf_coeff_inverse = rbf.inverse_transform(rbf_coeff)
+
+        pdtest.assert_index_equal(tsc.index, rbf_coeff_inverse.index)
+        pdtest.assert_index_equal(tsc.columns, rbf_coeff_inverse.columns)
+        # can only check against a reference solution:
+        nptest.assert_allclose(tsc.to_numpy(), rbf_coeff_inverse, atol=1e-1, rtol=0)
+
+    def test_rbf_from_doctest(self):
+        from scipy.interpolate import Rbf
+
+        # from doctest
+        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.Rbf.html
+        x, y, z, d = np.random.rand(4, 50)
+        rbfi = Rbf(x, y, z, d)  # radial basis function interpolator instance
+        xi = yi = zi = np.linspace(0, 1, 20)
+
+        X = np.column_stack([x, y, z])
+
+        rbf_transform = TSCRadialBasis().fit(X)
+
+        self.assertEqual(rbfi.epsilon, rbf_transform.rbf_.epsilon)
+        self.assertEqual(rbfi.N, rbf_transform.rbf_.N)
+        self.assertEqual(rbfi.smooth, rbf_transform.rbf_.smooth)
+        self.assertEqual(rbfi.function, rbf_transform.rbf_.function)
+        nptest.assert_equal(rbfi.xi, rbf_transform.rbf_.xi)
+
+        # rbf_transform interpolates own values (not on d)
+        self.assertNotEqual(rbfi.mode, rbf_transform.rbf_.mode)
+        self.assertNotEqual(rbfi.nodes, rbf_transform.rbf_.nodes)

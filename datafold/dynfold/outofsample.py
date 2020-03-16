@@ -21,12 +21,15 @@ from sklearn.utils.validation import check_is_fitted, check_scalar
 
 import datafold.pcfold as pcfold
 from datafold.decorators import warn_experimental_class, warn_known_bug
-from datafold.dynfold.kernel import DmapKernelFixed, KernelMethod
+from datafold.dynfold.base import DmapKernelMethod
 from datafold.pcfold.distance import compute_distance_matrix
+from datafold.pcfold.kernels import DmapKernelFixed
 from datafold.utils.maths import mat_dot_diagmat
 
 
-class GeometricHarmonicsInterpolator(KernelMethod, RegressorMixin, MultiOutputMixin):
+class GeometricHarmonicsInterpolator(
+    DmapKernelMethod, RegressorMixin, MultiOutputMixin
+):
     def __init__(
         self,
         epsilon: float = 1.0,
@@ -548,9 +551,9 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
 
         return signals
 
-    def _distance_matrix(self, Y=None):
+    def _distance_matrix(self, X, Y=None):
         return compute_distance_matrix(
-            X=self.X_,
+            X=X,
             Y=Y,
             metric="sqeuclidean",  # for now only Gaussian kernel
             backend="brute",  # for now no support for sparse distance matrix
@@ -668,7 +671,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
         func_approx = np.zeros_like(y, dtype=np.float)
 
         # compute once and only apply eval
-        distance_matrix = self._distance_matrix()
+        distance_matrix = self._distance_matrix(X)
 
         # set up variables for first iteration
         target_values = y
@@ -689,7 +692,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
                 row_sums_fit_alpha,
             ) = self._prepare_kernel_and_matrix(distance_matrix, epsilon)
 
-            ### improve function approximation
+            # improve function approximation
             func_approx[:, active_func_indices] += kernel_matrix @ target_values
 
             (
@@ -711,7 +714,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
 
             # remove function indices that terminate due to increasing LOOCV estimate
             # (auto-adaptive) first (i.e. before setting the new level). This is
-            # because the in the current iteration the error is already increasing,
+            # because in the current iteration the error is already increasing,
             # so it shouldn't be used for the function evaluation.
             (
                 active_func_indices,
@@ -776,7 +779,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
 
         # allocate memory for return
         y_hat = np.zeros([X.shape[0], self.nr_targets_])
-        distance_matrix = self._distance_matrix(Y=X)
+        distance_matrix = self._distance_matrix(X=self.X_, Y=X)
 
         for level, level_content in self._level_tracker.items():
 

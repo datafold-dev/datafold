@@ -5,6 +5,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
+from scipy.interpolate import Rbf
 from sklearn.base import BaseEstimator, clone
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -419,7 +420,78 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         return X.loc[:, self.features_in_[1]]
 
 
-@DeprecationWarning  # TODO: implement if required...
+class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
+    def __init__(self, centers=None, **rbf_kwargs):
+        """
+        # TODO: docu note: centers are row-wise!
+        Parameters
+        ----------
+        centers
+        rbf_kwargs
+        """
+
+        if "mode" in rbf_kwargs:
+            raise ValueError("parameter 'mode' is set during fit")
+
+        self.centers = centers.T if centers is not None else None
+        self.rbf_kwargs = rbf_kwargs
+
+    def fit(self, X: TRANF_TYPES, y=None, **fit_kwargs):
+        X = self._validate_data(X)
+
+        if self.centers is None:
+            if self._has_feature_names(X):
+                _centers = X.to_numpy().T
+            else:
+                _centers = X.T
+        else:
+            _centers = self.centers
+
+        n_centers = _centers.shape[1]
+
+        if self._has_feature_names(X):
+            self._setup_features_input_fit(
+                features_in=X.columns,
+                features_out=[f"rbf{i}" for i in range(n_centers)],
+            )
+        else:
+            self._setup_array_input_fit(features_in=X.shape[1], features_out=n_centers)
+
+        if X.shape[1] > 1:
+            self.rbf_kwargs["mode"] = "N-D"
+
+        self.rbf_ = Rbf(*_centers, _centers.T, **self.rbf_kwargs)
+
+        # more memory efficient to reference to internal RBF, the data is transposed
+        # internally
+        self.centers = self.rbf_.xi
+        return self
+
+    def transform(self, X: TRANF_TYPES):
+        check_is_fitted(self, attributes=["rbf_"])
+        X = self._validate_data(X)
+        self._validate_features_transform(X)
+
+        X_intern = X.to_numpy()
+
+        cdist_values = self.rbf_._call_norm(X_intern.T, self.centers)
+        rbf_coeff = self.rbf_._function(cdist_values)
+
+        return self._same_type_X(X, values=rbf_coeff, set_columns=self.features_out_[1])
+
+    def inverse_transform(self, X: TRANF_TYPES):
+        self._validate_features_inverse_transform(X)
+
+        if self._has_feature_names(X):
+            rbf_coeff = X.to_numpy()
+        else:
+            rbf_coeff = X
+
+        X_inverse = rbf_coeff @ self.rbf_.nodes
+        return self._same_type_X(X, values=X_inverse, set_columns=self.features_in_[1])
+
+
+@NotImplementedError  # TODO: implement if required...
 class TSCFiniteDifference(object):
 
     # TODO: provide longer shifts? This could give some average of slow and fast

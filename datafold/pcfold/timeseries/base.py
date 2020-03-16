@@ -169,10 +169,9 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
             raise ValueError("feature names must be 1-dim.")
 
         self.features_in_ = (len(features_in), features_in)
-
         self.features_out_ = (len(features_out), features_out)
 
-    def _setup_array_input_fit(self, features_in, features_out):
+    def _setup_array_input_fit(self, features_in: int, features_out: int):
         self.features_in_ = (features_in, None)
         self.features_out_ = (features_out, None)
 
