@@ -3,7 +3,7 @@
 This module implements the diffusion maps method for dimensionality reduction,
 as introduced in:
 
-# TODO: include as cite in documention!
+# TODO: include as cite in documentation!
 Coifman, R. R., & Lafon, S. (2006). Diffusion maps. Applied and Computational Harmonic
 Analysis, 21(1), 5–30. DOI:10.1016/j.acha.2006.04.006
 """
@@ -16,14 +16,15 @@ import scipy.sparse.linalg
 import scipy.spatial
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable, KernelMethod
+from datafold.dynfold.base import DmapKernelMethod
+from datafold.pcfold.kernels import DmapKernelFixed, DmapKernelVariable
 from datafold.pcfold.pointcloud import PCManifold
 from datafold.pcfold.timeseries.base import TRANF_TYPES, TSCTransformerMixIn
 from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, random_subsample
 
 
-class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
+class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
     """Nonlinear dimension reduction by parametrizing a manifold with diffusion maps.
     Attributes:
 
@@ -93,7 +94,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         elif name == "graph_laplacian":
             eigfunc_interp = cls.graph_laplacian(**kwargs)
         elif name == "rbf":
-            eigfunc_interp = cls.rbf(**kwargs)
+            eigfunc_interp = cls.rbf_kernel(**kwargs)
         else:
             raise ValueError(
                 f"name='{name}' not known. Choose from {cls.VALID_OPERATOR_NAMES}"
@@ -144,7 +145,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         )
 
     @classmethod
-    def rbf(
+    def rbf_kernel(
         cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
     ):
         return cls(
@@ -322,7 +323,7 @@ class DiffusionMaps(KernelMethod, TSCTransformerMixIn):
         )
 
 
-class DiffusionMapsVariable(KernelMethod, TSCTransformerMixIn):
+class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
     def __init__(
         self,
         epsilon=1.0,

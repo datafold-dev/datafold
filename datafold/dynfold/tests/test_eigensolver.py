@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import scipy.sparse
 
-from datafold.dynfold.kernel import KernelMethod
+from datafold.dynfold.base import DmapKernelMethod
 
 # fails if GPGPU is not set up (ARPACK and CUDA have to be installed)
 try:

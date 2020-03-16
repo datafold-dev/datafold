@@ -15,21 +15,7 @@ from datafold.pcfold.timeseries.transform import TSCQoiPreprocess
 from datafold.utils.datastructure import if1dim_rowvec
 
 
-@NotImplementedError
-class DynamicalSystemEstimatorMixIn(object):
-    def fit(self, X_ts: TSCDataFrame):
-        pass
-
-    def predict(self, X_ic: TSCDataFrame, t):
-        pass
-
-    def score(self, Y_ts: TSCDataFrame):
-        pass
-
-
 class SumoKernelEigFuncDMD(object):
-    # TODO: integrate DynamicalSystemEstimatorMixIn and finish work
-
     def __init__(
         self,
         normalize_strategy="id",
@@ -40,7 +26,7 @@ class SumoKernelEigFuncDMD(object):
 
         if (eigfunc_kwargs is None) + (eigfunc_exist is None) != 1:
             raise ValueError(
-                "Either provide argument or 'eig_func_kwargs' or 'eig_func_exist'"
+                "Either provide argument or 'eig_func_kwargs' or 'eigfunc_exist'."
             )
 
         if eigfunc_name is not None:
@@ -57,8 +43,6 @@ class SumoKernelEigFuncDMD(object):
             self.eigfunc_interpolator = dmap.DiffusionMaps(**eigfunc_kwargs)
         else:
             self.eigfunc_interpolator = eigfunc_exist
-            # TODO: for now, the fit() function has to be called already for the
-            #  eigfunc_exist -- check this!
             assert (
                 eigfunc_exist.eigenvalues_ is not None
                 and eigfunc_exist.eigenvectors_ is not None
@@ -90,7 +74,6 @@ class SumoKernelEigFuncDMD(object):
         self.dmd_ = self.dmd_.fit(self.dict_data)
 
     def _coeff_matrix_least_square(self, X):
-        # TODO: check residual somehow, user info etc.
         # Phi * C = D
         # obs_basis * data_coeff = data
         self.coeff_matrix_, res = np.linalg.lstsq(self.dict_data, X, rcond=1e-14)[:2]
@@ -121,7 +104,6 @@ class SumoKernelEigFuncDMD(object):
         self._fit_qoi_columns = X_ts.columns
 
         # 1. transform data via operator-function basis
-        # TODO: there should be a method provided by GH "is_fit" (look at sklearn)
         if not hasattr(self.eigfunc_interpolator, "eigenvectors_") and not hasattr(
             self.eigfunc_interpolator, "eigenvalues_"
         ):  # if not already fit...
