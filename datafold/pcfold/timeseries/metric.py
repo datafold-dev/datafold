@@ -71,11 +71,21 @@ class TSCMetric:
 
         return y_true, y_pred
 
-    def _l2_error(
+    def _l2_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
 
-        return np.linalg.norm(y_true - y_pred, axis=0)
+        diff = y_true - y_pred
+
+        if sample_weight is not None:
+            diff = sample_weight[:, np.newaxis] * diff
+
+        l2_norm = np.linalg.norm(diff, axis=0)
+
+        if multioutput == "uniform_average":
+            l2_norm = np.mean(l2_norm)
+
+        return l2_norm
 
     def _rmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
@@ -139,7 +149,7 @@ class TSCMetric:
         elif error_metric == "max":
             error_metric_handle = self._max_error
         elif error_metric == "l2":
-            error_metric_handle = self._l2_error
+            error_metric_handle = self._l2_metric
         else:
             raise ValueError(f"Metric {error_metric} not known. Please report bug.")
 
@@ -277,8 +287,15 @@ class TSCMetric:
         not suited for scoring.
         """
 
-        is_df_same_index(y_true, y_pred, handle="raise")
+        if sample_weight is not None:
+            if not isinstance(sample_weight, np.ndarray) or (
+                sample_weight.ndim != 1 and sample_weight.shape[0] != y_true.shape[0]
+            ):
+                raise ValueError(
+                    "sample_weight has to be an 1-dim. array with n_samples " "length"
+                )
 
+        is_df_same_index(y_true, y_pred, handle="raise")
         y_true, y_pred = self._scaling(y_true=y_true, y_pred=y_pred)
 
         # score depending on mode:
