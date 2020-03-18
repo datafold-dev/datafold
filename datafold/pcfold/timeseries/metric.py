@@ -15,7 +15,7 @@ from datafold.utils.datastructure import is_df_same_index, series_if_applicable
 class TSCMetric:
 
     VALID_MODE = ["timeseries", "timestep", "qoi"]
-    VALID_METRIC = ["rmse", "rrmse", "mse", "mae", "max"]
+    VALID_METRIC = ["rmse", "rrmse", "mse", "mae", "max", "l2"]
     VALID_SCALING = ["id", "min-max", "standard", "l2_normalize"]
 
     def __init__(self, metric: str, mode: str, scaling: str = "id"):
@@ -70,6 +70,12 @@ class TSCMetric:
             y_pred = TSCDataFrame(y_pred, index=index, columns=columns)
 
         return y_true, y_pred
+
+    def _l2_error(
+        self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
+    ):
+
+        return np.linalg.norm(y_true - y_pred, axis=0)
 
     def _rmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
@@ -132,6 +138,8 @@ class TSCMetric:
             error_metric_handle = metrics.mean_absolute_error
         elif error_metric == "max":
             error_metric_handle = self._max_error
+        elif error_metric == "l2":
+            error_metric_handle = self._l2_error
         else:
             raise ValueError(f"Metric {error_metric} not known. Please report bug.")
 
@@ -271,7 +279,7 @@ class TSCMetric:
 
         is_df_same_index(y_true, y_pred, handle="raise")
 
-        self._scaling(y_true=y_true, y_pred=y_pred)
+        y_true, y_pred = self._scaling(y_true=y_true, y_pred=y_pred)
 
         # score depending on mode:
         if self.mode == "timeseries":
