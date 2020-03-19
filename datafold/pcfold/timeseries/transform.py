@@ -313,9 +313,9 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
     def _allocate_delayed_qois(self, tsc):
 
         # original columns + delayed columns
-        total_nr_columns = tsc.shape[1] * (self.delays + 1)
+        total_n_columns = tsc.shape[1] * (self.delays + 1)
 
-        data = np.zeros([tsc.shape[0], total_nr_columns]) * np.nan
+        data = np.zeros([tsc.shape[0], total_n_columns]) * np.nan
 
         delayed_tsc = TSCDataFrame(data, index=tsc.index, columns=self.features_out_[1])
 
