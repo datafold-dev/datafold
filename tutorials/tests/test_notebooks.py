@@ -5,7 +5,7 @@ import unittest
 
 import nbformat
 
-IGNORED_TESTED_NOTEBOOKS = ["datafold_retreat_2020.ipynb", "koopman_operator.ipynb"]
+IGNORED_TESTED_NOTEBOOKS = ["koopman_operator.ipynb"]
 
 
 class TestNotebooks(unittest.TestCase):
@@ -53,7 +53,7 @@ class TestNotebooks(unittest.TestCase):
         assert len(datafold_path) == 1
         datafold_path = datafold_path[0]
 
-        examples_path = os.path.join(datafold_path, "..", "examples")
+        examples_path = os.path.join(datafold_path, "..", "tutorials")
         examples_path = os.path.abspath(examples_path)
 
         example_notebooks = []
