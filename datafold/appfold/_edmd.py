@@ -212,6 +212,11 @@ def _fit_and_score_edmd(
 
 
 class EDMDCV(GridSearchCV, TSCPredictMixIn):
+    def __init__(self, estimator, param_grid, cv, **kwargs):
+        super(EDMDCV, self).__init__(
+            estimator=estimator, param_grid=param_grid, cv=cv, **kwargs
+        )
+
     def _validate_settings_edmd(self):
         # leave import here to avoid circular imports
         import datafold.appfold.edmd as edmd_typing
@@ -382,6 +387,8 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
 
         return self
 
-    def predict(self, X, t=None, **predict_params):
+    def predict(self, X, time_values=None, **predict_params):
         check_is_fitted(self)
-        return self.best_estimator_.predict(X, t, **predict_params)
+        return self.best_estimator_.predict(
+            X=X, time_values=time_values, **predict_params
+        )

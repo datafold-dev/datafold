@@ -82,7 +82,7 @@ class TestTSCTransform(unittest.TestCase):
     def test_scale_min_max(self):
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiPreprocess.scale("min-max")
+        scale = TSCQoiPreprocess.from_name("min-max")
         scaled_tsc = scale.fit_transform(tsc_df)
 
         # sanity check:
@@ -96,7 +96,7 @@ class TestTSCTransform(unittest.TestCase):
 
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiPreprocess.scale("standard")
+        scale = TSCQoiPreprocess.from_name("standard")
         scaled_tsc = scale.fit_transform(tsc_df)
 
         nptest.assert_array_equal(

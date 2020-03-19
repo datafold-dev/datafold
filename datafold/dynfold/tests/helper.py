@@ -7,22 +7,12 @@ import os
 import sys
 from typing import Optional
 
+import diffusion_maps as legacy_dmap
 import numpy as np
 import numpy.testing as nptest
 from scipy.sparse import csr_matrix
 
-try:
-    # Add path of "legacy_dmap_repo" to PYTHONPATH such that the imports there work:
-    # NOTE: has to be before import of legacy_dmap
-    filepath = os.path.dirname(os.path.abspath(__file__))
-    path_legacy_test_code = os.path.join(filepath, "legacy_dmap_repo")
-    sys.path.append(path_legacy_test_code)
-
-    import datafold.dynfold.tests.legacy_dmap_repo.diffusion_maps as legacy_dmap
-    from datafold.dynfold.diffusion_maps import DiffusionMaps
-except:
-    # currently a workaround to prevent isort placing the imports above the sys.paths
-    pass
+from datafold.dynfold.diffusion_maps import DiffusionMaps
 
 
 def make_strip(

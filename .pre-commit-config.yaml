@@ -1,4 +1,3 @@
-exclude: 'datafold/dynfold/tests/legacy_dmap_repo'
 repos:
 
 -   repo: https://github.com/python/black

@@ -4,6 +4,7 @@
 
 import unittest
 
+import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
 import scipy.sparse.linalg.eigen.arpack
 from scipy.stats import norm
@@ -196,7 +197,7 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap_embed = DiffusionMaps(**setting).fit(X_swiss_all)
 
         if plot:
-            from datafold.dynfold.plot import plot_eigenvectors_n_vs_all
+            from datafold.utils.plot import plot_eigenvectors_n_vs_all
 
             plot_eigenvectors_n_vs_all(
                 eigenvectors=dmap_embed.transform(X_swiss_all).T, n=1, colors=color_all,
@@ -248,12 +249,11 @@ class DiffusionMapsTest(unittest.TestCase):
                 c=abs_error_norm,
                 cmap=plt.get_cmap("Reds"),
             )
+
             f.colorbar(error_scatter, ax=ax[0][2])
             ax[0][2].set_title("abs. difference")
 
-            gh_embed_eval_oos = dmap_embed.set_coords(indices=[1, 5]).transform(
-                X_swiss_oos
-            )
+            gh_embed_eval_oos = dmap_embed.transform(X_swiss_oos)
             ax[1][0].scatter(
                 gh_embed_eval_oos[:, 0],
                 gh_embed_eval_oos[:, 1],

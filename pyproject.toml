@@ -6,10 +6,10 @@ exclude = '''
     | \.git          # root of the project
     | \.hg
     | \.mypy_cache
+    | \.idea
     | _build
     | build
     | dist
-    | /home/daniel/REPOS/datafold/datafold/dynfold/tests/legacy_dmap_repo/
   )/
 )
 '''

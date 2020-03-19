@@ -4,6 +4,7 @@ Unit test for the Geometric Harmonics module.
 
 import unittest
 
+import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.datasets import make_swiss_roll

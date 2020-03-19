@@ -28,16 +28,10 @@ setup(
     test_suite="nose.collector",
     tests_require=["nose"],
     extras_require={
-        "plotting": [
-            "matplotlib",
-            "ipywidgets",
-        ],  # TODO: remove interactive stuff from dmap (i.e. remove ipywidgts)
-        "cuda": [
-            "numba"
-        ],  # TODO: required in dmap, think about to remove it, as it is not maintained
+        "plotting": ["matplotlib"],
         "documenation": ["Sphinx", "sphinxcontrib.bibtex", "sphinx_rtd_theme"],
     },
-    # taken from list https://pypi.org/pypi?%3Aaction=list_classifiers
+    # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",

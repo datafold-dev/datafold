@@ -42,7 +42,7 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
             )
 
     @classmethod
-    def scale(cls, name):
+    def from_name(cls, name):
 
         if name == "min-max":
             return cls(MinMaxScaler(feature_range=(0, 1), copy=True))
@@ -362,7 +362,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
                 X = TSCDataFrame(X)
 
         if not X.is_const_delta_time():
-            raise TSCException("dt is not constant")
+            raise TSCException.not_const_delta_time()
 
         return X
 
@@ -390,12 +390,13 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         X = self._validate_data(X, ensure_feature_name_type=True)
         X = self._validate_tsc_properties(X)
 
-        if (X.lengths_time_series <= self.delay_indices_.max()).any():
+        if (X.n_timesteps <= self.delay_indices_.max()).any():
             raise TSCException(
                 f"Mismatch of delay and time series length. Shortest time series has "
-                f"length {np.array(X.lengths_time_series).min()} and maximum delay is "
+                f"length {np.array(X.n_timesteps).min()} and maximum delay is "
                 f"{self.delay_indices_.max()}."
             )
+
         self._validate_features_transform(X)
 
         X = self._allocate_delayed_qois(X)
@@ -441,6 +442,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
 
         if self.centers is None:
             if self._has_feature_names(X):
+                # Due to scipy interpolate.RBF data is transposed.
                 _centers = X.to_numpy().T
             else:
                 _centers = X.T
@@ -462,8 +464,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
 
         self.rbf_ = Rbf(*_centers, _centers.T, **self.rbf_kwargs)
 
-        # more memory efficient to reference to internal RBF, the data is transposed
-        # internally
+        # more memory efficient to reference to internal RBF data
         self.centers = self.rbf_.xi
         return self
 

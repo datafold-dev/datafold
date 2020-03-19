@@ -63,7 +63,7 @@ class LinearDynamicalSystem(object):
         eigenvalues: np.ndarray,
         dt: float,
         ic: np.ndarray,
-        time_samples: np.ndarray,
+        time_values: np.ndarray,
         time_series_ids: Optional[Dict] = None,
         qoi_columns=None,
         post_map: Optional[np.ndarray] = None,
@@ -79,7 +79,7 @@ class LinearDynamicalSystem(object):
                 Time difference between samples that resulted in the spectrum computation.
            ic
                Initial conditions corresponding to :math:`x_0`
-           time_samples
+           time_values
                Array of times where the dynamical system should be evaluated.
            time_invariant
                If `True` the time at the initial condition is zero; ff `False` the
@@ -112,7 +112,7 @@ class LinearDynamicalSystem(object):
 
         nr_qoi, state_length = dynmatrix.shape
 
-        self._check_time_samples(time_samples)
+        self._check_time_samples(time_values)
         self._check_ic(ic, state_length=state_length)
 
         if time_series_ids is None:
@@ -132,12 +132,10 @@ class LinearDynamicalSystem(object):
         omegas = np.log(eigenvalues.astype(np.complex)) / dt
 
         time_series_tensor = allocate_time_series_tensor(
-            nr_time_series=ic.shape[1],
-            nr_timesteps=time_samples.shape[0],
-            nr_qoi=nr_qoi,
+            n_time_series=ic.shape[1], n_timesteps=time_values.shape[0], n_qoi=nr_qoi,
         )
 
-        for idx, time in enumerate(time_samples):
+        for idx, time in enumerate(time_values):
             time_series_tensor[:, idx, :] = np.real(
                 dynmatrix @ diagmat_dot_mat(np.exp(omegas * time), ic)
             ).T
@@ -146,54 +144,5 @@ class LinearDynamicalSystem(object):
             time_series_tensor,
             time_series_ids=time_series_ids,
             columns=qoi_columns,
-            time_values=time_samples,
+            time_values=time_values,
         )
-
-    def evolve_edmd_forcing_system(
-        self, edmd, tsc_forcing: TSCDataFrame, dynmatrix, eigfunc_interp
-    ):
-        if dynmatrix is None:
-            dynmatrix = edmd.eigenvectors_right_
-
-            # TODO: make a is fit request here to edmd to guarantee that EDMD was fit!
-            assert dynmatrix is not None
-
-        current_eigfunc_state = None
-
-        for id_, ts in tsc_forcing.itertimeseries():
-            initial_cond = True
-
-            for t, row in ts.iterrows():
-                if np.mod(t, 100) == 0:
-                    print(t)
-
-                row = row.to_numpy()[np.newaxis, :]
-                if initial_cond:
-                    current_eigfunc_state = np.linalg.lstsq(
-                        edmd.eigenvectors_right_, eigfunc_interp(row), rcond=1e-15,
-                    )[0]
-                    initial_cond = False
-
-                else:
-                    bool_unforced_cols = np.isnan(row).ravel()
-                    next_physical_state = np.real(dynmatrix @ current_eigfunc_state)
-
-                    tsc_forcing.loc[(id_, t), bool_unforced_cols] = next_physical_state[
-                        bool_unforced_cols
-                    ]
-
-                    corrected_physical_space = tsc_forcing.loc[(id_, t), :].to_numpy()[
-                        np.newaxis, :
-                    ]
-
-                    current_eigfunc_state = eigfunc_interp(corrected_physical_space)
-
-                    if (
-                        np.isnan(current_eigfunc_state).any()
-                        or np.isinf(current_eigfunc_state).any()
-                    ):
-                        import warnings
-
-                        warnings.warn("Invalid interpolation values")
-
-        return tsc_forcing

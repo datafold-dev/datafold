@@ -75,8 +75,8 @@ class TSCBaseMixIn:
             )
 
         if not isinstance(X, TSCDataFrame):
-            # Currently, a pd.DataFrame is treated like data (there is not even a time
-            # involvement required).
+            # Currently, a pd.DataFrame is treated like numpy data
+            #  -- there is no time required such as in TSCDataFrame
 
             validate_tsc_kwargs = {}  # no need to check
 
@@ -255,12 +255,16 @@ class TSCPredictMixIn(TSCBaseMixIn):
         return (self.time_values_in_[1][0], self.time_values_in_[1][-1])
 
     def _setup_default_tsc_scorer_and_metric(self):
-        self._metric_eval = TSCMetric.make_tsc_metric(
+        self.metric_eval = TSCMetric.make_tsc_metric(
             metric="rmse", mode="qoi", scaling="min-max"
         )
-        self._score_eval = make_tsc_scorer(self._metric_eval)
+        self.score_eval = make_tsc_scorer(self.metric_eval)
 
     def _setup_features_and_time_fit(self, X: TSCDataFrame):
+
+        if self._strictly_pandas_df(X):
+            raise TypeError("need to transform X to TSCDataFrame before")
+
         time_values = X.time_values(unique_values=True)
         features_in = X.columns
 
@@ -288,6 +292,9 @@ class TSCPredictMixIn(TSCBaseMixIn):
     def _validate_time_values(self, time_values: np.ndarray):
 
         self._check_attributes_set_up(check_attributes=["time_values_in_"])
+
+        if not isinstance(time_values, np.ndarray):
+            raise TypeError("time_values has to be a NumPy array")
 
         if time_values.dtype.kind not in "iufM":
             # see for dtype.kind values:

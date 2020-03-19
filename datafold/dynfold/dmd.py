@@ -95,9 +95,13 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         if qoi_columns is None:
             qoi_columns = self.features_in_[1]
 
-        # initial condition is numerical only, from now on
+        # initial condition is numpy array only, from now on
         ic = X_ic.to_numpy().T
         time_series_ids = X_ic.index.get_level_values("ID").to_numpy()
+
+        if len(np.unique(time_series_ids)) != len(time_series_ids):
+            # check if duplicate ids are present
+            raise ValueError("time series ids have to be unique")
 
         # Choose alternative of how to evolve the linear system:
         if hasattr(self, "eigenvectors_left_") and (
@@ -139,7 +143,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             dt=self.dt_,
             ic=ic,
             post_map=post_map,
-            time_samples=norm_time_samples,
+            time_values=norm_time_samples,
             time_series_ids=time_series_ids,
             qoi_columns=qoi_columns,
         )
@@ -219,7 +223,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         return self.fit(X, **fit_params).reconstruct(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
-        self._check_attributes_set_up(check_attributes=["_score_eval"])
+        self._check_attributes_set_up(check_attributes=["score_eval"])
         assert y is None
 
         X_est_ts = self.reconstruct(X)
@@ -228,7 +232,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         if sample_weight is not None:
             score_params["sample_weight"] = sample_weight
 
-        return self._score_eval(X, X_est_ts, sample_weight)
+        return self.score_eval(X, X_est_ts, sample_weight)
 
 
 class DMDFull(DMDBase):
@@ -495,101 +499,3 @@ class PyDMDWrapper(DMDBase):
         self.eigenvalues_ = self.dmd_.eigs
 
         return self
-
-
-@warn_experimental_class
-class PCMKoopman(object):
-    """
-    Koopman operator on the point cloud manifold.
-    """
-
-    def __init__(self, pcm, rcond=1e-10, verbosity_level=0):
-        """
-        pcm:    PCManifold object
-        rcond:  condition number used as minimum tolerance. default: 1e-10
-        verbosity_level: 0 (silent), 1 (some messages)
-        """
-
-        self._pcm = pcm
-        self._rcond = rcond
-        self._verbosity_level = verbosity_level
-
-    def build(self, x_data, y_data, regularizer_strength=1e-6):
-        """
-        Constructs the Koopman operator matrix from snapshot data (x_data, y_data).
-        """
-
-        kernel_base = self._pcm.compute_kernel_matrix() + regularizer_strength ** 2 * scipy.sparse.identity(
-            self._pcm.shape[0]
-        )
-        kernel_base.eliminate_zeros()  # has to be sparse matrix
-
-        invdiag = scipy.sparse.diags(
-            1.0 / (self._rcond + kernel_base.sum(axis=1).A.ravel())
-        )
-        kernel_base = invdiag @ kernel_base
-
-        phi0 = self._pcm.compute_kernel_matrix(x_data).T
-        phi1 = self._pcm.compute_kernel_matrix(y_data).T
-
-        # more efficient format for spsolve
-        phi0 = scipy.sparse.csc_matrix(phi0)
-        phi1 = scipy.sparse.csc_matrix(phi1)
-
-        atol = regularizer_strength
-        btol = regularizer_strength
-
-        # _K = scipy.sparse.linalg.spsolve(phi0, phi1)
-
-        _K = np.zeros((phi0.shape[1], phi0.shape[1]))
-        if self._verbosity_level > 1:
-            print("EDMD: computing K, shape is", _K.shape)
-
-        for k in range(_K.shape[1]):
-            b = np.array(phi1[:, k].todense()).reshape(-1,)
-
-            _K[:, k] = scipy.sparse.linalg.lsmr(phi0, b, atol=1e-15, btol=1e-15)[0]
-
-        if self._verbosity_level > 1:
-            print("EDMD: done.")
-
-        # compute the "modes" given the dictionary
-        # NOTE: this is different from standard EDMD!! There, one would compute
-        # the modes given the eigenfunctions, not the dictionary!
-
-        _C = np.zeros((kernel_base.shape[1], self._pcm.shape[1]))
-
-        for k in range(_C.shape[1]):
-            b = self._pcm[:, k].reshape(-1,)
-            _C[:, k] = scipy.sparse.linalg.lsmr(kernel_base, b, atol=atol, btol=btol)[0]
-
-        self._koopman = _K
-        self._C = _C
-
-    def _get_observables(self, x):
-        # project into observable space
-
-        phinew = self._pcm.compute_kernel_matrix(Y=x)
-        invdiag = scipy.sparse.diags(1.0 / (self._rcond + phinew.sum(axis=0).A.ravel()))
-        phinew = phinew @ invdiag
-        return scipy.sparse.csr_matrix(phinew.T)
-
-    @property
-    def K(self):
-        """ The Koopman operator matrix. """
-        return self._koopman
-
-    def predict(self, xold, NT=1):
-        """ Predicts new points given old points. """
-        phinew = self._get_observables(xold)
-
-        phinew_dt = np.array(phinew.todense())
-        result_dt = []
-
-        # predict one step
-        for it in range(NT):
-            result_dt.append(phinew_dt.T @ self._C)
-            phinew_dt = phinew_dt @ self._koopman
-
-        # project back
-        return result_dt

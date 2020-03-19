@@ -37,7 +37,7 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         pdtest.assert_series_equal(
-            tc.lengths_time_series,
+            tc.n_timesteps,
             pd.Series(
                 [2, 2, 2, 3],
                 index=pd.Index([0, 1, 15, 45], name=TSCDataFrame.IDX_ID_NAME),
@@ -49,7 +49,7 @@ class TestTSCDataFrame(unittest.TestCase):
         simple_df = simple_df.drop(
             labels=[45]
         )  # is the only one which has time series length 4
-        actual = TSCDataFrame(simple_df).lengths_time_series
+        actual = TSCDataFrame(simple_df).n_timesteps
         expected = 2
 
         self.assertEqual(actual, expected)
@@ -170,6 +170,44 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = pd.DataFrame(
             data=data_expected, index=time_index_expected, columns=qoi_column_expected
         )
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_from_shift_matrix_row(self):
+
+        left_matrix = np.array([[1, 3, 5], [7, 9, 11]])
+        right_matrix = np.array([[2, 4, 6], [8, 10, 12]])
+
+        actual = TSCDataFrame.from_shift_matrices(
+            left_matrix, right_matrix, snapshot_orientation="row"
+        )
+
+        # build expected
+        values = np.array([[1, 3, 5], [2, 4, 6], [7, 9, 11], [8, 10, 12]])
+        index = pd.MultiIndex.from_arrays(
+            [np.array([0, 0, 1, 1]), np.array([0, 1, 0, 1])]
+        )
+        columns = [0, 1, 2]
+        expected = TSCDataFrame(values.astype(np.float64), index=index, columns=columns)
+
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_from_shift_matrix_col(self):
+
+        left_matrix = np.array([[1, 3, 5], [7, 9, 11]])
+        right_matrix = np.array([[2, 4, 6], [8, 10, 12]])
+
+        actual = TSCDataFrame.from_shift_matrices(
+            left_matrix, right_matrix, snapshot_orientation="col"
+        )
+
+        # build expected
+        values = np.array([[1, 7], [2, 8], [3, 9], [4, 10], [5, 11], [6, 12]])
+        index = pd.MultiIndex.from_arrays(
+            [np.array([0, 0, 1, 1, 2, 2]), np.array([0, 1, 0, 1, 0, 1])]
+        )
+        columns = [0, 1]
+        expected = TSCDataFrame(values.astype(np.float64), index=index, columns=columns)
+
         pdtest.assert_frame_equal(actual, expected)
 
     def test_time_interval(self):
@@ -437,9 +475,10 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_multi_time_tsc3(self):
         ts = TSCDataFrame(self.simple_df)
-        new_ts = ts.select_times_values(time_values=np.array([0]))
+        actual = ts.select_times_values(time_values=np.array([0]))
+        expected = self.simple_df.loc[pd.IndexSlice[:, 0], :]
 
-        print(new_ts)
+        pdtest.assert_frame_equal(actual, expected)
 
     def test_multi_time_tsc4(self):
         # behaviour if not all time points are present
@@ -448,10 +487,6 @@ class TestTSCDataFrame(unittest.TestCase):
         # -1 is even an illegal
         new_ts = ts.select_times_values(time_values=np.array([0, 1, -1]))
 
-        # TODO: the current behavior is, that -1 is simply ignored (no error raised)
-        #  -- error is only raised if none of the keys matches
-        #  -- therefore this is currently in accordance with pandas behavior, but may
-        #     change for pandas.version >= 1.0.0
         self.assertTrue(np.in1d(new_ts.time_values(unique_values=True), (0, 1)).all())
         self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
 
@@ -502,8 +537,9 @@ class TestTSCDataFrame(unittest.TestCase):
         actual_a = tc.loc[:, "A"]
         actual_b = tc.loc[:, "B"]
 
-        # TODO: note the cast to pd.DataFrame -- currently there is no TSCSeries, i.e. also a single qoi column
-        #  is a DataFrame. This cold be changed in future to be closer to the pandas data structures...
+        # TODO: note the cast to pd.DataFrame -- currently there is no TSCSeries,
+        #  i.e. also a single qoi column is a DataFrame. This cold be changed in future
+        #  to be closer to the pandas data structures...
         expected_a = pd.DataFrame(self.simple_df.loc[:, "A"])
         expected_a.columns.name = TSCDataFrame.IDX_QOI_NAME
 
@@ -567,8 +603,8 @@ class TestTSCDataFrame(unittest.TestCase):
 
         self.assertTrue(isinstance(full_tsc, TSCDataFrame))
 
-        # The order defines the type. This is correct, but risky, it is therefore better to use the method
-        #  `insert_new_timeseries`
+        # The order defines the type. This is correct, but risky, it is therefore
+        # better to use the method `insert_new_timeseries`
         full_df = pd.concat([new_tsc, tsc], axis=0)
         self.assertFalse(isinstance(full_df, TSCDataFrame))
         self.assertTrue(isinstance(full_df, pd.DataFrame))
@@ -614,8 +650,9 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertIsInstance(tsc, TSCDataFrame)
 
     def test_time_not_disappear_initial_state(self):
-        """One observation was that a qoi-column named 'time' disappears because the index is set to a regular
-        column. This is tested here, that the 'time' column not disappears. """
+        """One observation was that a qoi-column named 'time' disappears because the
+        index is set to a regular column. This is tested here, that the 'time' column
+        not disappears. """
 
         tsc = TSCDataFrame(self.simple_df)
         tsc[TSCDataFrame.IDX_TIME_NAME] = 1
