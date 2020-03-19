@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import copy
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -50,7 +51,11 @@ class EDMDDict(Pipeline):
 
 class EDMD(Pipeline, TSCPredictMixIn):
     def __init__(
-        self, dict_steps, dmd_model: DMDBase = DMDFull(), memory=None, verbose=False
+        self,
+        dict_steps: List[Tuple],
+        dmd_model: DMDBase = DMDFull(),
+        memory=None,
+        verbose=False,
     ):
 
         self.dict_steps = dict_steps
@@ -129,7 +134,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # TODO: here a valuable parameter can be inferred:
         #  how many time samples are required to make a I.C.?
         check_is_fitted(self)
-        self._validate_data(X)
+        X = self._validate_data(X)
         self._validate_feature_names(X)
 
         Xt = X
@@ -162,7 +167,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
         """Docu note: y is kept for consistency to sklearn, but should always be None."""
         assert y is None
-        self._check_attributes_set_up(check_attributes=["_score_eval"])
+        self._check_attributes_set_up(check_attributes=["score_eval"])
 
         # does the checking:
         X_est_ts = self.reconstruct(X)
@@ -178,4 +183,4 @@ class EDMD(Pipeline, TSCPredictMixIn):
         if sample_weight is not None:
             score_params["sample_weight"] = sample_weight
 
-        return self._score_eval(X, X_est_ts, sample_weight)
+        return self.score_eval(X, X_est_ts, sample_weight)

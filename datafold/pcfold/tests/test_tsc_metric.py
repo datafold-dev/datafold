@@ -375,10 +375,8 @@ class TestTSCCV(unittest.TestCase):
         #  deprecation cycle
         from sklearn.model_selection._validation import is_classifier
 
-        self.assertFalse(is_classifier(EDMD))
-
-        check_cv(TSCKFoldTime, y=None, classifier=is_classifier(EDMD))
-        check_cv(TSCKfoldSeries, y=None, classifier=is_classifier(EDMD))
+        check_cv(TSCKFoldTime, y=self.single_id_tsc, classifier=is_classifier(EDMD))
+        check_cv(TSCKfoldSeries, y=self.single_id_tsc, classifier=is_classifier(EDMD))
 
     def test_kfold_series_simple_tsc(self):
 
@@ -399,8 +397,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertEqual(test_part.n_timeseries, 2)
 
             # should keep original length:
-            self.assertEquals(train_part.lengths_time_series, 4)
-            self.assertEquals(test_part.lengths_time_series, 4)
+            self.assertEquals(train_part.n_timesteps, 4)
+            self.assertEquals(test_part.n_timesteps, 4)
 
             # checks that no time series id is in train and also test
             self.assertFalse(np.in1d(train_part.ids, test_part.ids).any())
@@ -429,8 +427,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertEqual(test_part.n_timeseries, 4)
 
             # originally all time series are of length 4, now they should be 2
-            self.assertEqual(train_part.lengths_time_series, 2)
-            self.assertEqual(test_part.lengths_time_series, 2)
+            self.assertEqual(train_part.n_timesteps, 2)
+            self.assertEqual(test_part.n_timesteps, 2)
 
             # this tests that there was no shuffle, all time series should still be
             # connected

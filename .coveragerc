@@ -1,6 +1,3 @@
 [run]
 omit=
  */tests/*
- */plot_interactive.py
- */_gpu_cusparse.py
- */_gpu_eigensolver.py

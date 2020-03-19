@@ -57,10 +57,17 @@ class EDMDTest(unittest.TestCase):
             _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
 
+    def test_edmd_no_classifier(self):
+        # import from internal module -- subject to change without warning!
+        from sklearn.model_selection._validation import is_classifier
+
+        self.assertFalse(is_classifier(EDMD))
+        self.assertFalse(is_classifier(EDMDCV))
+
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd_dict = EDMDDict(
             steps=[
-                ("scale", TSCQoiPreprocess.scale(name="min-max")),
+                ("scale", TSCQoiPreprocess.from_name(name="min-max")),
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=2)),
             ]

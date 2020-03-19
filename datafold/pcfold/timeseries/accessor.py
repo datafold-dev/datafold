@@ -13,14 +13,14 @@ from datafold.utils.datastructure import is_float, is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
-class TSCollectionMethods(object):
+class TSCAccessor(object):
     def __init__(self, tsc_df: TSCDataFrame):
 
         # NOTE: cannot call TSCDataFrame(tsc_df) here to transform in case it is a normal
         # DataFrame. This is because the accessor has to know when updating this object.
         if not isinstance(tsc_df, TSCDataFrame):
             raise TypeError(
-                "Can use 'tsc' extension only for type TSCDataFrame (convert before)."
+                "Can use 'tsc' extension only for type TSCDataFrame (convert before)"
             )
 
         self._tsc_df: TSCDataFrame = tsc_df
@@ -116,10 +116,7 @@ class TSCollectionMethods(object):
         delta_time = self._tsc_df.delta_time
 
         if not self._tsc_df.is_const_delta_time():
-            raise TSCException(
-                "To normalize the time index it is required that the time time delta is "
-                "constant."
-            )
+            raise TSCException.not_const_delta_time()
 
         if self._tsc_df.is_datetime_time_values():
             convert_times = convert_times.astype(np.int64)
@@ -149,18 +146,17 @@ class TSCollectionMethods(object):
     ) -> Tuple[np.ndarray, np.ndarray]:
 
         if not self._tsc_df.is_const_delta_time():
-            raise TSCException(
-                "Cannot compute shift matrices: Time series are required to have the "
-                "same time delta."
-            )
+            raise TSCException.not_const_delta_time()
 
-        ts_counts = self._tsc_df.lengths_time_series
+        ts_counts = self._tsc_df.n_timesteps
 
         if is_integer(ts_counts):
             ts_counts = pd.Series(
                 np.ones(self._tsc_df.n_timeseries, dtype=np.int) * ts_counts,
                 index=self._tsc_df.ids,
             )
+
+        assert isinstance(ts_counts, pd.Series)  # for mypy
 
         nr_shift_snapshots = (ts_counts.subtract(1)).sum()
         insert_indices = np.append(0, (ts_counts.subtract(1)).cumsum().to_numpy())

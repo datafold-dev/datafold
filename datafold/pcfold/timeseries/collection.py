@@ -29,8 +29,8 @@ class TSCException(Exception):
     @classmethod
     def not_required_length(cls, required_length, actual_length):
         return cls(
-            f"time series have not required length {required_length}. "
-            f"Got: {actual_length}"
+            "One or more time series do not meet the required length"
+            f"of {required_length}. Got: {actual_length}"
         )
 
     @classmethod
@@ -173,6 +173,39 @@ class TSCDataFrame(pd.DataFrame):
 
         data = tensor.reshape(n_timeseries * n_timesteps, n_qoi)
         return cls(data=data, index=idx, columns=columns)
+
+    @classmethod
+    def from_shift_matrices(
+        cls, left_matrix, right_matrix, snapshot_orientation="col", columns=None
+    ):
+        """Convenience function for case of shift matices (i.e. timeseries with only two
+        time values."""
+
+        if snapshot_orientation == "col":
+            left_matrix, right_matrix = left_matrix.T, right_matrix.T
+        elif snapshot_orientation == "row":
+            pass
+        else:
+            raise ValueError("")
+
+        if left_matrix.shape != right_matrix.shape:
+            raise ValueError("")
+
+        n_timeseries, n_qois = left_matrix.shape
+
+        # allocate memory
+        # (n_timeseries, n_timesteps, n_qoi,)
+        zipped_values = np.zeros([n_timeseries * 2, n_qois])
+        zipped_values[0::2, :] = left_matrix.copy()
+        zipped_values[1::2, :] = right_matrix.copy()
+
+        id_idx = np.repeat(np.arange(n_timeseries), 2)
+        time_values = np.array([0, 1] * n_timeseries)
+        index = pd.MultiIndex.from_arrays([id_idx, time_values])
+
+        tsc = cls(data=zipped_values, index=index, columns=columns)
+        tsc._validate()
+        return tsc
 
     @classmethod
     def from_same_indices_as(
@@ -404,11 +437,11 @@ class TSCDataFrame(pd.DataFrame):
             return dt_result_series
 
     @property
-    def lengths_time_series(self) -> Union[pd.Series, int]:
+    def n_timesteps(self) -> Union[pd.Series, int]:
         n_time_elements = self.index.get_level_values(0).value_counts()
         n_unique_elements = len(np.unique(n_time_elements))
 
-        if n_unique_elements == 1:
+        if self.n_timeseries == 1 or n_unique_elements == 1:
             return int(n_time_elements.iloc[0])
         else:
             n_time_elements.index.name = self.IDX_ID_NAME
@@ -437,7 +470,7 @@ class TSCDataFrame(pd.DataFrame):
         raise NotImplementedError("To implement")
 
     def is_equal_length(self) -> bool:
-        return len(np.unique(self.lengths_time_series)) == 1
+        return len(np.unique(self.n_timesteps)) == 1
 
     def is_const_delta_time(self) -> bool:
         # If dt is a Series it means it shows "dt per ID" (because it is not constant).
@@ -449,11 +482,11 @@ class TSCDataFrame(pd.DataFrame):
         return np.isfinite(_dt)
 
     def is_same_ts_length(self):
-        return isinstance(self.lengths_time_series, int)
+        return isinstance(self.n_timesteps, int)
 
     def is_same_time_values(self) -> bool:
 
-        length_time_series = self.lengths_time_series
+        length_time_series = self.n_timesteps
 
         if isinstance(length_time_series, pd.Series):
             return False
@@ -540,7 +573,7 @@ class TSCDataFrame(pd.DataFrame):
             raise TSCException.not_same_time_values()
 
         return np.reshape(
-            self.loc[:, qoi].to_numpy(), (self.n_timeseries, self.lengths_time_series)
+            self.loc[:, qoi].to_numpy(), (self.n_timeseries, self.n_timesteps)
         )
 
     def single_timeindex_df(self, time_index: int):
@@ -595,7 +628,7 @@ class TSCDataFrame(pd.DataFrame):
         return ax
 
 
-def allocate_time_series_tensor(nr_time_series, nr_timesteps, nr_qoi):
+def allocate_time_series_tensor(n_time_series, n_timesteps, n_qoi):
     """
     Allocate time series tensor that complies with TSCDataFrame.from_tensor(...)
 
@@ -604,12 +637,12 @@ def allocate_time_series_tensor(nr_time_series, nr_timesteps, nr_qoi):
        2. row = time step [k]
        3. column = qoi
 
-    :param nr_time_series: number of time series
-    :param nr_timesteps: number of time steps per time series
-    :param nr_qoi: nr of quantity of interest values
+    :param n_time_series: number of time series
+    :param n_timesteps: number of time steps per time series
+    :param n_qoi: nr of quantity of interest values
     :return: zero-allocated tensor
     """
-    return np.zeros([nr_time_series, nr_timesteps, nr_qoi])
+    return np.zeros([n_time_series, n_timesteps, n_qoi])
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from sklearn import metrics
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
 
+from datafold.decorators import warn_experimental_class
 from datafold.pcfold.timeseries import TSCDataFrame
 from datafold.utils.datastructure import is_df_same_index, series_if_applicable
 
@@ -274,7 +275,7 @@ class TSCMetric:
         y_true: TSCDataFrame,
         y_pred: TSCDataFrame,
         sample_weight=None,
-        multi_qoi="raw_samples",
+        multi_qoi="raw_values",
     ) -> Union[pd.Series, pd.DataFrame]:
         """Note for docu:
         These are "special" metrics for TSC and allow different "modes" to compare
@@ -347,7 +348,7 @@ class TSCKfoldSeries:
             )
 
         n_time_series = X.n_timeseries
-        len_time_series = X.lengths_time_series
+        len_time_series = X.n_timesteps
         n_samples = X.shape[0]
 
         indices_matrix = np.arange(n_samples).reshape([n_time_series, len_time_series])
@@ -374,12 +375,9 @@ class TSCKFoldTime:
                 "Currently, each time series must have the same " "time indices."
             )
 
-        n_timeseries = X.n_timeseries
-        len_timeseries = X.lengths_time_series
         n_samples = X.shape[0]
-
         indices_matrix = np.arange(n_samples).reshape(
-            [len_timeseries, n_timeseries], order="F"
+            [X.n_timesteps, X.n_timeseries], order="F"
         )
 
         for train, test in self.kfold_splitter.split(indices_matrix):
@@ -389,6 +387,24 @@ class TSCKFoldTime:
 
     def get_n_splits(self, X, y=None, groups=None):
         return self.kfold_splitter.get_n_splits(X, y, groups=groups)
+
+
+@warn_experimental_class
+class TSCTrainTestTime:
+    def __init__(self, train_size: float):
+        if not (0 < train_size < 1):
+            raise ValueError("train_size must be between 0 and 1 (exclusively).")
+        self.train_size = train_size
+
+    def split(self, X: TSCDataFrame, y=None, groups=None):
+        from sklearn.model_selection import train_test_split
+
+        train_time_values, test_time_values = train_test_split(
+            X.time_values(unique_values=True),
+            train_size=self.train_size,
+            test_size=1 - self.train_size,
+            shuffle=False,
+        )
 
 
 def make_tsc_scorer(metric_func, **metric_kwargs) -> Callable:

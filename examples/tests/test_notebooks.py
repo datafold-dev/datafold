@@ -5,6 +5,8 @@ import unittest
 
 import nbformat
 
+IGNORED_TESTED_NOTEBOOKS = ["datafold_retreat_2020.ipynb", "koopman_operator.ipynb"]
+
 
 class TestNotebooks(unittest.TestCase):
     @staticmethod
@@ -73,7 +75,8 @@ class TestNotebooks(unittest.TestCase):
 
     def test_notebooks(self):
         for nb_path in self.notebook_paths:
-            self.check_errors_notebook(nb_path)
+            if os.path.basename(nb_path) not in IGNORED_TESTED_NOTEBOOKS:
+                self.check_errors_notebook(nb_path)
 
 
 if __name__ == "__main__":
