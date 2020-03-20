@@ -1,6 +1,14 @@
 class Version:
     """Current version."""
 
+    major_version: int = 0
+    minor_version: int = 1
+    patch: int = 0
+
+    # Semantic versioning policy
+    # See https://semver.org/
+    v_short = f"{major_version}.{minor_version}.{patch}"
+
     # set only integers:
     year: int = 2020
     month: int = 2
@@ -25,7 +33,6 @@ class Version:
         "December",
     ]
 
-    v_short = f"{year}{str(month).zfill(2)}.{v_nr}"  # YYYYMM.V
     date_string = f"{year}-{months_english[month-1]}-{day}"
 
     v_long = f"{v_short} ({date_string})"
