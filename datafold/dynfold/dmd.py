@@ -18,6 +18,14 @@ from datafold.pcfold.timeseries.base import PRE_FIT_TYPES, PRE_IC_TYPES, TSCPred
 from datafold.utils.datastructure import if1dim_rowvec
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
 
+try:
+    import pydmd
+except ImportError:
+    pydmd = None
+    IS_IMPORTED_PYDMD = False
+else:
+    IS_IMPORTED_PYDMD = True
+
 
 class DMDBase(BaseEstimator, TSCPredictMixIn):
     r"""Dynamic Mode Decomposition (DMD) approximates the Koopman operator with
@@ -440,6 +448,12 @@ class PyDMDWrapper(DMDBase):
     def __init__(
         self, method: str, svd_rank, tlsq_rank, exact, opt, **init_params,
     ):
+
+        if not IS_IMPORTED_PYDMD:
+            raise ImportError(
+                "Python package pydmd could not be imported. Check installation."
+            )
+
         self._setup_default_tsc_scorer_and_metric()
 
         self.method_ = method.lower()
