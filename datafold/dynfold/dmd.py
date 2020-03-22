@@ -1,3 +1,4 @@
+import abc
 import warnings
 from typing import Optional, Union
 
@@ -27,7 +28,7 @@ else:
     IS_IMPORTED_PYDMD = True
 
 
-class DMDBase(BaseEstimator, TSCPredictMixIn):
+class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     r"""Dynamic Mode Decomposition (DMD) approximates the Koopman operator with
     a matrix :math:`K`.
 
@@ -103,7 +104,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
         if qoi_columns is None:
             qoi_columns = self.features_in_[1]
 
-        # initial condition is numpy array only, from now on
+        # initial condition is numpy-only, from now on
         ic = X_ic.to_numpy().T
         time_series_ids = X_ic.index.get_level_values("ID").to_numpy()
 
@@ -190,6 +191,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
         return X
 
+    @abc.abstractmethod
     def fit(self, X: PRE_FIT_TYPES, **fit_params):
         raise NotImplementedError("base class")
 
@@ -203,11 +205,11 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
             X=X, time_values=time_values
         )
 
-        # This is for compatibility with the koopman based surrogate model
         post_map = predict_params.pop("post_map", None)
         qoi_columns = predict_params.pop("qoi_columns", None)
+
         if len(predict_params.keys()) > 0:
-            raise KeyError(f"predict_params are invalid: {predict_params.keys()}")
+            raise KeyError(f"predict_params keys are invalid: {predict_params.keys()}")
 
         return self._evolve_dmd_system(
             X_ic=X, time_values=time_values, post_map=post_map, qoi_columns=qoi_columns
@@ -244,7 +246,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn):
 
 
 class DMDFull(DMDBase):
-    r"""Full (i.e. using entire data matrix) EDMD method.
+    r"""Full DMD method (i.e. using entire data matrix with no dimension reduction).
 
     The Koopman matrix is approximated
 
@@ -256,9 +258,10 @@ class DMDFull(DMDBase):
 
     """
 
-    def __init__(self, is_diagonalize: bool = False):
+    def __init__(self, is_diagonalize: bool = False, rcond=None):
         self._setup_default_tsc_scorer_and_metric()
         self.is_diagonalize = is_diagonalize
+        self.rcond = rcond
 
     def _diagonalize_left_eigenvectors(self):
         """Compute right eigenvectors (not normed) such that
@@ -304,7 +307,7 @@ class DMDFull(DMDBase):
 
         # If a is square and of full rank, then x (but for round-off error) is the
         # “exact” solution of the equation.
-        koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=1e-14)
+        koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
 
         if rank != G.shape[1]:
             warnings.warn(
