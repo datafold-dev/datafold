@@ -564,7 +564,7 @@ def compute_distance_matrix(
     kmin=0,
     tol=1,
     backend="brute",
-    **backend_options,
+    **backend_kwargs,
 ):
     """
     :param X: np.ndarray - point cloud
@@ -576,7 +576,7 @@ def compute_distance_matrix(
     TODO: I don't quite get this parameter:
     :param tol: float tolerance used in continuous nearest neighbors
     :param backend: str - algorithm to choose
-    :param backend_options: dict - handling for specific options to the selected algorithm
+    :param backend_kwargs: dict - handling for specific options to the selected algorithm
     :return: distance matrix
     """
 
@@ -587,7 +587,7 @@ def compute_distance_matrix(
 
     if X.shape[0] <= 1:
         raise ValueError(
-            f"number of samples has to be greater than 1. Got {X.shape[ß]}"
+            f"number of samples has to be greater than 1. Got {X.shape[0]}"
         )
 
     logger.info("Setting up computation of distance matrix.")
@@ -620,9 +620,9 @@ def compute_distance_matrix(
     logger.info(f"Start computing distance matrix.")
 
     if is_pdist:
-        distance_matrix = distance_method.pdist(X, cut_off, **backend_options)
+        distance_matrix = distance_method.pdist(X, cut_off, **backend_kwargs)
     else:  # cdist
-        distance_matrix = distance_method.cdist(X, Y, cut_off, **backend_options)
+        distance_matrix = distance_method.cdist(X, Y, cut_off, **backend_kwargs)
 
     if scipy.sparse.issparse(distance_matrix) and cut_off is None:
         # dense case stored in a sparse distance matrix -> convert to np.ndarray

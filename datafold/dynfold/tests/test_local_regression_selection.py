@@ -8,7 +8,7 @@ import numpy as np
 import numpy.testing as nptest
 from sklearn.datasets import make_swiss_roll
 
-from datafold.dynfold.diffusion_maps import DiffusionMaps, LocalRegressionSelection
+from datafold.dynfold.dmap import DiffusionMaps, LocalRegressionSelection
 
 
 class LocalRegressionSelectionTest(unittest.TestCase):

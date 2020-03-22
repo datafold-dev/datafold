@@ -567,20 +567,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
         reference = 0.0483670992027158
         self.assertLessEqual(score, reference)
 
-        if score < 0.04836704121951797:
-            print(
-                f"the score was {score} cmp. to reference {reference} -- maybe adapt "
-                f"reference"
-            )
-
-        # import matplotlib.pyplot as plt
-        #
-        # plt.plot(data, values, "-*")
-        # plt.plot(data, predicted_all, "-*")
-        # plt.plot(data[:10, :], predicted_partial, "-*")
-        #
-        # plt.show()
-
     def test_renormalization_kernel(self, plot=False):
         # Currently, only check if it runs through (with is_stochastic=True
 

@@ -10,11 +10,11 @@ from datafold.pcfold.distance import (
     compute_distance_matrix,
     get_k_smallest_element_value,
 )
-from datafold.pcfold.kernels import RadialBasisKernel
+from datafold.pcfold.kernels import GaussianKernel
 
 
 def _warn_if_not_rbf_kernel(kernel):
-    if not isinstance(kernel, RadialBasisKernel):
+    if not isinstance(kernel, GaussianKernel):
         warnings.warn(
             "There is no guarantee that the method works with a kernel other than "
             "RadialBasisKernel"

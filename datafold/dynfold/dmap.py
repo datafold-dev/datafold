@@ -16,10 +16,9 @@ import scipy.sparse.linalg
 import scipy.spatial
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.dynfold.base import DmapKernelMethod
+from datafold.dynfold.base import TRANF_TYPES, DmapKernelMethod, TSCTransformerMixIn
 from datafold.pcfold.kernels import DmapKernelFixed, DmapKernelVariable
 from datafold.pcfold.pointcloud import PCManifold
-from datafold.pcfold.timeseries.base import TRANF_TYPES, TSCTransformerMixIn
 from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, random_subsample
 
@@ -211,7 +210,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         X = self._validate_data(X=X, validate_array_kwargs=dict(ensure_min_samples=2))
 
         if self._has_feature_names(X):
-            self._setup_features_input_fit(
+            self._setup_pandas_input_fit(
                 features_in=X.columns,
                 features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)],
             )
@@ -380,7 +379,7 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
 
         if self._has_feature_names(X):
-            self._setup_features_input_fit(
+            self._setup_pandas_input_fit(
                 features_in=X.columns,
                 features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)],
             )
@@ -740,7 +739,7 @@ class LocalRegressionSelection(TSCTransformerMixIn):
         self._set_indices()
 
         if self._has_feature_names(X):
-            self._setup_features_input_fit(
+            self._setup_pandas_input_fit(
                 features_in=X.columns, features_out=X.columns[self.evec_indices_],
             )
         else:

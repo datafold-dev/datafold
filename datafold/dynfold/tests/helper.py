@@ -12,7 +12,7 @@ import numpy as np
 import numpy.testing as nptest
 from scipy.sparse import csr_matrix
 
-from datafold.dynfold.diffusion_maps import DiffusionMaps
+from datafold.dynfold.dmap import DiffusionMaps
 
 
 def make_strip(

@@ -1,4 +1,4 @@
-""" Unit test for the diffusion_maps module.
+""" Unit test for the dmap module.
 
 """
 
@@ -11,7 +11,7 @@ from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 from sklearn.metrics import mean_squared_error
 
-from datafold.dynfold.diffusion_maps import DiffusionMapsVariable
+from datafold.dynfold.dmap import DiffusionMapsVariable
 from datafold.dynfold.tests.helper import *
 from datafold.utils.maths import random_subsample
 
