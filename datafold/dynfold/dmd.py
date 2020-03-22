@@ -259,7 +259,7 @@ class DMDFull(DMDBase):
     """
 
     def __init__(self, is_diagonalize: bool = False, rcond=None):
-        self._setup_default_tsc_scorer_and_metric()
+        self._setup_default_tsc_metric_and_score()
         self.is_diagonalize = is_diagonalize
         self.rcond = rcond
 
@@ -400,7 +400,7 @@ class DMDEco(DMDBase):
     """
 
     def __init__(self, svd_rank=10):
-        self._setup_default_tsc_scorer_and_metric()
+        self._setup_default_tsc_metric_and_score()
         self.k = svd_rank
 
     def _compute_internals(self, X: TSCDataFrame):
@@ -457,7 +457,7 @@ class PyDMDWrapper(DMDBase):
                 "Python package pydmd could not be imported. Check installation."
             )
 
-        self._setup_default_tsc_scorer_and_metric()
+        self._setup_default_tsc_metric_and_score()
 
         self.method_ = method.lower()
 

@@ -282,7 +282,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self._check_attributes_set_up(check_attributes="time_values_in_")
         return (self.time_values_in_[1][0], self.time_values_in_[1][-1])
 
-    def _setup_default_tsc_scorer_and_metric(self):
+    def _setup_default_tsc_metric_and_score(self):
         self.metric_eval = TSCMetric.make_tsc_metric(
             metric="rmse", mode="qoi", scaling="min-max"
         )
@@ -290,8 +290,8 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
     def _setup_features_and_time_fit(self, X: TSCDataFrame):
 
-        if self._strictly_pandas_df(X):
-            raise TypeError("need to transform X to TSCDataFrame before")
+        if not isinstance(X, TSCDataFrame):
+            raise TypeError("Only TSCDataFrame can be used for 'X'. ")
 
         time_values = X.time_values(unique_values=True)
         features_in = X.columns
@@ -300,9 +300,11 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self._validate_time_values(self.time_values_in_[1])
 
         self.dt_ = X.delta_time
-        if isinstance(self.dt_, pd.Series):
+        if isinstance(self.dt_, pd.Series) or np.isnan(
+            self.dt_
+        ):  # Series if dt_ is not the same across multiple time series.
             raise NotImplementedError(
-                "Currently, all methods assume a constant time "
+                "Currently, all algorithms assume a constant time "
                 f"delta. Got X.time_delta={X.time_delta}"
             )
 
@@ -359,12 +361,10 @@ class TSCPredictMixIn(TSCBaseMixIn):
     def _validate_feature_names(self, X: TRANF_TYPES):
         self._check_attributes_set_up(check_attributes=["features_in_"])
 
-        if isinstance(X, pd.Series):
-            # if X is a Series, then the columns of the original data are in a Series
-            # this usually happens if X.iloc[0, :] --> returns a Series
-            pdtest.assert_index_equal(right=self.features_in_[1], left=X.index)
-        else:
+        try:
             pdtest.assert_index_equal(right=self.features_in_[1], left=X.columns)
+        except AssertionError as e:
+            raise ValueError(e.args[0])
 
     def _validate_features_and_time_values(
         self, X: FEATURE_NAME_TYPES, time_values: np.ndarray

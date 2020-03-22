@@ -139,10 +139,11 @@ def _fit_and_score_edmd(
     X_train, X_test = _split_X_edmd(X, y, train_indices=train, test_indices=test)
 
     try:
-        edmd = edmd.fit(X_train, y, **fit_params)
+        edmd = edmd.fit(X=X_train, y=y, **fit_params)
     except Exception as e:
-        # Note fit time as time until error
-        fit_time = time.time() - start_time
+        # Handle all exception, to not waste other working or complete results
+
+        fit_time = time.time() - start_time  # Note fit time as time until error
         score_time = 0.0
         if error_score == "raise":
             raise

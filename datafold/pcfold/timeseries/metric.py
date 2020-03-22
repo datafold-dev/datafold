@@ -441,7 +441,7 @@ def make_tsc_scorer(metric_func, **metric_kwargs) -> Callable:
         else:
             raise TypeError(f"sample_weight={sample_weight} is invalid.")
 
-        # score is "greater is better", all TSC metrics measure the error
+        # score is "greater is better", all TSCMetrics measure the error
         return -1 * float(score)
 
     return _tsc_scoring

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import unittest
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -93,6 +94,28 @@ class EDMDTest(unittest.TestCase):
             inverse_dict.plot(ax=ax)
             plt.show()
 
+    def test_edmd_sine_wave(self):
+
+        edmd = EDMD(
+            dict_steps=[
+                # NOTE: in Takens fill-in handle *cannot* be "remove", because sklearn cv
+                #  will because the number of samples changes during transformation (
+                #  EDMDCV could handle this)
+                ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
+                ("pca", TSCPrincipalComponent(n_components=5)),
+            ],
+            include_id_state=True,
+        )
+        case_one_edmd = deepcopy(edmd)
+        case_two_edmd = deepcopy(edmd)
+
+        case_one = case_one_edmd.fit(self.multi_sine_wave_tsc).reconstruct(
+            self.multi_sine_wave_tsc
+        )
+        case_two = case_two_edmd.fit_reconstruct(self.multi_sine_wave_tsc)
+
+        pdtest.assert_frame_equal(case_one, case_two)
+
     def test_edmd_cv_sine_wave(self):
         # Tests a specific setting of EDMDCV compared to sklearn.GridSearchCV,
         # where the results are expected to be the same. EDMDCV generalizes aspects
@@ -105,7 +128,8 @@ class EDMDTest(unittest.TestCase):
                 #  EDMDCV could handle this)
                 ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
                 ("pca", TSCPrincipalComponent(n_components=5)),
-            ]
+            ],
+            include_id_state=False,
         )
 
         # NOTE: cv only TSCKfoldSeries can be compared and is equal to sklearn. not
@@ -166,7 +190,7 @@ class EDMDTest(unittest.TestCase):
             cv=TSCKfoldSeries(4),
             verbose=False,
             return_train_score=True,
-            n_jobs=-1,
+            n_jobs=1,
         ).fit(self.multi_sine_wave_tsc)
 
     def test_edmdcv_parallel_no_error(self):
@@ -206,3 +230,10 @@ class EDMDTest(unittest.TestCase):
         ).fit(self.multi_sine_wave_tsc)
 
         self.assertIsInstance(edmdcv.cv_results_, dict)
+
+
+if __name__ == "__main__":
+    test = EDMDTest()
+    test.setUp()
+
+    test.test_edmd_cv_sine_wave()

@@ -107,7 +107,7 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_qoi_to_datamatrix(self):
 
         with self.assertRaises(TSCException):
-            TSCDataFrame(self.simple_df).qoi_to_ndarray(qoi="A")
+            TSCDataFrame(self.simple_df).qoi_to_array(qoi="A")
 
         simple_df = self.simple_df.copy()
         simple_df = simple_df.drop(labels=[45])
@@ -117,7 +117,7 @@ class TestTSCDataFrame(unittest.TestCase):
         for i in range(simple_df.shape[1]):
             qoi = simple_df.columns[i]
 
-            actual = TSCDataFrame(simple_df).qoi_to_ndarray(qoi=qoi)
+            actual = TSCDataFrame(simple_df).qoi_to_array(qoi=qoi)
             expected = np.reshape(simple_df.loc[:, qoi].to_numpy(), expected_shape)
 
             nptest.assert_equal(actual, expected)
@@ -433,7 +433,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_single_time_df(self):
         tsc = TSCDataFrame(self.simple_df)
-        actual = tsc.select_times_values(time_values=0)
+        actual = tsc.select_time_values(time_values=0)
 
         # cannot be a TSC anymore, because only one time point does not make a time series
         self.assertIsInstance(actual, pd.DataFrame)
@@ -442,9 +442,9 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
         with self.assertRaises(KeyError):
-            tsc.select_times_values(time_values=100)  # no time series with this time
+            tsc.select_time_values(time_values=100)  # no time series with this time
 
-        actual = tsc.select_times_values(time_values=17)
+        actual = tsc.select_time_values(time_values=17)
 
         # in 'key' use a list to enforce a data frame, not a series
         expected = self.simple_df.iloc[[6], :]
@@ -453,7 +453,7 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_multi_time_tsc(self):
         ts = TSCDataFrame(self.simple_df)
 
-        new_ts = ts.select_times_values(time_values=np.array([0, 1, 17, 18]))
+        new_ts = ts.select_time_values(time_values=np.array([0, 1, 17, 18]))
 
         self.assertIsInstance(new_ts, TSCDataFrame)
         self.assertNotIn(19, new_ts.index.get_level_values(TSCDataFrame.IDX_TIME_NAME))
@@ -467,7 +467,7 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_multi_time_tsc2(self):
         ts = TSCDataFrame(self.simple_df)
 
-        new_ts = ts.select_times_values(time_values=np.array([0, 1]))
+        new_ts = ts.select_time_values(time_values=np.array([0, 1]))
         self.assertIsInstance(new_ts, TSCDataFrame)
 
         self.assertTrue(np.in1d(new_ts.time_values(unique_values=True), (0, 1)).all())
@@ -475,7 +475,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_multi_time_tsc3(self):
         ts = TSCDataFrame(self.simple_df)
-        actual = ts.select_times_values(time_values=np.array([0]))
+        actual = ts.select_time_values(time_values=np.array([0]))
         expected = self.simple_df.loc[pd.IndexSlice[:, 0], :]
 
         pdtest.assert_frame_equal(actual, expected)
@@ -485,7 +485,7 @@ class TestTSCDataFrame(unittest.TestCase):
         ts = TSCDataFrame(self.simple_df)
 
         # -1 is even an illegal
-        new_ts = ts.select_times_values(time_values=np.array([0, 1, -1]))
+        new_ts = ts.select_time_values(time_values=np.array([0, 1, -1]))
 
         self.assertTrue(np.in1d(new_ts.time_values(unique_values=True), (0, 1)).all())
         self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())

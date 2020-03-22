@@ -124,8 +124,6 @@ class TSCDataFrame(pd.DataFrame):
     IDX_TIME_NAME = "time"
     IDX_QOI_NAME = "qoi"
 
-    FLOAT64_TIME_PRECISION_DECIMALS = 15
-
     def __init__(self, *args, **kwargs):
         # TODO: at the moment a sliced object is a Series, not a TSCSeries. Therefore,
         #  a single qoi, is also represented as a DataFrame
@@ -365,18 +363,6 @@ class TSCDataFrame(pd.DataFrame):
 
         return True
 
-    def _set_time_precision_float64(self):
-        time_level = 1
-
-        # 1 is time, the call does not work by str here
-        current_time_values = self.index.levels[time_level]
-
-        if np.issubdtype(current_time_values, np.floating):
-            adapted_time_values = np.around(
-                current_time_values, decimals=self.FLOAT64_TIME_PRECISION_DECIMALS
-            )
-            self.index = self.index.set_levels(adapted_time_values, level=time_level)
-
     @property
     def n_timeseries(self) -> int:
         return len(self.ids)
@@ -465,9 +451,6 @@ class TSCDataFrame(pd.DataFrame):
         for i, ts in self.groupby(level=self.IDX_ID_NAME):
             # cast single time series back to DataFrame
             yield i, pd.DataFrame(ts.loc[i, :])
-
-    def to_pcmanifold(self):
-        raise NotImplementedError("To implement")
 
     def is_equal_length(self) -> bool:
         return len(np.unique(self.n_timesteps)) == 1
@@ -567,7 +550,7 @@ class TSCDataFrame(pd.DataFrame):
             start, np.nextafter(end, np.finfo(np.float).max), self.delta_time
         )
 
-    def qoi_to_ndarray(self, qoi: str):
+    def qoi_to_array(self, qoi: str):
 
         if not self.is_same_time_values():
             raise TSCException.not_same_time_values()
@@ -591,7 +574,7 @@ class TSCDataFrame(pd.DataFrame):
 
         return points_df
 
-    def select_times_values(self, time_values) -> Union[pd.DataFrame, "TSCDataFrame"]:
+    def select_time_values(self, time_values) -> Union[pd.DataFrame, "TSCDataFrame"]:
         """Returns pd.DataFrame if it is not a legal definition of TSC anymore (e.g.
         only one point for an ID)"""
         idx = pd.IndexSlice

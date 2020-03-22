@@ -284,7 +284,7 @@ class TSCAccessor(object):
         if covariance is None:
             covariance = np.eye(2)
 
-        df = self._tsc_df.select_times_values(time_values=time)
+        df = self._tsc_df.select_time_values(time_values=time)
 
         xmin = df.iloc[:, 0].min()
         xmax = df.iloc[:, 0].max()
