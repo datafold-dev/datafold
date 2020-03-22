@@ -13,7 +13,7 @@ from datafold.pcfold.distance import (
     get_backend_distance_algorithm,
 )
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
-from datafold.pcfold.kernels import Kernel, RadialBasisKernel
+from datafold.pcfold.kernels import GaussianKernel, Kernel
 from datafold.utils.maths import random_subsample
 
 # TODO: Consider to have a separate methods section in documentation for the methods
@@ -39,7 +39,7 @@ class PCManifold(np.ndarray):
 
         if kernel is None:
             # TODO: also allow kernel=None? The distance matrix can still be computed.
-            kernel = RadialBasisKernel()
+            kernel = GaussianKernel()
 
         # view casting --> the np.ndarray as a PCManifold object --> this calls
         # internally __array_finalize__
@@ -88,7 +88,7 @@ class PCManifold(np.ndarray):
             return obj
 
         # default parameters:
-        self.kernel = getattr(obj, "kernel", RadialBasisKernel())
+        self.kernel = getattr(obj, "kernel", GaussianKernel())
 
         self._cut_off = getattr(obj, "_cut_off", None)
         self._dist_backend = getattr(obj, "_dist_backend", "brute")
@@ -195,7 +195,7 @@ class PCManifold(np.ndarray):
         inplace=True,
     ):
 
-        if not hasattr(self._kernel, "_epsilon"):
+        if not hasattr(self._kernel, "epsilon"):
             # fails if kernel has no epsilon parameter
             raise AttributeError(
                 f"Kernel {type(self._kernel)} has no epsilon parameter to optimize."
@@ -212,7 +212,7 @@ class PCManifold(np.ndarray):
 
         if inplace:
             self.cut_off = cut_off
-            self.kernel._epsilon = epsilon
+            self.kernel.epsilon = epsilon
 
         return cut_off, epsilon
 
@@ -341,18 +341,18 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), scale_tests=20):
     # _d = _d[ind,:]
     # _d = _d[:, ind]
 
-    save_eps = pcm.kernel._epsilon  # TODO: error if not available
+    save_eps = pcm.kernel.epsilon  # TODO: error if not available
 
     for i, scale in enumerate(scales):
 
-        pcm.kernel._epsilon = scale
+        pcm.kernel.epsilon = scale
         kernel_matrix_scale = pcm.kernel.eval(distance_matrix=distance_matrix)
         kernel_sum = kernel_matrix_scale.sum()
 
         scale_sum[i] = kernel_sum / (kernel_matrix_scale.shape[0] ** 2)
 
     # ax.loglog(scales, scale_sum, 'k-', label='points')
-    pcm.kernel._epsilon = save_eps
+    pcm.kernel.epsilon = save_eps
 
     gradient = np.exp(
         np.gradient(np.log(scale_sum), np.log(scales)[1] - np.log(scales)[0])

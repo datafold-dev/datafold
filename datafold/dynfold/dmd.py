@@ -12,9 +12,9 @@ from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.decorators import warn_experimental_class
+from datafold.dynfold.base import PRE_FIT_TYPES, PRE_IC_TYPES, TSCPredictMixIn
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.base import PRE_FIT_TYPES, PRE_IC_TYPES, TSCPredictMixIn
 from datafold.utils.datastructure import if1dim_rowvec
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
 

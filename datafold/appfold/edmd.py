@@ -8,17 +8,16 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_is_fitted
 
-from datafold.appfold._edmd import EDMDCV  # do not remove, even if unseed here
-from datafold.dynfold.dmd import DMDBase, DMDFull
-from datafold.pcfold import TSCDataFrame
-from datafold.pcfold.timeseries.base import (
+from datafold.appfold._edmd import EDMDCV  # do not remove, even if not used here
+from datafold.dynfold.base import (
     PRE_FIT_TYPES,
     PRE_IC_TYPES,
     TRANF_TYPES,
     TSCPredictMixIn,
     TSCTransformerMixIn,
 )
-from datafold.pcfold.timeseries.metric import TSCMetric, make_tsc_scorer
+from datafold.dynfold.dmd import DMDBase, DMDFull
+from datafold.pcfold import TSCDataFrame
 
 
 class EDMDDict(Pipeline):

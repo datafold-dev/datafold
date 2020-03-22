@@ -73,8 +73,8 @@ from sklearn.model_selection._validation import is_classifier
 from sklearn.utils import _message_with_time
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
+from datafold.dynfold.base import TSCPredictMixIn
 from datafold.pcfold import TSCDataFrame
-from datafold.pcfold.timeseries.base import TSCPredictMixIn
 from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime
 from datafold.utils.datastructure import is_integer
 

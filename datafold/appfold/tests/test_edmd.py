@@ -9,14 +9,14 @@ import pandas.testing as pdtest
 from sklearn.model_selection import GridSearchCV
 
 from datafold.appfold.edmd import EDMD, EDMDCV, EDMDDict
-from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime
-from datafold.pcfold.timeseries.transform import (
+from datafold.dynfold.transform import (
     TSCIdentity,
     TSCPrincipalComponent,
     TSCQoiPreprocess,
     TSCTakensEmbedding,
 )
+from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime
 
 
 class EDMDTest(unittest.TestCase):

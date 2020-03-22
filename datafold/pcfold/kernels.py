@@ -5,18 +5,17 @@ import numexpr as ne
 import numpy as np
 import scipy.sparse
 import scipy.spatial
+from scipy.special import xlogy
 from sklearn.gaussian_process.kernels import (
-    RBF,
     Kernel,
     NormalizedKernelMixin,
     StationaryKernelMixin,
-    _check_length_scale,
 )
 from sklearn.preprocessing import normalize
 
 from datafold.decorators import warn_experimental_class
 from datafold.pcfold.distance import compute_distance_matrix
-from datafold.utils.datastructure import is_integer
+from datafold.utils.datastructure import is_float, is_integer
 from datafold.utils.maths import (
     diagmat_dot_mat,
     is_symmetric_matrix,
@@ -38,8 +37,9 @@ def apply_kernel_function(distance_matrix, kernel_function):
     return kernel
 
 
-def apply_kernel_function_numexpr(distance_matrix, expr, expr_dict):
+def apply_kernel_function_numexpr(distance_matrix, expr, expr_dict=None):
 
+    expr_dict = {} if expr_dict is None else expr_dict
     assert "D" not in expr_dict.keys()
 
     if scipy.sparse.issparse(distance_matrix):
@@ -207,7 +207,7 @@ def stochastic_kernel_matrix(kernel_matrix):
     return kernel_matrix
 
 
-class PCManifoldKernelMixin(metaclass=abc.ABCMeta):
+class PCManifoldKernel(Kernel):
     @abc.abstractmethod
     def __call__(
         self,
@@ -218,7 +218,7 @@ class PCManifoldKernelMixin(metaclass=abc.ABCMeta):
         kernel_kwargs=None,
         dist_backend_kwargs=None,
     ):
-        """Evaluation calls for kernels used in PCManifold"""
+        raise NotImplementedError("Base class")
 
     @abc.abstractmethod
     def eval(self, distance_matrix):
@@ -226,82 +226,69 @@ class PCManifoldKernelMixin(metaclass=abc.ABCMeta):
         checks whether the correct kernel metric was used. 'distance_matrix' may be
         sparse or dense. For the sparse case note that it acts on all stored
         data, i.e. "real zeros" by distance have to be stored."""
+        raise NotImplementedError("Base class")
+
+    def diag(self, X):
+        return np.diag(X)
+
+    def is_stationary(self):
+        # in datafold there is no handling of this parameter, if required this has to
+        # be implemented
+        raise NotImplementedError("base class")
 
 
-class RadialBasisKernel(RBF, PCManifoldKernelMixin):
-    """Overwrites selected functions of sklearn.RBF in order to use sparse distance
-    matrix computations."""
+class RadialBasisKernel(PCManifoldKernel):
+    def __init__(self, distance_metric):
+        """
+        From [Wikipedia](https://en.wikipedia.org/wiki/Radial_basis_function):
 
-    def __init__(self, epsilon=1.0, length_scale_bounds=(1e-5, 1e5)):
-        self._epsilon = epsilon
+        # TODO: make proper Sphinx quote
+        > A radial basis function (RBF) is a real-valued function whose value depends
+        only on the distance between the input and some fixed point.
 
-        # sqrt because of slightly different notation of the kernel
-        super(RadialBasisKernel, self).__init__(
-            length_scale=np.sqrt(epsilon), length_scale_bounds=length_scale_bounds
-        )
+        Parameters
+        ----------
+        distance_metric
+        """
 
-    @property
-    def epsilon(self):
-        return self._epsilon
-
-    @epsilon.setter
-    def epsilon(self, value):
-        self._epsilon = value
-        # keep aligned with super class from scikit learn
-        self.length_scale = np.sqrt(self.epsilon)
+        self.distance_metric = distance_metric
 
     def __call__(
         self,
         X,
         Y=None,
-        eval_gradient=False,
         dist_cut_off=None,
         dist_backend="brute",
         kernel_kwargs=None,
         dist_backend_kwargs=None,
     ):
-        # TODO: only this kernel so far has "eval_gradient" -- should that go into the
-        #  general interface?
-        # TODO: maybe remove all default parameters from the kernel interface!
-
         X = np.atleast_2d(X)
 
         if Y is not None:
             Y = np.atleast_2d(Y)
 
-        if dist_backend_kwargs is None:
-            dist_backend_kwargs = {}
-
-        _check_length_scale(X, self.length_scale)  # sklearn function
-
         distance_matrix = compute_distance_matrix(
             X,
             Y,
-            metric="sqeuclidean",
+            metric=self.distance_metric,
             cut_off=dist_cut_off,
             backend=dist_backend,
-            **dist_backend_kwargs,
+            **({} if dist_backend_kwargs is None else dist_backend_kwargs),
         )
-
-        if eval_gradient and scipy.sparse.issparse(distance_matrix):
-            raise NotImplementedError(
-                "Gradient is not implemented for sparse distance matrix"
-            )
 
         kernel_matrix = self.eval(distance_matrix)
 
-        if not eval_gradient:
-            return kernel_matrix
-        else:
+        return kernel_matrix
 
-            # TODO: check gradient code (are both correct, what are the differences, link
-            #  to comp. explanations, ...):
-            if Y is None:
-                # TODO: used from super class sklean.RBF kernel
-                return kernel_matrix, self._gradient(distance_matrix, kernel_matrix)
-            else:
-                # TODO: used from kernels.py code (and adapted)
-                return kernel_matrix, self._gradient_given_Y(X, Y, kernel_matrix)
+
+class GaussianKernel(RadialBasisKernel):
+    """Overwrites selected functions of sklearn.RBF in order to use sparse distance
+    matrix computations."""
+
+    def __init__(self, epsilon=1.0):
+        self.epsilon = epsilon
+
+        super(GaussianKernel, self).__init__(distance_metric="sqeuclidean")
 
     def eval(self, distance_matrix):
         # Security copy, the distance matrix is maybe required again (for gradient,
@@ -310,55 +297,66 @@ class RadialBasisKernel(RBF, PCManifoldKernelMixin):
         return apply_kernel_function_numexpr(
             distance_matrix,
             expr="exp((- 1 / (2*eps)) * D)",
-            expr_dict={"eps": self._epsilon},
+            expr_dict={"eps": self.epsilon},
         )
 
-    def _gradient(self, distance_matrix, kernel_matrix=None):
 
-        # NOTE: Copied code from the super class RBF
-        if self.hyperparameter_length_scale.fixed:
-            # Hyperparameter l kept fixed
-            return np.empty((kernel_matrix.shape[0], kernel_matrix.shape[0], 0))
-        elif not self.anisotropic or self.length_scale.shape[0] == 1:
-            kernel_gradient = kernel_matrix * distance_matrix[:, :, np.newaxis]
-            return kernel_gradient
-        elif self.anisotropic:
+class MultiquadricKernel(RadialBasisKernel):
+    def __init__(self, epsilon=1.0):
+        self.epsilon = epsilon
+        super(MultiquadricKernel, self).__init__(distance_metric="sqeuclidean")
 
-            # We need to recompute the pairwise dimension-wise distances
-            kernel_gradient = (
-                kernel_matrix[:, np.newaxis, :] - kernel_matrix[np.newaxis, :, :]
-            ) ** 2 / (self.length_scale ** 2)
-            kernel_gradient *= kernel_matrix[..., np.newaxis]
-            return kernel_gradient
-
-    def _gradient_given_Y(self, X, Y, kernel_matrix):
-        """ computes the gradient of the kernel w.r.t. the x argument """
-
-        if scipy.sparse.issparse(kernel_matrix):
-            raise NotImplementedError("Not implemented sparse kernel matrix version.")
-
-        # this is very heavy on the memory. TODO: improve it.
-        xmy = np.zeros((Y.shape[1], Y.shape[0], X.shape[0]))
-
-        if Y.shape[1] == 1:
-            raise ValueError("one dim. grad not implemented yet")
-        else:
-            for k in range(
-                Y.shape[1]
-            ):  # TODO: check if this loop can be optimized, probably slow
-                xm = Y[:, k].T @ np.ones((1, X.shape[0]))
-                ym = X[:, k].T @ np.ones((1, Y.shape[0])).T
-                xmy[k, :, :] = xm - ym
-
-        res = np.zeros((Y.shape[1], kernel_matrix.shape[0], kernel_matrix.shape[1]))
-
-        for k in range(res.shape[0]):
-            res[k, :, :] = -2 / self._epsilon * kernel_matrix * np.array(xmy[k, :])
-
-        return res
+    def eval(self, distance_matrix):
+        return apply_kernel_function_numexpr(
+            distance_matrix,
+            expr="sqrt(1.0 / (2*eps) * D + 1.0)",
+            expr_dict={"eps": self.epsilon},
+        )
 
 
-class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
+class InverseMultiquadricKernel(RadialBasisKernel):
+    def __init__(self, epsilon=1.0):
+        self.epsilon = epsilon
+        super(InverseMultiquadricKernel, self).__init__(distance_metric="sqeuclidean")
+
+    def eval(self, distance_matrix):
+        # 1.0 / np.sqrt((1.0 / self.epsilon * r) ** 2 + 1)
+        return apply_kernel_function_numexpr(
+            distance_matrix,
+            expr="1.0 / sqrt(1.0 / (2*eps) * D + 1.0) ",
+            expr_dict={"eps": self.epsilon},
+        )
+
+
+class CubicKernel(RadialBasisKernel):
+    def __init__(self):
+        super(CubicKernel, self).__init__(distance_metric="euclidean")
+
+    def eval(self, distance_matrix):
+        # return r ** 3
+        return apply_kernel_function_numexpr(distance_matrix, expr="D ** 3")
+
+
+class QuinticKernel(RadialBasisKernel):
+    def __init__(self):
+        super(QuinticKernel, self).__init__(distance_metric="euclidean")
+
+    def eval(self, distance_matrix):
+        # r**5
+        return apply_kernel_function_numexpr(distance_matrix, "D ** 5")
+
+
+class ThinPlateKernel(RadialBasisKernel):
+    def __init__(self):
+        super(ThinPlateKernel, self).__init__(distance_metric="euclidean")
+
+    def eval(self, distance_matrix):
+        # xlogy(r**2, r)
+
+        return xlogy(np.square(distance_matrix), distance_matrix)
+
+
+class DmapKernelFixed(PCManifoldKernel):
     """RBF kernel which with the following extension:
           * stochastic kernel (-> non-symmetric)
                ** can use the (symmetric) conjugate matrix
@@ -369,19 +367,10 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
     #  and alpha=1
 
     def __init__(
-        self,
-        epsilon=1.0,
-        length_scale_bounds=(1e-5, 1e5),
-        is_stochastic=True,
-        alpha=1.0,
-        symmetrize_kernel=True,
+        self, epsilon=1.0, is_stochastic=True, alpha=1.0, symmetrize_kernel=True,
     ):
 
         self.epsilon = epsilon
-        # TODO: not sure if I need this length_scale_bounds?! Check in the scikit learn
-        #  doc what this is about
-        self.length_scale_bounds = length_scale_bounds
-
         self.is_stochastic = is_stochastic
 
         if not (0 <= alpha <= 1):
@@ -389,9 +378,7 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         self.alpha = alpha
         self.symmetrize_kernel = symmetrize_kernel
 
-        self._internal_rbf_kernel = RadialBasisKernel(
-            self.epsilon, length_scale_bounds=self.length_scale_bounds
-        )
+        self._internal_gauss_kernel = GaussianKernel(self.epsilon)
 
         if not self.is_stochastic or self.symmetrize_kernel:
             # If not stochastic, the kernel is always symmetric
@@ -525,7 +512,7 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         if kernel_kwargs is None:
             kernel_kwargs = {}
 
-        rbf_kernel_matrix = self._internal_rbf_kernel(
+        rbf_kernel_matrix = self._internal_gauss_kernel(
             X,
             Y=Y,
             dist_cut_off=dist_cut_off,
@@ -559,36 +546,15 @@ class DmapKernelFixed(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
                 "If is_pdist=True then no row_sum_alpha_fit should be " "provided"
             )
 
-        rbf_kernel_matrix = self._internal_rbf_kernel.eval(distance_matrix)
+        rbf_kernel_matrix = self._internal_gauss_kernel.eval(distance_matrix)
         kernel_matrix, basis_change_matrix, row_sums_alpha = self._normalize(
             rbf_kernel_matrix, row_sums_alpha_fit=row_sums_alpha_fit, is_pdist=is_pdist
         )
 
         return kernel_matrix, basis_change_matrix, row_sums_alpha
 
-    def gradient(self, X, X_eval):
-        if self.is_stochastic:
-            raise NotImplementedError(
-                "Not implemented, also not sure how it works with stochastic and "
-                "renormalization"
-            )
-        else:
-            return self._internal_rbf_kernel._gradient(X, X_eval)
 
-    def diag(self, X):
-        """Implementing abstract function, required by the Kernel interface."""
-        if not self.is_stochastic:
-            return self._internal_rbf_kernel.diag(X)
-        else:
-            # TODO: Most likely it is required to compute the full kernel self(X, X) and
-            #  then take the diag. However, there are more options required now (such
-            #  as cut_off, etc.)
-            raise NotImplementedError(
-                "This case a bit more complicated. Also not sure if this is required."
-            )
-
-
-class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
+class DmapKernelVariable(PCManifoldKernel):
     def __init__(self, epsilon, k, expected_dim, beta, symmetrize_kernel):
         if expected_dim <= 0 and not is_integer(expected_dim):
             raise ValueError("expected_dim has to be a non-negative integer.")
@@ -842,185 +808,3 @@ class DmapKernelVariable(StationaryKernelMixin, PCManifoldKernelMixin, Kernel):
         raise NotImplementedError(
             "This case a bit more complicated. Also not sure if this is required."
         )
-
-
-@warn_experimental_class  # not used so far
-class MultiquadraticKernel(
-    StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel
-):
-    def __init__(self, epsilon):
-        self.epsilon = epsilon
-        super(MultiquadraticKernel, self).__init__()
-
-    def __call__(
-        self,
-        X,
-        Y=None,
-        dist_cut_off=None,
-        dist_backend="brute",
-        kernel_kwargs=None,
-        dist_backend_kwargs=None,
-    ):
-
-        # TODO: check metric!
-        distance_matrix = compute_distance_matrix(
-            X,
-            Y,
-            metric="XXXX",
-            cut_off=dist_cut_off,
-            backend=dist_backend,
-            **dist_backend_kwargs,
-        )
-
-        kernel_matrix = self.eval(distance_matrix)
-        return kernel_matrix
-
-    def eval(self, distance_matrix):
-        kernel_func = lambda dist: np.sqrt(
-            np.square(np.multiply(dist, 1.0 / self.epsilon)) + 1
-        )
-        kernel_matrix = apply_kernel_function(distance_matrix, kernel_func)
-        return kernel_matrix
-
-
-@warn_experimental_class  # not used so far
-class InverseMultiQuadraticKernel(
-    StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel
-):
-    def __init__(self, epsilon):
-        self.epsilon = epsilon
-        super(InverseMultiQuadraticKernel, self).__init__()
-
-    def __call__(
-        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
-    ):
-
-        # TODO: check metric
-        distance_matrix = compute_distance_matrix(
-            X,
-            Y,
-            metric="XXXX",
-            cut_off=dist_cut_off,
-            backend=dist_backend,
-            **backend_options,
-        )
-
-        kernel_matrix = self.eval(distance_matrix)
-        return kernel_matrix
-
-    def eval(self, distance_matrix):
-        kernel_func = lambda dist: np.reciprocal(
-            np.sqrt(np.square(np.multiply(dist, 1 / self.epsilon)) + 1)
-        )
-        kernel_matrix = apply_kernel_function(distance_matrix, kernel_func)
-        return kernel_matrix
-
-
-@warn_experimental_class  # not used so far
-class InverseQuadraticKernel(PCManifoldKernelMixin, Kernel):
-    def __init__(self, epsilon):
-        self.epsilon = epsilon
-        super(InverseQuadraticKernel, self).__init__()
-
-    def __call__(
-        self,
-        X,
-        Y=None,
-        dist_cut_off=None,
-        dist_backend="brute",
-        kernel_kwargs=None,
-        dist_backend_kwargs=None,
-    ):
-
-        # TODO: check metric
-        distance_matrix = compute_distance_matrix(
-            X,
-            Y,
-            metric="XXXX",
-            cut_off=dist_cut_off,
-            backend=dist_backend,
-            **dist_backend_kwargs,
-        )
-
-        kernel_matrix = self.eval(distance_matrix)
-        return kernel_matrix
-
-    def eval(self, distance_matrix):
-        kernel_func = lambda dist: np.clip(
-            1 - np.square(1.0 / self.epsilon * dist), 0, 1
-        )
-        kernel_matrix = apply_kernel_function(distance_matrix, kernel_func)
-        return kernel_matrix
-
-
-class OUKernel(
-    StationaryKernelMixin, NormalizedKernelMixin, PCManifoldKernelMixin, Kernel
-):
-    def __init__(self, epsilon):
-        self.epsilon = epsilon
-        super(OUKernel, self).__init__()
-
-    def __call__(
-        self,
-        X,
-        Y=None,
-        dist_cut_off=None,
-        dist_backend="brute",
-        kernel_kwargs=None,
-        dist_backend_kwargs=None,
-    ):
-        distance_matrix = compute_distance_matrix(
-            X,
-            Y,
-            metric="euclidean",
-            cut_off=dist_cut_off,
-            backend=dist_backend,
-            **dist_backend_kwargs,
-        )
-
-        kernel_matrix = self.eval(distance_matrix)
-        return kernel_matrix
-
-    def eval(self, distance_matrix):
-        kernel_matrix = apply_kernel_function(
-            distance_matrix, lambda x: np.exp(-x / self.epsilon)
-        )
-        return kernel_matrix
-
-
-@warn_experimental_class  # not used so far
-class LanczosKernel(NormalizedKernelMixin, PCManifoldKernelMixin, Kernel):
-    # TODO: check other kernels
-
-    def __init__(self, epsilon=1, width=2):
-        self.epsilon = epsilon
-        self.width = width
-        super(LanczosKernel, self).__init__()
-
-    def __call__(
-        self, X, Y=None, dist_cut_off=None, dist_backend="brute", **backend_options
-    ):
-
-        # TODO: check if the metric is correct
-        distance_matrix = compute_distance_matrix(
-            X,
-            Y,
-            metric="euclidean",
-            cut_off=dist_cut_off,
-            backend=dist_backend,
-            **backend_options,
-        )
-
-        kernel_matrix = self.eval(distance_matrix)
-        return kernel_matrix
-
-    def eval(self, distance_matrix):
-        bool_idx = distance_matrix < self.width
-        kernel_matrix = bool_idx * (
-            np.sinc(distance_matrix / self.epsilon)
-            * np.sinc(distance_matrix / (self.epsilon * self.width))
-        )
-        return kernel_matrix
-
-    def is_stationary(self):
-        return False  # TODO: check if the kernel is really not stationary

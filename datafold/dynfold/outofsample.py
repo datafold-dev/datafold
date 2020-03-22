@@ -339,7 +339,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         error_not_in_range = True
 
         from datafold.pcfold import PCManifold
-        from datafold.pcfold.kernels import RadialBasisKernel
+        from datafold.pcfold.kernels import GaussianKernel
         from datafold.utils.maths import diagmat_dot_mat
         from datafold.utils.maths import sort_eigenpairs
         from scipy.sparse.linalg import eigsh
@@ -349,7 +349,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
 
         while error_not_in_range:
 
-            kernel = RadialBasisKernel(epsilon=scale)
+            kernel = GaussianKernel(epsilon=scale)
             X = PCManifold(X, kernel)
 
             kernel_matrix = X.compute_kernel_matrix()
