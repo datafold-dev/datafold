@@ -96,9 +96,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X_dict = transform.transform(X_dict)
 
         if self.include_id_state:
-            # remove id states that are also removed during dictionary transformation
-            X = X.loc[X_dict.index, :]
-            X_dict = pd.concat([X, X_dict], axis=1)
+            X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         return X_dict
 
@@ -117,6 +115,49 @@ class EDMD(Pipeline, TSCPredictMixIn):
                 X_ts = transform.inverse_transform(X_ts)
 
         return X_ts
+
+    def _compute_n_samples_ic(self, X, X_dict):
+        diff = X_dict.n_timesteps - X.n_timesteps
+
+        if isinstance(diff, pd.Series):
+            # time series can have different number of time values (in which case it is
+            # a Series), however, the the difference has to be the same for all time
+            # series
+            assert (diff.iloc[0] == diff).all()
+            diff = diff.iloc[0]
+
+        # +1 because the diff indicates how many samples were removed -- we want the
+        # number that is required for the initial condition
+        return int(diff) + 1
+
+    def _validate_type_and_n_samples_ic(self, X_ic):
+
+        if self.n_samples_ic_ == 1:
+            if isinstance(X_ic, TSCDataFrame):
+                raise TypeError(
+                    "The n_samples to define an inital condition ("
+                    "n_samples_ic_={}) is incorrect. Got a time series "
+                    "collection with minimum 2 samples per time series."
+                )
+        else:  # self.n_samples_ic_ > 1
+            if not isinstance(X_ic, TSCDataFrame):
+                raise TypeError(
+                    "For the initial condition a TSCDataFrame is required, "
+                    f"with {self.n_samples_ic_} (n_samples_ic_) samples per initial "
+                    f"condition. Got type={type(X_ic)}."
+                )
+
+            if not (X_ic.n_timesteps > self.n_samples_ic_).all():
+                raise ValueError(
+                    f"For each initial condition exactly {self.n_samples_ic_} samples "
+                    f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
+                )
+
+    def _attach_id_state(self, X, X_dict):
+        # remove states from X (the id-states) that are also removed during dictionary
+        # transformations
+        X = X.loc[X_dict.index, :]
+        return pd.concat([X, X_dict], axis=1)
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
 
@@ -142,11 +183,10 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # "self.memory is not None" (see docu)
         X_dict, fit_params = self._fit(X, y, **fit_params)
 
-        if self.include_id_state:
-            X_dict = pd.concat([X, X_dict], axis=1)
+        self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 
-        # TODO: store here already the number of removed states during the transform
-        #  process
+        if self.include_id_state:
+            X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             self.dmd_model.fit(X=X_dict, y=y, **fit_params)
@@ -155,11 +195,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
     def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
 
-        # TODO: when applying Takens, etc. an initial condition in X must be a time
-        #  series. During fit there should be a way to compute how many samples are
-        #  needed to make one IC -- this would allow a good error msg. here if X does
-        #  not meet this requirement here.
         check_is_fitted(self)
+
         self._validate_data(
             X, ensure_feature_name_type=True,
         )
@@ -168,17 +205,15 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X=X, time_values=time_values
         )
 
+        self._validate_type_and_n_samples_ic(X_ic=X)
+
         X_dict = self._transform_original2dictionary(X)
 
-        # TODO: needs a better check...
-        assert isinstance(X_dict, pd.DataFrame), (
-            "at the lowest level there must be only one "
-            "sample per IC (at the highest level, "
-            "many samples may be required. There is a "
-            "proper check required. "
-        )
+        # this needs to always hold if the checks _validate_type_and_n_samples_ic are
+        #  correct
+        assert isinstance(X_dict, pd.DataFrame)
 
-        # now we get a time series (in "dictionary space"):
+        # now we compute the time series in "dictionary space":
         X_latent_ts = self._dmd_model.predict(
             X_dict, time_values=time_values, **predict_params
         )
