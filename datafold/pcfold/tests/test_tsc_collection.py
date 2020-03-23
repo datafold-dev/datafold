@@ -347,8 +347,10 @@ class TestTSCDataFrame(unittest.TestCase):
         # Test 3 - the number of iterations has to match
         self.assertEqual(counter, len(self.simple_df.index.levels[0]))
 
-    def test_timeseries_starts(self):
-        expected = TSCDataFrame(self.simple_df).initial_states_df()
+    def test_timeseries_initial_states(self):
+        actual = TSCDataFrame(self.simple_df).initial_states()
+
+        self.assertIsInstance(actual, pd.DataFrame)
 
         idx = pd.MultiIndex.from_arrays(
             [[0, 1, 15, 45], [0, 0, 0, 17]],
@@ -357,12 +359,32 @@ class TestTSCDataFrame(unittest.TestCase):
         col = pd.Index(["A", "B"], name=TSCDataFrame.IDX_QOI_NAME)
 
         values = self.simple_df.to_numpy()[[0, 2, 4, 6], :]
-        actual = pd.DataFrame(values, index=idx, columns=col)
+        expected = pd.DataFrame(values, index=idx, columns=col)
 
-        pdtest.assert_frame_equal(expected, actual)
+        pdtest.assert_frame_equal(actual, expected)
 
-    def test_timeseries_ends(self):
-        expected = TSCDataFrame(self.simple_df).final_states_df()
+    def test_timeseries_initial_states_n_samples(self):
+        actual = TSCDataFrame(self.simple_df).initial_states(n_samples=2)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        idx = pd.MultiIndex.from_arrays(
+            [[0, 0, 1, 1, 15, 15, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18]],
+            names=[TSCDataFrame.IDX_ID_NAME, TSCDataFrame.IDX_TIME_NAME],
+        )
+        col = pd.Index(["A", "B"], name=TSCDataFrame.IDX_QOI_NAME)
+
+        values = self.simple_df.to_numpy()[[0, 1, 2, 3, 4, 5, 6, 7], :]
+        expected = pd.DataFrame(values, index=idx, columns=col)
+
+        pdtest.assert_frame_equal(actual, expected)
+
+        with self.assertRaises(TSCException):
+            # some time series have only length 2
+            TSCDataFrame(self.simple_df).initial_states(n_samples=3)
+
+    def test_timeseries_final_state(self):
+        expected = TSCDataFrame(self.simple_df).final_states()
 
         idx = pd.MultiIndex.from_arrays(
             [[0, 1, 15, 45], [1, 1, 1, 19]],
@@ -657,7 +679,7 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc = TSCDataFrame(self.simple_df)
         tsc[TSCDataFrame.IDX_TIME_NAME] = 1
 
-        initial_states = tsc.initial_states_df()
+        initial_states = tsc.initial_states()
         self.assertTrue(TSCDataFrame.IDX_TIME_NAME in initial_states.columns)
 
     def test_str_time_indices(self):

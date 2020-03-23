@@ -27,10 +27,10 @@ class TSCException(Exception):
         return cls(f"time series have not the same length. Got {actual_lengths}")
 
     @classmethod
-    def not_required_length(cls, required_length, actual_length):
+    def not_required_n_timesteps(cls, required_length, actual_length):
         return cls(
             "One or more time series do not meet the required number of samples"
-            f" (={required_length}). Got: {actual_length}"
+            f" (={required_length}). Got: \n{actual_length}"
         )
 
     @classmethod
@@ -559,35 +559,50 @@ class TSCDataFrame(pd.DataFrame):
             self.loc[:, qoi].to_numpy(), (self.n_timeseries, self.n_timesteps)
         )
 
-    def single_timeindex_df(self, time_index: int):
-        """Extract from each time series a single time series index."""
-
-        (_id_codes, _idx_codes) = self.index.codes
-        unique_codes = np.unique(_id_codes)
-
-        idx_pos_first = np.zeros(len(self.ids))
-
-        for i, code_ in enumerate(unique_codes):
-            idx_pos_first[i] = np.argwhere(_id_codes == code_)[time_index]
-
-        points_df = pd.DataFrame(self).iloc[idx_pos_first, :].copy()
-
-        return points_df
-
     def select_time_values(self, time_values) -> Union[pd.DataFrame, "TSCDataFrame"]:
         """Returns pd.DataFrame if it is not a legal definition of TSC anymore (e.g.
         only one point for an ID)"""
         idx = pd.IndexSlice
         return self.loc[idx[:, time_values], :]
 
-    def initial_states_df(self) -> pd.DataFrame:
+    def initial_states(self, n_samples=1) -> pd.DataFrame:
         """Returns the initial condition (first state) for each time series as a
         pd.DataFrame (because it no longer a time series).
         """
-        return self.single_timeindex_df(0)
 
-    def final_states_df(self):
-        return self.single_timeindex_df(-1)
+        if not is_integer(n_samples) or n_samples < 1:
+            raise ValueError("")
+
+        # only larger than 2 because by definition each time series
+        # has a minimum of 2 time samples
+        if n_samples > 2 and not (self.n_timesteps >= n_samples).all():
+            raise TSCException.not_required_n_timesteps(
+                required_length=n_samples, actual_length=self.n_timesteps
+            )
+        if n_samples == 1:
+            _df = pd.DataFrame(self)
+        else:
+            _df = self
+
+        return _df.groupby(by="ID", axis=0, level=0).head(n=n_samples)
+
+    def final_states(self, n_samples=1):
+        if not is_integer(n_samples) or n_samples < 1:
+            raise ValueError("")
+
+        # only larger than 2 because by definition each time series
+        # has a minimum of 2 time samples
+        if n_samples > 2 and not (self.n_timesteps <= n_samples).all():
+            raise TSCException.not_required_n_timesteps(
+                required_length=n_samples, actual_length=self.n_timesteps
+            )
+
+        if n_samples == 1:
+            _df = pd.DataFrame(self)
+        else:
+            _df = self
+
+        return _df.groupby(by="ID", axis=0, level=0).tail(n=n_samples)
 
     def plot(self, **kwargs):
         ax = kwargs.pop("ax", None)
