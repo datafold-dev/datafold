@@ -152,9 +152,8 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
     _FEAT_ATTR = ["features_in_", "features_out_"]
 
-    def _setup_pandas_input_fit(
-        self, features_in: pd.Index, features_out: Union[List[str], pd.Index]
-    ):
+    def _setup_pandas_input_fit(self, features_in: pd.Index, features_out: pd.Index):
+
         if features_in.has_duplicates or features_out.has_duplicates:
             raise ValueError(
                 "duplicated indices detected. \n"
@@ -395,6 +394,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
     def reconstruct(self, X: TSCDataFrame):
         raise NotImplementedError("base class")
 
+    @DeprecationWarning
     def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
         raise NotImplementedError("base class")
 

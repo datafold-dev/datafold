@@ -209,15 +209,9 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
         X = self._validate_data(X=X, validate_array_kwargs=dict(ensure_min_samples=2))
 
-        if self._has_feature_names(X):
-            self._setup_pandas_input_fit(
-                features_in=X.columns,
-                features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)],
-            )
-        else:
-            self._setup_array_input_fit(
-                features_in=X.shape[1], features_out=self.n_eigenpairs
-            )
+        self._setup_features_fit(
+            X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
+        )
 
         self._setup_kernel()
 
@@ -378,15 +372,9 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
 
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
 
-        if self._has_feature_names(X):
-            self._setup_pandas_input_fit(
-                features_in=X.columns,
-                features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)],
-            )
-        else:
-            self._setup_array_input_fit(
-                features_in=X.shape[1], features_out=self.n_eigenpairs
-            )
+        self._setup_features_fit(
+            X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
+        )
 
         pcm = PCManifold(
             X,
@@ -737,15 +725,7 @@ class LocalRegressionSelection(TSCTransformerMixIn):
             )
 
         self._set_indices()
-
-        if self._has_feature_names(X):
-            self._setup_pandas_input_fit(
-                features_in=X.columns, features_out=X.columns[self.evec_indices_],
-            )
-        else:
-            self._setup_array_input_fit(
-                features_in=X.shape[1], features_out=len(self.evec_indices_)
-            )
+        self._setup_features_fit(X, features_out=X.columns[self.evec_indices_])
 
         return self
 
