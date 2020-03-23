@@ -6,6 +6,7 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
+from sklearn.utils import _print_elapsed_time  # NOTE: internal from sklearn!
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.appfold._edmd import EDMDCV  # do not remove, even if not used here
@@ -18,6 +19,7 @@ from datafold.dynfold.base import (
 )
 from datafold.dynfold.dmd import DMDBase, DMDFull
 from datafold.pcfold import TSCDataFrame
+from datafold.pcfold.timeseries.collection import TSCException
 
 
 class EDMDDict(Pipeline):
@@ -74,13 +76,24 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # 'dmd_model' instead of general 'final_estimator'
         return self._final_estimator
 
-    def get_edmd_dict(self):
+    def edmd_dict(self):
         # deepcopy of steps for safety
         return EDMDDict(
             steps=copy.deepcopy(self.steps[:-1]),
             memory=self.memory,
             verbose=self.verbose,
         )
+
+    def _validate_dictionary(self):
+
+        # Check that all are TSCTransformer
+        for (_, trans_str, transformer) in self._iter(with_final=False):
+            if not isinstance(transformer, TSCTransformerMixIn):
+                raise TypeError(
+                    "Currently, in the pipeline only supports transformers "
+                    "that can handle indexed data structures (pd.DataFrame "
+                    "and TSCDataFrame)"
+                )
 
     def _transform_original2dictionary(self, X):
         """Forward transformation of dictionary."""
@@ -104,7 +117,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         """Inverse transformation. """
 
         if self.include_id_state:
-            # simply take the carried original columns that were carried along:
+            # simply select columns from attached id state:
             X_ts = X.loc[:, self.features_in_[1]]
         else:
             # it is required to inverse_transform, because the initial states are not
@@ -148,7 +161,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
                 )
 
             if not (X_ic.n_timesteps > self.n_samples_ic_).all():
-                raise ValueError(
+
+                raise TSCException(
                     f"For each initial condition exactly {self.n_samples_ic_} samples "
                     f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
                 )
@@ -160,24 +174,12 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return pd.concat([X, X_dict], axis=1)
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
-
-        for (_, trans_str, transformer) in self._iter(with_final=False):
-            if not isinstance(transformer, TSCTransformerMixIn):
-                raise TypeError(
-                    "Currently, in the pipeline only supports transformers "
-                    "that can handle indexed data structures (pd.DataFrame "
-                    "and TSCDataFrame)"
-                )
-
         self._validate_data(
             X,
             ensure_feature_name_type=True,
             validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X)
-
-        # NOTE: internal from sklearn!
-        from sklearn.utils import _print_elapsed_time
 
         # calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu)
@@ -198,7 +200,9 @@ class EDMD(Pipeline, TSCPredictMixIn):
         check_is_fitted(self)
 
         self._validate_data(
-            X, ensure_feature_name_type=True,
+            X,
+            ensure_feature_name_type=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
 
         X, time_values = self._validate_features_and_time_values(
@@ -224,55 +228,49 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return X_ts
 
     def reconstruct(self, X: TSCDataFrame):
-        # TODO: after solving the issue "how many samples required for initial
-        #  condition, then this function can be improved computationally. Currently,
-        #  the entire time series is transformed, but actually only the I.C. has to!
 
         check_is_fitted(self)
-        X = self._validate_data(X)
+        X = self._validate_data(
+            X,
+            ensure_feature_name_type=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
         self._validate_feature_names(X)
 
-        # TODO: could that not be read from fit? Check what happens in
-        #  super()._fit (which is called during fit)
-        #  --> possibly there is no need to transform a second time.
-        Xt = self._transform_original2dictionary(X)
+        X_reconstruct = []
+        for X_ic, time_values in X.tsc.group_reconstruct_ic(
+            n_samples_ic=self.n_samples_ic_
+        ):
+            # transform initial condition to dictionary space
+            X_dict_ic = self._transform_original2dictionary(X_ic)
 
-        # extract time series with different initial times
-        # NOTE: usually for the DMD model is irrelevant (as it treads every initial
-        # condition as time=0, but to correctly shift the time back for the
-        # reconstruction the time series having different initial times are evaluated
-        # separately.
-        # NOTE2: this feature is especially impo withrtant for cross-validation, where the
-        # folds are split in time
-        X_latent_ts_folds = []
-        # TODO: think of better name for initial_states_folds
-        for X_latent_ic, X_time_values in Xt.tsc.initial_states_folds():
-            current_ts = self._dmd_model.predict(
-                X=X_latent_ic, time_values=X_time_values
-            )
-            X_latent_ts_folds.append(current_ts)
+            # evolve state with dmd model
+            X_dict_ts = self.dmd_model.predict(X=X_dict_ic, time_values=time_values)
 
-        X_latent_ts = pd.concat(X_latent_ts_folds, axis=0)
-        X_est_ts = self._transform_dictionary2original(X_latent_ts)
-        # NOTE: time series contained in X_est_ts can be shorter in length, as some
-        # TSCTransform models drop samples (e.g. Takens)
-        return X_est_ts
+            # transform back to user space
+            X_est_ts = self._transform_dictionary2original(X_dict_ts)
+
+            X_reconstruct.append(X_est_ts)
+
+        X_reconstruct = pd.concat(X_reconstruct, axis=0)
+
+        # NOTE: time series contained in X_reconstruct can be shorter in length than
+        # the original time series (i.e. no full reconstruction), because some transfom
+        # models drop samples (e.g. Takens)
+        return X_reconstruct
 
     def fit_predict(self, X, y=None, **fit_params):
-        # TODO: this is currently very costly, as it carries out "transform" in fit and
-        #  in reconstruct. In fit() the fit_transform() is called and transform() is
-        #  also called. So somehow X_dict from fit() can be further used!
-        return self.fit(X, **fit_params).reconstruct(X)
+        return self.fit(X=X, y=y, **fit_params).reconstruct(X=X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
         """Docu note: y is kept for consistency to sklearn, but should always be None."""
         assert y is None
         self._check_attributes_set_up(check_attributes=["score_eval"])
 
-        # does all the checkings:
+        # does all the checks:
         X_est_ts = self.reconstruct(X)
 
-        # Important note for getting initial states in latent space:
+        # Important note for getting initial states in dictionary space:
         # during .transform() samples can be discarded (e.g. when applying Takens)
         # This means that in the latent space there can be less samples than in the
         # "physical" space and this is corrected:

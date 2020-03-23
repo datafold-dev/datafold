@@ -217,17 +217,21 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
     def reconstruct(self, X: TSCDataFrame):
         check_is_fitted(self)
-
-        self._validate_data(X)
+        X = self._validate_data(
+            X,
+            ensure_feature_name_type=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
         self._validate_feature_names(X)
 
-        X_latent_ts_folds = []
-        for X_latent_ic, time_values in X.tsc.initial_states_folds():
-            current_ts = self.predict(X=X_latent_ic, time_values=time_values)
-            X_latent_ts_folds.append(current_ts)
+        X_reconstruct_ts = []
 
-        X_est_ts = pd.concat(X_latent_ts_folds, axis=0)
-        return X_est_ts
+        for X_ic, time_values in X.tsc.group_reconstruct_ic(n_samples_ic=1):
+            X_ts = self.predict(X=X_ic, time_values=time_values)
+            X_reconstruct_ts.append(X_ts)
+
+        X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)
+        return X_reconstruct_ts
 
     def fit_predict(self, X: TSCDataFrame, **fit_params):
         return self.fit(X, **fit_params).reconstruct(X)

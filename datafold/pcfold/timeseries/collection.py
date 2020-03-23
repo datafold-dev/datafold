@@ -372,7 +372,7 @@ class TSCDataFrame(pd.DataFrame):
         return self.shape[1]
 
     @property
-    def ids(self) -> np.ndarray:
+    def ids(self) -> pd.Index:
         # update index by removing potentially unused levels
         self.index = self.index.remove_unused_levels()  # type: ignore
         return self.index.levels[0]
@@ -383,7 +383,7 @@ class TSCDataFrame(pd.DataFrame):
 
         INDEX_NAME = "delta_time"
 
-        if self.is_datetime_time_values():
+        if self.is_datetime_index():
             # TODO: are there ways to better deal with timedeltas?
             #  E.g. could cast internally to float64
             # NaT = Not a Time (cmp. to NaN)
@@ -400,7 +400,7 @@ class TSCDataFrame(pd.DataFrame):
         for timeseries_id in self.ids:
             deltatimes_id = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
 
-            if not self.is_datetime_time_values():
+            if not self.is_datetime_index():
                 deltatimes_id = np.around(deltatimes_id, decimals=14)
 
             unique_deltatimes = np.unique(deltatimes_id)
@@ -444,7 +444,7 @@ class TSCDataFrame(pd.DataFrame):
     # def iloc(self):
     #     return LocHandler(self, method="iloc")
 
-    def is_datetime_time_values(self):
+    def is_datetime_index(self):
         return self.index.get_level_values(self.IDX_TIME_NAME).dtype.kind == "M"
 
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
