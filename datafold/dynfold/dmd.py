@@ -229,7 +229,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         X_est_ts = pd.concat(X_latent_ts_folds, axis=0)
         return X_est_ts
 
-    def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
+    def fit_predict(self, X: TSCDataFrame, **fit_params):
         return self.fit(X, **fit_params).reconstruct(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):

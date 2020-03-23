@@ -75,7 +75,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return self._final_estimator
 
     def get_edmd_dict(self):
-        # probably better to do a deepcopy of steps
+        # deepcopy of steps for safety
         return EDMDDict(
             steps=copy.deepcopy(self.steps[:-1]),
             memory=self.memory,
@@ -258,17 +258,11 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # TSCTransform models drop samples (e.g. Takens)
         return X_est_ts
 
-    def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
+    def fit_predict(self, X, y=None, **fit_params):
         # TODO: this is currently very costly, as it carries out "transform" in fit and
         #  in reconstruct. In fit() the fit_transform() is called and transform() is
         #  also called. So somehow X_dict from fit() can be further used!
         return self.fit(X, **fit_params).reconstruct(X)
-
-    def fit_predict(self, X, y=None, **fit_params):
-        raise NotImplementedError(
-            "Not implemented for EDMD. Look at 'fit_reconstruct' which is similar and "
-            "better addresses for time series data."
-        )
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
         """Docu note: y is kept for consistency to sklearn, but should always be None."""
