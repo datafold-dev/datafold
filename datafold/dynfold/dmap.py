@@ -725,7 +725,17 @@ class LocalRegressionSelection(TSCTransformerMixIn):
             )
 
         self._set_indices()
-        self._setup_features_fit(X, features_out=X.columns[self.evec_indices_])
+
+        # Cannot use self._setup_features_fit here because the columns (if they exist)
+        # are partially selected.
+        if self._has_feature_names(X):
+            self._setup_pandas_input_fit(
+                features_in=X.columns, features_out=X.columns[self.evec_indices_],
+            )
+        else:
+            self._setup_array_input_fit(
+                features_in=X.shape[1], features_out=len(self.evec_indices_)
+            )
 
         return self
 

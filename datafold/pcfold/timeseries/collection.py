@@ -29,8 +29,8 @@ class TSCException(Exception):
     @classmethod
     def not_required_length(cls, required_length, actual_length):
         return cls(
-            "One or more time series do not meet the required length"
-            f"of {required_length}. Got: {actual_length}"
+            "One or more time series do not meet the required number of samples"
+            f" (={required_length}). Got: {actual_length}"
         )
 
     @classmethod
