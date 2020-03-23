@@ -98,10 +98,7 @@ class EDMDTest(unittest.TestCase):
 
         edmd = EDMD(
             dict_steps=[
-                # NOTE: in Takens fill-in handle *cannot* be "remove", because sklearn cv
-                #  will because the number of samples changes during transformation (
-                #  EDMDCV could handle this)
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
+                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ],
             include_id_state=True,
@@ -112,7 +109,7 @@ class EDMDTest(unittest.TestCase):
         case_one = case_one_edmd.fit(self.multi_sine_wave_tsc).reconstruct(
             self.multi_sine_wave_tsc
         )
-        case_two = case_two_edmd.fit_reconstruct(self.multi_sine_wave_tsc)
+        case_two = case_two_edmd.fit_predict(self.multi_sine_wave_tsc)
 
         pdtest.assert_frame_equal(case_one, case_two)
 
@@ -123,10 +120,7 @@ class EDMDTest(unittest.TestCase):
 
         edmd = EDMD(
             dict_steps=[
-                # NOTE: in Takens fill-in handle *cannot* be "remove", because sklearn cv
-                #  will because the number of samples changes during transformation (
-                #  EDMDCV could handle this)
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
+                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ],
             include_id_state=False,
@@ -137,7 +131,7 @@ class EDMDTest(unittest.TestCase):
         #  series correctly for the DMD model
         sklearn_cv = GridSearchCV(
             estimator=edmd,
-            param_grid={"pca__n_components": [5, 10]},
+            param_grid={"pca__n_components": [5, 7]},
             cv=TSCKfoldSeries(2),
             verbose=False,
             return_train_score=True,
@@ -146,7 +140,7 @@ class EDMDTest(unittest.TestCase):
 
         edmdcv = EDMDCV(
             estimator=edmd,
-            param_grid={"pca__n_components": [5, 10]},
+            param_grid={"pca__n_components": [5, 7]},
             cv=TSCKfoldSeries(2),
             verbose=False,
             return_train_score=True,
@@ -176,17 +170,14 @@ class EDMDTest(unittest.TestCase):
     def test_edmdcv_seriescv_no_error(self):
         edmd = EDMD(
             dict_steps=[
-                # NOTE: in Takens fill-in handle *cannot* be "remove", because sklearn cv
-                #  will because the number of samples changes during transformation (
-                #  EDMDCV could handle this)
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
+                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ]
         )
 
         EDMDCV(
             estimator=edmd,
-            param_grid={"pca__n_components": [5, 10]},
+            param_grid={"pca__n_components": [5, 7]},
             cv=TSCKfoldSeries(4),
             verbose=False,
             return_train_score=True,
@@ -196,7 +187,7 @@ class EDMDTest(unittest.TestCase):
     def test_edmdcv_parallel_no_error(self):
         edmd = EDMD(
             dict_steps=[
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
+                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ]
         )
@@ -215,7 +206,7 @@ class EDMDTest(unittest.TestCase):
     def test_edmdcv_timecv_no_error(self):
         edmd = EDMD(
             dict_steps=[
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle=1)),
+                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ]
         )

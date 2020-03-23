@@ -117,7 +117,7 @@ class TSCBaseMixIn:
             validate_array_kwargs = {}  # no need to check
 
             X = X.tsc.check_tsc(
-                force_all_finite=validate_tsc_kwargs.pop("force_all_finite", True),
+                ensure_all_finite=validate_tsc_kwargs.pop("ensure_all_finite", True),
                 ensure_same_length=validate_tsc_kwargs.pop("ensure_same_length", False),
                 ensure_const_delta_time=validate_tsc_kwargs.pop(
                     "ensure_const_delta_time", False

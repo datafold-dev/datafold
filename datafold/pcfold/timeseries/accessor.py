@@ -27,13 +27,14 @@ class TSCAccessor(object):
 
     def check_tsc(
         self,
-        force_all_finite=True,
+        ensure_all_finite=True,
         ensure_same_length=False,
         ensure_const_delta_time=True,
         ensure_delta_time=None,
         ensure_same_time_values=False,
         ensure_normalized_time=False,
         ensure_n_timeseries=None,
+        ensure_min_n_timesteps=None,
     ) -> TSCDataFrame:
 
         if ensure_same_length and not self._tsc_df.is_equal_length():
@@ -72,7 +73,7 @@ class TSCAccessor(object):
                         actual_delta_time=actual_time_delta,
                     )
 
-        if force_all_finite and not self._tsc_df.is_finite():
+        if ensure_all_finite and not self._tsc_df.is_finite():
             raise TSCException.not_finite()
 
         if ensure_same_time_values and self._tsc_df.is_same_time_values():
@@ -89,6 +90,22 @@ class TSCAccessor(object):
                 required_n_timeseries=ensure_n_timeseries,
                 actual_n_timeseries=self._tsc_df.n_timeseries,
             )
+
+        if ensure_min_n_timesteps is not None:
+            _n_timesteps = self._tsc_df.n_timesteps
+
+            if is_integer(_n_timesteps) and _n_timesteps < ensure_min_n_timesteps:
+                raise TSCException.not_min_timesteps(
+                    _n_timesteps, actual_n_timesteps=_n_timesteps
+                )
+
+            if (
+                isinstance(_n_timesteps, pd.Series)
+                and (_n_timesteps < ensure_min_n_timesteps).any()
+            ):
+                raise TSCException.not_min_timesteps(
+                    _n_timesteps, actual_n_timesteps=_n_timesteps
+                )
 
         return self._tsc_df
 

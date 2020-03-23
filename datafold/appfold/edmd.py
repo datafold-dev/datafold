@@ -130,7 +130,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return X_ts
 
     def _compute_n_samples_ic(self, X, X_dict):
-        diff = X_dict.n_timesteps - X.n_timesteps
+        diff = X.n_timesteps - X_dict.n_timesteps
 
         if isinstance(diff, pd.Series):
             # time series can have different number of time values (in which case it is

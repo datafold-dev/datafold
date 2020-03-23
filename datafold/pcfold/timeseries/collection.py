@@ -64,6 +64,13 @@ class TSCException(Exception):
             f"Required: {required_n_timeseries}"
         )
 
+    @classmethod
+    def not_min_timesteps(cls, required_n_timesteps, actual_n_timesteps):
+        return cls(
+            f"the minimum number of required timesteps (={required_n_timesteps}) is not "
+            f"met. Got: \n{actual_n_timesteps}"
+        )
+
 
 class _LocHandler(object):
     """Required for overwriting the behavior of TSCDataFrame.loc.
@@ -571,14 +578,12 @@ class TSCDataFrame(pd.DataFrame):
         """
 
         if not is_integer(n_samples) or n_samples < 1:
-            raise ValueError("")
+            raise ValueError("n_samples must be an integer and greater or equal to 1.")
 
         # only larger than 2 because by definition each time series
         # has a minimum of 2 time samples
-        if n_samples > 2 and not (self.n_timesteps >= n_samples).all():
-            raise TSCException.not_required_n_timesteps(
-                required_length=n_samples, actual_length=self.n_timesteps
-            )
+        if n_samples > 2:
+            self.tsc.check_tsc(ensure_min_n_timesteps=n_samples)
         if n_samples == 1:
             _df = pd.DataFrame(self)
         else:
