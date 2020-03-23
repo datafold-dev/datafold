@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Callable, Union
+from typing import Callable, Iterator, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -340,7 +340,9 @@ class TSCKfoldSeries:
             n_splits=n_splits, shuffle=shuffle, random_state=random_state
         )
 
-    def split(self, X: TSCDataFrame, y=None, groups=None):
+    def split(
+        self, X: TSCDataFrame, y=None, groups=None
+    ) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
         if not X.is_same_ts_length():
             raise NotImplementedError(
                 "Currently, all time series are required to have "

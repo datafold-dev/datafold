@@ -282,6 +282,7 @@ class TSCDataFrame(pd.DataFrame):
         raise NotImplementedError("expanddim is not required for TSCDataFrame")
 
     def _validate(self) -> bool:
+
         if self.index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(
@@ -305,9 +306,12 @@ class TSCDataFrame(pd.DataFrame):
                 f"Got: Columns.nlevels={self.columns.nlevels}"
             )
 
+        # just for security:
+        self.index: pd.MultiIndex = self.index.remove_unused_levels()
+
         if ids_index.dtype != np.int:
-            # convert to int64 if it is possible to transform without loss,
-            # else raise Attribute error
+            # convert to int64 if it is possible to transform without loss
+            # (e.g. from 4.0 to 4) else raise Attribute error
             if (ids_index.astype(np.int64) == ids_index).all():
                 self.index.set_levels(
                     self.index.levels[0].astype(np.int64),
@@ -381,7 +385,7 @@ class TSCDataFrame(pd.DataFrame):
     @property
     def ids(self) -> pd.Index:
         # update index by removing potentially unused levels
-        self.index = self.index.remove_unused_levels()  # type: ignore
+        self.index: pd.MultiIndex = self.index.remove_unused_levels()
         return self.index.levels[0]
 
     @property
