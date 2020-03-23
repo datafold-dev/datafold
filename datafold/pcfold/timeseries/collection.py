@@ -411,7 +411,7 @@ class TSCDataFrame(pd.DataFrame):
         for timeseries_id in self.ids:
             deltatimes_id = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
 
-            if not self.is_datetime_time_values():
+            if not self.is_datetime_index():
                 deltatimes_id = np.around(deltatimes_id, decimals=14)
 
             unique_deltatimes = np.unique(deltatimes_id)
