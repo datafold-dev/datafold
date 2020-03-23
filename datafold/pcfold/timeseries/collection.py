@@ -385,7 +385,7 @@ class TSCDataFrame(pd.DataFrame):
     @property
     def ids(self) -> pd.Index:
         # update index by removing potentially unused levels
-        self.index: pd.MultiIndex = self.index.remove_unused_levels()
+        self.index = self.index.remove_unused_levels()
         return self.index.levels[0]
 
     @property
@@ -411,7 +411,7 @@ class TSCDataFrame(pd.DataFrame):
         for timeseries_id in self.ids:
             deltatimes_id = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
 
-            if not self.is_datetime_index():
+            if not self.is_datetime_time_values():
                 deltatimes_id = np.around(deltatimes_id, decimals=14)
 
             unique_deltatimes = np.unique(deltatimes_id)
