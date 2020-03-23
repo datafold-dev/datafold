@@ -385,7 +385,7 @@ class TSCDataFrame(pd.DataFrame):
     @property
     def ids(self) -> pd.Index:
         # update index by removing potentially unused levels
-        self.index: pd.MultiIndex = self.index.remove_unused_levels()
+        self.index = self.index.remove_unused_levels()
         return self.index.levels[0]
 
     @property
