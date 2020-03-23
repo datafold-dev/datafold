@@ -27,10 +27,10 @@ class TSCException(Exception):
         return cls(f"time series have not the same length. Got {actual_lengths}")
 
     @classmethod
-    def not_required_length(cls, required_length, actual_length):
+    def not_required_n_timesteps(cls, required_length, actual_length):
         return cls(
-            "One or more time series do not meet the required length"
-            f"of {required_length}. Got: {actual_length}"
+            "One or more time series do not meet the required number of samples"
+            f" (={required_length}). Got: \n{actual_length}"
         )
 
     @classmethod
@@ -62,6 +62,13 @@ class TSCException(Exception):
         return cls(
             f"there are {actual_n_timeseries} time series present. "
             f"Required: {required_n_timeseries}"
+        )
+
+    @classmethod
+    def not_min_timesteps(cls, required_n_timesteps, actual_n_timesteps):
+        return cls(
+            f"the minimum number of required timesteps (={required_n_timesteps}) is not "
+            f"met. Got: \n{actual_n_timesteps}"
         )
 
 
@@ -123,8 +130,6 @@ class TSCDataFrame(pd.DataFrame):
     IDX_ID_NAME = "ID"  # name used in index of (unique) time series
     IDX_TIME_NAME = "time"
     IDX_QOI_NAME = "qoi"
-
-    FLOAT64_TIME_PRECISION_DECIMALS = 15
 
     def __init__(self, *args, **kwargs):
         # TODO: at the moment a sliced object is a Series, not a TSCSeries. Therefore,
@@ -277,6 +282,7 @@ class TSCDataFrame(pd.DataFrame):
         raise NotImplementedError("expanddim is not required for TSCDataFrame")
 
     def _validate(self) -> bool:
+
         if self.index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(
@@ -300,9 +306,12 @@ class TSCDataFrame(pd.DataFrame):
                 f"Got: Columns.nlevels={self.columns.nlevels}"
             )
 
+        # just for security:
+        self.index: pd.MultiIndex = self.index.remove_unused_levels()
+
         if ids_index.dtype != np.int:
-            # convert to int64 if it is possible to transform without loss,
-            # else raise Attribute error
+            # convert to int64 if it is possible to transform without loss
+            # (e.g. from 4.0 to 4) else raise Attribute error
             if (ids_index.astype(np.int64) == ids_index).all():
                 self.index.set_levels(
                     self.index.levels[0].astype(np.int64),
@@ -365,18 +374,6 @@ class TSCDataFrame(pd.DataFrame):
 
         return True
 
-    def _set_time_precision_float64(self):
-        time_level = 1
-
-        # 1 is time, the call does not work by str here
-        current_time_values = self.index.levels[time_level]
-
-        if np.issubdtype(current_time_values, np.floating):
-            adapted_time_values = np.around(
-                current_time_values, decimals=self.FLOAT64_TIME_PRECISION_DECIMALS
-            )
-            self.index = self.index.set_levels(adapted_time_values, level=time_level)
-
     @property
     def n_timeseries(self) -> int:
         return len(self.ids)
@@ -386,9 +383,9 @@ class TSCDataFrame(pd.DataFrame):
         return self.shape[1]
 
     @property
-    def ids(self) -> np.ndarray:
+    def ids(self) -> pd.Index:
         # update index by removing potentially unused levels
-        self.index = self.index.remove_unused_levels()  # type: ignore
+        self.index: pd.MultiIndex = self.index.remove_unused_levels()
         return self.index.levels[0]
 
     @property
@@ -397,7 +394,7 @@ class TSCDataFrame(pd.DataFrame):
 
         INDEX_NAME = "delta_time"
 
-        if self.is_datetime_time_values():
+        if self.is_datetime_index():
             # TODO: are there ways to better deal with timedeltas?
             #  E.g. could cast internally to float64
             # NaT = Not a Time (cmp. to NaN)
@@ -414,7 +411,7 @@ class TSCDataFrame(pd.DataFrame):
         for timeseries_id in self.ids:
             deltatimes_id = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
 
-            if not self.is_datetime_time_values():
+            if not self.is_datetime_index():
                 deltatimes_id = np.around(deltatimes_id, decimals=14)
 
             unique_deltatimes = np.unique(deltatimes_id)
@@ -458,16 +455,13 @@ class TSCDataFrame(pd.DataFrame):
     # def iloc(self):
     #     return LocHandler(self, method="iloc")
 
-    def is_datetime_time_values(self):
+    def is_datetime_index(self):
         return self.index.get_level_values(self.IDX_TIME_NAME).dtype.kind == "M"
 
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
         for i, ts in self.groupby(level=self.IDX_ID_NAME):
             # cast single time series back to DataFrame
             yield i, pd.DataFrame(ts.loc[i, :])
-
-    def to_pcmanifold(self):
-        raise NotImplementedError("To implement")
 
     def is_equal_length(self) -> bool:
         return len(np.unique(self.n_timesteps)) == 1
@@ -567,7 +561,7 @@ class TSCDataFrame(pd.DataFrame):
             start, np.nextafter(end, np.finfo(np.float).max), self.delta_time
         )
 
-    def qoi_to_ndarray(self, qoi: str):
+    def qoi_to_array(self, qoi: str):
 
         if not self.is_same_time_values():
             raise TSCException.not_same_time_values()
@@ -576,35 +570,48 @@ class TSCDataFrame(pd.DataFrame):
             self.loc[:, qoi].to_numpy(), (self.n_timeseries, self.n_timesteps)
         )
 
-    def single_timeindex_df(self, time_index: int):
-        """Extract from each time series a single time series index."""
-
-        (_id_codes, _idx_codes) = self.index.codes
-        unique_codes = np.unique(_id_codes)
-
-        idx_pos_first = np.zeros(len(self.ids))
-
-        for i, code_ in enumerate(unique_codes):
-            idx_pos_first[i] = np.argwhere(_id_codes == code_)[time_index]
-
-        points_df = pd.DataFrame(self).iloc[idx_pos_first, :].copy()
-
-        return points_df
-
-    def select_times_values(self, time_values) -> Union[pd.DataFrame, "TSCDataFrame"]:
+    def select_time_values(self, time_values) -> Union[pd.DataFrame, "TSCDataFrame"]:
         """Returns pd.DataFrame if it is not a legal definition of TSC anymore (e.g.
         only one point for an ID)"""
         idx = pd.IndexSlice
         return self.loc[idx[:, time_values], :]
 
-    def initial_states_df(self) -> pd.DataFrame:
+    def initial_states(self, n_samples=1) -> pd.DataFrame:
         """Returns the initial condition (first state) for each time series as a
         pd.DataFrame (because it no longer a time series).
         """
-        return self.single_timeindex_df(0)
 
-    def final_states_df(self):
-        return self.single_timeindex_df(-1)
+        if not is_integer(n_samples) or n_samples < 1:
+            raise ValueError("n_samples must be an integer and greater or equal to 1.")
+
+        # only larger than 2 because by definition each time series
+        # has a minimum of 2 time samples
+        if n_samples > 2:
+            self.tsc.check_tsc(ensure_min_n_timesteps=n_samples)
+        if n_samples == 1:
+            _df = pd.DataFrame(self)
+        else:
+            _df = self
+
+        return _df.groupby(by="ID", axis=0, level=0).head(n=n_samples)
+
+    def final_states(self, n_samples=1):
+        if not is_integer(n_samples) or n_samples < 1:
+            raise ValueError("")
+
+        # only larger than 2 because by definition each time series
+        # has a minimum of 2 time samples
+        if n_samples > 2 and not (self.n_timesteps <= n_samples).all():
+            raise TSCException.not_required_n_timesteps(
+                required_length=n_samples, actual_length=self.n_timesteps
+            )
+
+        if n_samples == 1:
+            _df = pd.DataFrame(self)
+        else:
+            _df = self
+
+        return _df.groupby(by="ID", axis=0, level=0).tail(n=n_samples)
 
     def plot(self, **kwargs):
         ax = kwargs.pop("ax", None)

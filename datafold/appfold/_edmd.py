@@ -61,7 +61,7 @@ import time
 import warnings
 from itertools import product
 from traceback import format_exception_only
-from typing import Dict
+from typing import Any, Dict, List
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -139,10 +139,10 @@ def _fit_and_score_edmd(
     X_train, X_test = _split_X_edmd(X, y, train_indices=train, test_indices=test)
 
     try:
-        edmd = edmd.fit(X_train, y, **fit_params)
+        edmd = edmd.fit(X=X_train, y=y, **fit_params)
     except Exception as e:
-        # Note fit time as time until error
-        fit_time = time.time() - start_time
+        # Handle all exception, to not waste other working or complete results
+        fit_time = time.time() - start_time  # Note fit time as time until error
         score_time = 0.0
         if error_score == "raise":
             raise
@@ -203,6 +203,7 @@ def _fit_and_score_edmd(
     if return_n_test_samples:
         ret.append(X_test.shape[0])
     if return_times:
+        assert isinstance(score_time, numbers.Number)
         ret.extend([fit_time, score_time])
     if return_parameters:
         ret.append(parameters)
@@ -291,10 +292,10 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
             verbose=self.verbose,
         )
 
-        results = {}
+        results: Dict[str, Any] = {}
         with parallel:
-            all_candidate_params = []
-            all_out = []
+            all_candidate_params: List[List[Dict[str, Any]]] = []
+            all_out: List[Any] = []
 
             def evaluate_candidates(candidate_params):
                 candidate_params = list(candidate_params)

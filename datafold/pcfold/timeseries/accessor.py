@@ -27,13 +27,14 @@ class TSCAccessor(object):
 
     def check_tsc(
         self,
-        force_all_finite=True,
+        ensure_all_finite=True,
         ensure_same_length=False,
         ensure_const_delta_time=True,
         ensure_delta_time=None,
         ensure_same_time_values=False,
         ensure_normalized_time=False,
         ensure_n_timeseries=None,
+        ensure_min_n_timesteps=None,
     ) -> TSCDataFrame:
 
         if ensure_same_length and not self._tsc_df.is_equal_length():
@@ -72,7 +73,7 @@ class TSCAccessor(object):
                         actual_delta_time=actual_time_delta,
                     )
 
-        if force_all_finite and not self._tsc_df.is_finite():
+        if ensure_all_finite and not self._tsc_df.is_finite():
             raise TSCException.not_finite()
 
         if ensure_same_time_values and self._tsc_df.is_same_time_values():
@@ -89,6 +90,22 @@ class TSCAccessor(object):
                 required_n_timeseries=ensure_n_timeseries,
                 actual_n_timeseries=self._tsc_df.n_timeseries,
             )
+
+        if ensure_min_n_timesteps is not None:
+            _n_timesteps = self._tsc_df.n_timesteps
+
+            if is_integer(_n_timesteps) and _n_timesteps < ensure_min_n_timesteps:
+                raise TSCException.not_min_timesteps(
+                    _n_timesteps, actual_n_timesteps=_n_timesteps
+                )
+
+            if (
+                isinstance(_n_timesteps, pd.Series)
+                and (_n_timesteps < ensure_min_n_timesteps).any()
+            ):
+                raise TSCException.not_min_timesteps(
+                    _n_timesteps, actual_n_timesteps=_n_timesteps
+                )
 
         return self._tsc_df
 
@@ -118,7 +135,7 @@ class TSCAccessor(object):
         if not self._tsc_df.is_const_delta_time():
             raise TSCException.not_const_delta_time()
 
-        if self._tsc_df.is_datetime_time_values():
+        if self._tsc_df.is_datetime_index():
             convert_times = convert_times.astype(np.int64)
             min_time = min_time.astype(np.int64)
             delta_time = delta_time.astype(np.int64)
@@ -247,7 +264,7 @@ class TSCAccessor(object):
         # TODO [think about] maybe provide an extra TSC.accessor for Cross Validation
         #  relevant operations?
 
-        for initial_time, initial_states_df in self._tsc_df.initial_states_df().groupby(
+        for initial_time, initial_states_df in self._tsc_df.initial_states().groupby(
             level="time"
         ):
             time_series_ids = initial_states_df.index.get_level_values(
@@ -265,6 +282,42 @@ class TSCAccessor(object):
 
             time_values_fold = tsc_fold.time_values(unique_values=True)
             yield initial_states_df, time_values_fold
+
+    def time_values_overview(self):
+
+        table = pd.DataFrame(
+            [self._tsc_df.time_interval(_id) for _id in self._tsc_df.ids],
+            index=self._tsc_df.ids,
+            columns=["start", "end"],
+        )
+
+        table["delta_time"] = self._tsc_df.delta_time
+        return table
+
+    def group_reconstruct_ic(self, n_samples_ic):
+        """Extract and group time series same time values.
+
+        This allows to iterate through initial conditions and reconstruct the time
+        series."""
+
+        table = self.time_values_overview()
+
+        if np.isnan(table["delta_time"]).any():
+            raise NotImplementedError(
+                "Currently, only constant delta times are " "implemented."
+            )
+
+        for (start, end, _dt), df in table.groupby(
+            by=["start", "end", "delta_time"], axis=0
+        ):
+            grouped_ids = df.index
+
+            grouped_tsc: TSCDataFrame = self._tsc_df.loc[grouped_ids, :]
+
+            initial_states = grouped_tsc.initial_states(n_samples_ic)
+            time_values = grouped_tsc.time_values(unique_values=True)
+
+            yield initial_states, time_values
 
     def plot_density2d(self, time, xresolution: int, yresolution: int, covariance=None):
         """
@@ -284,7 +337,7 @@ class TSCAccessor(object):
         if covariance is None:
             covariance = np.eye(2)
 
-        df = self._tsc_df.select_times_values(time_values=time)
+        df = self._tsc_df.select_time_values(time_values=time)
 
         xmin = df.iloc[:, 0].min()
         xmax = df.iloc[:, 0].max()
