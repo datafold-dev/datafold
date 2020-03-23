@@ -78,10 +78,7 @@ class TSCQoiPreprocess(BaseEstimator, TSCTransformerMixIn):
 
         X = self._validate_data(X)
 
-        if self._has_feature_names(X):
-            self._setup_pandas_input_fit(features_in=X.columns, features_out=X.columns)
-        else:
-            self._setup_array_input_fit(features_in=X.shape[1], features_out=X.shape[1])
+        self._setup_features_fit(X, features_out="like_features_in")
 
         self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
         values = self.sklearn_transformer_fit_.fit_transform(X)
