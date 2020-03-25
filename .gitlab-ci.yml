@@ -14,7 +14,7 @@ setup:
 unittests:
   stage: test
   script:
-    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ -Iplot_interactive.py -Igpu_* -Ilegacy_dmap_code/ datafold/ -v
+    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ datafold/ -v
   allow_failure: false
 
 functional_tests:

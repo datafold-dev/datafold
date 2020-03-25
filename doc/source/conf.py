@@ -14,12 +14,17 @@ import sys
 
 import sphinx_rtd_theme  # "Read the doc" theme -- https://sphinx-rtd-theme.readthedocs.io/en/stable/
 
-from datafold import __version__
+try:
+    PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
+    PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
+    sys.path.insert(0, PATH2ROOT)
+    sys.path.insert(0, PATH2SRC)
 
-PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
-PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
-sys.path.insert(0, PATH2ROOT)
-sys.path.insert(0, PATH2SRC)
+    from datafold import __version__
+except ImportError:
+    raise ImportError(
+        f"the path to datafold is not correct \n path: set path:" f"{PATH2ROOT}"
+    )
 
 
 # -- Project information -----------------------------------------------------
