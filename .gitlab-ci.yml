@@ -1,21 +1,45 @@
+stages:
+  - setup_remote
+  - test
+  - code_analysis
+  - deploy
+
+setup:
+  stage: setup_remote
+  script:
+    - python3 -m pip install --upgrade pip --user
+    - python3 -m pip install -r requirements-dev.txt -q --user
+  allow_failure: false
 
 unittests:
+  stage: test
   script:
-    - pip3 install -r requirements-dev.txt -q --user
-    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ -Iplot_interactive.py -Igpu_* datafold/ -v
+    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ -Iplot_interactive.py -Igpu_* -Ilegacy_dmap_code/ datafold/ -v
   allow_failure: false
 
 functional_tests:
   script:
-    - pip3 install -r requirements-dev.txt -q --user
     - nosetests tutorials/ -v
 
-is_blackd:
+black_check:
+  stage: code_analysis
   script:
     - black ./datafold/ --check --diff
   allow_failure: true
 
 mypy_check:
+  stage: code_analysis
   script:
     - mypy ./
   allow_failure: true
+
+pages:
+  stage: deploy
+  script:
+    - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
+    - sphinx-build -b html ./doc/source/ ./public/
+  artifacts:
+    paths:
+    - public
+  only:
+    - master
