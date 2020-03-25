@@ -47,7 +47,7 @@ def apply_kernel_function_numexpr(distance_matrix, expr, expr_dict=None):
         distance_matrix = distance_matrix.copy()
         expr_dict["D"] = distance_matrix.data
         ne.evaluate(expr, expr_dict, out=distance_matrix.data)
-        return distance_matrix
+        return distance_matrix  # returns actually the kernel
     else:
         expr_dict["D"] = distance_matrix
         return ne.evaluate(expr, expr_dict)
@@ -99,7 +99,7 @@ def _symmetric_matrix_division(matrix, vec, vec_right=None, scalar=None):
         right_inv_diag_sparse = scipy.sparse.spdiags(
             vec_inv_right, 0, m=matrix.shape[1], n=matrix.shape[1]
         )
-        # TODO: not sure if scipy makes this efficiently?
+        # TODO: not sure if scipy does this efficiently?
         matrix = left_inv_diag_sparse @ matrix @ right_inv_diag_sparse
     else:
         # Solves efficiently:
@@ -181,7 +181,7 @@ def stochastic_kernel_matrix(kernel_matrix):
     """Function to make (sparse/dense) kernel stochastic."""
     if scipy.sparse.issparse(kernel_matrix):
         # see microbenchmark_stochastic_matrix.py, for the sparse case this variant is
-        # the fastest variant)
+        # the fastest)
         kernel_matrix = normalize(kernel_matrix, copy=False, norm="l1")
     else:  # dense
 
@@ -232,7 +232,7 @@ class PCManifoldKernel(Kernel):
         return np.diag(X)
 
     def is_stationary(self):
-        # in datafold there is no handling of this parameter, if required this has to
+        # in datafold there is no handling of this attribute, if required this has to
         # be implemented
         raise NotImplementedError("base class")
 
@@ -320,7 +320,6 @@ class InverseMultiquadricKernel(RadialBasisKernel):
         super(InverseMultiquadricKernel, self).__init__(distance_metric="sqeuclidean")
 
     def eval(self, distance_matrix):
-        # 1.0 / np.sqrt((1.0 / self.epsilon * r) ** 2 + 1)
         return apply_kernel_function_numexpr(
             distance_matrix,
             expr="1.0 / sqrt(1.0 / (2*eps) * D + 1.0) ",
@@ -362,9 +361,6 @@ class DmapKernelFixed(PCManifoldKernel):
                ** can use the (symmetric) conjugate matrix
                ** renormalization (alpha)
     """
-
-    # TODO: check whether this is correct: the kernel is stationary, if stochastic=True
-    #  and alpha=1
 
     def __init__(
         self, epsilon=1.0, is_stochastic=True, alpha=1.0, symmetrize_kernel=True,
@@ -801,10 +797,4 @@ class DmapKernelVariable(PCManifoldKernel):
             rho,
             q0,
             q_eps_s,
-        )
-
-    def diag(self, X):
-        """Implementing abstract function, required by the Kernel interface."""
-        raise NotImplementedError(
-            "This case a bit more complicated. Also not sure if this is required."
         )
