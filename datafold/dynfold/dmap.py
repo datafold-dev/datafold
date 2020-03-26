@@ -52,7 +52,6 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         alpha: float = 1,
         # NOTE for docu: if is_stochastic=False, then this is not really required
         symmetrize_kernel=True,
-        use_cuda=False,
         dist_backend="guess_optimal",
         dist_backend_kwargs=None,
     ) -> None:
@@ -78,7 +77,6 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             is_stochastic=is_stochastic,
             alpha=alpha,
             symmetrize_kernel=symmetrize_kernel,
-            use_cuda=use_cuda,
             dist_backend=dist_backend,
             dist_backend_kwargs=dist_backend_kwargs,
         )
@@ -235,7 +233,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         ) = self.X_.compute_kernel_matrix()
 
         self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
-            self.kernel_matrix_, _basis_change_matrix, self.use_cuda
+            self.kernel_matrix_, _basis_change_matrix
         )
 
         self.eigenvectors_ = self._same_type_X(
@@ -307,7 +305,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         import scipy.linalg
 
         coeff_matrix = scipy.linalg.lstsq(
-            np.asarray(self.eigenvectors_), self.X_, cond=1e-14
+            np.asarray(self.eigenvectors_), self.X_, cond=None
         )[0]
 
         X_orig_space = np.asarray(X) @ coeff_matrix
@@ -325,7 +323,6 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
         expected_dim=2,
         beta=-0.5,
         symmetrize_kernel=False,
-        use_cuda=False,
         dist_backend="brute",
         dist_backend_kwargs=None,
     ):
@@ -342,7 +339,6 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
             is_stochastic=False,
             alpha=-1,
             symmetrize_kernel=symmetrize_kernel,
-            use_cuda=use_cuda,
             dist_backend=dist_backend,
             dist_backend_kwargs=dist_backend_kwargs,
         )
@@ -395,7 +391,7 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
         ) = pcm.compute_kernel_matrix()
 
         self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
-            self.operator_matrix_, _basis_change_matrix, self.use_cuda
+            self.operator_matrix_, _basis_change_matrix
         )
 
         # TODO: note here the kernel is actually NOT the kernel but the operator matrix

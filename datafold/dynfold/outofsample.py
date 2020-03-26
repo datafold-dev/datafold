@@ -39,7 +39,6 @@ class GeometricHarmonicsInterpolator(
         alpha: float = 1,
         # NOTE for docu: if is_stochastic=False, then this is not really required
         symmetrize_kernel=True,
-        use_cuda=False,
         dist_backend="guess_optimal",
         dist_backend_kwargs=None,
     ) -> None:
@@ -54,7 +53,6 @@ class GeometricHarmonicsInterpolator(
             is_stochastic=is_stochastic,
             alpha=alpha,
             symmetrize_kernel=symmetrize_kernel,
-            use_cuda=use_cuda,
             dist_backend=dist_backend,
             dist_backend_kwargs=dist_backend_kwargs,
         )
@@ -188,7 +186,7 @@ class GeometricHarmonicsInterpolator(
         ) = self.X_.compute_kernel_matrix()
 
         self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
-            self.kernel_matrix_, _basis_change_matrix, self.use_cuda
+            self.kernel_matrix_, _basis_change_matrix
         )
 
         if self.kernel_.is_symmetric_transform(is_pdist=True):
@@ -308,7 +306,6 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         is_stochastic: bool = False,
         alpha: float = 1,
         symmetrize_kernel=False,
-        use_cuda=False,
         dist_backend="guess_optimal",
         dist_backend_kwargs=None,
     ):
@@ -324,7 +321,6 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
             is_stochastic=is_stochastic,
             alpha=alpha,
             symmetrize_kernel=symmetrize_kernel,
-            use_cuda=use_cuda,
             dist_backend=dist_backend,
             dist_backend_kwargs=dist_backend_kwargs,
         )
