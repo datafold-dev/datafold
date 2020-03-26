@@ -413,7 +413,6 @@ class DmapKernelMethod(BaseEstimator):
         is_stochastic: bool,
         alpha: float,
         symmetrize_kernel,
-        use_cuda,
         dist_backend,
         dist_backend_kwargs,
     ):
@@ -423,7 +422,6 @@ class DmapKernelMethod(BaseEstimator):
         self.is_stochastic = is_stochastic
         self.alpha = alpha
         self.symmetrize_kernel = symmetrize_kernel
-        self.use_cuda = use_cuda
         self.dist_backend = dist_backend
         self.dist_backend_kwargs = dist_backend_kwargs
 
@@ -445,13 +443,8 @@ class DmapKernelMethod(BaseEstimator):
         return inv_basis_change_matrix @ kernel_matrix @ inv_basis_change_matrix
 
     def _solve_eigenproblem(
-        self, kernel_matrix, basis_change_matrix, use_cuda
+        self, kernel_matrix, basis_change_matrix
     ) -> Tuple[np.ndarray, np.ndarray]:
-
-        if not use_cuda:
-            backend = "scipy"
-        else:
-            backend = "gpu"
 
         try:
             eigvals, eigvect = compute_kernel_eigenpairs(
@@ -459,7 +452,7 @@ class DmapKernelMethod(BaseEstimator):
                 n_eigenpairs=self.n_eigenpairs,
                 is_symmetric=self.kernel_.is_symmetric,
                 is_stochastic=self.is_stochastic,
-                backend=backend,
+                backend="scipy",
             )
         except NumericalMathError:
             # re-raise with more details for the DMAP
