@@ -12,6 +12,7 @@ from datafold.pcfold.timeseries.metric import (
     TSCKfoldSeries,
     TSCKFoldTime,
     TSCMetric,
+    kfold_cv_reassign_ids,
     make_tsc_scorer,
 )
 
@@ -468,7 +469,7 @@ class TestTSCCV(unittest.TestCase):
 
         for train, test in TSCKFoldTime(n_splits=n_splits).split(X=self.single_id_tsc):
 
-            train, test = self.single_id_tsc.tsc.kfold_cv_reassign_ids(train, test)
+            train, test = kfold_cv_reassign_ids(self.single_id_tsc, train, test)
 
             # print(f"train {train}")
             # print(f"test {test}")
@@ -488,10 +489,7 @@ class TestTSCCV(unittest.TestCase):
         n_splits = 4
 
         for train, test in TSCKFoldTime(n_splits=n_splits).split(X=self.two_id_tsc):
-            train, test = self.two_id_tsc.tsc.kfold_cv_reassign_ids(train, test)
-
-            print(f"train {train}")
-            print(f"test {test}")
+            train, test = kfold_cv_reassign_ids(self.two_id_tsc, train, test)
 
             self.assertIsInstance(train, TSCDataFrame)
             self.assertIsInstance(test, TSCDataFrame)

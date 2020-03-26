@@ -19,7 +19,7 @@ from datafold.dynfold.base import (
 )
 from datafold.dynfold.dmd import DMDBase, DMDFull
 from datafold.pcfold import TSCDataFrame
-from datafold.pcfold.timeseries.collection import TSCException
+from datafold.pcfold.timeseries.collection import InitialCondition, TSCException
 
 
 class EDMDDict(Pipeline):
@@ -205,6 +205,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
             validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
 
+        InitialCondition.validate(X)
+
         X, time_values = self._validate_features_and_time_values(
             X=X, time_values=time_values
         )
@@ -238,8 +240,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
         self._validate_feature_names(X)
 
         X_reconstruct = []
-        for X_ic, time_values in X.tsc.group_reconstruct_ic(
-            n_samples_ic=self.n_samples_ic_
+        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
+            X, n_samples_ic=self.n_samples_ic_
         ):
             # transform initial condition to dictionary space
             X_dict_ic = self._transform_original2dictionary(X_ic)

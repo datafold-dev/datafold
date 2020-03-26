@@ -480,6 +480,10 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_same_time_values(self) -> bool:
 
+        if self.n_timeseries == 1:
+            # trivial case early
+            return True
+
         length_time_series = self.n_timesteps
 
         if isinstance(length_time_series, pd.Series):
@@ -635,6 +639,154 @@ class TSCDataFrame(pd.DataFrame):
         return ax
 
 
+class InitialCondition(object):
+    @classmethod
+    def from_array(cls, X: np.ndarray, columns: Union[pd.Index, List[str]]):
+
+        if isinstance(columns, list):
+            # qoi name is not enforced for initial conditions
+            columns = pd.Index(columns, name=TSCDataFrame.IDX_QOI_NAME)
+
+        if X.ndim == 1:
+            # make a "row-matrix"
+            X = X[np.newaxis, :]
+
+        index = pd.Index(np.arange(X.shape[0]), name=TSCDataFrame.IDX_ID_NAME)
+        ic_df = pd.DataFrame(X, index=index, columns=columns)
+        return ic_df
+
+    @classmethod
+    def from_tsc(cls, X, n_samples_ic=1):
+        """Docu note: It simply extracts the initial states (ignoring the actual start
+        times). If the start times and respective times values are important, use
+        iter_reconstruct_ic"""
+
+        ic_df = X.initial_states(n_samples=n_samples_ic)
+
+        if n_samples_ic == 1:
+            # drop the time column
+            ic_df.index = ic_df.index.droplevel(TSCDataFrame.IDX_TIME_NAME)
+
+        return ic_df
+
+    @classmethod
+    def iter_reconstruct_ic(cls, X, n_samples_ic=1):
+        """Extract initial conditions of time series with same time values.
+
+        This allows to iterate through initial conditions and reconstruct the time
+        series."""
+
+        table = X.tsc.time_values_overview()
+
+        if np.isnan(table["delta_time"]).any():
+            raise NotImplementedError(
+                "Currently, only constant delta times are " "implemented."
+            )
+
+        for (_, _, _), df in table.groupby(by=["start", "end", "delta_time"], axis=0):
+            grouped_ids = df.index
+
+            grouped_tsc: TSCDataFrame = X.loc[grouped_ids, :]
+
+            initial_states = grouped_tsc.initial_states(n_samples_ic)
+
+            if n_samples_ic == 1:
+                # the time index plays no role in for single IC (compared to time
+                # series IC)
+                initial_states.index = initial_states.index.droplevel(
+                    TSCDataFrame.IDX_TIME_NAME
+                )
+
+            time_values = grouped_tsc.time_values(unique_values=True)
+
+            if n_samples_ic > 1:
+                # adapt the time values to include only the last time sample of the
+                # initial_states and all following (used for prediction)
+                time_values = time_values[n_samples_ic - 1 :]
+
+            yield initial_states, time_values
+
+    @classmethod
+    def _validate_frame(cls, X_ic: pd.DataFrame):
+
+        # INDEX
+        # in index.names (n-D) or name (1-D) must be name=ID
+        if X_ic.index.nlevels == 1:
+            if X_ic.index.name != TSCDataFrame.IDX_ID_NAME:
+                raise ValueError(
+                    f"The index.name is not '{TSCDataFrame.IDX_ID_NAME}'. "
+                    f"Got {X_ic.index.name}"
+                )
+
+            _id_index: pd.Index = X_ic.index
+
+        else:  # X_ic.index.nlevels >= 1:
+            if TSCDataFrame.IDX_ID_NAME not in X_ic.index.names:
+                raise ValueError(
+                    f"No index name has required "
+                    f"index.name='{TSCDataFrame.IDX_ID_NAME}'."
+                    f"Got {X_ic.index.names}"
+                )
+
+            _id_index = X_ic.index.get_level_values(TSCDataFrame.IDX_ID_NAME)
+
+        if not _id_index.is_integer():
+            raise ValueError(
+                f"The index '{TSCDataFrame.IDX_ID_NAME}' must be of type integer. "
+                f"Got type {_id_index.dtype}."
+            )
+
+        if _id_index.has_duplicates:
+            raise ValueError(
+                f"The index '{TSCDataFrame.IDX_ID_NAME}' must be unique. "
+                f"Duplicates found \n{_id_index.duplicated()}"
+            )
+
+        # COLUMNS
+        if X_ic.columns.nlevels != 1:
+            raise ValueError(
+                f"The columns must be single indexed. "
+                f"Got columns.nlevels={X_ic.columns.nlevels}"
+            )
+
+        if X_ic.columns.has_duplicates:
+            raise ValueError(
+                f"The columns must be unique. Duplicates found: \n"
+                f"{X_ic.columns.duplicated()}"
+            )
+
+    @classmethod
+    def _validate_tsc(cls, X_ic: TSCDataFrame):
+
+        # all the usual restrictions for TSCDataFrame apply
+        assert X_ic._validate()
+
+        X_ic.tsc.check_tsc(
+            ensure_same_length=True,
+            ensure_const_delta_time=True,
+            ensure_same_time_values=True,
+        )
+
+    @classmethod
+    def validate(cls, X_ic):
+
+        # apply for both
+        if X_ic.isnull().any().any():
+            raise ValueError(
+                "Initial conditions must be finite (i.e. no nan or inf " "values)"
+            )
+
+        if isinstance(X_ic, TSCDataFrame):
+            # important to have this first (TSCDataFrame is also pd.DataFrame)
+            cls._validate_tsc(X_ic)
+        elif isinstance(X_ic, pd.DataFrame):
+            cls._validate_frame(X_ic)
+        else:
+            raise TypeError(f"Type {type(X_ic)} not supported for initial conditions.")
+
+        return True
+
+
 def allocate_time_series_tensor(n_time_series, n_timesteps, n_qoi):
     """
     Allocate time series tensor that complies with TSCDataFrame.from_tensor(...)
@@ -650,7 +802,3 @@ def allocate_time_series_tensor(n_time_series, n_timesteps, n_qoi):
     :return: zero-allocated tensor
     """
     return np.zeros([n_time_series, n_timesteps, n_qoi])
-
-
-if __name__ == "__main__":
-    pass

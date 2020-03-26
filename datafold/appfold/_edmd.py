@@ -75,13 +75,17 @@ from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexab
 
 from datafold.dynfold.base import TSCPredictMixIn
 from datafold.pcfold import TSCDataFrame
-from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime
+from datafold.pcfold.timeseries.metric import (
+    TSCKfoldSeries,
+    TSCKFoldTime,
+    kfold_cv_reassign_ids,
+)
 from datafold.utils.datastructure import is_integer
 
 
 def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):
-    X_train, X_test = X.tsc.kfold_cv_reassign_ids(
-        train_indices=train_indices, test_indices=test_indices
+    X_train, X_test = kfold_cv_reassign_ids(
+        X=X, train_indices=train_indices, test_indices=test_indices
     )
 
     if not isinstance(X_train, TSCDataFrame) or not isinstance(X_test, TSCDataFrame):

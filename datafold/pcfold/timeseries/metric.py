@@ -447,3 +447,43 @@ def make_tsc_scorer(metric_func, **metric_kwargs) -> Callable:
         return -1 * float(score)
 
     return _tsc_scoring
+
+
+def kfold_cv_reassign_ids(X: TSCDataFrame, train_indices, test_indices):
+
+    # mark train samples with 0 and test samples with 1
+    mask_train_test = np.zeros(X.shape[0])
+    mask_train_test[test_indices] = 1
+
+    # usage of np.diff -> dectect changes in
+    # i) new fold or ii) new ID (i.e. time series)
+    # -- both change detections are required to reassign new IDs
+
+    # i) detect switch between test / train
+    change_fold_indicator = np.append(0, np.diff(mask_train_test)).astype(np.bool)
+
+    # ii) detect switch of new ID
+    change_id_indicator = np.append(
+        0, np.diff(X.index.get_level_values(TSCDataFrame.IDX_ID_NAME))
+    ).astype(np.bool)
+
+    # cumulative sum of on or the other change and reassign IDs
+    id_cum_sum_mask = np.logical_or(change_fold_indicator, change_id_indicator)
+    new_ids = np.cumsum(id_cum_sum_mask)
+
+    reassigned_ids_idx = pd.MultiIndex.from_arrays(
+        arrays=(new_ids, X.index.get_level_values(TSCDataFrame.IDX_TIME_NAME),)
+    )
+
+    splitted_tsc = TSCDataFrame.from_same_indices_as(
+        X, values=X, except_index=reassigned_ids_idx
+    )
+
+    train_tsc = splitted_tsc.iloc[train_indices, :]
+    test_tsc = splitted_tsc.iloc[test_indices, :]
+
+    # asserts also assumption made in the algorithm (in hindsight)
+    assert isinstance(train_tsc, TSCDataFrame)
+    assert isinstance(test_tsc, TSCDataFrame)
+
+    return train_tsc, test_tsc

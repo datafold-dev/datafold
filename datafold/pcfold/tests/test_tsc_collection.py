@@ -5,7 +5,11 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
+from datafold.pcfold.timeseries.collection import (
+    InitialCondition,
+    TSCDataFrame,
+    TSCException,
+)
 
 
 class TestTSCDataFrame(unittest.TestCase):
@@ -712,6 +716,134 @@ class TestTSCDataFrame(unittest.TestCase):
         simple_df.index = simple_df.index.set_levels(dates, level=1)
 
         self.assertIsInstance(TSCDataFrame(simple_df), TSCDataFrame)
+
+
+class TestInitialCondition(unittest.TestCase):
+    def _tsc01(self):
+        time = np.linspace(1, 10, 10)
+        values = np.column_stack([np.sin(time), np.sin(time + np.pi / 2)])
+
+        return TSCDataFrame.from_single_timeseries(pd.DataFrame(values, index=time))
+
+    def _tsc02(self):
+        time1 = np.linspace(1, 10, 10)
+        time2 = np.linspace(10, 20, 10)
+
+        values01 = np.column_stack([np.sin(time1), np.sin(time1 + np.pi / 2)])
+        values02 = np.column_stack([np.sin(time2), np.sin(time2 + np.pi / 2)])
+
+        _tsc = TSCDataFrame.from_single_timeseries(pd.DataFrame(values01, index=time1))
+        return _tsc.insert_ts(pd.DataFrame(values02, index=time2))
+
+    def setUp(self) -> None:
+        self.test_tsc01 = self._tsc01()
+        self.test_tsc02 = self._tsc02()
+
+    def test_from_array01(self):
+        # single_sample (1D)
+        actual = InitialCondition.from_array(np.array([1, 2, 3]), ["A", "B", "C"])
+
+        expected = pd.DataFrame(
+            np.array([[1, 2, 3]]),  # note it is 2D
+            index=pd.Index([0], name=TSCDataFrame.IDX_ID_NAME),
+            columns=pd.Index(["A", "B", "C"], name=TSCDataFrame.IDX_QOI_NAME),
+        )
+
+        self.assertTrue(InitialCondition.validate(actual))
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_from_array02(self):
+        actual = InitialCondition.from_array(
+            np.array([[1, 2, 3], [4, 5, 6]]), ["A", "B", "C"]
+        )
+
+        expected = pd.DataFrame(
+            np.array([[1, 2, 3], [4, 5, 6]]),
+            index=pd.Index([0, 1], name=TSCDataFrame.IDX_ID_NAME),
+            columns=pd.Index(["A", "B", "C"], name=TSCDataFrame.IDX_QOI_NAME),
+        )
+
+        self.assertTrue(InitialCondition.validate(actual))
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_from_tsc01(self):
+        actual = InitialCondition.from_tsc(self.test_tsc01, n_samples_ic=1)
+
+        expected = pd.DataFrame(self.test_tsc01).head(1)
+        expected.index = expected.index.get_level_values(TSCDataFrame.IDX_ID_NAME)
+
+        self.assertTrue(InitialCondition.validate(actual))
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_from_tsc02(self):
+        actual = InitialCondition.from_tsc(self.test_tsc01, n_samples_ic=3)
+
+        expected = pd.DataFrame(self.test_tsc01).head(3)
+
+        self.assertTrue(InitialCondition.validate(actual))
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_iter_reconstruct_ic01(self):
+        # test if it can handle a single time series
+
+        n_samples_ic = 1
+
+        for i, (actual_ic, actual_time_values) in enumerate(
+            InitialCondition.iter_reconstruct_ic(self.test_tsc01, n_samples_ic=1)
+        ):
+
+            select_ts = pd.DataFrame(self.test_tsc01).loc[[i, None], :]
+            expected_ic = select_ts.head(n_samples_ic)
+            expected_ic.index = expected_ic.index.droplevel(TSCDataFrame.IDX_TIME_NAME)
+
+            expected_time_values = select_ts.index.get_level_values(
+                TSCDataFrame.IDX_TIME_NAME
+            )
+
+            self.assertTrue(InitialCondition.validate(actual_ic))
+            pdtest.assert_frame_equal(actual_ic, expected_ic)
+            nptest.assert_array_equal(actual_time_values, expected_time_values)
+
+    def test_iter_reconstruct_ic02(self):
+        # test if it can handle a multiple time series
+
+        n_samples_ic = 1
+
+        for i, (actual_ic, actual_time_values) in enumerate(
+            InitialCondition.iter_reconstruct_ic(self.test_tsc02, n_samples_ic=1)
+        ):
+
+            select_ts = pd.DataFrame(self.test_tsc02).loc[[i, None], :]
+            expected_ic = select_ts.head(n_samples_ic)
+            expected_ic.index = expected_ic.index.droplevel(TSCDataFrame.IDX_TIME_NAME)
+
+            expected_time_values = select_ts.index.get_level_values(
+                TSCDataFrame.IDX_TIME_NAME
+            )
+
+            self.assertTrue(InitialCondition.validate(actual_ic))
+            pdtest.assert_frame_equal(actual_ic, expected_ic)
+            nptest.assert_array_equal(actual_time_values, expected_time_values)
+
+    def test_iter_reconstruct_ic03(self):
+        # test
+
+        n_sample_ic = 3
+
+        for i, (actual_ic, actual_time_values) in enumerate(
+            InitialCondition.iter_reconstruct_ic(self.test_tsc02, n_samples_ic=3)
+        ):
+
+            select_ts = self.test_tsc02.loc[[i, None], :]
+            expected_ic = select_ts.head(n_sample_ic)
+
+            expected_time_values = select_ts.index.get_level_values(
+                TSCDataFrame.IDX_TIME_NAME
+            )[n_sample_ic - 1 :]
+
+            self.assertTrue(InitialCondition.validate(actual_ic))
+            pdtest.assert_frame_equal(actual_ic, expected_ic)
+            nptest.assert_array_equal(actual_time_values, expected_time_values)
 
 
 if __name__ == "__main__":
