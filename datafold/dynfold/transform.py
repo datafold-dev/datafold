@@ -313,10 +313,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
         return shifted_timeseries
 
-    def _validate_tsc_properties(self, X):
-
-        # TODO: ensure minimum of samples per ID, otherwise there are columns with only
-        #  fill-in
+    def _validate_takens_properties(self, X):
 
         if not isinstance(X, TSCDataFrame):
             if X.index.nlevels == 1:
@@ -333,18 +330,14 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
     def fit(self, X: FEATURE_NAME_TYPES, y=None, **fit_params):
 
         self._validate_parameter()
-        X = self._validate_data(
-            X,
-            ensure_feature_name_type=True,
-            validate_array_kwargs=dict(ensure_min_samples=1),
-        )
-        X = self._validate_tsc_properties(X)
+        X = self._validate_data(X, ensure_feature_name_type=True,)
+        X = self._validate_takens_properties(X)
 
         self.delay_indices_ = self._precompute_delay_indices()
         features_out = self._expand_all_delay_columns(X.columns)
 
         # only TSCDataFrame works here
-        self._setup_pandas_input_fit(
+        self._setup_frame_input_fit(
             features_in=X.columns, features_out=features_out,
         )
         return self
@@ -352,7 +345,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
     def transform(self, X: FEATURE_NAME_TYPES):
 
         X = self._validate_data(X, ensure_feature_name_type=True)
-        X = self._validate_tsc_properties(X)
+        X = self._validate_takens_properties(X)
 
         if (X.n_timesteps <= self.delay_indices_.max()).any():
             raise TSCException(
@@ -379,7 +372,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
     def inverse_transform(self, X: TRANF_TYPES):
         X = self._validate_data(X, ensure_feature_name_type=True)
-        X = self._validate_tsc_properties(X)
+        X = self._validate_takens_properties(X)
         self._validate_features_inverse_transform(X)
 
         return X.loc[:, self.features_in_[1]]

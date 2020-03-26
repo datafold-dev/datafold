@@ -16,6 +16,7 @@ from datafold.decorators import warn_experimental_class
 from datafold.dynfold.base import PRE_FIT_TYPES, PRE_IC_TYPES, TSCPredictMixIn
 from datafold.dynfold.system_evolution import LinearDynamicalSystem
 from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold.timeseries.collection import InitialCondition
 from datafold.utils.datastructure import if1dim_rowvec
 from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
 
@@ -106,7 +107,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         # initial condition is numpy-only, from now on
         ic = X_ic.to_numpy().T
-        time_series_ids = X_ic.index.get_level_values("ID").to_numpy()
+        time_series_ids = X_ic.index.get_level_values(
+            TSCDataFrame.IDX_ID_NAME
+        ).to_numpy()
 
         if len(np.unique(time_series_ids)) != len(time_series_ids):
             # check if duplicate ids are present
@@ -200,6 +203,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         X = self._convert_array2frame(X)
         self._validate_data(X)
+        InitialCondition.validate(X)
 
         X, time_values = self._validate_features_and_time_values(
             X=X, time_values=time_values
@@ -226,7 +230,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         X_reconstruct_ts = []
 
-        for X_ic, time_values in X.tsc.group_reconstruct_ic(n_samples_ic=1):
+        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
+            X, n_samples_ic=1
+        ):
             X_ts = self.predict(X=X_ic, time_values=time_values)
             X_reconstruct_ts.append(X_ts)
 

@@ -152,7 +152,7 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
     _FEAT_ATTR = ["features_in_", "features_out_"]
 
-    def _setup_pandas_input_fit(self, features_in: pd.Index, features_out: pd.Index):
+    def _setup_frame_input_fit(self, features_in: pd.Index, features_out: pd.Index):
 
         if features_in.has_duplicates or features_out.has_duplicates:
             raise ValueError(
@@ -177,18 +177,18 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
             assert features_out == "like_features_in"
 
         if self._has_feature_names(X):
-            # For convenience features_out can be set as a list (better readability in the
-            # implementations)
 
             if features_out == "like_features_in":
                 features_out = X.columns
 
             if isinstance(features_out, list):
+                # For convenience features_out can be given as a list
+                # (better code readability than pd.Index)
                 features_out = pd.Index(
                     features_out, dtype=np.str, name=TSCDataFrame.IDX_QOI_NAME,
                 )
 
-            self._setup_pandas_input_fit(
+            self._setup_frame_input_fit(
                 features_in=X.columns, features_out=features_out
             )
         else:

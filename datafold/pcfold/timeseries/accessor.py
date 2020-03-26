@@ -37,6 +37,8 @@ class TSCAccessor(object):
         ensure_min_n_timesteps=None,
     ) -> TSCDataFrame:
 
+        # TODO: allow handle_fail="raise | warn | return"?
+
         if ensure_same_length and not self._tsc_df.is_equal_length():
             raise TSCException.not_same_length(
                 actual_lengths=self._tsc_df.is_equal_length()
@@ -76,7 +78,7 @@ class TSCAccessor(object):
         if ensure_all_finite and not self._tsc_df.is_finite():
             raise TSCException.not_finite()
 
-        if ensure_same_time_values and self._tsc_df.is_same_time_values():
+        if ensure_same_time_values and not self._tsc_df.is_same_time_values():
             raise TSCException.not_same_time_values()
 
         if ensure_normalized_time and self._tsc_df.is_normalized_time():
@@ -215,74 +217,6 @@ class TSCAccessor(object):
 
         return shift_left, shift_right
 
-    def kfold_cv_reassign_ids(self, train_indices, test_indices):
-
-        # mark train samples with 0 and test samples with 1
-        mask_train_test = np.zeros(self._tsc_df.shape[0])
-        mask_train_test[test_indices] = 1
-
-        # usage of np.diff -> dectect changes in
-        # i) new fold or ii) new ID (i.e. time series)
-        # -- both change detections are required to reassign new IDs
-
-        # i) detect switch between test / train
-        change_fold_indicator = np.append(0, np.diff(mask_train_test)).astype(np.bool)
-
-        # ii) detect switch of new ID
-        change_id_indicator = np.append(
-            0, np.diff(self._tsc_df.index.get_level_values("ID"))
-        ).astype(np.bool)
-
-        # cumulative sum of on or the other change and reassign IDs
-        id_cum_sum_mask = np.logical_or(change_fold_indicator, change_id_indicator)
-        new_ids = np.cumsum(id_cum_sum_mask)
-
-        reassigned_ids_idx = pd.MultiIndex.from_arrays(
-            arrays=(new_ids, self._tsc_df.index.get_level_values("time"))
-        )
-
-        splitted_tsc = TSCDataFrame.from_same_indices_as(
-            self._tsc_df, values=self._tsc_df, except_index=reassigned_ids_idx
-        )
-
-        train_tsc = splitted_tsc.iloc[train_indices, :]
-        test_tsc = splitted_tsc.iloc[test_indices, :]
-
-        # asserts also assumption made in the algorithm (in hindsight)
-        assert isinstance(train_tsc, TSCDataFrame)
-        assert isinstance(test_tsc, TSCDataFrame)
-
-        return train_tsc, test_tsc
-
-    def initial_states_folds(self):
-        """If splits are performed in time, then different time series have
-        different times at the initial condition (and different evalutation
-        times). This function provides an iterator which returns all time series
-        starting at the same time and the corresponding evaluation time.
-        """
-
-        # TODO [think about] maybe provide an extra TSC.accessor for Cross Validation
-        #  relevant operations?
-
-        for initial_time, initial_states_df in self._tsc_df.initial_states().groupby(
-            level="time"
-        ):
-            time_series_ids = initial_states_df.index.get_level_values(
-                TSCDataFrame.IDX_ID_NAME
-            )
-
-            tsc_fold = self._tsc_df.loc[time_series_ids, :]
-
-            if not tsc_fold.is_same_time_values():
-                raise RuntimeError(
-                    "No equal time values in initial condition fold. In case assumptions "
-                    "are not met in the data the error has to be raised earlier. "
-                    "Please report bug. "
-                )
-
-            time_values_fold = tsc_fold.time_values(unique_values=True)
-            yield initial_states_df, time_values_fold
-
     def time_values_overview(self):
 
         table = pd.DataFrame(
@@ -293,31 +227,6 @@ class TSCAccessor(object):
 
         table["delta_time"] = self._tsc_df.delta_time
         return table
-
-    def group_reconstruct_ic(self, n_samples_ic):
-        """Extract and group time series same time values.
-
-        This allows to iterate through initial conditions and reconstruct the time
-        series."""
-
-        table = self.time_values_overview()
-
-        if np.isnan(table["delta_time"]).any():
-            raise NotImplementedError(
-                "Currently, only constant delta times are " "implemented."
-            )
-
-        for (start, end, _dt), df in table.groupby(
-            by=["start", "end", "delta_time"], axis=0
-        ):
-            grouped_ids = df.index
-
-            grouped_tsc: TSCDataFrame = self._tsc_df.loc[grouped_ids, :]
-
-            initial_states = grouped_tsc.initial_states(n_samples_ic)
-            time_values = grouped_tsc.time_values(unique_values=True)
-
-            yield initial_states, time_values
 
     def plot_density2d(self, time, xresolution: int, yresolution: int, covariance=None):
         """
