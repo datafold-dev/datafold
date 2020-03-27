@@ -194,6 +194,30 @@ class PCManifold(np.ndarray):
         result_scaling=1.0,
         inplace=True,
     ):
+        """ optimize_parameters
+        
+        Estimates cut_off and kernel bandwidth epsilon, assuming a Gaussian kernel.
+        
+        Arguments
+        ---------
+        n_subsample: integer.
+            Number of samples to use for estimations. Default: 1000
+        tol: float.
+            Tolerance below which the Gaussian kernel is assumed to be zero. Default: 1e-8
+        kmin: integer.
+            Number of nearest neighbors to use in the cut_off estimation. Default 25.
+        random_state: integer [optional].
+            The random state used in the selection of samples. Default: None.
+        result_scaling: float.
+            The estimated cut_off will be scaled by this number, and then epsilon will be computed accordingly. Default 1.0.
+        inplace: boolean.
+            If True, will set the cut_off and kernel.epsilon parameters of this instance.
+            
+        Returns
+        -------
+        cut_off: float.
+        epsilon: float.
+        """
 
         if not hasattr(self._kernel, "epsilon"):
             # fails if kernel has no epsilon parameter
@@ -204,11 +228,11 @@ class PCManifold(np.ndarray):
         cut_off = estimate_cutoff(
             self, n_subsample=n_subsample, kmin=kmin, random_state=random_state
         )
-        epsilon = estimate_scale(self, tol=tol, cut_off=self.cut_off, kmin=kmin)
 
         if result_scaling != 1:
             cut_off *= result_scaling
-            epsilon *= result_scaling
+
+        epsilon = estimate_scale(self, tol=tol, cut_off=cut_off, kmin=kmin)
 
         if inplace:
             self.cut_off = cut_off

@@ -72,7 +72,9 @@ class LimitCycle(object):
         t = np.linspace(0, dt * (nr_steps - 1), nr_steps)
 
         a0 = self._compute_angle(x1=x1, x2=x2)
-        r0 = np.linalg.norm(np.array([x1, x2]))
+        r0 = (
+            np.linalg.norm(np.array([x1, x2])) + 1e-10
+        )  # add a small number to avoid division by zero
 
         a_vals = 1 / self.eps * t + a0
 

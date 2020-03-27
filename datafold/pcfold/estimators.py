@@ -91,10 +91,9 @@ def estimate_scale(pcm, tol=1e-8, cut_off=None, **estimate_cut_off_params):
     if cut_off is None:
         cut_off = estimate_cutoff(pcm, **estimate_cut_off_params)
 
-    # doubling it since we want the kernel values to be BELOW the tolerance,  not exactly
-    # on it
-    magic = 2
-    eps0 = magic * np.sqrt(cut_off ** 2 / (-np.log(tol)))
+    # this formula is derived by solving for epsilon in
+    # tol >= exp(-cut_off**2 / epsilon)
+    eps0 = cut_off ** 2 / (-np.log(tol))
     return eps0
 
 
