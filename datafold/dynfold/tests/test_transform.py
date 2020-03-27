@@ -174,50 +174,12 @@ class TestTSCTransform(unittest.TestCase):
             pca_sklearn.inverse_transform(data_sklearn),
         )
 
-    def test_takens_embedding_fillnan(self):
+    def test_takens_embedding(self):
         simple_df = self.takens_df.drop("B", axis=1)
         tsc_df = TSCDataFrame(simple_df)
 
         # using class
-        actual = TSCTakensEmbedding(
-            lag=0,
-            delays=1,
-            frequency=1,
-            time_direction="backward",
-            fillin_handle=np.nan,
-        ).fit_transform(tsc_df)
-        self.assertTrue(isinstance(actual, TSCDataFrame))
-
-        actual = actual.values  # only compare the numeric values now
-
-        expected = np.array(
-            [
-                [0.0, np.nan],
-                [2.0, 0.0],
-                [4.0, np.nan],
-                [6.0, 4.0],
-                [8.0, np.nan],
-                [10.0, 8.0],
-                [12.0, np.nan],
-                [14.0, 12.0],
-                [16.0, 14.0],
-            ]
-        )
-
-        nptest.assert_equal(actual, expected)
-
-    def test_takens_embedding_fillremove(self):
-        simple_df = self.takens_df.drop("B", axis=1)
-        tsc_df = TSCDataFrame(simple_df)
-
-        # using class
-        actual = TSCTakensEmbedding(
-            lag=0,
-            delays=1,
-            frequency=1,
-            time_direction="backward",
-            fillin_handle="remove",
-        ).fit_transform(tsc_df)
+        actual = TSCTakensEmbedding(lag=0, delays=1, frequency=1,).fit_transform(tsc_df)
 
         self.assertIsInstance(actual, pd.DataFrame)
 

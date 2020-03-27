@@ -192,15 +192,8 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
 
 
 class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
-    VALID_TIME_DIRECTION = ["forward", "backward"]
-
     def __init__(
-        self,
-        lag: int = 0,
-        delays: int = 10,
-        frequency: int = 1,
-        time_direction="backward",
-        fillin_handle: Union[str, float] = "remove",
+        self, lag: int = 0, delays: int = 10, frequency: int = 1,
     ):
         """
         fillin_handle:
@@ -211,8 +204,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         self.lag = lag
         self.delays = delays
         self.frequency = frequency
-        self.time_direction = time_direction
-        self.fillin_handle = fillin_handle
 
     def _validate_parameter(self):
         from sklearn.utils.validation import check_scalar
@@ -244,23 +235,29 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
                 "than 1)."
             )
 
-        if self.time_direction not in self.VALID_TIME_DIRECTION:
-            raise ValueError(
-                f"'time_direction={self.time_direction}' invalid. Valid choices: "
-                f"{self.VALID_TIME_DIRECTION}"
-            )
-
-    def _precompute_delay_indices(self):
-        # zero delay (original data) is not treated
+    def _setup_delay_indices_array(self):
+        # zero delay (original data) is not contained as an index
+        # This makes it easier to just delay through the indices (instead of computing
+        # the indices during the delay.
         return self.lag + (
             np.arange(1, (self.delays * self.frequency) + 1, self.frequency)
         )
 
+    def _columns_to_type_str(self, X):
+        # in case the column in not string it is important to transform it here to
+        # string. Otherwise, There are mixed types (e.g. int and str), because the
+        # delayed columns are all strings to indicate the delay number.
+        X.columns = X.columns.astype(np.str)
+        return X
+
     def _expand_all_delay_columns(self, cols):
         def expand():
             delayed_columns = list()
-            for didx in self.delay_indices_:
-                delayed_columns.append(self._expand_single_delta_column(cols, didx))
+            for delay_idx in self.delay_indices_:
+                _cur_delay_columns = list(
+                    map(lambda q: ":d".join([q, str(delay_idx)]), cols.astype(str))
+                )
+                delayed_columns.append(_cur_delay_columns)
             return delayed_columns
 
         # the name of the original indices is not changed, therefore append the delay
@@ -270,48 +267,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         return pd.Index(
             columns_names, dtype=np.str, copy=False, name=TSCDataFrame.IDX_QOI_NAME
         )
-
-    def _expand_single_delta_column(self, cols, delay_idx):
-        return list(map(lambda q: ":d".join([q, str(delay_idx)]), cols))
-
-    def _allocate_delayed_qois(self, tsc):
-
-        # original columns + delayed columns
-        total_n_columns = tsc.shape[1] * (self.delays + 1)
-
-        data = np.zeros([tsc.shape[0], total_n_columns]) * np.nan
-
-        delayed_tsc = TSCDataFrame(data, index=tsc.index, columns=self.features_out_[1])
-
-        delayed_tsc.loc[:, tsc.columns] = tsc
-        return delayed_tsc
-
-    def _shift_timeseries(self, single_ts, delay_idx):
-
-        if self.fillin_handle == "remove":
-            fill_value = np.nan
-        else:
-            fill_value = self.fillin_handle
-
-        if self.time_direction == "backward":
-            shifted_timeseries = single_ts.shift(
-                delay_idx, fill_value=fill_value,
-            ).copy()
-        elif self.time_direction == "forward":
-            shifted_timeseries = single_ts.shift(
-                -1 * delay_idx, fill_value=fill_value
-            ).copy()
-        else:
-            raise ValueError(
-                f"time_direction={self.time_direction} not known. "
-                f"Please report bug."
-            )
-
-        shifted_timeseries.columns = self._expand_single_delta_column(
-            single_ts.columns, delay_idx
-        )
-
-        return shifted_timeseries
 
     def _validate_takens_properties(self, X):
 
@@ -331,9 +286,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
         self._validate_parameter()
         X = self._validate_data(X, ensure_feature_name_type=True,)
+
+        X = self._columns_to_type_str(X)
         X = self._validate_takens_properties(X)
 
-        self.delay_indices_ = self._precompute_delay_indices()
+        self.delay_indices_ = self._setup_delay_indices_array()
         features_out = self._expand_all_delay_columns(X.columns)
 
         # only TSCDataFrame works here
@@ -354,23 +311,72 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
                 f"{self.delay_indices_.max()}."
             )
 
+        X = self._columns_to_type_str(X)
         self._validate_features_transform(X)
 
-        X = self._allocate_delayed_qois(X)
+        #################################
+        ### Implementation staying in pandas using shift()
+        ### This implementation is for many cases similarly fast as the numpy version
+        ### below, but has a performance drop for high-dimensions (dim>500)
+        # id_groupby = X.groupby(TSCDataFrame.IDX_ID_NAME)
+        # concat_dfs = [X]
+        #
+        # for delay_idx in self.delay_indices_:
+        #     shifted_data = id_groupby.shift(delay_idx, fill_value=np.nan)
+        #     shifted_data = shifted_data.add_suffix(f":d{delay_idx}")
+        #     concat_dfs.append(shifted_data)
+        #
+        # X = pd.concat(concat_dfs, axis=1)
 
-        # Compute the shifts --> per single time series
-        for i, ts in X.loc[:, self.features_in_[1]].itertimeseries():
-            for delay_idx in self.delay_indices_:
-                shifted_timeseries = self._shift_timeseries(ts, delay_idx)
-                X.loc[i, shifted_timeseries.columns] = shifted_timeseries.values
+        # if self.fillin_handle == "remove":
+        #     # _TODO: use pandas.dropna()
+        #     bool_idx = np.logical_not(np.sum(pd.isnull(X), axis=1).astype(np.bool))
+        #     X = X.loc[bool_idx]
 
-        if self.fillin_handle == "remove":
-            bool_idx = np.logical_not(np.sum(pd.isnull(X), axis=1).astype(np.bool))
-            X = X.loc[bool_idx]
+        # Implementation using numpy functions.
+
+        # pre-allocate list
+        delayed_timeseries = [pd.DataFrame([])] * len(X.ids)
+
+        max_delay = max(self.delay_indices_)
+        for idx, (_, df) in enumerate(X.groupby(TSCDataFrame.IDX_ID_NAME)):
+
+            # use time series numpy block
+            time_series_numpy = df.to_numpy()
+
+            # max_delay determines the earliest sample that has no fill-in
+            original_data = time_series_numpy[max_delay:, :]
+
+            # select the data (row_wise) for each delay block
+            # in last iteration "max_delay - delay == 0"
+            delayed_data = np.hstack(
+                [
+                    time_series_numpy[max_delay - delay : -delay, :]
+                    for delay in self.delay_indices_
+                ]
+            )
+
+            # go back to DataFrame, and adapt the index be excluding removed indices
+            df = pd.DataFrame(
+                np.hstack([original_data, delayed_data]),
+                index=df.index[max_delay:],
+                columns=self.features_out_[1],
+            )
+
+            delayed_timeseries[idx] = df
+
+        X = pd.concat(delayed_timeseries, axis=0)
+
+        try:
+            X = TSCDataFrame(X)
+        except AttributeError:
+            # simply return the pandas DataFrame then
+            pass
 
         return X
 
     def inverse_transform(self, X: TRANF_TYPES):
+        check_is_fitted(self)
         X = self._validate_data(X, ensure_feature_name_type=True)
         X = self._validate_takens_properties(X)
         self._validate_features_inverse_transform(X)
@@ -453,7 +459,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
 
 
 @NotImplementedError  # TODO: implement if required...
-class TSCFiniteDifference(object):
+class __TSCFiniteDifference(object):
 
     # TODO: provide longer shifts? This could give some average of slow and fast
     #  variables...
@@ -479,3 +485,7 @@ class TSCFiniteDifference(object):
     def apply(self, tsc: TSCDataFrame):
         for i, traj in tsc:
             pass
+
+
+if __name__ == "__main__":
+    pass
