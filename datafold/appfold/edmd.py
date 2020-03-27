@@ -171,7 +171,18 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # remove states from X (the id-states) that are also removed during dictionary
         # transformations
         X = X.loc[X_dict.index, :]
-        return pd.concat([X, X_dict], axis=1)
+        try:
+            X = pd.concat([X, X_dict], axis=1)
+        except AttributeError as e:
+            all_columns = X_dict.columns.append(X.columns)
+            duplicates = all_columns[all_columns.duplicated()]
+            raise ValueError(
+                "The ID state could not be attached, because the columns\n"
+                f"{duplicates}\n"
+                f"are already present in the dictionary."
+            )
+
+        return X
 
     def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
         self._validate_data(

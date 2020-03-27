@@ -98,7 +98,7 @@ class EDMDTest(unittest.TestCase):
 
         edmd = EDMD(
             dict_steps=[
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
+                ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ],
             include_id_state=True,
@@ -120,7 +120,7 @@ class EDMDTest(unittest.TestCase):
 
         edmd = EDMD(
             dict_steps=[
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
+                ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ],
             include_id_state=False,
@@ -170,7 +170,7 @@ class EDMDTest(unittest.TestCase):
     def test_edmdcv_seriescv_no_error(self):
         edmd = EDMD(
             dict_steps=[
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
+                ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ]
         )
@@ -187,7 +187,7 @@ class EDMDTest(unittest.TestCase):
     def test_edmdcv_parallel_no_error(self):
         edmd = EDMD(
             dict_steps=[
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
+                ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ]
         )
@@ -206,7 +206,7 @@ class EDMDTest(unittest.TestCase):
     def test_edmdcv_timecv_no_error(self):
         edmd = EDMD(
             dict_steps=[
-                ("delays", TSCTakensEmbedding(delays=10, fillin_handle="remove")),
+                ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=5)),
             ]
         )
@@ -216,6 +216,7 @@ class EDMDTest(unittest.TestCase):
             param_grid={"pca__n_components": [2, 4]},
             cv=TSCKFoldTime(4),
             verbose=False,
+            error_score="raise",
             return_train_score=True,
             n_jobs=1,
         ).fit(self.multi_sine_wave_tsc)
