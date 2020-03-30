@@ -22,34 +22,6 @@ from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.timeseries.collection import InitialCondition, TSCException
 
 
-class EDMDDict(Pipeline):
-    def __init__(self, steps, memory=None, verbose=False):
-        """NOTE: the typing is different to the TSCTransformMixIn, Because this (meta-)
-        transformer is used for DMD models.
-
-        * in  fit a TSCDataFrame is required
-        * in transform also initial conditions (pd.DataFrame or np.ndarray) are
-          transformed
-        """
-        super(EDMDDict, self).__init__(steps, memory=memory, verbose=verbose)
-
-    def fit(self, X: TSCDataFrame, y=None, **fit_params):
-        return super(EDMDDict, self).fit(X=X, y=y, **fit_params)
-
-    def _transform(self, X: TRANF_TYPES):
-        if isinstance(X, pd.Series):
-            raise TypeError(
-                "Currently, all pd.Series have to be casted to pd.DataFrame before."
-            )
-        return super(EDMDDict, self)._transform(X=X)
-
-    def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
-        return super(EDMDDict, self).fit_transform(X=X, y=y, **fit_params)
-
-    def _inverse_transform(self, X: TSCDataFrame):
-        return super(EDMDDict, self)._inverse_transform(X=X)
-
-
 class EDMD(Pipeline, TSCPredictMixIn):
     def __init__(
         self,
@@ -73,16 +45,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
     @property
     def dmd_model(self):
         # Improves code readability when using  attribute
-        # 'dmd_model' instead of general 'final_estimator'
+        # 'dmd_model' instead of general '_final_estimator'
         return self._final_estimator
-
-    def edmd_dict(self):
-        # deepcopy of steps for safety
-        return EDMDDict(
-            steps=copy.deepcopy(self.steps[:-1]),
-            memory=self.memory,
-            verbose=self.verbose,
-        )
 
     def _validate_dictionary(self):
 
@@ -95,7 +59,11 @@ class EDMD(Pipeline, TSCPredictMixIn):
                     "and TSCDataFrame)"
                 )
 
-    def _transform_original2dictionary(self, X):
+    @property
+    def transform(self):
+        return self._transform
+
+    def _transform(self, X):
         """Forward transformation of dictionary."""
 
         if self.include_id_state:
@@ -105,15 +73,19 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X_dict = X
 
         # carry out dictionary transformations:
-        for _, name, transform in self._iter(with_final=False):
-            X_dict = transform.transform(X_dict)
+        for _, name, tsc_transform in self._iter(with_final=False):
+            X_dict = tsc_transform.transform(X_dict)
 
         if self.include_id_state:
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         return X_dict
 
-    def _transform_dictionary2original(self, X):
+    @property
+    def inverse_transform(self):
+        return self._inverse_transform
+
+    def _inverse_transform(self, X: TRANF_TYPES):
         """Inverse transformation. """
 
         if self.include_id_state:
@@ -124,8 +96,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
             # available:
             X_ts = X
             reverse_iter = reversed(list(self._iter(with_final=False)))
-            for _, _, transform in reverse_iter:
-                X_ts = transform.inverse_transform(X_ts)
+            for _, _, tsc_transform in reverse_iter:
+                X_ts = tsc_transform.inverse_transform(X_ts)
 
         return X_ts
 
@@ -224,7 +196,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         self._validate_type_and_n_samples_ic(X_ic=X)
 
-        X_dict = self._transform_original2dictionary(X)
+        X_dict = self.transform(X)
 
         # this needs to always hold if the checks _validate_type_and_n_samples_ic are
         #  correct
@@ -236,7 +208,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         )
 
         # transform from "dictionary space" to "user space"
-        X_ts = self._transform_dictionary2original(X_latent_ts)
+        X_ts = self.inverse_transform(X_latent_ts)
 
         return X_ts
 
@@ -255,13 +227,13 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X, n_samples_ic=self.n_samples_ic_
         ):
             # transform initial condition to dictionary space
-            X_dict_ic = self._transform_original2dictionary(X_ic)
+            X_dict_ic = self.transform(X_ic)
 
             # evolve state with dmd model
             X_dict_ts = self.dmd_model.predict(X=X_dict_ic, time_values=time_values)
 
             # transform back to user space
-            X_est_ts = self._transform_dictionary2original(X_dict_ts)
+            X_est_ts = self.inverse_transform(X_dict_ts)
 
             X_reconstruct.append(X_est_ts)
 
@@ -274,6 +246,10 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
     def fit_predict(self, X, y=None, **fit_params):
         return self.fit(X=X, y=y, **fit_params).reconstruct(X=X)
+
+    def fit_transform(self, X, y=None, **fit_params):
+        # NOTE: could be improved, but this function is probably not required very often.
+        return self.fit(X=X, y=y, **fit_params).transform(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
         """Docu note: y is kept for consistency to sklearn, but should always be None."""
