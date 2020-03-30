@@ -26,6 +26,33 @@ from datafold.utils.maths import random_subsample
 
 
 class PCManifold(np.ndarray):
+    """
+    Point cloud on a manifold.
+
+    ...
+
+    Attributes
+    ----------
+    kernel : Kernel
+        Kernel defined on data (manifold).
+    cut_off : float
+        Cut-off distance, with larger distance values be treated as zeros in the kernel.
+    dist_backend : Union[str, DistanceAlgorithm]
+        Algorithm to compute the distance matrix.
+
+    Methods
+    -------
+    compute_kernel_matrix(self, Y=None, **kernel_kwargs)
+        Compute the kernel matrix of point cloud hold by self or with respect to
+        another point cloud (Y).
+
+    compute_distance_matrix(self, Y=None, metric="euclidean")
+        Compute the distance matrix of point cloud hold by self or with respect to
+        another point cloud (Y).
+
+    optimize_parameter()
+    """
+
     # See https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
     def __new__(
@@ -36,7 +63,6 @@ class PCManifold(np.ndarray):
         dist_backend="guess_optimal",
         **dist_params,
     ):
-
         if kernel is None:
             # TODO: also allow kernel=None? The distance matrix can still be computed.
             kernel = GaussianKernel()

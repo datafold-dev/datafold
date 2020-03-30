@@ -17,7 +17,7 @@ setup(
     version=datafold.__version__,
     description="Python package to deal with dynamical systems represented by manifold "
     "data.",
-    long_description="TODO: provide long description",  # TODO:
+    long_description="TODO: provide long description",
     license="MIT",
     author_email=EMAIL,
     packages=find_packages(),
@@ -27,11 +27,7 @@ setup(
     install_requires=["numpy", "scikit-learn", "scipy", "pandas"],
     test_suite="nose.collector",
     tests_require=["nose"],
-    extras_require={
-        "pydmd_wrapper": ["pydmd"],
-        "plotting": ["matplotlib"],
-        "documenation": ["Sphinx", "sphinxcontrib.bibtex", "sphinx_rtd_theme"],
-    },
+    extras_require={"pydmd": ["pydmd"], "plot": ["matplotlib"],},
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",

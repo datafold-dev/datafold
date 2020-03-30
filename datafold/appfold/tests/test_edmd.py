@@ -199,6 +199,7 @@ class EDMDTest(unittest.TestCase):
             param_grid={"pca__n_components": [2, 4, 6, 8]},
             cv=TSCKfoldSeries(4),
             verbose=False,
+            error_score="raise",
             return_train_score=True,
             n_jobs=-1,
         ).fit(self.multi_sine_wave_tsc)

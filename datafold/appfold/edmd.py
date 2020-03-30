@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
-import copy
 from typing import List, Tuple
 
-import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.utils import _print_elapsed_time  # NOTE: internal from sklearn!
@@ -23,33 +21,73 @@ from datafold.pcfold.timeseries.collection import InitialCondition, TSCException
 
 
 class EDMD(Pipeline, TSCPredictMixIn):
+    """Extended Dynamic Mode Decomposition model to approximate the Koopman operator,
+    which defines a dynamical system learnt form data.
+
+    ...
+
+    Parameters
+    ----------
+    dict_steps
+        List of (name, transform) tuples (implementing fit/transform and
+        inverse_transform if necessary, see ``include_id_state``) that are
+        chained (in the order in which they are in the list). All transform must be
+        able to deal with time series collection data.
+
+    dmd_model
+        The Dynamic Model Decomposition (DMD) model as the final estimator of the
+        pipeline. Approximates the Koopman matrix.
+
+    include_id_state
+        Indicates if the identity states are included in the dictionary.
+
+    memory
+        see superclass `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html#sklearn.pipeline.Pipeline>`_
+
+    verbose
+        see superclass `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html#sklearn.pipeline.Pipeline>`_
+
+    Attributes
+    ----------
+    named_steps
+        see superclass `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html#sklearn.pipeline.Pipeline>`_
+
+    See Also
+    --------
+    :class:`EDMDCV`
+
+    References
+    ----------
+    .. todo::
+        Add reference to Williams et al.
+    """
+
     def __init__(
         self,
         dict_steps: List[Tuple],
         dmd_model: DMDBase = DMDFull(),
-        include_id_state=True,
+        include_id_state: bool = True,
         memory=None,
         verbose=False,
     ):
 
         self.dict_steps = dict_steps
-        self._dmd_model = dmd_model
+        self.dmd_model = dmd_model
         self.include_id_state = include_id_state
 
         # TODO: if necessary provide option to give user defined metric
         self._setup_default_tsc_metric_and_score()
 
-        all_steps = self.dict_steps + [("dmd", self._dmd_model)]
+        all_steps = self.dict_steps + [("dmd", self.dmd_model)]
         super(EDMD, self).__init__(steps=all_steps, memory=memory, verbose=verbose)
 
     @property
-    def dmd_model(self):
-        # Improves code readability when using  attribute
-        # 'dmd_model' instead of general '_final_estimator'
+    def _dmd_model(self) -> DMDBase:
+        # Improves (internal) code readability when using  attribute
+        # '_dmd_model' instead of general '_final_estimator'
         return self._final_estimator
 
     def _validate_dictionary(self):
-
         # Check that all are TSCTransformer
         for (_, trans_str, transformer) in self._iter(with_final=False):
             if not isinstance(transformer, TSCTransformerMixIn):
@@ -61,9 +99,21 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
     @property
     def transform(self):
+        """Apply dictionary on time series data.
+
+        Parameters
+        ----------
+        X : TSCDataFrame with (n_samples_per_timeseries, n_features)
+           Time series collection to transform in the dictionary. Must fulfill input
+           requirements of first step of the pipeline.
+
+        Returns
+        -------
+        Xt : TSCDataFrame (n_samples, n_transformed_features)
+        """
         return self._transform
 
-    def _transform(self, X):
+    def _transform(self, X: TRANF_TYPES) -> TRANF_TYPES:
         """Forward transformation of dictionary."""
 
         if self.include_id_state:
@@ -83,9 +133,25 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
     @property
     def inverse_transform(self):
+        """Apply inverse transformations in reverse order of the dictionary.
+
+        All transform steps in the pipeline must support ``inverse_transform``.
+
+        Parameters
+        ----------
+        X : TSCDataFrame of shape (n_samples per time series, n_transformed_features)
+            Data samples, where ``n_samples`` is the number of samples and
+            ``n_features`` is the number of features. Must fulfill
+            input requirements of last step of pipeline's
+            ``inverse_transform`` method.
+
+        Returns
+        -------
+        Xt : TSCDataFrame of shape (n_samples, n_features)
+        """
         return self._inverse_transform
 
-    def _inverse_transform(self, X: TRANF_TYPES):
+    def _inverse_transform(self, X: TRANF_TYPES) -> TRANF_TYPES:
         """Inverse transformation. """
 
         if self.include_id_state:
@@ -156,7 +222,27 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         return X
 
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "EDMD":
+        """Fit the EDMD model
+
+        Fit all the transforms one after the other and transform the
+        data, then fit the transformed data using the DMD model.
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            Training data. Must fulfill input requirements of first step of the
+            pipeline.
+
+        y : None
+            Parameter without use. Only there to fulfill the general parameter of
+            scikit-learn
+
+        **fit_params : dict of string -> object
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``.
+        """
         self._validate_data(
             X,
             ensure_feature_name_type=True,
@@ -174,14 +260,37 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
-            self.dmd_model.fit(X=X_dict, y=y, **fit_params)
+            self._dmd_model.fit(X=X_dict, y=y, **fit_params)
 
         return self
 
     def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
+        """Apply dictionary to the initial condition data, and predict with the dmd
+        model.
+
+        Parameters
+        ----------
+        X of shape (n_initial_conditions * n_samples, n_features)
+            Initial condition for prediction. The ``n_samples`` is determined by the
+            dictionary and available in ``n_samples_ic_`` after calling ``fit``. If
+            ``n_samples_ic_ = 1`` a DataFrame is required (per row one initial
+            condition), and if``n_samples_ic_ > 1`` a TSCDataFrame is required where
+            each time series is an initial condition. Must fulfill input requirements
+            of first step of the pipeline.
+        time_values
+            Time values to evaluate the dynamical system, for each initial condition.
+            
+        **predict_params : dict of string -> object
+            Parameters to the ``predict`` called at the end of all
+            transformations in the pipeline.
+
+        Returns
+        -------
+        X_ts : TSCDataFrame
+            Predicted time series collection.
+        """
 
         check_is_fitted(self)
-
         self._validate_data(
             X,
             ensure_feature_name_type=True,
@@ -212,8 +321,24 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         return X_ts
 
-    def reconstruct(self, X: TSCDataFrame):
+    def reconstruct(self, X: TSCDataFrame) -> TSCDataFrame:
+        """
+        Reconstruct an existing time series collection: For each time series of the
+        input collection the initial condition and time values will used to
+        ``predict`` with the EDMD model.
 
+
+        Parameters
+        ----------
+        X: TSCDataFrame
+            Time series collection to reconstruct.
+
+        Returns
+        -------
+        X_reconstruct : TSCDataFrame
+            Reconstructed time series collection. The shape may be different to ``X``,
+            if for the initial condition requires more than one sample.
+        """
         check_is_fitted(self)
         X = self._validate_data(
             X,
@@ -222,7 +347,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         )
         self._validate_feature_names(X)
 
-        X_reconstruct = []
+        X_reconstruct: List[TSCDataFrame] = []
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=self.n_samples_ic_
         ):
@@ -230,7 +355,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X_dict_ic = self.transform(X_ic)
 
             # evolve state with dmd model
-            X_dict_ts = self.dmd_model.predict(X=X_dict_ic, time_values=time_values)
+            X_dict_ts = self._dmd_model.predict(X=X_dict_ic, time_values=time_values)
 
             # transform back to user space
             X_est_ts = self.inverse_transform(X_dict_ts)
@@ -238,6 +363,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X_reconstruct.append(X_est_ts)
 
         X_reconstruct = pd.concat(X_reconstruct, axis=0)
+        assert isinstance(X_reconstruct, TSCDataFrame)
 
         # NOTE: time series contained in X_reconstruct can be shorter in length than
         # the original time series (i.e. no full reconstruction), because some transfom
@@ -245,16 +371,86 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return X_reconstruct
 
     def fit_predict(self, X, y=None, **fit_params):
+        """Applies fit_predict of last step in pipeline after transforms.
+
+        Applies fit_transforms of a pipeline to the data, followed by the
+        fit_predict method of the DMD model in the pipeline. Valid
+        only if the DMD model implements fit_predict.
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            Training data. Must fulfill input requirements of first step of
+            the pipeline.
+
+        y : None
+            Parameter without use. Only there to fulfill the general parameter of
+            scikit-learn
+
+        **fit_params : dict of string -> object
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``.
+
+        Returns
+        -------
+        X_reconstruct : TSCDataFrame
+            Reconstructed time series collection. The shape may be different to ``X``,
+            if for the initial condition requires more than one sample.
+        """
         return self.fit(X=X, y=y, **fit_params).reconstruct(X=X)
 
-    def fit_transform(self, X, y=None, **fit_params):
+    def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
+        """
+        Fit the dictionary and the DMD model and return the transformed data.
+
+        Parameters
+        ----------
+        X: TSCDataFrame
+            Time series collection data to fit the model with and return the transformed
+            data.
+
+        y : None
+            Parameter without use. Only there to fulfill the general parameter of
+            scikit-learn.
+
+        **fit_params : dict of string -> object
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``.
+
+        Returns
+        -------
+        X_dict: TSCDataFrame
+            Time series collection after applying all transforms in the pipeline.
+        """
         # NOTE: could be improved, but this function is probably not required very often.
         return self.fit(X=X, y=y, **fit_params).transform(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
-        """Docu note: y is kept for consistency to sklearn, but should always be None."""
+        """Apply transforms, and score with the final estimator
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            Time series collection to reconstruct. Must fulfill input requirements of
+            first step of the pipeline.
+
+        y : None
+            Parameter without use. Only there to fulfill the general parameter of
+            scikit-learn.
+
+        sample_weight : array-like, default=None
+            If not None, this argument is passed as ``sample_weight`` keyword
+            argument to the ``score`` method set up.
+
+        Returns
+        -------
+        score : float
+        """
+
         assert y is None
-        self._check_attributes_set_up(check_attributes=["score_eval"])
+        self._check_attributes_set_up(check_attributes=["_score_eval"])
 
         # does all the checks:
         X_est_ts = self.reconstruct(X)
@@ -266,4 +462,4 @@ class EDMD(Pipeline, TSCPredictMixIn):
         if X.shape[0] > X_est_ts.shape[0]:
             X = X.loc[X_est_ts.index, :]
 
-        return self.score_eval(X, X_est_ts, sample_weight)
+        return self._score_eval(X, X_est_ts, sample_weight)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -285,7 +285,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self.metric_eval = TSCMetric.make_tsc_metric(
             metric="rmse", mode="qoi", scaling="min-max"
         )
-        self.score_eval = make_tsc_scorer(self.metric_eval)
+        self._score_eval = make_tsc_scorer(self.metric_eval)
 
     def _setup_features_and_time_fit(self, X: TSCDataFrame):
 
@@ -295,8 +295,8 @@ class TSCPredictMixIn(TSCBaseMixIn):
         time_values = X.time_values(unique_values=True)
         features_in = X.columns
 
+        time_values = self._validate_time_values(time_values=time_values)
         self.time_values_in_ = (len(time_values), time_values)
-        self._validate_time_values(self.time_values_in_[1])
 
         self.dt_ = X.delta_time
         if isinstance(self.dt_, pd.Series) or np.isnan(
@@ -320,7 +320,10 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
     def _validate_time_values(self, time_values: np.ndarray):
 
-        self._check_attributes_set_up(check_attributes=["time_values_in_"])
+        try:
+            time_values = np.asarray(time_values)
+        except Exception:
+            raise TypeError("Cannot convert 'time_values' to array.")
 
         if not isinstance(time_values, np.ndarray):
             raise TypeError("time_values has to be a NumPy array")
@@ -344,6 +347,8 @@ class TSCPredictMixIn(TSCBaseMixIn):
             # terms of "np.timedelta"
             raise ValueError("time_values must be sorted")
 
+        return time_values
+
     def _validate_delta_time(self, delta_time):
         self._check_attributes_set_up(check_attributes=["dt_"])
 
@@ -366,10 +371,11 @@ class TSCPredictMixIn(TSCBaseMixIn):
             raise ValueError(e.args[0])
 
     def _validate_features_and_time_values(
-        self, X: FEATURE_NAME_TYPES, time_values: np.ndarray
+        self, X: FEATURE_NAME_TYPES, time_values: Optional[np.ndarray] = None
     ):
 
         self._check_attributes_set_up(check_attributes=["time_values_in_"])
+
         if time_values is None:
             time_values = self.time_values_in_[1]
 
