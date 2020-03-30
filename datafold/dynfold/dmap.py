@@ -288,11 +288,10 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
     def fit_transform(self, X, y=None, **fit_transform):
 
-        self.fit(X, y)
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
+        self.fit(X=X, y=y)
 
         dmap_embedding = self._perform_dmap_embedding(self.eigenvectors_)
-
         return self._same_type_X(
             X, values=dmap_embedding, set_columns=self.features_out_[1]
         )

@@ -197,7 +197,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     def fit(self, X: PRE_FIT_TYPES, **fit_params):
         raise NotImplementedError("base class")
 
-    def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
+    def predict(
+        self, X: PRE_IC_TYPES, time_values=None, **predict_params
+    ) -> TSCDataFrame:
         check_is_fitted(self)
 
         X = self._convert_array2frame(X)
@@ -242,7 +244,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         return self.fit(X, **fit_params).reconstruct(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None):
-        self._check_attributes_set_up(check_attributes=["score_eval"])
+        self._check_attributes_set_up(check_attributes=["_score_eval"])
         assert y is None
 
         X_est_ts = self.reconstruct(X)
@@ -251,7 +253,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         if sample_weight is not None:
             score_params["sample_weight"] = sample_weight
 
-        return self.score_eval(X, X_est_ts, sample_weight)
+        return self._score_eval(X, X_est_ts, sample_weight)
 
 
 class DMDFull(DMDBase):
