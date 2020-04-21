@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold import TSCDataFrame
 
 
 class TestTimeSeriesCollectionPlots(unittest.TestCase):

@@ -11,13 +11,12 @@ from sklearn.model_selection import GridSearchCV
 
 from datafold.appfold.edmd import EDMD, EDMDCV
 from datafold.dynfold.transform import (
+    TSCFeaturePreprocess,
     TSCIdentity,
     TSCPrincipalComponent,
-    TSCQoiPreprocess,
     TSCTakensEmbedding,
 )
-from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.metric import TSCKfoldSeries, TSCKFoldTime
+from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 
 
 class EDMDTest(unittest.TestCase):
@@ -43,9 +42,27 @@ class EDMDTest(unittest.TestCase):
 
         return tsc
 
+    def _setup_multi_sine_wave_data2(self) -> TSCDataFrame:
+        time = np.linspace(0, 2 * np.pi, 100)
+
+        omega = 1.5
+
+        for i in range(1, 11):
+            data = np.column_stack([np.sin(i * omega * time), np.cos(i * omega * time)])
+            df = pd.DataFrame(data=data, index=time, columns=["sin", "cos"])
+            if i == 1:
+                tsc = TSCDataFrame.from_single_timeseries(df)
+            else:
+                tsc = tsc.insert_ts(df)
+
+        self.assertTrue(tsc.is_same_time_values())
+
+        return tsc
+
     def setUp(self) -> None:
         self.sine_wave_tsc = self._setup_sine_wave_data()
         self.multi_sine_wave_tsc = self._setup_multi_sine_wave_data()
+        self._setup_multi_sine_wave_data2()
 
     def test_id_dict(self):
         _edmd_dict = EDMD(
@@ -70,7 +87,7 @@ class EDMDTest(unittest.TestCase):
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd_dict = EDMD(
             dict_steps=[
-                ("scale", TSCQoiPreprocess.from_name(name="min-max")),
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=2)),
             ]
@@ -177,7 +194,7 @@ class EDMDTest(unittest.TestCase):
             ]
         )
 
-        EDMDCV(
+        edmdcv = EDMDCV(
             estimator=edmd,
             param_grid={"pca__n_components": [5, 7]},
             cv=TSCKfoldSeries(4),
@@ -185,6 +202,9 @@ class EDMDTest(unittest.TestCase):
             return_train_score=True,
             n_jobs=1,
         ).fit(self.multi_sine_wave_tsc)
+
+        # passes reconstruct to best_estimator_ (EDMD)
+        edmdcv.reconstruct(self.multi_sine_wave_tsc)
 
     def test_edmdcv_parallel_no_error(self):
         edmd = EDMD(

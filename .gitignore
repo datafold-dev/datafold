@@ -6,8 +6,12 @@ dist/
 build/
 datafold.egg-info/
 
-doc/build/
+# files and dirs related to documentation
+*.nblink
+doc/source/tutorial_index.rst
 doc/source/_apidoc/
+doc/source/api/
+doc/build/
 public/
 
 # Python files

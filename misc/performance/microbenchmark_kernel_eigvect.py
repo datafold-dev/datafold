@@ -6,9 +6,9 @@ from scipy.sparse import csc_matrix, csr_matrix
 from scipy.sparse.linalg import eigs, eigsh
 from sklearn.datasets import make_swiss_roll
 
-from datafold.dynfold.kernel import DmapKernelFixed, DmapKernelVariable
 from datafold.pcfold.distance import compute_distance_matrix
-from datafold.utils.maths import sort_eigenpairs
+from datafold.pcfold.kernels import DmapKernelFixed, DmapKernelVariable
+from datafold.utils.general import sort_eigenpairs
 
 data = make_swiss_roll(3000)[0]
 distance_matrix = compute_distance_matrix(X=data, metric="sqeuclidean")

@@ -19,6 +19,8 @@ unittests:
 
 functional_tests:
   script:
+    - export PYTHONPATH=`pwd`
+    - echo $PYTHONPATH
     - nosetests tutorials/ -v
 
 black_check:
@@ -33,9 +35,18 @@ mypy_check:
     - mypy ./
   allow_failure: true
 
+docu_check:
+  stage: code_analysis
+  script:
+    - cd doc/ && make html
+  except:
+    - master
+  allow_failure: false
+
 pages:
   stage: deploy
   script:
+    - export DATAFOLD_NBSPHINX_EXECUTE=always
     - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
     - sphinx-build -b html ./doc/source/ ./public/
   artifacts:

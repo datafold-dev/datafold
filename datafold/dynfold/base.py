@@ -13,19 +13,19 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
 
+from datafold.pcfold import TSCDataFrame, TSCMetric, TSCScoring
 from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
-from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.pcfold.timeseries.metric import TSCMetric, make_tsc_scorer
-from datafold.utils.datastructure import if1dim_rowvec
+from datafold.pcfold.kernels import DmapKernelFixed
+from datafold.utils.general import if1dim_rowvec
 
-FEATURE_NAME_TYPES = Union[TSCDataFrame, pd.DataFrame]
+DataFrameType = Union[TSCDataFrame, pd.DataFrame]
 
 # types allowed for transformation
-TRANF_TYPES = Union[FEATURE_NAME_TYPES, np.ndarray]
+TransformType = Union[DataFrameType, np.ndarray]
 
-# types allowed for predict
-PRE_FIT_TYPES = TSCDataFrame
-PRE_IC_TYPES = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
+# types allowed for time predictions
+TimePredictType = TSCDataFrame
+InitialConditionType = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
 
 
 class TSCBaseMixIn:
@@ -132,6 +132,9 @@ class TSCBaseMixIn:
                 ensure_n_timeseries=validate_tsc_kwargs.pop(
                     "ensure_n_timeseries", None
                 ),
+                ensure_min_timesteps=validate_tsc_kwargs.pop(
+                    "ensure_min_timesteps", None
+                ),
             )
 
         if validate_array_kwargs != {} or validate_tsc_kwargs != {}:
@@ -149,8 +152,26 @@ class TSCBaseMixIn:
 
 
 class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
+    """Provides infrastructure for (optional) time series transformations.
 
-    _FEAT_ATTR = ["features_in_", "features_out_"]
+    Allows to transform data with numpy.ndarray or pandas.DataFrame (including
+    TSCDataFrame). Usually, the input type is the output type.
+
+    Parameters
+    ----------
+
+    features_in_: Tuple[int, pandas.Index]
+        Number of features during fit and corresponding feature names (intended to
+        be stored during `fit`). Suitable to validate intput data.
+
+    features_out_: Tuple[int, pandas.Index]
+        Number of features after trasnform and corresponding feature names (intended to
+        be stored during `fit`). Suitable to set feature names for transform and
+        validate input for `inverse_transform`.
+
+    """
+
+    _feature_attrs = ["features_in_", "features_out_"]
 
     def _setup_frame_input_fit(self, features_in: pd.Index, features_out: pd.Index):
 
@@ -185,7 +206,7 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 # For convenience features_out can be given as a list
                 # (better code readability than pd.Index)
                 features_out = pd.Index(
-                    features_out, dtype=np.str, name=TSCDataFrame.IDX_QOI_NAME,
+                    features_out, dtype=np.str, name=TSCDataFrame.tsc_feature_col_name,
                 )
 
             self._setup_frame_input_fit(
@@ -202,58 +223,45 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 features_in=X.shape[1], features_out=features_out
             )
 
-    def _validate_features_transform(self, X: TRANF_TYPES):
-        self._check_attributes_set_up(self._FEAT_ATTR)
+    def _validate_feature_input(self, X: TransformType, direction):
 
-        if self._has_feature_names(X):
-            if self.features_in_[1] is None:
-                raise ValueError(
-                    "fit method was called with np.ndarray, there is no "
-                    "support for pd.DataFrame for transform or "
-                    "inverse_transform"
-                )
-            self._validate_feature_names(X=X, direction="transform")
-        else:
+        self._check_attributes_set_up(self._feature_attrs)
+
+        if not self._has_feature_names(X) or self.features_out_[1] is None:
+            # Either
+            # * now X has no feature names, or
+            # * during fit X had no feature names given.
+            # --> Only check if shape is correct and trust user with the rest
             if self.features_in_[0] != X.shape[1]:
                 raise ValueError(
-                    f"shape mismatch expected {self.features_in_[0]} "
-                    f"got {X.shape[1]}"
+                    f"shape mismatch expected {self.features_out_[0]} features (cols in "
+                    f"X) but got {X.shape[1]}"
+                )
+        else:  # self._has_feature_names(X)
+            # Now X has features and during fit features were given. So now we can
+            # check if both feature names match:
+
+            _check_features: Tuple[int, pd.Index]
+
+            if direction == "transform":
+                _check_features = self.features_in_
+            elif direction == "inverse_transform":
+                _check_features = self.features_out_
+            else:
+                raise RuntimeError(
+                    f"'direction'={direction} not known. Please report bug."
                 )
 
-    def _validate_features_inverse_transform(self, X: TRANF_TYPES):
-        self._check_attributes_set_up(self._FEAT_ATTR)
-
-        if self._has_feature_names(X):
-            if self.features_in_[1] is None:
-                raise ValueError(
-                    "fit method was called with np.ndarray, there is no "
-                    "support for pd.DataFrame for transform or "
-                    "inverse_transform"
-                )
-            self._validate_feature_names(X, direction="inverse")
-
-    def _validate_feature_names(self, X: TRANF_TYPES, direction):
-
-        _check_features: Tuple[int, pd.Index]
-
-        if direction == "transform":
-            _check_features = self.features_in_
-        elif direction == "inverse":
-            _check_features = self.features_out_
-        else:
-            raise RuntimeError("Please report bug.")
-
-        if self._has_feature_names(X):
             if isinstance(X, pd.Series):
-                # if X is a Series, then the columns of the original data are in a Series
-                # this usually happens if X.iloc[0, :] --> returns a Series
+                # if X is a Series, then the columns of the original data are in a
+                # Series this usually happens if X.iloc[0, :] --> returns a Series
                 pdtest.assert_index_equal(right=_check_features[1], left=X.index)
             else:
                 pdtest.assert_index_equal(right=_check_features[1], left=X.columns)
 
     def _same_type_X(
-        self, X: TRANF_TYPES, values: np.ndarray, set_columns
-    ) -> TRANF_TYPES:
+        self, X: TransformType, values: np.ndarray, set_columns: pd.Index
+    ) -> TransformType:
 
         _type = type(X)
 
@@ -262,19 +270,41 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
             # check for the special case, then for the more general case.
 
             return TSCDataFrame.from_same_indices_as(
-                X, values=values, except_columns=set_columns
+                X, values=np.asarray(values), except_columns=set_columns
             )
         elif isinstance(X, pd.DataFrame):
             return pd.DataFrame(values, index=X.index, columns=set_columns)
-        elif isinstance(X, np.ndarray):
-            return values
         else:
-            raise TypeError(f"input type {type(X)} is not supported")
+            try:
+                # try to view as numpy.array
+                values = np.asarray(values)
+            except Exception:
+                raise TypeError(f"input type {type(X)} is not supported.")
+            else:
+                return values
 
 
 class TSCPredictMixIn(TSCBaseMixIn):
+    """Methods and functionality to provide time series prediction.
 
-    _FEAT_ATTR = ["features_in_", "time_values_in_", "dt_"]
+    Parameters
+    ----------
+
+    features_in_: Tuple[int, pandas.Index]
+        Number of features during fit and corresponding feature names (intended to
+        be stored during `fit`). Suitable to test or create initial conditions.
+
+    time_values_in_: Tuple[int, numpy.ndarray]
+        Number of time values and array with all actual time values in at least on time
+        series (intended to be stored during `fit`). This allows to check for
+        time extrapolation.
+
+    dt_
+        time delta during fit
+
+    """
+
+    _cls_feature_attrs = ["features_in_", "time_values_in_", "dt_"]
 
     @property
     def time_interval_(self):
@@ -282,17 +312,15 @@ class TSCPredictMixIn(TSCBaseMixIn):
         return (self.time_values_in_[1][0], self.time_values_in_[1][-1])
 
     def _setup_default_tsc_metric_and_score(self):
-        self.metric_eval = TSCMetric.make_tsc_metric(
-            metric="rmse", mode="qoi", scaling="min-max"
-        )
-        self._score_eval = make_tsc_scorer(self.metric_eval)
+        self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")
+        self._score_eval = TSCScoring(self.metric_eval)
 
     def _setup_features_and_time_fit(self, X: TSCDataFrame):
 
         if not isinstance(X, TSCDataFrame):
             raise TypeError("Only TSCDataFrame can be used for 'X'. ")
 
-        time_values = X.time_values(unique_values=True)
+        time_values = X.time_values()
         features_in = X.columns
 
         time_values = self._validate_time_values(time_values=time_values)
@@ -359,10 +387,10 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
         if delta_time != self.dt_:
             raise ValueError(
-                f"delta_time during fit was {self.dt_}, " f"now it is {delta_time}"
+                f"delta_time during fit was {self.dt_}, now it is {delta_time}"
             )
 
-    def _validate_feature_names(self, X: TRANF_TYPES):
+    def _validate_feature_names(self, X: TransformType):
         self._check_attributes_set_up(check_attributes=["features_in_"])
 
         try:
@@ -371,7 +399,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
             raise ValueError(e.args[0])
 
     def _validate_features_and_time_values(
-        self, X: FEATURE_NAME_TYPES, time_values: Optional[np.ndarray] = None
+        self, X: DataFrameType, time_values: Optional[np.ndarray] = None
     ):
 
         self._check_attributes_set_up(check_attributes=["time_values_in_"])
@@ -394,20 +422,14 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
         return X, time_values
 
-    def fit(self, X: PRE_FIT_TYPES, **fit_params):
-        raise NotImplementedError("base class")
+    def fit(self, X: TimePredictType, **fit_params):
+        raise NotImplementedError("method not implemented")
 
     def reconstruct(self, X: TSCDataFrame):
-        raise NotImplementedError("base class")
+        raise NotImplementedError("method not implemented")
 
-    @DeprecationWarning
-    def fit_reconstruct(self, X: TSCDataFrame, **fit_params):
-        raise NotImplementedError("base class")
-
-    def predict(self, X: PRE_IC_TYPES, time_values=None, **predict_params):
-        # NOTE the definition of predict cannot be a TSC. Best is provided as a
-        # pd.DataFrame with all the information...
-        raise NotImplementedError("base class")
+    def predict(self, X: InitialConditionType, time_values=None, **predict_params):
+        raise NotImplementedError("method not implemented")
 
 
 class DmapKernelMethod(BaseEstimator):
@@ -432,7 +454,7 @@ class DmapKernelMethod(BaseEstimator):
         self.dist_backend_kwargs = dist_backend_kwargs
 
     @property
-    def kernel_(self):
+    def kernel_(self) -> DmapKernelFixed:
         if not hasattr(self, "_kernel"):
             raise AttributeError(
                 f"Subclass {type(self)} is not properly implemented. "
@@ -454,7 +476,7 @@ class DmapKernelMethod(BaseEstimator):
 
         try:
             eigvals, eigvect = compute_kernel_eigenpairs(
-                matrix=kernel_matrix,
+                kernel_matrix=kernel_matrix,
                 n_eigenpairs=self.n_eigenpairs,
                 is_symmetric=self.kernel_.is_symmetric,
                 is_stochastic=self.is_stochastic,

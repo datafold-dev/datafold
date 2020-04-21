@@ -1,6 +1,13 @@
-""" Diffusion maps module.
-"""
-
-from datafold.dynfold.dmap import *
-from datafold.dynfold.dmd import *
-from datafold.dynfold.outofsample import *
+from datafold.dynfold.dmap import DiffusionMaps, LocalRegressionSelection
+from datafold.dynfold.dmd import DMDBase, DMDEco, DMDFull
+from datafold.dynfold.outofsample import (
+    GeometricHarmonicsInterpolator,
+    LaplacianPyramidsInterpolator,
+)
+from datafold.dynfold.transform import (
+    TSCFeaturePreprocess,
+    TSCIdentity,
+    TSCPrincipalComponent,
+    TSCRadialBasis,
+    TSCTakensEmbedding,
+)

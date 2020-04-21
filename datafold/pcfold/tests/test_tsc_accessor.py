@@ -4,9 +4,8 @@ import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
-from sklearn.metrics import max_error, mean_absolute_error, mean_squared_error
 
-from datafold.pcfold.timeseries import TSCDataFrame
+from datafold.pcfold import TSCDataFrame
 
 
 class TestTscAccessor(unittest.TestCase):
@@ -60,8 +59,8 @@ class TestTscAccessor(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_shift_matrices(self):
-        # TODO: potentially do more tests (esp. with uneven number of trajectories,
-        #  this  is a quite important functionality!)
+        # TODO: potentially do more tests (esp. with uneven number of time series,
+        #  this is a quite important functionality!)
 
         tc = TSCDataFrame(self.simple_df)
         actual_left, actual_right = tc.tsc.shift_matrices()

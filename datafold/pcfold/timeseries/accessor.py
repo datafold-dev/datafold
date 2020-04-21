@@ -1,19 +1,32 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
 from scipy.stats import multivariate_normal
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
-from datafold.utils.datastructure import is_float, is_integer
+from datafold.utils.general import is_float, is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
 class TSCAccessor(object):
+    """Accessor functions operatoring on TSCDataFrame.
+
+    See `documentation <https://pandas.pydata.org/pandas-docs/stable/development/extending.html?highlight=accessor>`_
+    for regular pandas accessors.
+
+    Parameters
+    ----------
+
+    tsc_df
+        time series collection data to carry out accessor functions on
+    """
+
     def __init__(self, tsc_df: TSCDataFrame):
 
         # NOTE: cannot call TSCDataFrame(tsc_df) here to transform in case it is a normal
@@ -23,101 +36,193 @@ class TSCAccessor(object):
                 "Can use 'tsc' extension only for type TSCDataFrame (convert before)"
             )
 
-        self._tsc_df: TSCDataFrame = tsc_df
+        self._tsc_df = tsc_df
 
     def check_tsc(
         self,
-        ensure_all_finite=True,
-        ensure_same_length=False,
-        ensure_const_delta_time=True,
-        ensure_delta_time=None,
-        ensure_same_time_values=False,
-        ensure_normalized_time=False,
-        ensure_n_timeseries=None,
-        ensure_min_n_timesteps=None,
+        ensure_all_finite: bool = True,
+        ensure_same_length: bool = False,
+        ensure_const_delta_time: bool = True,
+        ensure_delta_time: Optional[float] = None,
+        ensure_same_time_values: bool = False,
+        ensure_normalized_time: bool = False,
+        ensure_n_timeseries: Optional[int] = None,
+        ensure_min_timesteps: Optional[int] = None,
     ) -> TSCDataFrame:
+        """Check and validate properties.
+
+        This summarises the single check functions also contained in the accessor. Use
+        this function to validate many properties.
+
+        Parameters
+        ----------
+        ensure_all_finite
+            If True check if all values are finite (no 'nan' or 'inf' values).
+
+        ensure_same_length
+            If True check if all time series have the same length.
+
+        ensure_const_delta_time
+            If True check that all time series have the same time delta.
+
+        ensure_delta_time
+            If given check that time series have required time delta.
+
+        ensure_same_time_values
+            If True check that all time series have the same time values.
+
+        ensure_normalized_time
+            If True check if the time values are normalized.
+
+        ensure_n_timeseries
+            If given check if the required number time series are present.
+            
+        ensure_min_timesteps
+            If given check if every time series has the required minimum of time steps.
+
+        Returns
+        -------
+        TSCDataFrame
+            validated time series collection (without changes)
+        """
 
         # TODO: allow handle_fail="raise | warn | return"?
 
-        if ensure_same_length and not self._tsc_df.is_equal_length():
+        if ensure_all_finite:
+            self.check_finite()
+
+        if ensure_same_length:
+            self.check_timeseries_same_length()
+
+        if ensure_const_delta_time:
+            self.check_const_time_delta()
+
+        if ensure_delta_time is not None:
+            self.check_required_time_delta(required_time_delta=ensure_delta_time)
+
+        if ensure_same_time_values:
+            self.check_timeseries_same_timevalues()
+
+        if ensure_normalized_time:
+            self.check_normalized_time()
+
+        if ensure_n_timeseries is not None:
+            self.check_required_n_timeseries(required_n_timeseries=ensure_n_timeseries)
+
+        if ensure_min_timesteps is not None:
+            self.check_required_min_timesteps(ensure_min_timesteps)
+
+        return self._tsc_df
+
+    def check_finite(self) -> None:
+        """Check if all values are finite (i.e. does not contain `nan` or `inf`).
+        """
+        if not self._tsc_df.is_finite():
+            raise TSCException.not_finite()
+
+    def check_timeseries_same_length(self) -> None:
+        """Check if time series in the collectino have the same length.
+        """
+        if not self._tsc_df.is_equal_length():
             raise TSCException.not_same_length(
                 actual_lengths=self._tsc_df.is_equal_length()
             )
 
-        if ensure_const_delta_time or ensure_delta_time is not None:
-            # save only once, as it can be expensive...
-            actual_time_delta = self._tsc_df.delta_time
-        else:
-            actual_time_delta = None
+    def check_const_time_delta(self) -> None:
+        """Check if all time series have the same time delta.
+        """
+        if not self._tsc_df.is_const_delta_time():
+            raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
 
-        if ensure_const_delta_time and isinstance(actual_time_delta, pd.Series):
-            raise TSCException.not_const_delta_time(actual_time_delta)
-
-        if ensure_delta_time is not None:
-
-            if (
-                isinstance(actual_time_delta, pd.Series)
-                and is_float(ensure_delta_time)
-                or is_float(actual_time_delta)
-                and isinstance(ensure_delta_time, pd.Series)
-            ):
-                raise TSCException.not_required_delta_time(
-                    required_delta_time=ensure_delta_time,
-                    actual_delta_time=actual_time_delta,
-                )
-
-            if isinstance(actual_time_delta, pd.Series) and isinstance(
-                ensure_delta_time, pd.Series
-            ):
-                if not (actual_time_delta == ensure_delta_time).all():
-                    raise TSCException.not_required_delta_time(
-                        required_delta_time=ensure_delta_time,
-                        actual_delta_time=actual_time_delta,
-                    )
-
-        if ensure_all_finite and not self._tsc_df.is_finite():
-            raise TSCException.not_finite()
-
-        if ensure_same_time_values and not self._tsc_df.is_same_time_values():
+    def check_timeseries_same_timevalues(self) -> None:
+        """Check if all time series in the collection have the same time values.
+        """
+        if not self._tsc_df.is_same_time_values():
             raise TSCException.not_same_time_values()
 
-        if ensure_normalized_time and self._tsc_df.is_normalized_time():
+    def check_normalized_time(self) -> None:
+        """Check if time series collection has normalized time.
+
+        See Also
+        --------
+
+        :py:meth:`TSCAccessor.normalize_time`
+
+        """
+        if not self._tsc_df.is_normalized_time():
             raise TSCException.not_normalized_time()
 
-        if (
-            ensure_n_timeseries is not None
-            and self._tsc_df.n_timeseries != ensure_n_timeseries
-        ):
+    def check_required_time_delta(
+        self, required_time_delta: Union[pd.Series, float, int]
+    ) -> None:
+        """Check if time series collection has required time delta.
+
+        Parameters
+        ----------
+        required_time_delta
+            single value or per time series
+        """
+
+        try:
+            # this is a better variant than
+            # np.asarray(self._tsc_df.delta_time) == np.asarray(required_time_delta)
+            # because the shapes can also mismatch
+            nptest.assert_array_equal(
+                np.asarray(self._tsc_df.delta_time), np.asarray(required_time_delta)
+            )
+        except AssertionError:
+            raise TSCException.not_required_delta_time(
+                required_delta_time=required_time_delta,
+                actual_delta_time=self._tsc_df.delta_time,
+            )
+
+    def check_required_n_timeseries(self, required_n_timeseries: int) -> None:
+        """Check if there is exactly a number of time series in the collection.
+
+        Parameters
+        ----------
+        required_n_timeseries
+            value
+        """
+        if self._tsc_df.n_timeseries != required_n_timeseries:
             raise TSCException.not_required_n_timeseries(
-                required_n_timeseries=ensure_n_timeseries,
+                required_n_timeseries=required_n_timeseries,
                 actual_n_timeseries=self._tsc_df.n_timeseries,
             )
 
-        if ensure_min_n_timesteps is not None:
-            _n_timesteps = self._tsc_df.n_timesteps
+    def check_required_min_timesteps(self, required_min_timesteps: int) -> None:
+        """Check if all time series in the collection have a minimum number of time steps.
 
-            if is_integer(_n_timesteps) and _n_timesteps < ensure_min_n_timesteps:
-                raise TSCException.not_min_timesteps(
-                    _n_timesteps, actual_n_timesteps=_n_timesteps
-                )
+        Parameters
+        ----------
+        required_min_timesteps
+            value
+        """
+        _n_timesteps = self._tsc_df.n_timesteps
+        if (np.asarray(_n_timesteps) < required_min_timesteps).any():
+            raise TSCException.not_min_timesteps(
+                _n_timesteps, actual_n_timesteps=_n_timesteps
+            )
 
-            if (
-                isinstance(_n_timesteps, pd.Series)
-                and (_n_timesteps < ensure_min_n_timesteps).any()
-            ):
-                raise TSCException.not_min_timesteps(
-                    _n_timesteps, actual_n_timesteps=_n_timesteps
-                )
+    def shift_time(self, shift_t: float):
+        """Shift all time values from the time series by a constant value.
 
-        return self._tsc_df
+        Parameters
+        ----------
+        shift_t
+            positive or negative time shift value
 
-    def shift_time(self, shift_t):
+        Returns
+        -------
+        TSCDataFrame
+            same shape as input
+        """
 
         if shift_t == 0:
             return self._tsc_df
 
         convert_times = self._tsc_df.index.get_level_values(1) + shift_t
-        convert_times = pd.Index(convert_times, name=TSCDataFrame.IDX_TIME_NAME)
+        convert_times = pd.Index(convert_times, name=TSCDataFrame.tsc_time_idx_name)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
             [self._tsc_df.index.get_level_values(0), convert_times]
@@ -129,8 +234,28 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def normalize_time(self):
+        """Normalize time for time series.
 
-        convert_times = self._tsc_df.index.get_level_values(TSCDataFrame.IDX_TIME_NAME)
+        Normalized time has the following properties:
+
+        * time starts at zero (in any time series)
+        * time delta is constant 1
+
+        Returns
+        -------
+        TSCDataFrame
+            normalized data with same shape as input
+
+        Raises
+        ------
+        TSCException
+            if TSCDataFrame has not constant time delta between all time series
+
+        """
+
+        convert_times = self._tsc_df.index.get_level_values(
+            TSCDataFrame.tsc_time_idx_name
+        )
         min_time, _ = self._tsc_df.time_interval()
         delta_time = self._tsc_df.delta_time
 
@@ -145,11 +270,11 @@ class TSCAccessor(object):
         convert_times = np.array(
             (convert_times - min_time) / delta_time, dtype=np.int64
         )
-        convert_times = pd.Index(convert_times, name=TSCDataFrame.IDX_TIME_NAME)
+        convert_times = pd.Index(convert_times, name=TSCDataFrame.tsc_time_idx_name)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
             [
-                self._tsc_df.index.get_level_values(TSCDataFrame.IDX_ID_NAME),
+                self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name),
                 convert_times,
             ]
         )
@@ -161,8 +286,37 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def shift_matrices(
-        self, snapshot_orientation="column"
+        self, snapshot_orientation: str = "col"
     ) -> Tuple[np.ndarray, np.ndarray]:
+        """Computes shift matrices from time series. 
+
+        Parameters
+        ----------
+        snapshot_orientation
+            Orientate snapshots (state at time) either in rows ("row") or
+            column-wise ("col")
+
+        Returns
+        -------
+        Both returned matrices have same shape with `(n_features, n_snapshots-1)` \
+        `(n_snapshots-1, n_features)` (depending on `snapshot_orientation`).
+
+        :class:`numpy.ndarray`
+            matrix for time steps (0,1,2,...,N-1)
+
+        :class:`numpy.ndarray`
+            matrix for time steps (1,2,...,N)
+
+        Raises
+        ------
+        TSCException
+            if time series have no constant time delta
+
+        See Also
+        --------
+        :py:class:`DMDFull`
+
+        """
 
         if not self._tsc_df.is_const_delta_time():
             raise TSCException.not_const_delta_time()
@@ -182,7 +336,7 @@ class TSCAccessor(object):
 
         assert len(insert_indices) == self._tsc_df.n_timeseries + 1
 
-        if snapshot_orientation == "column":
+        if snapshot_orientation == "col":
             shift_left = np.zeros([self._tsc_df.n_features, nr_shift_snapshots])
         elif snapshot_orientation == "row":
             shift_left = np.zeros([nr_shift_snapshots, self._tsc_df.n_features])
@@ -198,7 +352,7 @@ class TSCAccessor(object):
             # transpose because snapshots are column-wise by convention, whereas here they
             # are row-wise
 
-            if snapshot_orientation == "column":
+            if snapshot_orientation == "col":
                 # start from 0 and exclude last snapshot
                 shift_left[:, insert_indices[i] : insert_indices[i + 1]] = ts_df.iloc[
                     :-1, :
@@ -217,7 +371,27 @@ class TSCAccessor(object):
 
         return shift_left, shift_right
 
-    def time_values_overview(self):
+    def time_values_overview(self) -> pd.DataFrame:
+        """Generate table with time values overview.
+
+        Example of how the table looks:
+        .. generated with https://truben.no/table/
+
+        +----------------+------------+----------+----+
+        | Time series ID | start time | end time | dt |
+        +================+============+==========+====+
+        | 1              | 1          | 10       | 2  |
+        +----------------+------------+----------+----+
+        | 2              | 1          | 10       | 1  |
+        +----------------+------------+----------+----+
+        | 3              | 3          | 13       | 3  |
+        +----------------+------------+----------+----+
+
+        Returns
+        -------
+        pandas.DataFrame
+            overview
+        """
 
         table = pd.DataFrame(
             [self._tsc_df.time_interval(_id) for _id in self._tsc_df.ids],
@@ -228,16 +402,41 @@ class TSCAccessor(object):
         table["delta_time"] = self._tsc_df.delta_time
         return table
 
-    def plot_density2d(self, time, xresolution: int, yresolution: int, covariance=None):
-        """
-        Plot the density for a given time_step. For this:
-          - Take the first two columns of the underlying data frame and interpret them as
-            x and y coordinates.
-          - Then, place Gaussian bells onto these coordinates and sum up the values of the
-            corresponding probability density functions (PDF).
-          - The PDF must be evaluated on a fine-granular grid.
+    def plot_density2d(
+        self,
+        time,
+        xresolution: int,
+        yresolution: int,
+        covariance: Optional[np.ndarray] = None,
+    ):
+        """Plot the density for a given time.
 
-          Returns axis handle.
+        For this:
+
+          * Take the first two columns of the underlying data frame and interpret them as
+            x and y coordinates.
+          * Place Gaussian bells onto these coordinates and sum up the values of the
+            corresponding probability density functions (PDF).
+          * The PDF must be evaluated on a fine-granular grid.
+
+        Parameters
+        ----------
+        time
+            time value at which to draw the density
+
+        xresolution
+            resolution in `x` direction
+
+        yresolution
+            resolution in `y` direction
+
+        covariance
+            covariance of Gaussian bells
+
+        Returns
+        -------
+        matplotlib object
+            axis handle
         """
 
         if len(self._tsc_df.columns) != 2:
@@ -324,4 +523,6 @@ class TSCAccessor(object):
 
 
 if __name__ == "__main__":
-    pass
+    for i in dir(TSCAccessor):
+        if not i.startswith("_"):
+            print(f"   .. automethod:: {i}")

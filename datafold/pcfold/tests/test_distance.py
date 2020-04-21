@@ -2,10 +2,18 @@
 
 import unittest
 
+import numpy as np
 import numpy.testing as nptest
+import scipy
+import scipy.sparse
 from scipy.spatial.distance import cdist, pdist, squareform
 
-from datafold.pcfold.distance import *
+from datafold.pcfold.distance import (
+    _all_available_distance_algorithm,
+    _k_smallest_element_value,
+    apply_continuous_nearest_neighbor,
+    compute_distance_matrix,
+)
 
 
 class TestContinuousDistance(unittest.TestCase):
@@ -20,8 +28,8 @@ class TestContinuousDistance(unittest.TestCase):
         dense_dist_mat = compute_distance_matrix(self.example_matrix)
         sparse_dist_mat = compute_distance_matrix(self.example_matrix, cut_off=150)
 
-        dense_actual = get_k_smallest_element_value(dense_dist_mat, 3)
-        sparse_actual = get_k_smallest_element_value(sparse_dist_mat, 3)
+        dense_actual = _k_smallest_element_value(dense_dist_mat, 3)
+        sparse_actual = _k_smallest_element_value(sparse_dist_mat, 3)
 
         nptest.assert_array_equal(dense_actual, sparse_actual)
 
@@ -32,8 +40,8 @@ class TestContinuousDistance(unittest.TestCase):
         dense_dist_mat = compute_distance_matrix(self.example_matrix)
         sparse_dist_mat = compute_distance_matrix(self.example_matrix, cut_off=150)
 
-        get_k_smallest_element_value(dense_dist_mat, 3)
-        get_k_smallest_element_value(sparse_dist_mat, 3)
+        _k_smallest_element_value(dense_dist_mat, 3)
+        _k_smallest_element_value(sparse_dist_mat, 3)
 
         nptest.assert_array_equal(
             dense_dist_mat, compute_distance_matrix(self.example_matrix)
@@ -49,14 +57,12 @@ class TestContinuousDistance(unittest.TestCase):
         dense_dist_mat = compute_distance_matrix(self.example_matrix)
         sparse_dist_mat = compute_distance_matrix(self.example_matrix, cut_off=150)
 
-        dense_actual = get_k_smallest_element_value(
-            dense_dist_mat, 0, ignore_zeros=False
-        )
-        sparse_actual = get_k_smallest_element_value(
+        dense_actual = _k_smallest_element_value(dense_dist_mat, 0, ignore_zeros=False)
+        sparse_actual = _k_smallest_element_value(
             sparse_dist_mat, 0, ignore_zeros=False
         )
 
-        expected = dense_dist_mat.min(axis=1)  # self is always zero
+        expected = np.min(dense_dist_mat, axis=1)  # self is always zero
 
         nptest.assert_array_equal(dense_actual, expected)
         nptest.assert_array_equal(sparse_actual, expected)
@@ -77,7 +83,7 @@ class TestContinuousDistance(unittest.TestCase):
         kmin = 2
 
         expected = sorted_distance_matrix[:, kmin]
-        actual = get_k_smallest_element_value(distance_matrix, kmin, ignore_zeros=False)
+        actual = _k_smallest_element_value(distance_matrix, kmin, ignore_zeros=False)
 
         nptest.assert_array_equal(expected, actual)
 
@@ -103,7 +109,7 @@ class TestContinuousDistance(unittest.TestCase):
                     res[i] = np.sort(r)[k]
             return res
 
-        expected = get_k_smallest_element_value(distance_matrix, k=1, ignore_zeros=True)
+        expected = _k_smallest_element_value(distance_matrix, k=1, ignore_zeros=True)
         actual = get_kth_smallest_in_row_legacy(distance_matrix, k=1)
 
         nptest.assert_array_equal(expected, actual)
@@ -113,10 +119,10 @@ class TestContinuousDistance(unittest.TestCase):
         distance_matrix = compute_distance_matrix(self.example_matrix)
 
         with self.assertRaises(ValueError):
-            get_k_smallest_element_value(distance_matrix, 11)
+            _k_smallest_element_value(distance_matrix, 11)
 
         with self.assertRaises(ValueError):
-            get_k_smallest_element_value(distance_matrix, -1)
+            _k_smallest_element_value(distance_matrix, -1)
 
     def test_continuous_nn(self):
         kmin = 3  # magic number  # TODO: make as a parameter?
@@ -168,7 +174,7 @@ class TestDistAlgorithms(unittest.TestCase):
         self.data_X = np.random.rand(500, 100)
         self.data_Y = np.random.rand(300, 100)
 
-        self.algos = all_available_distance_algorithm()
+        self.algos = _all_available_distance_algorithm()
 
     def test_pdist_dense(self):
         backend_options = {}
@@ -188,14 +194,14 @@ class TestDistAlgorithms(unittest.TestCase):
                         cut_off=None,
                         kmin=0,
                         tol=1,
-                        backend=algo.NAME,
+                        backend=algo.backend_name,
                         **backend_options,
                     )
 
                     self.assertIsInstance(actual, np.ndarray)
                     nptest.assert_allclose(actual, expected, atol=1e-14, rtol=1e-14)
                 except AssertionError as e:
-                    print(f"{algo.NAME} failed for metric {metric}")
+                    print(f"{algo.backend_name} failed for metric {metric}")
                     raise e
 
     def test_cdist_dense(self):
@@ -220,20 +226,20 @@ class TestDistAlgorithms(unittest.TestCase):
                         cut_off=None,
                         kmin=0,
                         tol=1,
-                        backend=algo.NAME,
+                        backend=algo.backend_name,
                         **backend_options,
                     )
 
                     self.assertIsInstance(actual, np.ndarray)
                     nptest.assert_allclose(actual, expected, atol=1e-15, rtol=1e-14)
                 except Exception as e:
-                    print(f"{algo.NAME} failed for metric {metric}")
+                    print(f"{algo.backend_name} failed for metric {metric}")
                     raise e
 
     def test_pdist_sparse(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
-        cut_off = np.median(expected)
+        cut_off = float(np.median(expected))
 
         expected[expected > cut_off] = 0
 
@@ -250,7 +256,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         cut_off=cut_off,
                         kmin=0,
                         tol=1,
-                        backend=algo.NAME,
+                        backend=algo.backend_name,
                         **backend_options,
                     )
 
@@ -259,7 +265,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         actual.toarray(), expected, atol=1e-14, rtol=1e-14
                     )
                 except Exception as e:
-                    print(f"{algo.NAME} failed for metric {metric}")
+                    print(f"{algo.backend_name} failed for metric {metric}")
                     raise e
 
     def test_cdist_sparse(self):
@@ -267,7 +273,7 @@ class TestDistAlgorithms(unittest.TestCase):
 
         # See also comment in 'test_cdist_dense'
         expected = cdist(self.data_Y, self.data_X)
-        cut_off = np.median(expected)
+        cut_off = float(np.median(expected))
 
         expected[expected > cut_off] = 0
 
@@ -285,7 +291,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         cut_off=cut_off,
                         kmin=0,
                         tol=1,
-                        backend=algo.NAME,
+                        backend=algo.backend_name,
                         **backend_options,
                     )
 
@@ -294,13 +300,13 @@ class TestDistAlgorithms(unittest.TestCase):
                         actual.toarray(), expected, atol=1e-15, rtol=1e-14
                     )
                 except Exception as e:
-                    print(f"{algo.NAME} failed with metric {metric}")
+                    print(f"{algo.backend_name} failed with metric {metric}")
                     raise e
 
     def test_pdist_sparse_zeros(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
-        cut_off = np.median(expected)
+        cut_off = float(np.median(expected))
 
         expected[expected > cut_off] = 0
         expected = scipy.sparse.csr_matrix(expected)
@@ -322,7 +328,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         cut_off=cut_off,
                         kmin=0,
                         tol=1,
-                        backend=algo.NAME,
+                        backend=algo.backend_name,
                         **backend_options,
                     )
 
@@ -331,7 +337,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         expected.data, actual.data, atol=1e-14, rtol=1e-14
                     )
                 except Exception as e:
-                    print(f"{algo.NAME} failed for metric {metric}")
+                    print(f"{algo.backend_name} failed for metric {metric}")
                     raise e
 
     def test_cdist_sparse_duplicate_zeros(self):
@@ -340,7 +346,7 @@ class TestDistAlgorithms(unittest.TestCase):
         data_Y = self.data_Y.copy()  # make copy to manipulate values
         data_Y[0:3, :] = self.data_X[0:3, :]  # make duplicate values
         expected = cdist(data_Y, self.data_X)
-        cut_off = np.median(expected)
+        cut_off = float(np.median(expected))
         expected[expected > cut_off] = 0
 
         expected = scipy.sparse.csr_matrix(expected)
@@ -364,7 +370,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         cut_off=cut_off,
                         kmin=0,
                         tol=1,
-                        backend=algo.NAME,
+                        backend=algo.backend_name,
                         **backend_options,
                     )
 
@@ -374,11 +380,5 @@ class TestDistAlgorithms(unittest.TestCase):
                     )
 
                 except Exception as e:
-                    print(f"{algo.NAME} failed for metric {metric}")
+                    print(f"{algo.backend_name} failed for metric {metric}")
                     raise e
-
-
-if __name__ == "__main__":
-    td = TestDistAlgorithms()
-    td.setUp()
-    td.test_pdist_sparse_zeros()

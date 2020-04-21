@@ -5,7 +5,10 @@ source ../venv/bin/activate
 # ./.. points to the datafold package and fetches then the datafold package with all modules contained
 # documentation: https://www.sphinx-doc.org/en/master/man/sphinx-apidoc.html
 # use -f to force build all modules
-sphinx-apidoc -o ./source/_apidoc ./.. setup.py
+#sphinx-autogen -o ./source/_apidoc ./.. setup.py
+#sphinx-apidoc -o ./source/_apidoc ./.. setup.py
+
+export DATAFOLD_NBSPHINX_EXECUTE="never"
 
 # create html of the documentation
 make html

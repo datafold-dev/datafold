@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import numpy.testing as nptest
 
-from datafold.utils.maths import *
+from datafold.utils.general import *
 
 
 class TestMathUtils(unittest.TestCase):

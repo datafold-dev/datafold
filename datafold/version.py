@@ -1,15 +1,22 @@
 class Version:
     """Current version."""
 
-    major_version: int = 0
-    minor_version: int = 1
-    patch: int = 0
+    major_version: int = 0  # making incompatible API changes,
+    minor_version: int = 1  # adding functionality in a backwards-compatible manner
+    patch: int = 0  # for backwards-compatible bug fixes
+
+    # NOTE: for the moment, there are no release cycles (such as alpha, beta, release
+    #  candidates,...)
 
     # Semantic versioning policy
-    # See https://semver.org/
+    # preferred by Python
+    # https://packaging.python.org/guides/distributing-packages-using-setuptools/#semantic-versioning-preferred
+
+    # See also https://semver.org/
+
     v_short = f"{major_version}.{minor_version}.{patch}"
 
-    # set only integers:
+    # make date of release for longer version numbers
     year: int = 2020
     month: int = 2
     day: int = 19
