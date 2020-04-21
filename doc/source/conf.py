@@ -11,15 +11,18 @@
 #
 import os
 import sys
+from datetime import datetime
 
-import sphinx_rtd_theme  # "Read the doc" theme
-
+# "read the doc" theme
 # -- https://sphinx-rtd-theme.readthedocs.io/en/stable/
+import sphinx_rtd_theme
 
-PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
+PATH2DOC = os.path.abspath(".")
+PATH2ROOT = os.path.abspath(os.path.join(PATH2DOC, "..", ".."))
 PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
 
 try:
+    sys.path.insert(0, PATH2DOC)
     sys.path.insert(0, PATH2ROOT)
     sys.path.insert(0, PATH2SRC)
 
@@ -30,7 +33,7 @@ except ImportError:
 
 # -- Project information -----------------------------------------------------------------
 project = "datafold"
-copyright = "2019, datafold contributors"
+copyright = f"2019-{datetime.now().year}, the datafold contributors"
 author = "datafold contributors"
 version = __version__
 
@@ -48,10 +51,6 @@ extensions = [
     # See build_full.sh file to execute sphinx-apidoc which fetches
     # the documentation automatically.
     "sphinx.ext.autodoc",
-    # Allows to use type-hinting for documenting acceptable argument types and return
-    # value types of functions
-    # https://github.com/agronholm/sphinx-autodoc-typehints
-    "sphinx_autodoc_typehints",
     # generates function/method/attribute summary lists
     "sphinx.ext.autosummary",
     # See below for configuration of _todo extension
@@ -66,7 +65,33 @@ extensions = [
     # numpydoc docstring guide
     #  -> https://numpydoc.readthedocs.io/en/latest/format.html
     "sphinx.ext.napoleon",
-    "sphinx_rtd_theme",
+    # Faciliates the automatic generation of API documentation pages for Python package
+    # modules. https://sphinx-automodapi.readthedocs.io/en/latest/
+    "sphinx_automodapi.automodapi",
+    # "sphinx_automodapi.smart_resolver",
+    # Allows to use type-hinting for documenting acceptable argument types and return
+    # value types of functions.
+    # https://github.com/agronholm/sphinx-autodoc-typehints
+    # NOTE: sphinx_autodoc_typehints must be AFTER "sphinx.ext.napoleon" include!!
+    # https://github.com/agronholm/sphinx-autodoc-typehints/issues/15#issuecomment\
+    # -298224484
+    "sphinx_autodoc_typehints",
+    # Tries to find the source files where the objects are contained. When found,
+    # a separate HTML page will be output for each module with a highlighted version of
+    # the source code.
+    # https://www.sphinx-doc.org/en/master/usage/extensions/viewcode.html
+    "sphinx.ext.viewcode",
+    # "numpydoc",
+    # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
+    # Generate automatic links to the documentation of objects in other projects.
+    # see options below
+    "sphinx.ext.intersphinx",
+    # https://nbsphinx.readthedocs.io/en/0.6.0/
+    # provides a source parser for *.ipynb files
+    "nbsphinx",
+    # Include notebook files from outside the sphinx source root.
+    # https://github.com/vidartf/nbsphinx-link
+    "nbsphinx_link",
 ]
 
 # ----------------------------------------------------------------------------------------
@@ -101,6 +126,28 @@ imgmath_latex_args = []  # TODO raise error if not found?
 imgmath_latex_preamble = r"\usepackage{amsmath,amstext}"
 
 # ----------------------------------------------------------------------------------------
+# "sphinxcontrib.bibtex"
+# Because exported BibTex files include file information to PDF -- remove in the
+# following snippet.
+
+filepath_literature_file = os.path.join(".", "_static", "literature.bib")
+filepath_literature_file = os.path.abspath(filepath_literature_file)
+
+# read content
+with open(filepath_literature_file, "r") as file:
+    content = file.read()
+
+# leave out 'file' keys out
+new_content = []
+for line in content.splitlines(keepends=True):
+    if not line.lstrip().startswith("file"):
+        new_content.append(line)
+
+# write content back to file
+with open(filepath_literature_file, "w") as file:
+    file.write("".join(new_content))
+
+# ----------------------------------------------------------------------------------------
 # napoleon (see full list of available options:
 # Full config explanations here:
 # https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html#configuration
@@ -119,7 +166,8 @@ napoleon_use_admonition_for_notes = False
 napoleon_use_admonition_for_references = False
 
 # use the :ivar: role for instance variables
-napoleon_use_ivar = False
+# shows the "Attributes" section
+napoleon_use_ivar = True
 
 # True -> :param: role for each function parameter.
 # False -> use a single :parameters: role for all the parameters.
@@ -130,6 +178,81 @@ napoleon_use_keyword = True
 # with the description.
 napoleon_use_rtype = True
 
+
+# ----------------------------------------------------------------------------------------
+# sphinx_automodapi.automodapi (see full list of available options:
+# Full config explanations here:
+# https://sphinx-automodapi.readthedocs.io/en/latest/
+
+# Do not include inherited members by default
+automodsumm_inherited_members = False
+
+# ----------------------------------------------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
+# generate automatic links to the documentation of objects in other projects.
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://docs.scipy.org/doc/numpy", None),
+    "scikit-learn": ("https://scikit-learn.org/stable/", None),
+    "scipy": ("http://docs.scipy.org/doc/scipy/reference", None),
+}
+
+# TODO: many pandas links are not resolved -- See:
+#  https://github.com/agronholm/sphinx-autodoc-typehints/issues/47
+#  in order to have not a mix between some links that work and many that don't
+#  pandas is unfortunately excluded for now
+#  a solution would be to make an own .inv fil, that replaces the short links to
+#  deep-links (see github issue)
+#  "pandas": ("http://pandas.pydata.org/pandas-docs/dev", None)
+#  ~
+#  See also: https://sphobjinv.readthedocs.io/en/latest/customfile.html
+
+# The maximum number of days to cache remote inventories.
+intersphinx_cache_limit = 5  # default = 5
+
+# The number of seconds for timeout.
+intersphinx_timeout = 30
+
+# ----------------------------------------------------------------------------------------
+# nbsphinx - provides a source parser for *.ipynb files
+# generate automatic links to the documentation of objects in other projects.
+# https://nbsphinx.readthedocs.io/en/0.6.0/usage.html#nbsphinx-Configuration-Values
+
+nbsphinx_allow_errors = False
+
+try:
+    # allows to set expensive tutorial execution with environment variable
+    # the environment variable should be set if publishing the pages
+    nbsphinx_execute = str(os.environ["DATAFOLD_NBSPHINX_EXECUTE"])
+    print(nbsphinx_execute)
+    assert nbsphinx_execute in ["auto", "always", "never"]
+    print(
+        f"INFO: found valid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
+        f"variable."
+    )
+except KeyError:
+    # default
+    print(
+        "INFO: no environment variable DATFOLD_NBSPHINX_EXECUTE. Defaulting to not "
+        "execute tutorial files."
+    )
+    nbsphinx_execute = "never"
+
+nbsphinx_execute_arguments = [
+    "--InlineBackend.figure_formats={'svg', 'pdf'}",
+    "--InlineBackend.rc={'figure.dpi': 96}",
+]
+
+# add datafold and tutorials folder to PYTHONPATH to run jupyter notebooks
+os.environ["PYTHONPATH"] = f"{PATH2ROOT}:{os.path.join(PATH2ROOT, 'tutorials')}"
+
+# at the beginning of this file, the sys.path is set to PATH2DOC which allows to import
+# this module
+from include_tutorials import setup_tutorials  # isort:skip
+
+setup_tutorials()
+
+
 # ----------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
 
@@ -139,14 +262,18 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
+exclude_patterns = ["README.rst", "setup.py"]
 
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = "sphinx_rtd_theme"
+
+# html_theme = "sphinx_rtd_theme" # alternative theme
+html_theme = "pydata_sphinx_theme"
+html_logo = "_static/img/datafold_logo_pre.svg"
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

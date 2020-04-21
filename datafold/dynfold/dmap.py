@@ -1,72 +1,124 @@
-"""Diffusion maps module.
-
-This module implements the diffusion maps method for dimensionality reduction,
-as introduced in:
-
-# TODO: include as cite in documentation!
-Coifman, R. R., & Lafon, S. (2006). Diffusion maps. Applied and Computational Harmonic
-Analysis, 21(1), 5–30. DOI:10.1016/j.acha.2006.04.006
-"""
-
 from typing import Union
 
 import numpy as np
+import scipy.linalg
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
+from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.dynfold.base import TRANF_TYPES, DmapKernelMethod, TSCTransformerMixIn
-from datafold.pcfold.kernels import DmapKernelFixed, DmapKernelVariable
-from datafold.pcfold.pointcloud import PCManifold
-from datafold.utils.datastructure import if1dim_colvec, is_float, is_integer
-from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, random_subsample
+from datafold.dynfold.base import DmapKernelMethod, TransformType, TSCTransformerMixIn
+from datafold.pcfold import DmapKernelFixed, PCManifold
+from datafold.pcfold.kernels import DmapKernelVariable
+from datafold.utils.general import (
+    diagmat_dot_mat,
+    if1dim_colvec,
+    is_float,
+    is_integer,
+    mat_dot_diagmat,
+    random_subsample,
+)
 
 
 class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
-    """Nonlinear dimension reduction by parametrizing a manifold with diffusion maps.
-    Attributes:
+    """Geometrical parametrization of data manifold based on diffusion processes with
+    (fixed) bandwidth.
 
-    eigenvalues_ : np.ndarray
-        Eigenvalues of kernel matrix.
-    eigenvectors_ : np.ndarray
-        Eigenvectors of the kernel matrix, which can be used to parametrize the
-        manifold of X.
+    The diffusion maps allows to perform non-linear dimension reduction
+    (also known as unsupervervised learning or manifold learning) and also approximates
+    operators
+
+        - Laplace-Beltrami
+        - Fokker-Plank
+        - Graph Laplacian
+
+    Parameters
+    ----------
+    epsilon
+        Bandwidth/scale of diffusion map kernel (see :py:class:`DmapKernelFixed`).
+
+    n_eigenpairs
+        Number of eigenpairs to compute from computed diffusion kernel matrix.
+
+    time_exponent
+        Exponent of eigenvalues as the time progress of the diffusion process.
+
+    cut_off
+        Distance cut off, kernel values with a corresponding larger Euclidean distance
+        are set to zero. Lower values increases the sparsity of kernel matrices and
+        faster computation of eigenpairs at the cost of accuracy.
+
+    is_stochastic
+        If True the diffusion kernel matrix is normalized (stochastic rows).
+
+    alpha
+        Re-normalization parameter. Set to `alpha=0` for graph laplacian, `alpha=0.5`
+        Fokker-Plank and `alpha=1` for Laplace-Beltrami (`is_stochastic=True` in all
+        cases).
+
+    symmetrize_kernel
+        If True a conjugate transformation of non-symmetric kernel matrices is performed.
+        This improves numerical stability and allows to use eigensolver algorithms
+        designed for Hermitian matrices.
+
+    dist_backend
+        Backend of distance matrix computation. Defaults to `guess_optimal`,
+        which selects the backend based on the selectin of ``cut_off`` and the
+        available algorithms. See also :class:`.DistanceAlgorithm`.
+
+    dist_backend_kwargs,
+        Keyword arguments handled to distance matrix backend.
+
+    Attributes
+    ----------
+    X_: PCManifold
+        Training data during fit, is required for out-of-sample mappings. Equipped with \
+        kernel :py:class:`DmapKernelFixed`
+
+    eigenvalues_ : numpy.ndarray
+        Eigenvalues of diffusion kernel in decreasing magnitude order.
+
+    eigenvectors_: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+        Eigenvectors of the kernel matrix to parametrizes the data manifold.
+
+    inv_coeff_matrix_: numpy.ndarray
+        Coeffficient matrix to map points from embedding space back to original space.\
+        Computation is delayed until `inverse_transform` is called for the first time.
+
+    kernel_matrix_ : numpy.ndarray
+        Diffusion kernel matrix computed during fit.
+
+        .. note::
+            Currently, the kernel matrix is only used for testing. It may be removed.
+
+
+    References
+    ----------
+    :cite:`lafon_diffusion_2004`
+    :cite:`coifman_diffusion_2006`
+
     """
 
-    VALID_OPERATOR_NAMES = [
+    _cls_valid_operator_names = (
         "laplace_beltrami",
         "fokker_planck",
         "graph_laplacian",
         "rbf",
-    ]
+    )
 
     def __init__(
         self,
         epsilon: float = 1.0,
         n_eigenpairs: int = 10,
-        # Note for docu: exponent in embedding \lambda^time_exponent \psi
-        time_exponent=0,
-        cut_off: float = np.inf,  # TODO: can provide to optimize the cut_off via PCM
+        time_exponent: float = 0,
+        cut_off: float = np.inf,
         is_stochastic: bool = True,
         alpha: float = 1,
-        # NOTE for docu: if is_stochastic=False, then this is not really required
-        symmetrize_kernel=True,
-        dist_backend="guess_optimal",
+        symmetrize_kernel: bool = True,
+        dist_backend: str = "guess_optimal",
         dist_backend_kwargs=None,
     ) -> None:
-        # TODO: following the new convention:
-        #   rename num_eigenpairs to n_eigenpairs
-        """Initialize base of diffusion maps object.
-
-        This function computes the eigen-decomposition of the transition matrix
-        associated to a random walk on the data using a (fixed) bandwidth equal to
-        epsilon.
-
-        NOTE for docu: if is_stochastic=False, it is actually not DMAP anymore, but a
-          RadialBasisKernel, so this option is only for convenience.
-
-        """
 
         self.time_exponent = time_exponent
 
@@ -82,7 +134,22 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         )
 
     @classmethod
-    def from_operator_name(cls, name, **kwargs):
+    def from_operator_name(cls, name: str, **kwargs) -> "DiffusionMaps":
+        """Instantiate new model to approximate operator (to be selected by name).
+
+        Parameters
+        ----------
+        name
+            "laplace_beltrami", "fokker_plank", "graph_laplacian" or "rbf".
+
+        **kwargs
+            All parameters in :py:class:`DiffusionMaps` but ``alpha``.
+
+        Returns
+        -------
+        DiffusionMaps
+            self
+        """
 
         if name == "laplace_beltrami":
             eigfunc_interp = cls.laplace_beltrami(**kwargs)
@@ -94,10 +161,10 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             eigfunc_interp = cls.rbf_kernel(**kwargs)
         else:
             raise ValueError(
-                f"name='{name}' not known. Choose from {cls.VALID_OPERATOR_NAMES}"
+                f"name='{name}' not known. Choose from {cls._cls_valid_operator_names}"
             )
 
-        if name not in cls.VALID_OPERATOR_NAMES:
+        if name not in cls._cls_valid_operator_names:
             raise NotImplementedError(
                 f"This is a bug. name={name} each name has to be "
                 f"listed in VALID_OPERATOR_NAMES"
@@ -108,7 +175,14 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
     @classmethod
     def laplace_beltrami(
         cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
-    ):
+    ) -> "DiffusionMaps":
+        """Instantiate new model to approximate Laplace-Beltrami operator.
+
+        Returns
+        -------
+        DiffusionMaps
+            new instance
+        """
         return cls(
             epsilon=epsilon,
             n_eigenpairs=n_eigenpairs,
@@ -118,9 +192,14 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         )
 
     @classmethod
-    def fokker_planck(
-        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
-    ):
+    def fokker_planck(cls, epsilon=1.0, n_eigenpairs=10, **kwargs,) -> "DiffusionMaps":
+        """Instantiate new model to approximate Fokker-Planck operator.
+
+        Returns
+        -------
+        DiffusionMaps
+            new instance
+        """
         return cls(
             epsilon=epsilon,
             n_eigenpairs=n_eigenpairs,
@@ -132,7 +211,14 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
     @classmethod
     def graph_laplacian(
         cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
-    ):
+    ) -> "DiffusionMaps":
+        """Instantiate new model to approximate graph Laplacian.
+
+        Returns
+        -------
+        DiffusionMaps
+            new instance
+        """
         return cls(
             epsilon=epsilon,
             n_eigenpairs=n_eigenpairs,
@@ -142,22 +228,20 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         )
 
     @classmethod
-    def rbf_kernel(
-        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
-    ):
+    def rbf_kernel(cls, epsilon=1.0, n_eigenpairs=10, **kwargs,) -> "DiffusionMaps":
+        """Instantiate new model to approximate geometric harmonic functions of
+        radial basis function kernel.
+
+        Returns
+        -------
+        DiffusionMaps
+            new instance
+        """
         return cls(
             epsilon=epsilon, n_eigenpairs=n_eigenpairs, is_stochastic=False, **kwargs,
         )
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals):
-        """From eigenproblem:
-            K(X,X) \Psi = \Psi \Lambda
-
-        follows Nyström (out-of-sample):
-
-            K(X, Y) \Psi \Lambda^-1 = \Psi
-        """
-
         return kernel_cdist @ mat_dot_diagmat(eigvec, np.reciprocal(eigvals))
 
     def _perform_dmap_embedding(self, eigenvectors: np.ndarray) -> np.ndarray:
@@ -186,7 +270,20 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             symmetrize_kernel=self.symmetrize_kernel,
         )
 
-    def set_coords(self, indices) -> "DiffusionMaps":
+    def set_coords(self, indices: np.ndarray) -> "DiffusionMaps":
+        """Set eigenvector coordinates for parsimonious mapping.
+
+        Parameters
+        ----------
+        indices
+            Index values (columns) of ``eigenvalues_`` and ``eigenvectors_`` to keep in
+            the model.
+
+        Returns
+        -------
+        DiffusionMaps
+            self
+        """
 
         check_is_fitted(self, attributes=["eigenvectors_", "eigenvalues_"])
 
@@ -196,8 +293,17 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
         return self
 
-    def fit(self, X: TRANF_TYPES, y=None, **fit_params) -> "DiffusionMaps":
-        """
+    def fit(self, X: TransformType, y=None, **fit_params) -> "DiffusionMaps":
+        """Compute diffusion kernel matrix and its' eigenpairs for manifold
+        parametrization.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data with shape `(n_samples, n_features)`.
+        
+        y: None
+            ignored
 
         Returns
         -------
@@ -248,27 +354,37 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
         return self
 
-    def transform(self, X):
-        """
-        Uses Nyström for out-of-sample functionality.
+    def transform(self, X: TransformType) -> TransformType:
+        r"""Map out-of-sample points into embedding space with Nyström extension.
+
+        From solving the eigenproblem of the kernel diffusion matrix :math:`K`
+
+        .. math::
+            K(X,X) \Psi = \Psi \Lambda
+
+        follows the Nyström extension for out-of-sample mappings:
+
+        .. math::
+            K(X, Y) \Psi \Lambda^{-1} = \Psi
+
+        where :math:`K(X, Y)` is a component-wise evaluation of the kernel.
 
         Parameters
         ----------
-        X
-        y
-        indices
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Out-of-sample points with shape `(n_samples, n_features)` to map to embedding
+            space.
 
         Returns
         -------
-
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            same type as `X` with shape `(n_samples, n_coords)`
         """
 
-        check_is_fitted(
-            self, ("X_", "eigenvalues_", "eigenvectors_", "kernel_", "kernel_matrix_")
-        )
+        check_is_fitted(self, ("X_", "eigenvalues_", "eigenvectors_", "kernel_"))
 
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=1))
-        self._validate_features_transform(X)
+        self._validate_feature_input(X, direction="transform")
 
         kernel_matrix_cdist, _, _ = self.X_.compute_kernel_matrix(
             X, row_sums_alpha_fit=self._row_sums_alpha
@@ -286,7 +402,22 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             X, values=dmap_embedding, set_columns=self.features_out_[1]
         )
 
-    def fit_transform(self, X, y=None, **fit_transform):
+    def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
+        """Fit model and map data directly to embedding space.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data with shape `(n_samples, n_features)`
+
+        y: None
+            ignored
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            same type as `X` with shape `(n_samples, n_eigenpairs)`
+        """
 
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
         self.fit(X=X, y=y)
@@ -296,24 +427,54 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             X, values=dmap_embedding, set_columns=self.features_out_[1]
         )
 
-    def inverse_transform(self, X: TRANF_TYPES):
+    def inverse_transform(self, X: TransformType) -> TransformType:
+        """Map points from embedding space back to original (ambient) space.
 
+        .. note::
+            Currently, this is only  a linear map in a least squares sense. Overwrite
+            this function for more advanced inverse mappings.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Out-of-sample points with shape `(n_samples, n_coords)` to
+            map from embedding space to original space.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            same type as `X` with shape (`n_samples, n_features)`
+        """
+
+        check_is_fitted(self)
         X = self._validate_data(X)
-        self._validate_features_inverse_transform(X)
+        self._validate_feature_input(X, direction="inverse_transform")
 
-        import scipy.linalg
+        if not hasattr(self, "inv_coeff_matrix_"):
+            self.inv_coeff_matrix_ = scipy.linalg.lstsq(
+                np.asarray(self.eigenvectors_), self.X_, cond=None
+            )[0]
 
-        coeff_matrix = scipy.linalg.lstsq(
-            np.asarray(self.eigenvectors_), self.X_, cond=None
-        )[0]
-
-        X_orig_space = np.asarray(X) @ coeff_matrix
+        X_orig_space = np.asarray(X) @ self.inv_coeff_matrix_
         return self._same_type_X(
             X, values=X_orig_space, set_columns=self.features_in_[1]
         )
 
 
 class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
+    """(experimental, not documented)
+    .. warning::
+        This class is not documented. Contributions are welcome
+            * documentation
+            * unit- or functional-testing
+
+    References
+    ----------
+    :cite:`berry_nonparametric_2015`
+    :cite:`berry_variable_2016`
+
+    """
+
     def __init__(
         self,
         epsilon=1.0,
@@ -363,7 +524,7 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
             nr_samples * (4 * np.pi * self.epsilon) ** (self.expected_dim / 2)
         )
 
-    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
+    def fit(self, X: TransformType, y=None, **fit_params):
 
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
 
@@ -420,7 +581,7 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
 
         return self
 
-    def transform(self, X: TRANF_TYPES):
+    def transform(self, X: TransformType):
         raise NotImplementedError(
             "A transform for out-of-sample points is currently "
             "not supported. This requires to implement the "
@@ -428,14 +589,69 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
             "maps kernel."
         )
 
-    def fit_transform(self, X: TRANF_TYPES, y=None, **fit_params):
+    def fit_transform(self, X: TransformType, y=None, **fit_params):
         self.fit(X=X, y=y, **fit_params)
         return self._same_type_X(X, self.eigenvectors_, self.features_out_[1])
 
 
-class LocalRegressionSelection(TSCTransformerMixIn):
+class LocalRegressionSelection(BaseEstimator, TSCTransformerMixIn):
+    """Automatic selection of functional independent geometric harmonic vectors for or
+    parsimonious representation.
 
-    VALID_STRATEGY = ("dim", "threshold")
+    To measure the functional dependency a local regression regression is performed: The
+    larger the residual between eigenvetor sets the larger the sets are.
+
+    The kernel used for the local linear regression has a scale of
+
+    .. code::
+
+        scale = bandwidth_type(distances) / eps_med_scale
+
+    In the referenced paper this is described on page 6, Eq. 11.
+
+    ...
+
+    Parameters
+    ----------
+    eps_med_scale
+        Epsilon scale in kernel of the local linear regression.
+
+    n_subsample
+        Number of randomly uniform selected samples to reduce the computational cost of \
+        the linear regressions. Lower numbers boost the performance of the selection at \
+        the cost of accuracy. The minimum value is 100 samples.
+
+    strategy
+        * "dim" - set the expected dimension (fixed set of eigenvectors)
+        * "threshold" - choose all eigenvectors that are above the threshold (variable \
+        set of eigenpairs)
+
+    intrinsic_dim
+        Number of eigenvectors to select with largest residuals.
+        
+    regress_threshold
+        Threshold for local residual to include eigenvectors that are above,
+        if strategy="threshold".
+
+    bandwidth_type
+        "median" or "mean"
+
+    Attributes
+    ----------
+
+    evec_indices_
+
+    residuals_
+
+    References
+    ----------
+
+    :cite:`dsilva_parsimonious_2018`
+
+    """
+
+    _cls_valid_strategy = ("dim", "threshold")
+    _cls_valid_bandwidth = ("median", "mean")
 
     def __init__(
         self,
@@ -446,64 +662,6 @@ class LocalRegressionSelection(TSCTransformerMixIn):
         regress_threshold=0.9,
         bandwidth_type="median",
     ):
-        """
-        Select independent eigenfunctions via local linear regression.
-
-        See:
-        # TODO: use Sphinx for citation to the paper.
-        Dsilva et al. 2015, https://arxiv.org/abs/1505.06118v1
-        'Parsimonious Representation of Nonlinear Dynamical Systems Through Manifold
-        Learning: A Chemotaxis Case Study'
-
-        Parameters
-        ----------
-
-        eps_med_scale: float = 3
-            Scale to use in the local linear regression kernel. The kernel is Gaussian
-            with width median(distances)/eps_med_scale. A typical value is
-            eps_med_scale=3. In the referenced paper this parameter is described on
-            page 6 at equation 11.
-        n_subsample: Optional[int] = None
-            Computing the residuals is expensive. By setting the number of randomly
-            chosen samples, the computation speed can speed up.
-        intrinsic_dim: Optional[int] = None
-            Select (expected) intrinsic dimensionality of the manifold.
-        regress_threshold: Optional[float] = None
-            Select threshold for local residual. All eigenvectors are included that
-            have a larger residual.
-        n_subsample: Optional[int] = np.inf
-            See method `residuals_local_regression_eigenvectors`.
-        """
-
-        # TODO: all parameter checks
-
-        if n_subsample < 100:
-            raise ValueError(
-                f"Parameter use_samples has to be larger than 100 samples. Got "
-                f"n_subsample={n_subsample}."
-            )
-
-        if strategy not in self.VALID_STRATEGY:
-            raise ValueError(f"strategy={strategy} is invaliv.")
-
-        if strategy == "dim" and (not is_integer(intrinsic_dim) or intrinsic_dim < 0):
-            # first condition: only raise error if variable in use
-            raise ValueError("'intrinsic_dim' has to be non-negative integer.")
-
-        if strategy == "threshold" and (
-            not is_float(regress_threshold) or 0.0 > regress_threshold > 1.0
-        ):
-            raise ValueError(
-                f"'regress_threshold' has to be non-negative float value between (0, 1). "
-                f"Got {regress_threshold}"
-            )
-
-        valid_bandwidth_types = ["median", "mean"]
-        if bandwidth_type not in valid_bandwidth_types:
-            raise ValueError(
-                f"Valid options for 'locregress_bandwidth_type' are "
-                f"{valid_bandwidth_types}. Got: {bandwidth_type}"
-            )
 
         self.strategy = strategy
 
@@ -511,26 +669,53 @@ class LocalRegressionSelection(TSCTransformerMixIn):
         self.regress_threshold = regress_threshold
         self.bandwidth_type = bandwidth_type
 
-        self.eps_med_scale = eps_med_scale  # TODO: checks
-        self.n_subsample = n_subsample  # TODO: checks
+        self.eps_med_scale = eps_med_scale
+        self.n_subsample = n_subsample
 
     def _validate_parameter(self, num_eigenvectors):
+
+        check_scalar(
+            self.eps_med_scale,
+            name="eps_med_scale",
+            target_type=(float, np.floating, int, np.integer),
+            min_val=np.finfo(np.float64).eps,  # exclusive zero
+            max_val=np.inf,
+        )
+
+        check_scalar(
+            self.n_subsample,
+            name="n_subsample",
+            target_type=(int, np.integer),
+            min_val=100,
+            max_val=np.inf,
+        )
+
+        if self.strategy not in self._cls_valid_strategy:
+            raise ValueError(f"strategy={self.strategy} is invalid.")
+
         if self.strategy == "dim":
-            if not (0 < self.intrinsic_dim < num_eigenvectors - 1):
-                # num_eigenpairs-1 because the first eigenvector is trivial.
-                raise ValueError(
-                    f"intrinsic_dim has to be an integer larger than 1 and smaller than "
-                    f"num_eigenpairs-1={num_eigenvectors}. Got intrinsic_dim"
-                    f"={self.intrinsic_dim}"
-                )
-        elif self.strategy == "threshold":
-            if not (0 < self.regress_threshold < 1):
-                raise ValueError(
-                    f"residual_threshold has to between [0, 1], exclusive. Got residual "
-                    f"threshold={self.regress_threshold}"
-                )
-        else:
-            raise ValueError(f"strategy={self.strategy} not known")
+            check_scalar(
+                self.intrinsic_dim,
+                name="intrinsic_dim",
+                target_type=(int, np.integer),
+                min_val=1,
+                max_val=num_eigenvectors - 1,
+            )
+
+        if self.strategy == "threshold":
+            check_scalar(
+                self.regress_threshold,
+                name="regress_threshold",
+                target_type=(float, np.floating),
+                min_val=np.finfo(np.float64).eps,
+                max_val=1 - np.finfo(np.float64).eps,
+            )
+
+        if self.bandwidth_type not in self._cls_valid_bandwidth:
+            raise ValueError(
+                f"Valid options for 'locregress_bandwidth_type' are "
+                f"{self._cls_valid_bandwidth}. Got: {self.bandwidth_type}"
+            )
 
     def _single_residual_local_regression(
         self, domain_eigenvectors, target_eigenvector
@@ -553,18 +738,14 @@ class LocalRegressionSelection(TSCTransformerMixIn):
                 np.median(np.square(distance_matrix_eigvec.flatten()))
                 / self.eps_med_scale
             )
-        elif self.bandwidth_type == "mean":
+        else:  # self.bandwidth_type == "mean":
             eps_regression = (
                 np.mean(np.square(distance_matrix_eigvec.flatten()))
                 / self.eps_med_scale
             )
-        else:
-            # usually an error is raised in __init__, but user could set it afterwards
-            # to an invalid value
-            raise RuntimeError("Invalid bandwidth type.")
 
         if eps_regression == 0:
-            eps_regression = np.finfo(float).eps
+            eps_regression = np.finfo(np.float64).eps
 
         # equation 11 in referenced paper, corresponding to the weights
         kernel_eigvec = np.exp(-1 * np.square(distance_matrix_eigvec) / eps_regression)
@@ -667,24 +848,31 @@ class LocalRegressionSelection(TSCTransformerMixIn):
             else:
                 # NOTE: negative residuals to obtain the largest -- argpartition are the
                 # respective indices
-                self.evec_indices_ = np.argpartition(-residuals, self.intrinsic_dim)[
-                    : self.intrinsic_dim
-                ]
+                self.evec_indices_ = np.sort(
+                    np.argpartition(-residuals, self.intrinsic_dim)[
+                        : self.intrinsic_dim
+                    ]
+                )
 
         # User provides a threshold for the residuals. All eigenfunctions above this value
         # are included to parametrize the manifold.
-        elif self.strategy == "threshold":
-            self.evec_indices_ = np.where(residuals > self.regress_threshold)[0]
-        else:
-            raise ValueError(f"strategy={self.strategy} not known")
+        else:  #  self.strategy == "threshold":
+            self.evec_indices_ = np.sort(
+                np.where(residuals > self.regress_threshold)[0]
+            )
 
-    def fit(self, X: TRANF_TYPES, y=None, **fit_params):
-        """
+    def fit(self, X: TransformType, y=None, **fit_params) -> "LocalRegressionSelection":
+        """Select indices according to strategy.
+
+        Parameters
+        ----------
+        X
+            Eigenvectors with shape `(n_samples, n_eigenvectors)` to make selection on.
 
         Returns
         -------
-        X
-            Residuals of local linear regression for each eigenvector.
+        LocalRegressionSelection
+            self
         """
 
         # Code received from Yannis and adapted (author unknown). The code that was
@@ -734,16 +922,23 @@ class LocalRegressionSelection(TSCTransformerMixIn):
 
         return self
 
-    def transform(self, X: Union[TRANF_TYPES, DiffusionMaps, DiffusionMapsVariable]):
-        """Automatic parsimonious parametrization of the manifold by selecting appropriate
-        residuals from local linear least squares fit.
+    def transform(self, X: TransformType) -> TransformType:
+        """Select parsimonious representation of full set of eigenvectors.
+
+        Parameters
+        ----------
+
+        X
+            Eigenvectors  with shape `(n_samples, n_eigenvectors)` to carry out selection.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            same type as `X` with shape `(n_samples, n_evec_indices)`
         """
 
         X = self._validate_data(X)
-        self._validate_features_transform(X)
-
-        if isinstance(X, (DiffusionMaps, DiffusionMapsVariable)):
-            X = X.eigenvectors_
+        self._validate_feature_input(X, direction="transform")
 
         # choose eigenvectors
         X_selected = self._same_type_X(
@@ -752,18 +947,19 @@ class LocalRegressionSelection(TSCTransformerMixIn):
 
         return X_selected
 
-    def inverse_transform(self, X: TRANF_TYPES):
+    def inverse_transform(self, X: TransformType):
+        """
+        .. warning::
+            Not implemented.
+        """
 
         # TODO: from the philosophy the inverse_transform should map
         #   \Psi_selected -> \Psi_full
-        #  However this is mostly not what we are interested in. Instead it is more likely
-        #  that someone wants to do the inverse_transform like in DMAP:
-        #   \Psi_selected -> X (original data)
-        #   --> For this case, use the function "set_coord(indices)" in DMAP and set
-        #   indices=
+        #  However this is usually not what we are interested in. Instead it is more
+        #  likely that someone wants to do the inverse_transform like in DMAP:
+        #   \Psi_selected -> X (original data).
 
         raise NotImplementedError(
             "The inverse_transform should be carried out with an DMAP, which has all "
-            "eigenvectors (not selected), the mapping is still difficult, because "
-            "information is thrown away."
+            "eigenvectors (not selected)."
         )

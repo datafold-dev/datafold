@@ -6,7 +6,7 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.utils.datastructure import *
+from datafold.utils.general import *
 
 
 class TestDataStructureUtils(unittest.TestCase):

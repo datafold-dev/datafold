@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.integrate import solve_ivp
 
 
 class LimitCycle(object):
@@ -85,6 +86,52 @@ class LimitCycle(object):
             np.vstack([a_vals, r_vals]).T, index=t, columns=["alpha", "radius"]
         )
         return self.obs
+
+
+def solve_hopf_system(initial_conditions, t_eval, ic_type="xx"):
+    def hopf_system(t, y):
+        mu = 1
+        y_dot = np.zeros(2)
+
+        factor = mu - y[0] ** 2 - y[1] ** 2
+
+        y_dot[0] = -y[1] + y[0] * factor
+        y_dot[1] = y[0] + y[1] * factor
+        return y_dot
+
+    assert ic_type in ["xx", "rt"]
+    assert initial_conditions.ndim == 2
+    assert initial_conditions.shape[1] == 2
+
+    if ic_type == "rt":
+        new_ic = np.copy(initial_conditions)
+        new_ic[:, 0] = initial_conditions[:, 0] * np.cos(initial_conditions[:, 1])
+        new_ic[:, 1] = initial_conditions[:, 0] * np.sin(initial_conditions[:, 1])
+        initial_conditions = new_ic
+
+    tsc_dfs = []
+
+    for _id, ic in enumerate(initial_conditions):
+        solution = solve_ivp(
+            hopf_system, t_span=(t_eval[0], t_eval[-1]), y0=ic, t_eval=t_eval,
+        )
+        current_solution = solution["y"].T
+        theta = np.arctan2(current_solution[:, 1], current_solution[:, 0])
+        radius = current_solution[:, 0] / np.cos(theta)
+
+        current_solution = np.column_stack([current_solution, radius, theta])
+
+        solution = pd.DataFrame(
+            data=current_solution,
+            index=pd.MultiIndex.from_arrays(
+                [np.ones(len(solution["t"])) * _id, solution["t"]]
+            ),
+            columns=["x1", "x2", "r", "theta"],
+        )
+
+        tsc_dfs.append(solution)
+
+    return pd.concat(tsc_dfs, axis=0)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 import pickle
 import unittest
 
+import numpy as np
 import sklearn.datasets
 
 import datafold.pcfold.tests.allutils
@@ -28,15 +29,7 @@ class TestPCManifold(unittest.TestCase):
         self.assertTrue(hasattr(unpickled_estimator, "_dist_params"))
 
 
-# --------------------------------------------------
-# people who contributed code
-__authors__ = "Felix Dietrich"
-# people who made suggestions or reported bugs but didn't contribute code
-__credits__ = ["n/a"]
-# --------------------------------------------------
-
-
-@unittest.skip(reason="Legacy, code. Requires update.")
+@unittest.skip(reason="Legacy code, requires update.")
 class PCManifoldUnitTests(unittest.TestCase):
     def test_init(self):
         pcm = PCManifold(points=np.array([[]]))
@@ -92,45 +85,45 @@ class PCManifoldUnitTests(unittest.TestCase):
 
         # prev_distances = mg.sparse_distance_matrix()
 
+    @unittest.skip(reason="Legacy code, requires update.")
     def test_mahalanobis(self):
         """
         test the mahalanobis-distance DMAPS with the mushroom to square example
         """
 
-        if False:
-            d_mushroom, d_rectangle = allutils.generate_mushroom()
+        d_mushroom, d_rectangle = allutils.generate_mushroom()
 
-            distmatX = distance_matrix(d_rectangle)
-            mahalanobisindices = np.array(np.argsort(distmatX.todense(), axis=1))
+        distmatX = distance_matrix(d_rectangle)
+        mahalanobisindices = np.array(np.argsort(distmatX.todense(), axis=1))
 
-            MHNOW = 10
-            tol = 1e-8
+        MHNOW = 10
+        tol = 1e-8
 
-            cov_matrices = np.zeros(
-                (d_mushroom.shape[0], d_mushroom.shape[1], d_mushroom.shape[1])
-            )
-            for i in range(d_mushroom.shape[0]):
-                xdata = d_mushroom[mahalanobisindices[i, 0:MHNOW].astype(int), :]
-                cov_matrices[i, :, :] = np.linalg.pinv(np.cov(xdata.T), rcond=tol)
+        cov_matrices = np.zeros(
+            (d_mushroom.shape[0], d_mushroom.shape[1], d_mushroom.shape[1])
+        )
+        for i in range(d_mushroom.shape[0]):
+            xdata = d_mushroom[mahalanobisindices[i, 0:MHNOW].astype(int), :]
+            cov_matrices[i, :, :] = np.linalg.pinv(np.cov(xdata.T), rcond=tol)
 
-            # first, compute mahalanobis distance matrix
-            def mahalanobis_distance(ix, iy):
-                x = dataset[ix, :]
-                y = dataset[iy, :]
+        # first, compute mahalanobis distance matrix
+        def mahalanobis_distance(ix, iy):
+            x = dataset[ix, :]
+            y = dataset[iy, :]
 
-                ci = cov_matrices[ix, :, :]
-                cj = cov_matrices[iy, :, :]
-                return np.sqrt(1 / 2 * (x - y) @ ((ci + cj) @ (x - y)))
+            ci = cov_matrices[ix, :, :]
+            cj = cov_matrices[iy, :, :]
+            return np.sqrt(1 / 2 * (x - y) @ ((ci + cj) @ (x - y)))
 
-            Dmat = np.zeros((dataset.shape[0], dataset.shape[0]))
-            for i in range(dataset.shape[0]):
-                if np.mod(i, dataset.shape[0] // 10) == 0:
-                    print(str(int(i / dataset.shape[0] * 100)) + ", ", end="")
-                for k in range(i, dataset.shape[0]):
-                    Dmat[i, k] = mahalanobis_distance(i, k)
-                    Dmat[k, i] = Dmat[i, k]
+        Dmat = np.zeros((dataset.shape[0], dataset.shape[0]))
+        for i in range(dataset.shape[0]):
+            if np.mod(i, dataset.shape[0] // 10) == 0:
+                print(str(int(i / dataset.shape[0] * 100)) + ", ", end="")
+            for k in range(i, dataset.shape[0]):
+                Dmat[i, k] = mahalanobis_distance(i, k)
+                Dmat[k, i] = Dmat[i, k]
 
-            Dmat = scipy.sparse.csr_matrix(Dmat)
+        Dmat = scipy.sparse.csr_matrix(Dmat)
 
 
 if __name__ == "__main__":

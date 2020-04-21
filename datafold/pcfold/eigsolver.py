@@ -1,20 +1,11 @@
 import sys
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import numpy as np
-import scipy
+import scipy.sparse
+import scipy.sparse.linalg
 
-from datafold.utils.maths import is_symmetric_matrix, sort_eigenpairs
-
-try:
-    from datafold.pcfold._gpu_eigensolver import eigensolver as gpu_eigsolve
-except ImportError:
-    gpu_eigsolve: Optional[Callable] = None  # type: ignore
-
-    # variable is used to warn user when requesting GPU eigensolver
-    SUCCESS_GPU_IMPORT = False
-else:
-    SUCCESS_GPU_IMPORT = True
+from datafold.utils.general import is_symmetric_matrix, sort_eigenpairs
 
 
 class NumericalMathError(Exception):
@@ -25,14 +16,14 @@ class NumericalMathError(Exception):
         super(NumericalMathError, self).__init__(message)
 
 
-def scipy_eigsolver(matrix, n_eigenpairs, is_symmetric, is_stochastic):
+def scipy_eigsolver(kernel_matrix, n_eigenpairs, is_symmetric, is_stochastic):
     """Selects the parametrization for scipy eigensolver depending on the
     properties of the kernel.
 
 
     """
 
-    n_samples, n_features = matrix.shape
+    n_samples, n_features = kernel_matrix.shape
 
     # check only for n_eigenpairs == n_features and n_eigenpairs < n_features
     # wrong parametrized n_eigenpairs are catched in scipy functions
@@ -76,76 +67,91 @@ def scipy_eigsolver(matrix, n_eigenpairs, is_symmetric, is_stochastic):
         else:
             solver_kwargs["sigma"] = None
 
-    eigvals, eigvects = scipy_eigvec_solver(matrix, **solver_kwargs)
+    eigvals, eigvects = scipy_eigvec_solver(kernel_matrix, **solver_kwargs)
 
     return eigvals, eigvects
 
 
-VALID_BACKEND = ["scipy", "gpu"]
+_valid_backends = ["scipy"]
 
 
 def compute_kernel_eigenpairs(
-    matrix, n_eigenpairs=None, is_symmetric=False, is_stochastic=False, backend="scipy",
+    kernel_matrix: Union[np.ndarray, scipy.sparse.spmatrix],
+    n_eigenpairs: int,
+    is_symmetric: bool = False,
+    is_stochastic: bool = False,
+    backend: str = "scipy",
 ):
-    """
-    TODO: Docu note
-       -- the eigenvectors are not necessarily normalized,
-       -- the eigenvectors are sorted w.r.t. abs(eigenvalue), descending
+    """Computing eigenpairs of kernel matrices by exploiting.
+
     Parameters
     ----------
-    matrix
+    kernel_matrix
+        Two dimensional square matrix, dense or sparse.
+
     n_eigenpairs
+        Number of eigenpairs to compute.
+
     is_symmetric
+        If True this allows for specialized algorithms exploiting symmetry and enables
+        an additional check if all eigenvalues are real valued.
+
     is_stochastic
+        If True this allows to improve convergence because the trivial first eigenvalue
+        is known.
+
     backend
+        * "scipy" - selects between\
+           `scipy.eigs <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html#scipy.sparse.linalg.eigs>`\
+            and\
+          `scipy.eigsh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html>`
 
     Returns
     -------
-
+    Tuple[numpy.ndarray, numpy.ndarray]
+        Eigenpairs sorted by largest (magnitude) eigenvalue, decreasing. The
+        eigenvectors are not necessarily normalized.
     """
 
-    if matrix.dtype != np.dtype(np.float64):
-        raise TypeError(
-            "only real-valued floating points (double precision) are supported"
-        )
-
-    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+    if kernel_matrix.ndim != 2 or kernel_matrix.shape[0] != kernel_matrix.shape[1]:
         raise ValueError(
-            f"kernel matrix must be a square. Got matrix.shape={matrix.shape}"
+            f"kernel matrix must be a square. "
+            f"Got kernel_matrix.shape={kernel_matrix.shape}"
         )
 
-    if is_symmetric:
-        assert is_symmetric_matrix(matrix)
+    if (
+        isinstance(kernel_matrix, scipy.sparse.spmatrix)
+        and not np.isfinite(kernel_matrix.data).all()
+    ) or (
+        isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all()
+    ):
+        raise ValueError(
+            "kernel_matrix must only contain finite values (no np.nan or np.inf)"
+        )
 
-    # BEGIN experimental
-    test_sparsify = False
-    if test_sparsify:
+    if is_symmetric and not is_symmetric_matrix(kernel_matrix):
+        raise ValueError("matrix is not symmetric")
+
+    # BEGIN experimental code
+    test_sparsify_experimental = False
+    if test_sparsify_experimental:
 
         SPARSIFY_CUTOFF = 1e-14
 
-        if scipy.sparse.issparse(matrix):
-            matrix.data[np.abs(matrix.data) < SPARSIFY_CUTOFF] = 0
-            matrix.eliminate_zeros()
+        if scipy.sparse.issparse(kernel_matrix):
+            kernel_matrix.data[np.abs(kernel_matrix.data) < SPARSIFY_CUTOFF] = 0
+            kernel_matrix.eliminate_zeros()
         else:
-            matrix[np.abs(matrix) < SPARSIFY_CUTOFF] = 0
-            matrix = scipy.sparse.csr_matrix(matrix)
+            kernel_matrix[np.abs(kernel_matrix) < SPARSIFY_CUTOFF] = 0
+            kernel_matrix = scipy.sparse.csr_matrix(kernel_matrix)
     # END experimental
 
     if backend == "scipy":
         eigvals, eigvects = scipy_eigsolver(
-            matrix=matrix,
+            kernel_matrix=kernel_matrix,
             n_eigenpairs=n_eigenpairs,
             is_symmetric=is_symmetric,
             is_stochastic=is_stochastic,
-        )
-    elif backend == "gpu":
-        if not SUCCESS_GPU_IMPORT:
-            raise ValueError(
-                "backend 'gpu' not available because import failed "
-                "(cusparse and/or cuda not available)"
-            )
-        eigvals, eigvects = gpu_eigsolve(
-            matrix=matrix, num_eigenpairs=n_eigenpairs, sigma=None, initial_vector=None,
         )
     else:
         raise ValueError(f"backend {backend} not known.")

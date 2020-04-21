@@ -1,5 +1,5 @@
 *********
-TODO List
+Todo List
 *********
 
 .. todolist::

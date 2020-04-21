@@ -10,17 +10,18 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 from datafold.dynfold.transform import (
+    TSCApplyLambdas,
+    TSCFeaturePreprocess,
+    TSCFiniteDifference,
     TSCIdentity,
+    TSCPolynomialFeatures,
     TSCPrincipalComponent,
-    TSCQoiPreprocess,
     TSCRadialBasis,
     TSCTakensEmbedding,
     TSCTransformerMixIn,
 )
 from datafold.pcfold.kernels import *
-from datafold.pcfold.timeseries import TSCDataFrame
-
-# TODO: write a check_tsc_transform() ?
+from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
 
 
 def _all_tsc_transformers():
@@ -45,8 +46,17 @@ class TestTSCTransform(unittest.TestCase):
         col = ["A", "B"]
 
         # Requires non-random values
-        self.takens_df = pd.DataFrame(
+        self.takens_df_short = pd.DataFrame(
             np.arange(18).reshape([9, 2]), index=idx, columns=col
+        )
+
+        n_samples_timeseries = 100
+        idx = pd.MultiIndex.from_product(
+            [np.array([0, 1]), np.arange(n_samples_timeseries)]
+        )
+
+        self.takens_df_long = pd.DataFrame(
+            np.random.rand(n_samples_timeseries * 2, 2), index=idx, columns=col
         )
 
     def setUp(self) -> None:
@@ -60,8 +70,9 @@ class TestTSCTransform(unittest.TestCase):
         TEST_ESTIMATORS = (
             TSCIdentity,
             TSCPrincipalComponent,
-            TSCQoiPreprocess(MinMaxScaler()),
-            TSCQoiPreprocess(StandardScaler()),
+            TSCFeaturePreprocess(MinMaxScaler()),
+            TSCFeaturePreprocess(StandardScaler()),
+            TSCPolynomialFeatures,
         )
 
         for test_estimator in TEST_ESTIMATORS:
@@ -83,7 +94,7 @@ class TestTSCTransform(unittest.TestCase):
     def test_scale_min_max(self):
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiPreprocess.from_name("min-max")
+        scale = TSCFeaturePreprocess.from_name("min-max")
         scaled_tsc = scale.fit_transform(tsc_df)
 
         # sanity check:
@@ -97,7 +108,7 @@ class TestTSCTransform(unittest.TestCase):
 
         tsc_df = TSCDataFrame(self.simple_df)
 
-        scale = TSCQoiPreprocess.from_name("standard")
+        scale = TSCFeaturePreprocess.from_name("standard")
         scaled_tsc = scale.fit_transform(tsc_df)
 
         nptest.assert_array_equal(
@@ -137,7 +148,7 @@ class TestTSCTransform(unittest.TestCase):
         ]
 
         for cls, kwargs in scaler:
-            scale = TSCQoiPreprocess(sklearn_transformer=cls(**kwargs))
+            scale = TSCFeaturePreprocess(sklearn_transformer=cls(**kwargs))
             tsc_transformed = scale.fit_transform(tsc_df)
 
             # Check the underlying array equals:
@@ -149,12 +160,60 @@ class TestTSCTransform(unittest.TestCase):
             # check inverse transform is equal the original TSCDataFrame:
             pdtest.assert_frame_equal(tsc_df, scale.inverse_transform(tsc_transformed))
 
-    def test_error_wo_inverse(self):
-        from sklearn.preprocessing import Normalizer
+    def test_apply_lambda_transform01(self):
+        # use lambda identity function
 
-        with self.assertRaises(AttributeError):
-            # Normalizer has no inverse_transform
-            TSCQoiPreprocess(sklearn_transformer=Normalizer)
+        tsc = TSCDataFrame(self.simple_df)
+
+        lambda_transform = TSCApplyLambdas(lambda_list=[lambda x: x]).fit(tsc)
+
+        actual = lambda_transform.transform(tsc)
+        expected = tsc
+        expected.columns = pd.Index(
+            ["A_lambda0", "B_lambda0"], name=TSCDataFrame.tsc_feature_col_name
+        )
+
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_apply_lambda_transform02(self):
+        # use numpy function
+
+        tsc = TSCDataFrame(self.simple_df)
+
+        lambda_transform = TSCApplyLambdas(lambda_list=[np.square]).fit(tsc)
+
+        actual = lambda_transform.transform(tsc)
+        expected = tsc.apply(np.square, axis=0, raw=True)
+        expected.columns = pd.Index(
+            ["A_lambda0", "B_lambda0"], name=TSCDataFrame.tsc_feature_col_name
+        )
+
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_apply_lambda_transform03(self):
+        # use numpy function
+
+        tsc = TSCDataFrame(self.simple_df)
+
+        lambda_transform = TSCApplyLambdas(lambda_list=[lambda x: x, np.square]).fit(
+            tsc
+        )
+
+        actual = lambda_transform.transform(tsc)
+
+        identity = tsc
+        identity.columns = pd.Index(
+            ["A_lambda0", "B_lambda0"], name=TSCDataFrame.tsc_feature_col_name
+        )
+
+        squared = tsc.apply(np.square, axis=0, raw=True)
+        squared.columns = pd.Index(
+            ["A_lambda1", "B_lambda1"], name=TSCDataFrame.tsc_feature_col_name
+        )
+
+        expected = pd.concat([identity, squared], axis=1)
+
+        pdtest.assert_frame_equal(actual, expected)
 
     def test_pca_transform(self):
 
@@ -175,7 +234,7 @@ class TestTSCTransform(unittest.TestCase):
         )
 
     def test_takens_embedding(self):
-        simple_df = self.takens_df.drop("B", axis=1)
+        simple_df = self.takens_df_short.drop("B", axis=1)
         tsc_df = TSCDataFrame(simple_df)
 
         # using class
@@ -192,45 +251,57 @@ class TestTSCTransform(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
     def test_takens_delay_indices(self):
-        tsc = TSCDataFrame(self.takens_df)
+        tsc_short = TSCDataFrame(self.takens_df_short)  # better check for errors
+        tsc_long = TSCDataFrame(self.takens_df_long)
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=1, frequency=1).fit(tsc).delay_indices_,
+            TSCTakensEmbedding(lag=0, delays=1, frequency=1)
+            .fit(tsc_short)
+            .delay_indices_,
             np.array([1]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=2, frequency=1).fit(tsc).delay_indices_,
+            TSCTakensEmbedding(lag=0, delays=2, frequency=1)
+            .fit(tsc_long)
+            .delay_indices_,
             np.array([1, 2]),
         )
 
-        nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=5, frequency=1).fit(tsc).delay_indices_,
-            np.array([1, 2, 3, 4, 5]),
-        )
+        with self.assertRaises(TSCException):
+            # Data too short
+            TSCTakensEmbedding(lag=0, delays=5, frequency=1).fit(tsc_short)
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=1, delays=1, frequency=1).fit(tsc).delay_indices_,
+            TSCTakensEmbedding(lag=1, delays=1, frequency=1)
+            .fit(tsc_long)
+            .delay_indices_,
             np.array([2]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=1, delays=5, frequency=1).fit(tsc).delay_indices_,
+            TSCTakensEmbedding(lag=1, delays=5, frequency=1)
+            .fit(tsc_long)
+            .delay_indices_,
             np.array([2, 3, 4, 5, 6]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=2, delays=2, frequency=2).fit(tsc).delay_indices_,
+            TSCTakensEmbedding(lag=2, delays=2, frequency=2)
+            .fit(tsc_long)
+            .delay_indices_,
             np.array([3, 5]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=2, delays=4, frequency=2).fit(tsc).delay_indices_,
+            TSCTakensEmbedding(lag=2, delays=4, frequency=2)
+            .fit(tsc_long)
+            .delay_indices_,
             np.array([3, 5, 7, 9]),
         )
 
         with self.assertRaises(ValueError):
-            TSCTakensEmbedding(lag=0, delays=1, frequency=2).fit(tsc)
+            TSCTakensEmbedding(lag=0, delays=1, frequency=2).fit(tsc_short)
 
     def test_rbf_1d(self):
         func = lambda x: np.exp(x * np.cos(3 * np.pi * x)) - 1
@@ -289,3 +360,54 @@ class TestTSCTransform(unittest.TestCase):
         pdtest.assert_index_equal(tsc.columns, rbf_coeff_inverse.columns)
         # can only check against a reference solution:
         nptest.assert_allclose(tsc.to_numpy(), rbf_coeff_inverse, atol=1e-1, rtol=0)
+
+    def test_time_difference01(self):
+
+        from findiff import FinDiff
+
+        # from example https://maroba.github.io/findiff-docs/source/examples-basic.html
+
+        time_values = np.linspace(0, 10, 100)
+        dt = time_values[1] - time_values[0]
+        f = np.sin(time_values)
+        g = np.cos(time_values)
+
+        df = pd.DataFrame(
+            data=np.column_stack([f, g]), index=time_values, columns=["sin", "cos"]
+        )
+
+        X = TSCDataFrame.from_single_timeseries(df)
+
+        actual = TSCFiniteDifference(spacing="dt", diff_order=2).fit_transform(X)
+
+        d2_dx2 = FinDiff(0, dt, 2)
+        expected = np.column_stack([d2_dx2(f), d2_dx2(g)])
+
+        expected = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(data=expected, index=time_values, columns=["sin_dt", "cos_dt"])
+        )
+
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_time_difference02(self):
+
+        from findiff import FinDiff
+
+        # same test as test_time_difference02, just with numpy input
+        # from example https://maroba.github.io/findiff-docs/source/examples-basic.html
+
+        time_values = np.linspace(0, 10, 100)
+        dt = time_values[1] - time_values[0]
+        f = np.sin(time_values)
+        g = np.cos(time_values)
+
+        numpy_data = np.column_stack([f, g])
+
+        # Note, the "dt" string does not work here, because the numpy array does not
+        # contain spacing information
+        actual = TSCFiniteDifference(spacing=dt, diff_order=2).fit_transform(numpy_data)
+
+        d2_dx2 = FinDiff(0, dt, 2)
+        expected = np.column_stack([d2_dx2(f), d2_dx2(g)])
+
+        nptest.assert_array_equal(actual, expected)

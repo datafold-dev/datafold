@@ -1,10 +1,9 @@
 import abc
 import warnings
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
-import pydmd
 import scipy.linalg
 import scipy.sparse
 from sklearn.base import BaseEstimator
@@ -13,11 +12,14 @@ from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.decorators import warn_experimental_class
-from datafold.dynfold.base import PRE_FIT_TYPES, PRE_IC_TYPES, TSCPredictMixIn
-from datafold.dynfold.system_evolution import LinearDynamicalSystem
-from datafold.pcfold.timeseries import InitialCondition, TSCDataFrame
-from datafold.utils.datastructure import if1dim_rowvec
-from datafold.utils.maths import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
+from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixIn
+from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
+from datafold.utils.general import (
+    diagmat_dot_mat,
+    if1dim_colvec,
+    mat_dot_diagmat,
+    sort_eigenpairs,
+)
 
 try:
     import pydmd
@@ -28,39 +30,279 @@ else:
     IS_IMPORTED_PYDMD = True
 
 
+class LinearDynamicalSystem(object):
+    r"""Evolve a linear dynamical system forward in time.
+
+    A mathematical description of a linear dynamical system is
+
+    - continuous
+        .. math::
+            \frac{d}{dt} x(t) = \mathcal{A} \cdot x(t)\\
+            \mathcal{A} \in \mathbb{R}^{[m \times m]}
+
+    This system can also be written in terms of a discrete-time system
+
+    - discrete
+        .. math::
+            x_{n+1} = A \cdot x_{n}
+
+        and :math:`A = \exp(\mathcal{A} \Delta t)`, a constant matrix, which describes the
+        linear evolution of the systems' states :math:`x` with state length :math:`m`.
+
+
+    Parameters
+    ----------
+
+    mode
+        type of linear system
+
+        * "continuous"
+        * "discrete" (restricts time values to integer values)
+
+    time_invariant
+        If True, the system internally always starts with `time=0`. \
+        This is irrespective of the time given in the time values (If initial time is
+        larger than zero, the internal times are then corrected to the the requested
+        time).
+
+    References
+    ----------
+
+    :cite:`kutz_dynamic_2016` (pages 3 ff.)
+    
+    """
+
+    _cls_valid_modes = ("continuous", "discrete")
+
+    def __init__(self, mode: str = "continuous", time_invariant: bool = True):
+        self.mode = mode
+        self.time_invariant = time_invariant
+
+    def _check_time_values(self, time_values):
+
+        if (time_values < 0).any():
+            raise ValueError("time samples contain negative values")
+
+        if np.isnan(time_values).any() or np.isinf(time_values).any():
+            raise ValueError("time samples contain invalid vales (nan/inf)")
+
+        if self.mode == "discrete":
+
+            if time_values.dtype == np.integer:
+                pass  # restrict time_sample
+            elif (
+                time_values.dtype == np.floating and (np.mod(time_values, 1) == 0).all()
+            ):
+                time_values = time_values.astype(np.int)
+            else:
+                raise TypeError(
+                    "For mode=discrete the time_samples have to be integers"
+                )
+
+        return time_values
+
+    def _check_initial_condition(self, ic, state_length):
+
+        if ic.ndim == 1:
+            ic = if1dim_colvec(ic)
+
+        if ic.ndim != 2:
+            raise ValueError(  # in case ndim > 2
+                f"Parameter 'ic' must have 2 dimensions. Got ic.ndim={ic.ndim}"
+            )
+
+        if ic.shape[0] != state_length:
+            raise ValueError(
+                f"Mismatch in ic.shape[0]={ic.shape[0]} is not "
+                f"dynmatrix.shape[1]={state_length}."
+            )
+
+        return ic
+
+    def evolve_system_spectrum(
+        self,
+        dynmatrix: np.ndarray,
+        eigenvalues: np.ndarray,
+        time_delta: float,
+        initial_conditions: np.ndarray,
+        time_values: np.ndarray,
+        time_series_ids: Optional[Dict] = None,
+        feature_columns: Optional[Union[pd.Index, list]] = None,
+    ):
+        r"""Evolve the dynamical system with the spectral components of the dynamical
+        matrix in the linear system.
+
+        Using the eigenvalues :math:`\Lambda` and eigenvectors :math:`\Psi` of the
+        constant matrix :math:`A`
+
+        .. math::
+            A \Psi = \Psi \Lambda
+
+        the linear system evolves
+
+        - continuous :math:`\left(t \in \mathbb{R}^{+}\right)`
+            .. math::
+                \frac{d}{dt} x(t) &= \Psi \cdot \exp(\Omega \cdot t) \cdot b(0) \\
+                \Omega &= \frac{\log(\Lambda)}{\Delta t}
+
+        - discrete :math:`\left(n = \frac{t}{\Delta t} \in \mathbb{N}\right)`
+            .. math::
+                x_{n+1} = \Psi \cdot \Lambda^n \cdot b_{0}
+
+        Where :math:`b(0)` and :math:`b_{0}` are the initial
+        conditions of the respective system.
+
+        .. note::
+            Initial condition states :math:`x` of the original system need to be
+            aligned to the right eigenvectors beforehand:
+
+            * By using the right eigenvetors and solve in a least square sense, or
+                .. math::
+                    \Psi_r x_0 = b_0
+
+            * by using the left eigenvectors and computing the matrix-vector product
+                .. math::
+                    \Psi_l x_0 = b_0
+
+        Parameters
+        ----------
+        dynmatrix
+            Spectral linear time map with shape `(n_feature, n_feature_states)`, \
+            where `n_feature_states` is the length of the initial condition.
+
+            * right eigenvectors :math:`\Psi` of matrix :math:`A` (in this case \
+              `n_feature=n_feature_states`), or
+            * linear transformation of right eigenvectors :math:`D \cdot \Psi` (this \
+              case allows `n_feature` to be larger or smaller than `n_feature_states`). \
+              The matrix :math:`D` allows to linearly map the states directly to another \
+              space (e.g. only a selection of states to reduce memory footprint).
+
+        eigenvalues
+            eigenvalues of matrix :math:`A`
+
+        time_delta
+            time delta :math:`\Delta t` of a continuous system
+
+        initial_conditions
+            one initial condition with shape `(n_features,)` or multiple with shape \
+            `(n_features, n_initial_conditions)`
+
+        time_values
+           Values to evaluate the linear system at
+
+           * `mode="continuous"` - :math:`t \in \mathbb{R}^{+}`
+           * `mode="discrete"` - :math:`n \in \mathbb{N}_0`
+
+        time_series_ids
+           Unique integer time series IDs with shape `(n_initial_conditions,)` for each \
+           respective initial condition in the resulting time series collection. \
+           Defaults to (0, 1, 2, ...).
+
+        feature_columns
+            Unique feature columns names with shape `(n_feature,)` in the result time \
+            series collection. Defaults to (0, 1, 2, ...).
+
+        Returns
+        -------
+        TSCDataFrame
+            collection with a time series for each initial condition with \
+            shape `(n_time_values, n_features)`
+        """
+
+        n_feature, state_length = dynmatrix.shape
+
+        self._check_time_values(time_values)
+        self._check_initial_condition(initial_conditions, state_length=state_length)
+
+        if time_series_ids is None:
+            time_series_ids = np.arange(initial_conditions.shape[1])
+
+        if feature_columns is None:
+            feature_columns = np.arange(state_length)
+
+        if len(feature_columns) != n_feature:
+            raise ValueError(
+                f"len(feature_columns)={feature_columns} != state_length={state_length}"
+            )
+
+        time_series_tensor = allocate_time_series_tensor(
+            n_time_series=initial_conditions.shape[1],
+            n_timesteps=time_values.shape[0],
+            n_feature=n_feature,
+        )
+
+        if self.mode == "continuous":
+            # TODO: see gitlab #82
+            omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
+
+            for idx, time in enumerate(time_values):
+                time_series_tensor[:, idx, :] = np.real(
+                    dynmatrix
+                    @ diagmat_dot_mat(np.exp(omegas * time), initial_conditions)
+                ).T
+        else:  # self.mode == "discrete"
+            for idx, time in enumerate(time_values):
+                time_series_tensor[:, idx, :] = np.real(
+                    dynmatrix
+                    @ diagmat_dot_mat(np.power(eigenvalues, time), initial_conditions)
+                ).T
+
+        return TSCDataFrame.from_tensor(
+            time_series_tensor,
+            time_series_ids=time_series_ids,
+            columns=feature_columns,
+            time_values=time_values,
+        )
+
+
 class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
-    r"""Dynamic Mode Decomposition (DMD) approximates the Koopman operator with
-    a matrix :math:`K`.
+    r"""Abstract base class for Dynamic Mode Decomposition (DMD) models to approximate
+    the Koopman operator.
 
-    The Koopman matrix :math:`K` defines a linear dynamical system of the form
+    The Koopman matrix :math:`K` defines a linear dynamical system
 
-    .. math::
-        K x_k = x_{k+1} \\
-        K^k x_0 = x_k
+    .. math:: K^n x_0 &= x_k
 
-    where :math:`x_k` is the (column) state vector of the system at time :math:`k`. All
-    subclasses should provide the right eigenvectors :math:`\Psi_r` and corresponding
-    eigenvalues :math:`\omega` of the Koopman matrix to efficiently evolve the linear
-    system TODO: link to method
+    with :math:`x_k` being the (column) state vector of the system at time :math:`k`.
+    When solving the eigenpairs of the Koopman matrix \
+    (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` eigenvalues on diagonal):
 
-    Evolving the linear system over many time steps is expensive due to the matrix power:
+    .. math:: K \Psi_r = \Psi_r \Lambda
 
-    .. math::
-        K^k x_0 &= x_k
-
-    Therefore, the (right) eigenpairs (:math:`\omega, \Psi_r`) of the Koopman matrix is
-    computed and the initial condition is written in terms of the eigenvectors in a
-    least-squares sense.
+    then this enables further analysis and inexpensive evaluation of the above linear
+    dynamical system (matrix power of diagonal matrix :math:`\Lambda` instead of
+    :math:`K`):
 
     .. math::
-        K^k \Psi_r &= \Psi_r \Omega \\
-        \Psi_r b &= x_0 \\
-        K^k \Psi_r b &= x_k \\
-        \Psi_r \Omega^k b &= x_k
+        x_n &= K^n x_0 \\
+        &= K^n \Psi_r b  \\
+        &= \Psi_r \Lambda^n b
 
-    where the eigenproblem is stated in matrix form for all computed eigenpairs. Because
-    :math:`\Omega` is a a diagonal matrix the power is very cheap compared to the
-    generally full matrix :math:`K^k`.
+    With the initial condition :math:`b`, which is aligned to the linear system using the
+    eigenvectors of the Koopman matrix:
+
+    1. in a least squares sense with the right eigenvectors already computed in a least \
+       square sense
+
+       .. math::
+           \Psi_r b = x_0
+
+    2. using the left eigenvectors (:math:`\Psi_l`, if available) and inexpensive \
+       matrix-vector product
+
+       .. math::
+           \Psi_l x_0 = b
+
+
+    All subclasses must provide the (right) eigenpairs :math:`\left(\Lambda, \Psi_r\right)`,
+    in respective attributes :code:`eigenvalues_` and :code:`eigenvectors_right_`. If
+    the left eigenvectors (attribute :code:`eigenvectors_left_`) are available the
+    initial condition always solves with the second case for :math:`b`.
+
+    See Also
+    --------
+
+    ``LinearDynamicalSystem``
     """
 
     def _evolve_dmd_system(
@@ -69,45 +311,23 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         time_values: np.ndarray,
         time_invariant=True,
         post_map: Optional[np.ndarray] = None,
-        qoi_columns=None,
+        feature_columns=None,
     ):
-        """
-        Evolve the linear system.
 
-        Parameters
-        ----------
-        ic
-            Initial condition in same space where EDMD was fit. The initial condition may
-            be transformed internally.
-        time_values
-            Array of times where the dynamical system should be evaluated.
-        dynmatrix
-            If not provided, the dynmatrix corresponds to the eigenvectors of EDMD.
-        time_series_ids
-            Time series ids in same order to initial conditions.
-        qoi_columns
-            List of quantity of interest names that are set in the TSCDataFrame
-            returned.
-
-        Returns
-        -------
-        TSCDataFrame
-            The resulting time series collection for each initial condition collected.
-
-        """
+        check_is_fitted(self, attributes=["eigenvectors_right_"])
 
         # type hints for mypy
         self.eigenvectors_left_: Optional[np.ndarray]
         self.eigenvectors_right_: np.ndarray
         self.eigenvalues_: np.ndarray
 
-        if qoi_columns is None:
-            qoi_columns = self.features_in_[1]
+        if feature_columns is None:
+            feature_columns = self.features_in_[1]
 
         # initial condition is numpy-only, from now on
         ic = X_ic.to_numpy().T
         time_series_ids = X_ic.index.get_level_values(
-            TSCDataFrame.IDX_ID_NAME
+            TSCDataFrame.tsc_id_idx_name
         ).to_numpy()
 
         if len(np.unique(time_series_ids)) != len(time_series_ids):
@@ -127,13 +347,21 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         ):
             # represent the initial condition in terms of right eigenvectors (by solving a
             # least-squares problem) -- only the right eigenvectors are required
-            ic = np.linalg.lstsq(self.eigenvectors_right_, ic, rcond=1e-15)[0]
+            ic = np.linalg.lstsq(self.eigenvectors_right_, ic, rcond=None)[0]
 
+        if post_map is not None:
+            # transform eigenvectors with post_map
+            try:
+                post_map = np.asarray(post_map, dtype=np.float64)
+            except Exception:
+                raise TypeError("Cannot convert post_map to numpy array.")
+            else:
+                if post_map.ndim != 2:
+                    raise TypeError("'post_map' must be two dimensional")
+
+            dynmatrix = post_map @ self.eigenvectors_right_
         else:
-            raise NotFittedError(
-                "DMD is not properly fit. "
-                "Missing attributes: eigenvectors_left_ / eigenvectors_right_ "
-            )
+            dynmatrix = self.eigenvectors_right_
 
         if time_invariant:
             shift = np.min(time_values)
@@ -149,14 +377,13 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         tsc_df = LinearDynamicalSystem(
             mode="continuous", time_invariant=True
         ).evolve_system_spectrum(
-            eigenvectors=self.eigenvectors_right_,
+            dynmatrix=dynmatrix,
             eigenvalues=self.eigenvalues_,
-            dt=self.dt_,
-            ic=ic,
-            post_map=post_map,
+            time_delta=self.dt_,
+            initial_conditions=ic,
             time_values=norm_time_samples,
             time_series_ids=time_series_ids,
-            qoi_columns=qoi_columns,
+            feature_columns=feature_columns,
         )
 
         # correct the time shift again to return the correct time according to the
@@ -172,9 +399,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         # Because hard-setting the time indices can introduce problems, the following
         # assert makes sure that both ways match (up to numerical differences).
         assert (
-            tsc_df.tsc.shift_time(shift_t=shift).time_values(unique_values=True)
-            - time_values
-            < 1e-15
+            tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-15
         ).all()
 
         # Hard set of time_values
@@ -184,43 +409,91 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         return tsc_df
 
-    def _convert_array2frame(self, X):
-        if isinstance(X, np.ndarray):
-            assert X.ndim == 2
-            nr_ic = X.shape[0]
-            index = pd.Index(data=np.arange(nr_ic), name="ID")
-            X = pd.DataFrame(X, index=index, columns=self.features_in_[1])
-
-        return X
-
     @abc.abstractmethod
-    def fit(self, X: PRE_FIT_TYPES, **fit_params):
+    def fit(self, X: TimePredictType, **fit_params) -> "DMDBase":
+        """Abstract method to train DMD model.
+
+        Parameters
+        ----------
+        X
+            Training data
+        """
         raise NotImplementedError("base class")
 
     def predict(
-        self, X: PRE_IC_TYPES, time_values=None, **predict_params
+        self, X: InitialConditionType, time_values=None, **predict_params
     ) -> TSCDataFrame:
+        """Predict time series data for each initial condition for the time values.
+
+        Parameters
+        ----------
+        X: pandas.DataFrame, numpy.ndarray
+            Initial conditions with shape `(n_initial_condition, n_features)`.
+
+        time_values
+            Time values to evaluate the model at.
+
+        Keyword Args
+        ------------
+
+        post_map: np.ndarray
+            A matrix that is combined with the right eigenvectors. \
+            :code:`post_map @ eigenvectors_right_`.
+
+        feature_columns:
+            If post_map is given and the state lengths changes, new feature names must \
+            be provided.
+
+        Returns
+        -------
+        TSCDataFrame
+            time series predictions with shape `(n_time_values, n_features)` for each
+            initial condition
+        """
+
         check_is_fitted(self)
 
-        X = self._convert_array2frame(X)
+        if isinstance(X, np.ndarray):
+            # work internally only with DataFrames
+            X = InitialCondition.from_array(X, columns=self.features_in_[1])
+        else:
+            InitialCondition.validate(X)
+
         self._validate_data(X)
-        InitialCondition.validate(X)
 
         X, time_values = self._validate_features_and_time_values(
             X=X, time_values=time_values
         )
 
         post_map = predict_params.pop("post_map", None)
-        qoi_columns = predict_params.pop("qoi_columns", None)
+        feature_columns = predict_params.pop("feature_columns", None)
 
         if len(predict_params.keys()) > 0:
             raise KeyError(f"predict_params keys are invalid: {predict_params.keys()}")
 
         return self._evolve_dmd_system(
-            X_ic=X, time_values=time_values, post_map=post_map, qoi_columns=qoi_columns
+            X_ic=X,
+            time_values=time_values,
+            post_map=post_map,
+            feature_columns=feature_columns,
         )
 
     def reconstruct(self, X: TSCDataFrame):
+        """Reconstruct existing time series collection.
+
+        Extract the same initial states from the time series in the collection and
+        predict the other states with the model at the same time values.
+
+        Parameters
+        ----------
+        X: TSCDataFrame
+            Time series to reconstruct.
+
+        Returns
+        -------
+        X_reconstruct: TSCDataFrame of same shape as input.
+        """
+
         check_is_fitted(self)
         X = self._validate_data(
             X,
@@ -241,35 +514,103 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         return X_reconstruct_ts
 
     def fit_predict(self, X: TSCDataFrame, **fit_params):
+        """Fit the model and reconstruct the time series training data.
+
+        Parameters
+        ----------
+        X
+            Training time series data.
+
+        Returns
+        -------
+        TSCDataFrame
+            same shape as input `X`
+        """
         return self.fit(X, **fit_params).reconstruct(X)
 
-    def score(self, X: TSCDataFrame, y=None, sample_weight=None):
+    def score(self, X: TSCDataFrame, y=None, sample_weight=None) -> float:
+        """Score DMD model by reconstructing time series data with same initial condition.
+
+        The default metric (see :class:`TSCMetric` used is mode="feature", "metric=rmse"
+        and "min-max" scaling.
+
+        Parameters
+        ----------
+        X
+            time series data to reconstruct with `(n_samples, n_features)`
+
+        y: None
+            ignored
+
+        sample_weight
+            handled to :py:meth:`TSCScoring.__call__`
+
+        Returns
+        -------
+        float
+            score
+        """
         self._check_attributes_set_up(check_attributes=["_score_eval"])
-        assert y is None
 
+        # does checks:
         X_est_ts = self.reconstruct(X)
-
-        score_params = {}
-        if sample_weight is not None:
-            score_params["sample_weight"] = sample_weight
 
         return self._score_eval(X, X_est_ts, sample_weight)
 
 
 class DMDFull(DMDBase):
-    r"""Full DMD method (i.e. using entire data matrix with no dimension reduction).
+    r"""Dynamic Mode Decomposition of time series data without any prior dimensionality
+    reduction.
 
-    The Koopman matrix is approximated
+    The Koopman matrix is approximated with
 
     .. math::
         K X &= X' \\
         K &= X' X^{\dagger},
 
-    where :math:`\dagger` defines the Moore–Penrose inverse.
+    where :math:`\dagger` defines the Moore–Penrose inverse and column oriented
+    snapshots in :math:`X`.
+    
+    ...
+
+    Parameters
+    ----------
+
+    is_diagonalize
+        Whether to also compute the left eigenvectors. If True, then there is no
+        additional least squares solution required for evaluating the linear dynamical
+        system (see :class:`LinearDynamicalSystem`)
+
+    rcond: Optional[float]
+        Parameter handled to `numpy.linalg.lstsq <https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.lstsq.html>`_
+
+    Attributes
+    ----------
+
+    eigenvalues_: numpy.ndarray
+        Eigenvalues of Koopman matrix.
+
+    eigenvectors_right_: numpy.ndarray
+        All right eigenvectors of Koopman matrix.
+
+    eigenvectors_left_: numpy.ndarray
+        Left eigenvectors of Koopman matrix if ``is_diagonalize=True``.
+
+    koopman_matrix_: numpy.ndarray
+        Koopman matrix obtained from least squares
+
+        .. note::
+            This is subject to get removed, the spectral parts are sufficient.
+
+    References
+    ----------
+
+    :cite:`schmid_dynamic_2010`
+    :cite:`kutz_dynamic_2016`
 
     """
 
-    def __init__(self, is_diagonalize: bool = False, rcond=None):
+    def __init__(self, is_diagonalize: bool = False, rcond: Optional[float] = None):
         self._setup_default_tsc_metric_and_score()
         self.is_diagonalize = is_diagonalize
         self.rcond = rcond
@@ -356,7 +697,22 @@ class DMDFull(DMDBase):
         koopman_matrix = koopman_matrix.T
         return koopman_matrix
 
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+    def fit(self, X: TimePredictType, y=None, **fit_params) -> "DMDFull":
+        """Build Koopman matrix from time series data.
+
+        Parameters
+        ----------
+        X
+            Training data.
+
+        y: None
+            ignored
+
+        Returns
+        -------
+        DMDFull
+            self
+        """
 
         self._validate_data(
             X=X,
@@ -377,9 +733,14 @@ class DMDFull(DMDBase):
 
 
 class DMDEco(DMDBase):
-    r"""Approximates the Koopman matrix economically (compared to EDMDFull). It computes
-    the principal components of the input data and computes the Koopman matrix there.
-    Finally, it reconstructs the eigenpairs of the original system.
+    r"""Dynamic Mode Decomposition of time series data with prior singular value
+    decomposition (SVD).
+
+    The singular velue decomposition reduces the data and the Koopman operator is
+    computed in this reduced space. This DMD model is particularly interesting for high
+    dimensional data (large number of features).
+
+    The procedure is as follows:
 
     1. Compute the singular value decomposition of the data and use the leading `k`
     singular values and corresponding vectors in :math:`U` and :math:`V`.
@@ -387,12 +748,12 @@ class DMDEco(DMDBase):
     .. math::
         X \approx U \Sigma V^*
 
-    2. Compute the Koopman matrix on the PCA coordinates:
+    2. Compute the Koopman matrix on the SVD coordinates:
 
     .. math::
         K = U^T X' V \Sigma^{-1}
 
-    3. Compute the eigenpairs (stated in matrix form):
+    3. Compute the eigenpairs (in matrix form):
 
     .. math::
         K W_r = W_r \Omega
@@ -406,13 +767,34 @@ class DMDEco(DMDBase):
         The eigenvectors in step 4 can also be computed with :math:`\Psi_r = U W`, which
         is then referred to the projected reconstruction.
 
-    .. todo::
-        cite Tu, 2014
+    ...
+
+    Parameters
+    ----------
+    svd_rank: int
+        Number of eigenpairs (with largest eigenvalues) to keep
+
+
+    Attributes
+    ----------
+
+    eigenvalues_ : numpy.ndarray
+        All eigenvalues (svd_rank,) of the (reduced) Koopman matrix .
+
+    eigenvectors_right_ : numpy.ndarray
+        All right eigenvectors of the reduced Koopman matrix.
+
+    References
+    ----------
+
+    :cite:`kutz_dynamic_2016`
+    :cite:`tu_dynamic_2014`
+
     """
 
     def __init__(self, svd_rank=10):
         self._setup_default_tsc_metric_and_score()
-        self.k = svd_rank
+        self.svd_rank = svd_rank
 
     def _compute_internals(self, X: TSCDataFrame):
         # TODO: different orientations are good for different cases:
@@ -420,15 +802,15 @@ class DMDEco(DMDBase):
         #  2 more quantities than snapshots
         #  Currently it is optimized for the case 2.
 
-        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="column")
+        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="col")
         U, S, Vh = np.linalg.svd(shift_start, full_matrices=False)  # (1.18)
 
-        U = U[:, : self.k]
-        S = S[: self.k]
+        U = U[:, : self.svd_rank]
+        S = S[: self.svd_rank]
         S_inverse = np.reciprocal(S, out=S)
 
         V = Vh.T
-        V = V[:, : self.k]
+        V = V[:, : self.svd_rank]
 
         koopman_matrix_low_rank = (
             U.T @ shift_end @ mat_dot_diagmat(V, S_inverse)
@@ -447,7 +829,7 @@ class DMDEco(DMDBase):
 
         return koopman_matrix_low_rank
 
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params):
+    def fit(self, X: TimePredictType, y=None, **fit_params):
         self._validate_data(
             X,
             ensure_feature_name_type=True,
@@ -458,7 +840,17 @@ class DMDEco(DMDBase):
         return self
 
 
+@warn_experimental_class
 class PyDMDWrapper(DMDBase):
+    """
+    .. warning::
+        This class is not documented and clsasified as experimental.
+        Contributions are welcome:
+            * documentation
+            * write unit tests
+            * improve code
+    """
+
     def __init__(
         self, method: str, svd_rank, tlsq_rank, exact, opt, **init_params,
     ):
@@ -507,7 +899,7 @@ class PyDMDWrapper(DMDBase):
         else:
             raise ValueError(f"method={method} not known")
 
-    def fit(self, X: PRE_FIT_TYPES, y=None, **fit_params) -> "PyDMDWrapper":
+    def fit(self, X: TimePredictType, y=None, **fit_params) -> "PyDMDWrapper":
 
         self._validate_data(
             X,

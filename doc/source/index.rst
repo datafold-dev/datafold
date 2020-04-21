@@ -1,28 +1,68 @@
-Documentation of python package `datafold`
-==========================================
+==========================
+**datafold** documentation
+==========================
+
+Contents
+========
+
+.. NOTE: if changing "tutorial_index" in the toctree, the filename also has to be changed
+   in include_tutorials.py
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
-   
-   _apidoc/modules
+
+   api
+   devapi
+   tutorial_index
    references
    todolist
 
-.. todo::
 
-    Write introdction to documentation and make a clean structure.
-    
-.. todo::
+Quick links
+===========
 
-    Exclude modules (e.g. `setup.py`) and `tests/` folders
+.. Not used -- :ref:`modindex`
+.. Not used -- :ref:`search`
 
-.. include:: intro.rst
+* `Gitlab repository <https://gitlab.com/datafold-dev/datafold>`_
+* `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
+* :ref:`genindex` software documentation
+
+-----
+
+.. include:: ../../README.rst
+
+-----
+
+Affiliations
+============
+
+Contributors
+------------
+
+* **Daniel Lehmberg** (1,2) is supported by the German Research Foundation (DFG), grant no
+  KO5257/3-1. DL thanks the research office (FORWIN) of Munich University of Applied
+  Sciences and CeDoSIA of TUM Graduate School at the Technical University of Munich for
+  their support.
 
 
-Indices and tables
-==================
+1. Munich University of Applied Sciences
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+Faculty of Computer Science and Mathematics in
+research group "Pedestrian Dynamics" `www.vadere.org <http://www.vadere.org/>`_,
+
+.. image:: _static/img/hm_logo.png
+   :height: 100px
+   :width: 400px
+   :target: https://www.hm.edu/en/index.en.html
+
+2. Technical University of Munich
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Chair of Scientific Computing in Computer Science
+
+.. image:: _static/img/tum_logo.png
+   :height: 100px
+   :width: 200px
+   :target: https://www.tum.de/en/

@@ -5,7 +5,7 @@ import unittest
 
 import nbformat
 
-IGNORED_TESTED_NOTEBOOKS = ["koopman_operator.ipynb"]
+IGNORED_TESTED_NOTEBOOKS = []
 
 
 class TestNotebooks(unittest.TestCase):

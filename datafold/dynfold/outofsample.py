@@ -1,15 +1,5 @@
-"""Geometric harmonics module.
-
-This module implements out-of-sample evaluation of functions using the Geometric Harmonics
-method introduced in:
-
-Coifman, R. R., & Lafon, S. (2006). Geometric harmonics: A novel tool for multiscale
-out-of-sample extension of empirical functions. Applied and Computational Harmonic
-Analysis, 21(1), 31–52. DOI:10.1016/j.acha.2005.07.005
-"""
-
 import enum
-from typing import Optional
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,17 +9,82 @@ from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-import datafold.pcfold as pcfold
 from datafold.decorators import warn_experimental_class, warn_known_bug
 from datafold.dynfold.base import DmapKernelMethod
+from datafold.pcfold import PCManifold
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import DmapKernelFixed
-from datafold.utils.maths import mat_dot_diagmat
+from datafold.utils.general import mat_dot_diagmat
 
 
 class GeometricHarmonicsInterpolator(
     DmapKernelMethod, RegressorMixin, MultiOutputMixin
 ):
+    """Out-of-sample interpolation of function values defined on manifold data.
+
+    Parameters
+    ----------
+    epsilon
+        Bandwidth/scale of diffusion map kernel (see :py:class:`DmapKernelFixed`).
+
+    n_eigenpairs
+        Number of eigenpairs to compute from computed diffusion kernel matrix.
+
+    cut_off
+        Distance cut off, kernel values with a corresponding larger Euclidean distance
+        are set to zero. Lower values increases the sparsity of kernel matrices and
+        faster computation of eigenpairs at the cost of accuracy.
+
+    is_stochastic
+        If True the diffusion kernel matrix is normalized (stochastic rows).
+
+    alpha
+        Re-normalization parameter. Set to `alpha=0` for graph laplacian, `alpha=0.5`
+        Fokker-Plank and `alpha=1` for Laplace-Beltrami (`is_stochastic=True` in all
+        cases).
+
+    symmetrize_kernel
+        If True a conjugate transformation of non-symmetric kernel matrices is performed.
+        This improves numerical stability and allows to use eigensolver algorithms
+        designed for Hermitian matrices.
+
+    dist_backend
+        Backend of distance matrix computation. Defaults to `guess_optimal`,
+        which selects the backend based on the selection of ``cut_off`` and the
+        available algorithms. See also
+        :py:class:`.DistanceAlgorithm`.
+
+    dist_backend_kwargs,
+        Keyword arguments handled to distance matrix backend.
+
+    Attributes
+    ----------
+
+    X_: PCManifold
+        Training data during fit, is required for out-of-sample interpolations.
+
+    y_: numpy.ndarray
+        Target function values, can be multi-dimensional.
+
+    eigenvalues_: numpy.ndarray
+        Eigenvalues of diffusion kernel in decreasing order.
+
+    eigenvectors_: numpy.ndarray
+        Eigenvectors of the kenrel matrix. Corresponds to geometric harmonics
+        evaluations.
+
+    kernel_matrix_: numpy.ndarray
+        Kernel matrix computed during fit.
+
+        .. note::
+            Currently, the kernel matrix is only used for testing. It may be removed.
+
+    References
+    ----------
+
+    :cite:`coifman_geometric_2006`
+    """
+
     def __init__(
         self,
         epsilon: float = 1.0,
@@ -43,9 +98,6 @@ class GeometricHarmonicsInterpolator(
         dist_backend_kwargs=None,
     ) -> None:
 
-        """Geometric Harmonics Interpolator.
-
-        """
         super(GeometricHarmonicsInterpolator, self).__init__(
             epsilon=epsilon,
             n_eigenpairs=n_eigenpairs,
@@ -66,7 +118,7 @@ class GeometricHarmonicsInterpolator(
         )
 
     def _precompute_aux(self) -> None:
-        # TODO: [style] "aux" should get a better name
+        # TODO: [style, minor] "aux" should get a better name
 
         # Alternative/legacy way of computing self._aux
         # a little bit faster than  legacy "n^3"
@@ -82,7 +134,7 @@ class GeometricHarmonicsInterpolator(
 
     def _validate(
         self, X: np.ndarray, y: np.ndarray = None, ensure_min_samples=1
-    ) -> np.ndarray:
+    ) -> Union[np.ndarray, np.ndarray]:
 
         check_consistent_length(X, y)
 
@@ -120,14 +172,18 @@ class GeometricHarmonicsInterpolator(
         _tags["multioutput"] = True
         return _tags
 
-    def __call__(self, X: np.ndarray) -> np.ndarray:
-        """Evaluate interpolator at the given points.
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Evaluate model at the given points.
 
         Parameters
         ----------
-        X : np.ndarray
-            Out-of-sample points to interpolate. The points are expected to lie on the
-            same manifold as the data used in the fit function.
+        X
+            Out-of-sample points to interpolate with shape `(n_samples, n_features)`.
+
+        Returns
+        -------
+        numpy.ndarray
+            interpolated function values with shape `(n_samples, n_targets)`
         """
 
         check_is_fitted(
@@ -156,12 +212,25 @@ class GeometricHarmonicsInterpolator(
 
         return np.squeeze(kernel_matrix @ self._aux)
 
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "GeometricHarmonicsInterpolator":
+        """Fit model
 
+        Parameters
+        ----------
+        X
+            Training samples with shape `(n_samples, n_features)`.
+        y
+            Target function values with shape `(n_samples, n_targets)`
+
+        Returns
+        -------
+        GeometricHarmonicsInterpolator
+            self
+        """
         X, y = self._validate(X, y=y, ensure_min_samples=2)
         self._setup_kernel()
 
-        self.X_ = pcfold.PCManifold(
+        self.X_ = PCManifold(
             X,
             kernel=self.kernel_,
             cut_off=self.cut_off,
@@ -198,30 +267,27 @@ class GeometricHarmonicsInterpolator(
         self._precompute_aux()
         return self
 
-    def predict(self, X):
-        return self(X)
-
     @warn_known_bug(gitlab_issue=16)
     def gradient(self, X: np.ndarray, vcol: Optional[int] = None) -> np.ndarray:
         """Evaluate gradient of interpolator at the given points.
 
-        # TODO: explain or link to where the gradient is computed (literature links).
-            The code is not self explanatory.
+        .. note::
+            This code is known to have a bug. (see gitlab issue #16).
+            Contributions are welcome.
 
         Parameters
         ----------
-        X : np.ndarray
-            Out-of-sample points to compute the gradient for. The points are expected
-            to lie on the original manifold.
-        vcol : Optional[int]
-            The index of the corresponding function values (i.e. column in parameter
-            `values` given to GeometricHarmonicsInterpolator) to compute the gradient.
+        X
+            Out-of-sample points to compute the gradient at.
+            
+        vcol
+            Column index of the corresponding function value to compute the gradient of.
             Has to be given for multivariate interpolation.
 
         Returns
         -------
         np.ndarray
-            Gradients for each point (row-wise) for the requested points `xi`.
+            Gradients (row-wise)
         """
 
         # TODO: generalize to all columns (if required...). Note that this will be a
@@ -248,9 +314,7 @@ class GeometricHarmonicsInterpolator(
         else:
             values = self.y_[:, 0]
 
-        kernel_matrix, basis_change_matrix, _ = self.X_.compute_kernel_matrix(
-            X
-        )  # TODO: _
+        kernel_matrix, basis_change_matrix, _ = self.X_.compute_kernel_matrix(X)
         assert basis_change_matrix is None  # TODO: catch this case before computing...
 
         # TODO: see issue #54 the to_ndarray() kills memory, when many points
@@ -273,10 +337,44 @@ class GeometricHarmonicsInterpolator(
             np.matmul(v.T, ki_psis[p, :], out=grad[p, :])
         return grad
 
-    def score(self, X, y, sample_weight=None, multioutput="raw_values") -> float:
+    def score(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        multioutput: str = "raw_values",
+    ) -> float:
+        """Score interpolation model with mean squared error metric.
 
+        Parameters
+        ----------
+        X : numpy.ndarray of shape (n_samples, n_features)
+            Point cloud to evaluate the model at.
+
+        y : numpy.ndarray (n_samples, n_target_values)
+            True target values to score predicted values against.
+
+        sample_weight : array-like of shape (n_samples,), optional
+            Sample weights.
+
+        multioutput : string in ['raw_values', 'uniform_average'] or array-like of \
+        shape (n_outputs)
+            Defines aggregating of multiple output values.
+            Array-like value defines weights used to average errors.
+
+            "raw_values":
+                Returns a full set of errors in case of multioutput input.
+
+            "uniform_average" :
+                Errors of all outputs are averaged with uniform weight.
+
+        Returns
+        -------
+        float
+            score
+        """
         X, y = self._validate(X, y=y, ensure_min_samples=1)
-        y_pred = self(X)
+        y_pred = self.predict(X)
 
         score = mean_squared_error(
             y, y_pred, sample_weight=None, multioutput=multioutput
@@ -293,8 +391,13 @@ class GeometricHarmonicsInterpolator(
 
 @warn_experimental_class
 class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
-    # TODO: use (*args, **kwargs) and simply note that it is the same as in
-    #  GeometricHarmonicsInterpolator?
+    """
+    .. warning::
+        This class is not documented and in experimental state. Contributions are welcome:
+            * documentation
+            * write unit tests
+            * improve code
+    """
 
     def __init__(
         self,
@@ -336,8 +439,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
 
         from datafold.pcfold import PCManifold
         from datafold.pcfold.kernels import GaussianKernel
-        from datafold.utils.maths import diagmat_dot_mat
-        from datafold.utils.maths import sort_eigenpairs
+        from datafold.utils.general import diagmat_dot_mat, sort_eigenpairs
         from scipy.sparse.linalg import eigsh
 
         mu_l_ = None
@@ -408,7 +510,58 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         )
 
 
-class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
+class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
+    """Laplacian pyramids interpolation of function values on a manifold with
+    multi-scale kernels.
+
+    The implementation is generalized to vector valued target functions.
+    The kernel scales are decreased (i.e. a new kernel with lower scale) until each
+    corresponding stopping criteria is reached (based on residual).
+
+    Parameters
+    ----------
+
+    initial_epsilon
+        Scale of kernel in first iteration.
+
+    mu
+        Factor by which epsilon is decreased in every iteration
+        :code:`(new_epsilon = old_epsilon / mu)`. Must be strictly larger than 1.
+
+    residual_tol
+        Decreasing kernel scale terminates if interpolation residual gets
+        smaller than tolerance. If ``auto_adaptive=False`` a parameter must be provided.
+
+    auto_adaptive
+        If True decreasing the kernel scale terminates based on LOOCV (leave
+        one out cross validation) estimation for each iteration.
+
+    alpha
+        Parameter handled to the diffusion maps kernel used (see
+        :class:`DmapKernelFixed`).
+
+    Attributes
+    ----------
+
+    X_: numpy.ndarray
+        Point cloud during fit.
+
+    level_: int
+        Number of kernels.
+
+    n_targets_: int
+        Number of target functions during fit. (Note: the target values are not hold
+        in the model).
+
+
+    References
+    ----------
+
+    :cite:`fernandez_auto-adaptative_2014`
+    :cite:`rabin_heterogeneous_2012`
+
+    """
+
     # TODO: LIST OF THINGS TO IMPROVE; TRY OUT OR TO DO
     #   1. allow sparse matrix (integrate cut_off etc.) --> problem: For large scales,
     #       there is almost no memory saving
@@ -418,7 +571,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
     #       But before refactor, test the performance impact!
 
     # Internal Enum class to indicate the state of a function in the loop during fit
-    class LoopCond(enum.Enum):
+    class _LoopCond(enum.Enum):
         NO_TERMINATION = 0
         BELOW_RES_TOL = 1
         LOOCV_INCREASES = 2
@@ -427,11 +580,11 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
 
     def __init__(
         self,
-        initial_epsilon=10.0,
-        mu=2,
-        residual_tol=None,
-        auto_adaptive=False,
-        alpha=0,
+        initial_epsilon: float = 10.0,
+        mu: float = 2.0,
+        residual_tol: Optional[float] = None,
+        auto_adaptive: bool = False,
+        alpha: float = 0,
     ):
 
         self.initial_epsilon = initial_epsilon
@@ -504,7 +657,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
         return _tags
 
     def _termination_rules_single(self, current_residual_norm, last_residual_norm):
-        signal = self.LoopCond.NO_TERMINATION
+        signal = self._LoopCond.NO_TERMINATION
 
         if self.auto_adaptive:
             if (
@@ -512,23 +665,23 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
                 # stop if residual is  increasing
                 and current_residual_norm > last_residual_norm
             ):
-                signal = self.LoopCond.LOOCV_INCREASES
+                signal = self._LoopCond.LOOCV_INCREASES
 
         if (
-            signal == self.LoopCond.NO_TERMINATION
+            signal == self._LoopCond.NO_TERMINATION
             and self.residual_tol is not None
             and current_residual_norm <= self.residual_tol
         ):
-            signal = self.LoopCond.BELOW_RES_TOL
+            signal = self._LoopCond.BELOW_RES_TOL
 
         MAGIC_TINY_RESIDUAL = 1e-15
 
         if (
-            signal == self.LoopCond.NO_TERMINATION
+            signal == self._LoopCond.NO_TERMINATION
             and current_residual_norm < MAGIC_TINY_RESIDUAL
         ):
             # Stop in any configuration, below this threshold
-            signal = self.LoopCond.TINY_RES
+            signal = self._LoopCond.TINY_RES
 
         return signal
 
@@ -538,7 +691,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
         assert current_residual_norm.shape == last_residual_norm.shape
 
         nr_tests = current_residual_norm.shape[0]
-        signals = np.array([self.LoopCond.NO_TERMINATION] * nr_tests)
+        signals = np.array([self._LoopCond.NO_TERMINATION] * nr_tests)
 
         for i in range(nr_tests):
             signals[i] = self._termination_rules_single(
@@ -554,13 +707,6 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
             metric="sqeuclidean",  # for now only Gaussian kernel
             backend="brute",  # for now no support for sparse distance matrix
         )
-
-    @property
-    def level_(self):
-        if self._level_tracker == {}:
-            return 0
-        else:
-            return max(self._level_tracker.keys())
 
     def _get_next_level_(self):
         if self._level_tracker == {}:
@@ -597,7 +743,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
         current_residual,
         current_residual_norm,
     ):
-        bool_idx = loop_condition != self.LoopCond.LOOCV_INCREASES
+        bool_idx = loop_condition != self._LoopCond.LOOCV_INCREASES
         return (
             active_func_indices[bool_idx],
             target_values[:, bool_idx],
@@ -614,11 +760,13 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
     ):
 
         # remove LOOCV-termination reason as it is handeled separately
-        loop_condition = loop_condition[loop_condition != self.LoopCond.LOOCV_INCREASES]
+        loop_condition = loop_condition[
+            loop_condition != self._LoopCond.LOOCV_INCREASES
+        ]
 
         bool_idx = np.logical_or(
-            loop_condition == self.LoopCond.BELOW_RES_TOL,
-            loop_condition == self.LoopCond.TINY_RES,
+            loop_condition == self._LoopCond.BELOW_RES_TOL,
+            loop_condition == self._LoopCond.TINY_RES,
         )
 
         return (
@@ -672,15 +820,15 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
         # set up variables for first iteration
         target_values = y
         epsilon = self.initial_epsilon
-        current_residual_norm = np.array([np.nan] * self.nr_targets_)
-        active_func_indices = np.arange(self.nr_targets_)
+        current_residual_norm = np.array([np.nan] * self.n_targets_)
+        active_func_indices = np.arange(self.n_targets_)
 
         # at least one iteration
         func_loop_conditions = np.array(
-            [self.LoopCond.NO_TERMINATION] * self.nr_targets_
+            [self._LoopCond.NO_TERMINATION] * self.n_targets_
         )
 
-        while self.LoopCond.NO_TERMINATION in func_loop_conditions:
+        while self._LoopCond.NO_TERMINATION in func_loop_conditions:
 
             (
                 dmap_kernel,
@@ -749,7 +897,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
                     current_residual_norm,
                 )
 
-            if self.LoopCond.NO_TERMINATION in curr_loop_conditions:
+            if self._LoopCond.NO_TERMINATION in curr_loop_conditions:
                 # prepare for next loop iteration
                 epsilon = epsilon / self.mu
                 current_residual_norm = current_residual_norm
@@ -757,24 +905,55 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
 
         return self
 
-    def fit(self, X: np.ndarray, y, **fit_params) -> "LaplacianPyramidsInterpolator":
+    def fit(
+        self, X: np.ndarray, y: np.ndarray, **fit_params
+    ) -> "LaplacianPyramidsInterpolator":
+        """Train model by decreasing kernel scales until termination.
 
+        Parameters
+        ----------
+        X: numpy.ndarray of shape (n_samples, n_features)
+            Training point cloud.
+        y: numpy.ndarray of shape (n_samples, n_target_values)
+            Target function values.
+
+        Returns
+        -------
+        LaplacianPyramidsInterpolator
+            self
+        """
         self.X_, y = self._validate(X, y, ensure_min_samples=2)
         self._setup()
 
-        self.nr_targets_ = y.shape[1]
+        self.n_targets_ = y.shape[1]
+        self.level_ = (
+            0 if self._level_tracker == {} else max(self._level_tracker.keys())
+        )
+
         self._laplacian_pyramid(self.X_, y)
 
         return self
 
-    def predict(self, X):
+    def predict(self, X: np.ndarray):
+        """Out-of-sample point interpolation.
+
+        Parameters
+        ----------
+        X: numpy.ndarray
+            Out-of-sample data with shape `(n_samples, n_features)`.
+
+        Returns
+        -------
+        numpy.ndarray
+            interpolated function values with shape `(n_samples, n_targets_)`
+        """
 
         X, _ = self._validate(X)
 
-        check_is_fitted(self, attributes=["X_", "nr_targets_", "_level_tracker",])
+        check_is_fitted(self)
 
         # allocate memory for return
-        y_hat = np.zeros([X.shape[0], self.nr_targets_])
+        y_hat = np.zeros([X.shape[0], self.n_targets_])
         distance_matrix = self._distance_matrix(X=self.X_, Y=X)
 
         for level, level_content in self._level_tracker.items():
@@ -786,23 +965,18 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
             active_indices = level_content["active_indices"]
             y_hat[:, active_indices] += kernel_matrix @ level_content["target_values"]
 
-        if self.nr_targets_ == 1:
+        if self.n_targets_ == 1:
             y_hat = y_hat.flatten()
 
         return y_hat
 
-    # def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
-    #     return mean_squared_error(
-    #         self.predict(X),
-    #         y_pred=y,
-    #         sample_weight=sample_weight,
-    #         squared=True,
-    #         multioutput=multioutput,
-    #     )
+    def plot_eps_vs_residual(self) -> None:
+        """Plot residuals versus kernel scales (epsilon) from model fit.
+        """
 
-    def plot_eps_vs_residual(self):
+        check_is_fitted(self)
 
-        norm_residuals = np.zeros([self.level_ + 1, self.nr_targets_]) * np.nan
+        norm_residuals = np.zeros([self.level_ + 1, self.n_targets_]) * np.nan
 
         for i, info in enumerate(self._level_tracker.values()):
             residuals = np.linalg.norm(info["target_values"], axis=0)
@@ -814,29 +988,3 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin):
         plt.plot(epsilons, norm_residuals, "-+")
         plt.xscale("log")
         plt.title(f"levels: {self.level_}")
-
-
-if __name__ == "__main__":
-
-    from sklearn.datasets import make_swiss_roll
-    from sklearn.model_selection import GridSearchCV, ParameterGrid
-
-    data, _ = make_swiss_roll(4000, random_state=1)
-    func_values = np.random.rand(4000)
-
-    from sklearn.base import BaseEstimator
-
-    # print(GeometricHarmonicsFunctionBasis())
-    # print(GeometricHarmonicsFunctionBasis().get_params())
-    # print(isinstance(GeometricHarmonicsFunctionBasis(), BaseEstimator))
-    # print(issubclass(GeometricHarmonicsFunctionBasis, BaseEstimator))
-
-    pg = ParameterGrid({"epsilon": np.linspace(0.5, 1.5, 5)})
-    grid_search = GridSearchCV(
-        estimator=GeometricHarmonicsInterpolator(), param_grid=pg.param_grid, cv=3
-    )
-    gcv = grid_search.fit(data, func_values)
-
-    print(gcv.best_score_)
-    print(gcv.best_estimator_)
-    print(gcv.cv_results_)

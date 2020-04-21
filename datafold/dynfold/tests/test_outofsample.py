@@ -99,7 +99,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         points = make_points(100, -4, -4, 4, 4)
 
-        values = ghi(points)
+        values = ghi.predict(points)
 
         residual = values - f(points)
         self.assertLess(np.max(np.abs(residual)), 7.5e-2)
@@ -158,19 +158,19 @@ class GeometricHarmonicsTest(unittest.TestCase):
         )
 
         rel_err1 = np.linalg.norm(
-            dm.eigenvectors_[:, 1] - ev1(points), np.inf
+            dm.eigenvectors_[:, 1] - ev1.predict(points), np.inf
         ) / np.linalg.norm(dm.eigenvectors_[:, 1], np.inf)
         self.assertAlmostEqual(rel_err1, 0, places=1)
 
         rel_err2 = np.linalg.norm(
-            dm.eigenvectors_[:, 2] - ev2(points), np.inf
+            dm.eigenvectors_[:, 2] - ev2.predict(points), np.inf
         ) / np.linalg.norm(dm.eigenvectors_[:, 2], np.inf)
         self.assertAlmostEqual(rel_err2, 0, places=1)
 
         if plot:
             new_points = make_points(50, 0, 0, 1, 1e-1)
-            ev1i = ev1(new_points)
-            ev2i = ev2(new_points)
+            ev1i = ev1.predict(new_points)
+            ev2i = ev2.predict(new_points)
             plt.subplot(1, 2, 1)
             plt.scatter(new_points[:, 0], new_points[:, 1], c=ev1i, cmap="RdBu_r")
             plt.subplot(1, 2, 2)
@@ -221,12 +221,15 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.assertTrue(isinstance(gh_dense_cmp.kernel_matrix_, np.ndarray))
         self.assertTrue(isinstance(gh_sparse_cmp.kernel_matrix_, csr_matrix))
 
-        gh_dense_cmp(data)
-        gh_sparse_cmp(data)
+        gh_dense_cmp.predict(data)
+        gh_sparse_cmp.predict(data)
 
         # Check if sparse (without cutoff) and dense case give close results
         nptest.assert_allclose(
-            gh_sparse_cmp(data), gh_dense_cmp(data), rtol=1e-14, atol=1e-15
+            gh_sparse_cmp.predict(data),
+            gh_dense_cmp.predict(data),
+            rtol=1e-14,
+            atol=1e-15,
         )
         nptest.assert_allclose(
             gh_sparse_cmp.gradient(data),
@@ -259,19 +262,19 @@ class GeometricHarmonicsTest(unittest.TestCase):
                 200, 5
             )  # larger number of samples than original data
 
-            gh(oos_data)
+            gh.predict(oos_data)
             gh.gradient(oos_data)
 
             oos_data = np.random.randn(100, 5)  # same size as original data
-            gh(oos_data)
+            gh.predict(oos_data)
             gh.gradient(oos_data)
 
             oos_data = np.random.randn(50, 5)  # less than original data
-            gh(oos_data)
+            gh.predict(oos_data)
             gh.gradient(oos_data)
 
             oos_data = np.random.randn(1, 5)  # single sample
-            gh(oos_data)
+            gh.predict(oos_data)
             gh.gradient(oos_data)
 
     @unittest.skip(reason="functionality and testing not finished")
@@ -362,7 +365,9 @@ class GeometricHarmonicsTest(unittest.TestCase):
         cur_row[1].contourf(
             xx,
             yy,
-            gh_single_interp(X_train).reshape(nr_sample_x_train, nr_sample_y_train),
+            gh_single_interp.predict(X_train).reshape(
+                nr_sample_x_train, nr_sample_y_train
+            ),
             vmin=vlim[0],
             vmax=vlim[1],
         )
@@ -383,7 +388,10 @@ class GeometricHarmonicsTest(unittest.TestCase):
         cur_row = ax[1]
 
         abs_diff_single_train = np.abs(
-            zz - gh_single_interp(X_train).reshape(nr_sample_x_train, nr_sample_y_train)
+            zz
+            - gh_single_interp.predict(X_train).reshape(
+                nr_sample_x_train, nr_sample_y_train
+            )
         )
         abs_diff_multi_train = np.abs(
             zz - gh_multi_interp(X_train).reshape(nr_sample_x_train, nr_sample_y_train)
@@ -423,7 +431,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         cur_row[1].contourf(
             xx_oos,
             yy_oos,
-            gh_single_interp(X_oos).reshape(nr_sample_x_test, nr_sample_y_test),
+            gh_single_interp.predict(X_oos).reshape(nr_sample_x_test, nr_sample_y_test),
             vmin=vlim[0],
             vmax=vlim[1],
         )
@@ -440,7 +448,10 @@ class GeometricHarmonicsTest(unittest.TestCase):
         cur_row = ax[1]
 
         abs_diff_single_train = np.abs(
-            zz_oos - gh_single_interp(X_oos).reshape(nr_sample_x_test, nr_sample_y_test)
+            zz_oos
+            - gh_single_interp.predict(X_oos).reshape(
+                nr_sample_x_test, nr_sample_y_test
+            )
         )
         abs_diff_multi_train = np.abs(
             zz_oos - gh_multi_interp(X_oos).reshape(nr_sample_x_test, nr_sample_y_test)
@@ -502,8 +513,8 @@ class GeometricHarmonicsTest(unittest.TestCase):
             actual_phi_rdist.eigenvectors_, actual_phi_kdtree.eigenvectors_
         )
 
-        result_rdist = actual_phi_rdist(data)
-        result_kdtree = actual_phi_kdtree(data)
+        result_rdist = actual_phi_rdist.predict(data)
+        result_kdtree = actual_phi_kdtree.predict(data)
 
         # TODO: it is not clear why relative large tolerances are required... (also see
         #  further below).
@@ -681,10 +692,16 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         # to compute an internal parameter in the GeometricHarmonicsInterpolator (from
         # n**3 to n**2) -- this introduced some numerical differences.
         nptest.assert_allclose(
-            actual_phi0(self.data), expected_phi0(self.data), rtol=1e-10, atol=1e-14
+            actual_phi0.predict(self.data),
+            expected_phi0(self.data),
+            rtol=1e-10,
+            atol=1e-14,
         )
         nptest.assert_allclose(
-            actual_phi1(self.data), expected_phi1(self.data), rtol=1e-10, atol=1e-14
+            actual_phi1.predict(self.data),
+            expected_phi1(self.data),
+            rtol=1e-10,
+            atol=1e-14,
         )
 
         # only phi_test because the computation is quite expensive
@@ -703,13 +720,13 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
 
         # nD case
         nptest.assert_allclose(
-            actual_phi2d(self.data)[:, 0],
+            actual_phi2d.predict(self.data)[:, 0],
             expected_phi0(self.data),
             rtol=1e-11,
             atol=1e-12,
         )
         nptest.assert_allclose(
-            actual_phi2d(self.data)[:, 1],
+            actual_phi2d.predict(self.data)[:, 1],
             expected_phi1(self.data),
             rtol=1e-11,
             atol=1e-12,
@@ -790,13 +807,22 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         )
 
         nptest.assert_allclose(
-            actual_x0(self.phi_all), expected_x0(self.phi_all), rtol=1e-4, atol=1e-6
+            actual_x0.predict(self.phi_all),
+            expected_x0(self.phi_all),
+            rtol=1e-4,
+            atol=1e-6,
         )
         nptest.assert_allclose(
-            actual_x1(self.phi_all), expected_x1(self.phi_all), rtol=1e-4, atol=1e-6
+            actual_x1.predict(self.phi_all),
+            expected_x1(self.phi_all),
+            rtol=1e-4,
+            atol=1e-6,
         )
         nptest.assert_allclose(
-            actual_x2(self.phi_all), expected_x2(self.phi_all), rtol=1e-4, atol=1e-6
+            actual_x2.predict(self.phi_all),
+            expected_x2(self.phi_all),
+            rtol=1e-4,
+            atol=1e-6,
         )
 
         # only phi_test because the computation is quite expensive
@@ -820,19 +846,19 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         )
 
         nptest.assert_allclose(
-            actual_2values(self.phi_all)[:, 0],
+            actual_2values.predict(self.phi_all)[:, 0],
             expected_x0(self.phi_all),
             rtol=1e-5,
             atol=1e-7,
         )
         nptest.assert_allclose(
-            actual_2values(self.phi_all)[:, 1],
+            actual_2values.predict(self.phi_all)[:, 1],
             expected_x1(self.phi_all),
             rtol=1e-5,
             atol=1e-7,
         )
         nptest.assert_allclose(
-            actual_2values(self.phi_all)[:, 2],
+            actual_2values.predict(self.phi_all)[:, 2],
             expected_x2(self.phi_all),
             rtol=1e-5,
             atol=1e-7,

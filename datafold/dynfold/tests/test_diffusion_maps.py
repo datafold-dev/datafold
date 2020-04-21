@@ -13,7 +13,7 @@ from sklearn.metrics import mean_squared_error
 
 from datafold.dynfold.dmap import DiffusionMapsVariable
 from datafold.dynfold.tests.helper import *
-from datafold.utils.maths import random_subsample
+from datafold.utils.general import random_subsample
 
 
 class DiffusionMapsTest(unittest.TestCase):
@@ -197,9 +197,9 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap_embed = DiffusionMaps(**setting).fit(X_swiss_all)
 
         if plot:
-            from datafold.utils.plot import plot_eigenvectors_n_vs_all
+            from datafold.utils.plot import plot_pairwise_eigenvector
 
-            plot_eigenvectors_n_vs_all(
+            plot_pairwise_eigenvector(
                 eigenvectors=dmap_embed.transform(X_swiss_all).T, n=1, colors=color_all,
             )
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Callable, Iterator, Tuple, Union
+from typing import Generator, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -8,39 +8,67 @@ from sklearn import metrics
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
 
-from datafold.decorators import warn_experimental_class
-from datafold.pcfold.timeseries import TSCDataFrame
-from datafold.utils.datastructure import is_df_same_index, series_if_applicable
+from datafold.pcfold import TSCDataFrame
+from datafold.utils.general import is_df_same_index, series_if_applicable
 
 
-class TSCMetric:
+class TSCMetric(object):
+    """Compute error metrics with different modes between two time series collections.
 
-    VALID_MODE = ["timeseries", "timestep", "qoi"]
-    VALID_METRIC = ["rmse", "rrmse", "mse", "mae", "max", "l2"]
-    VALID_SCALING = ["id", "min-max", "standard", "l2_normalize"]
+    Parameters
+    ----------
+
+    metric
+
+        * "rmse" - root mean squared error,
+        * "rrmse" - relative root mean squared error
+        * "mse" - mean squared error,
+        * "mae" - mean absolute error,
+        * "max" maximum error,
+        * "l2" - Eucledian norm
+
+    mode
+        compute metric per "timeseries", "timestep" or "feature"
+
+    scaling
+        Prior scaling (useful for non-homogenous time series features).
+
+        * "id" - no scaling,
+        * "min-max" - each feature is scaled into (0, 1) range,
+        * "standard" - remove mean and scale to unit variance for each feature,
+        * "l2_normalize" - divide each feature by Euclidean norm
+
+    References
+    ----------
+
+    rrmse is from :cite:`le_clainche_higher_2017`
+
+    """
+
+    _cls_valid_modes = ["timeseries", "timestep", "feature"]
+    _cls_valid_metrics = ["rmse", "rrmse", "mse", "mae", "max", "l2"]
+    _cls_valid_scaling = ["id", "min-max", "standard", "l2_normalize"]
 
     def __init__(self, metric: str, mode: str, scaling: str = "id"):
 
         mode = mode.lower()
         metric = metric.lower()
 
-        if metric in self.VALID_METRIC:
+        if metric in self._cls_valid_metrics:
             self.metric = self._metric_from_str_input(metric)
         else:
-            raise ValueError(f"Invalid metric={mode}. Choose from {self.VALID_METRIC}")
+            raise ValueError(
+                f"Invalid metric={mode}. Choose from {self._cls_valid_metrics}"
+            )
 
-        if mode in self.VALID_MODE:
+        if mode in self._cls_valid_modes:
             self.mode = mode
         else:
-            raise ValueError(f"Invalid mode={mode}. Choose from {self.VALID_MODE}")
+            raise ValueError(
+                f"Invalid mode={mode}. Choose from {self._cls_valid_modes}"
+            )
 
         self.scaling = self._select_scaling(name=scaling)
-
-    @classmethod
-    def make_tsc_metric(cls, metric: str, mode: str, scaling: str = "id") -> Callable:
-        """Metric measures difference between two datasets. Metrics can be
-        multidimensional. Returns a callable to the metric"""
-        return cls(metric=metric, mode=mode, scaling=scaling).eval_metric
 
     def _select_scaling(self, name):
 
@@ -54,7 +82,7 @@ class TSCMetric:
             return Normalizer(norm="l2")
         else:
             raise ValueError(
-                f"scaling={name} is not known. Choose from {self.VALID_SCALING}"
+                f"scaling={name} is not known. Choose from {self._cls_valid_scaling}"
             )
 
     def _scaling(self, y_true: TSCDataFrame, y_pred: TSCDataFrame):
@@ -102,10 +130,7 @@ class TSCMetric:
     def _rrmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-        """Metric from
-
-        # TODO make proper citing
-        Higher Order Dynamic Mode Decomposition, Le Clainche and Vega
+        """Metric from :cite:`le_clainche_higher_2017`
         """
 
         if multioutput == "uniform_average":
@@ -157,17 +182,18 @@ class TSCMetric:
         return error_metric_handle
 
     def _is_scalar_multioutput(self, multioutput) -> bool:
-
+        # Return True if there is only one column (because features are averaged)
         if (
             isinstance(multioutput, str) and multioutput == "uniform_average"
         ) or isinstance(multioutput, np.ndarray):
+            # array -> average with weights
             scalar_score = True
 
         elif multioutput == "raw_values":
             scalar_score = False
 
         else:
-            raise ValueError(f"Illegal argument of multioutput={multioutput}")
+            raise ValueError(f"Illegal argument multioutput='{multioutput}'")
         return scalar_score
 
     def _single_column_name(self, multioutput) -> list:
@@ -188,11 +214,23 @@ class TSCMetric:
         y_true: TSCDataFrame,
         y_pred: TSCDataFrame,
         sample_weight=None,
-        multi_qoi="uniform_average",
+        multioutput="uniform_average",
     ) -> Union[pd.Series, pd.DataFrame]:
 
-        if self._is_scalar_multioutput(multioutput=multi_qoi):
-            column = self._single_column_name(multioutput=multi_qoi)
+        if sample_weight is not None:
+            # same length of time series to have mapping
+            # sample_weight -> time step of time series (can be a different time value)
+            y_true.tsc.check_timeseries_same_length()
+
+            if sample_weight.shape[0] != y_true.n_timesteps:
+                raise ValueError(
+                    f"'sample_weight' length (={len(sample_weight)}) "
+                    f"does not match the number of time steps (={y_true.n_timesteps})"
+                )
+
+        if self._is_scalar_multioutput(multioutput=multioutput):
+
+            column = self._single_column_name(multioutput=multioutput)
 
             # Make in both cases a DataFrame and later convert to Series in the scalar
             # case this allows to use .loc[i, :] in the loop
@@ -211,51 +249,77 @@ class TSCMetric:
                 y_true_single,
                 y_pred_single,
                 sample_weight=sample_weight,
-                multioutput=multi_qoi,
+                multioutput=multioutput,
             )
 
         return series_if_applicable(error_per_timeseries)
 
-    def _metric_per_qoi(
-        self, y_true: TSCDataFrame, y_pred: TSCDataFrame, sample_weight=None
+    def _metric_per_feature(
+        self,
+        y_true: TSCDataFrame,
+        y_pred: TSCDataFrame,
+        sample_weight=None,
+        multioutput="raw_values",
     ):
-        # NOTE: score per qoi is never a multioutput, as a QoI is seen as a single scalar
-        # quantity
+        # Note: score per feature is never a multioutput-average, because a feature is
+        # seen as a scalar quantity
 
-        error_per_qoi = self.metric(
+        if sample_weight is not None:
+            if sample_weight.shape[0] != y_true.shape[0]:
+                raise ValueError(
+                    f"'sample_weight' length (={sample_weight.shape[0]}) "
+                    f"does not match the number of feature values "
+                    f"(y.shape[0]={y_true.shape[0]})"
+                )
+
+        metric_per_feature = self.metric(
             y_true.to_numpy(),
             y_pred.to_numpy(),
             sample_weight=sample_weight,
-            multioutput="raw_values",  # raw_values to tread every qoi separately
+            multioutput="raw_values",  # raw_values to tread every feature separately
         )
 
-        error_per_qoi = pd.Series(error_per_qoi, index=y_true.columns,)
-        return error_per_qoi
+        metric_per_feature = pd.Series(metric_per_feature, index=y_true.columns,)
+        return metric_per_feature
 
     def _metric_per_timestep(
         self,
         y_true: TSCDataFrame,
         y_pred: TSCDataFrame,
         sample_weight=None,
-        multi_qoi="uniform_average",
+        multioutput="uniform_average",
     ):
 
-        time_indices = y_true.time_values(unique_values=True)
+        if sample_weight is not None:
+            # sample weights -> each time series has a different weight
 
-        if self._is_scalar_multioutput(multioutput=multi_qoi):
-            column = self._single_column_name(multioutput=multi_qoi)
+            # Currently, all time series must have the same time values to have the same
+            # length for each time step
+            y_true.tsc.check_timeseries_same_length()
+
+            # the weight, must be as long as the time series
+            if sample_weight.shape[0] != y_true.n_timeseries:
+                raise ValueError(
+                    f"'sample_weight' shape (={sample_weight.shape[0]}) "
+                    f"does not match the number of time series (={y_true.n_timeseries})."
+                )
+
+        time_indices = pd.Index(y_true.time_values(), name="time")
+
+        if self._is_scalar_multioutput(multioutput=multioutput):
+            column = self._single_column_name(multioutput=multioutput)
 
             # Make in both cases a DataFrame and later convert to Series in the scalar
             # case this allows to use .loc[i, :] in the loop
-            error_per_time = pd.DataFrame(np.nan, index=time_indices, columns=column)
+            metric_per_time = pd.DataFrame(np.nan, index=time_indices, columns=column)
 
         else:
-            error_per_time = pd.DataFrame(
+            metric_per_time = pd.DataFrame(
                 np.nan, index=time_indices, columns=y_true.columns.to_list()
             )
 
-        error_per_time.index = error_per_time.index.set_names(
-            TSCDataFrame.IDX_TIME_NAME
+        metric_per_time.index = metric_per_time.index.set_names(
+            TSCDataFrame.tsc_time_idx_name
         )
 
         idx_slice = pd.IndexSlice
@@ -264,89 +328,281 @@ class TSCMetric:
             y_true_t = pd.DataFrame(y_true.loc[idx_slice[:, t], :])
             y_pred_t = pd.DataFrame(y_pred.loc[idx_slice[:, t], :])
 
-            error_per_time.loc[t, :] = self.metric(
-                y_true_t, y_pred_t, sample_weight=sample_weight, multioutput=multi_qoi,
+            metric_per_time.loc[t, :] = self.metric(
+                y_true_t,
+                y_pred_t,
+                sample_weight=sample_weight,
+                multioutput=multioutput,
             )
 
-        return series_if_applicable(error_per_time)
+        return series_if_applicable(metric_per_time)
 
-    def eval_metric(
+    def __call__(
         self,
         y_true: TSCDataFrame,
         y_pred: TSCDataFrame,
-        sample_weight=None,
-        multi_qoi="raw_values",
+        sample_weight: Optional[np.ndarray] = None,
+        multioutput: Union[str, np.ndarray] = "raw_values",
     ) -> Union[pd.Series, pd.DataFrame]:
-        """Note for docu:
-        These are "special" metrics for TSC and allow different "modes" to compare
-        errors between qoi, time or timeseries (see VALID_MODE).
+        """Evaluate specified metric.
+        
+        Parameters
+        ----------
+        y_true
+            Ground truth time series collection (basis for scaling), with shape
+            `(n_samples, n_features)`.
 
-        The "multi_qoi" argument steers how to weight the QoI (e.g. when looking on
-        time).
+        y_pred
+            Predicted time series (the same scaling as for `y_true` will be applied),
+            with exact same index (`ID` and `time` and columns as `y_true`).
 
-        Usually, all outputs are multi-dimensional and measure error and therefore are
-        not suited for scoring.
+        sample_weight
+            Gives samples individual weights depending on the `mode`.
+
+            * `mode=timeseries` array with shape `(n_timesteps,)`. Each time step has a \
+               different weight (Note the time values can be different).
+            * `mode=feature` array with shape `(n_samples,)`. Each feature sample has a \
+               different weight.
+            * `mode=timestep` array with shape `(n_timeseries,)`. Each time series has \
+               a different weight.
+
+        multioutput
+            metric evaluated over multiple features (columns), specify how to weigh each
+            feature. The parameter is ignored for `mode=feature`, because each feature is
+            treated as a scalar value.
+
+            * "raw_values" - returns metric per feature
+            * "uniform_average" returns metric of all features averaged with uniform \
+               weight
+            * ``numpy.ndarray`` with shape `(n_features,)` - returns metric for all \
+               features averaged with specified weights
+
+        Returns
+        -------
+        Union[pd.Series, pd.DataFrame]
+            metric evaluations, `pandas.DataFrame` for `raw_values`
+
+        Raises
+        ------
+        TSCException
+            If not all values are finite in `y_true` or `y_pred` or if \
+            ``TSCDataFrame`` properties do not allow for a `sample_weight` argument.
+
         """
 
         if sample_weight is not None:
-            if not isinstance(sample_weight, np.ndarray) or (
-                sample_weight.ndim != 1 and sample_weight.shape[0] != y_true.shape[0]
-            ):
-                raise ValueError(
-                    "sample_weight has to be an 1-dim. array with n_samples " "length"
-                )
+            sample_weight = np.asarray(sample_weight)
 
-        is_df_same_index(y_true, y_pred, handle="raise")
+            if sample_weight.ndim != 1:
+                raise ValueError("'sample_weight' must be an 1-dim. array")
+
+        # checks:
+        y_true.tsc.check_finite()
+        y_pred.tsc.check_finite()
+        is_df_same_index(
+            y_true, y_pred, check_index=True, check_column=True, handle="raise"
+        )
+
+        # scaling:
         y_true, y_pred = self._scaling(y_true=y_true, y_pred=y_pred)
 
-        # score depending on mode:
+        # compute metric depending on mode:
         if self.mode == "timeseries":
-            error_result = self._metric_per_timeseries(
+            metric_result = self._metric_per_timeseries(
                 y_true=y_true,
                 y_pred=y_pred,
                 sample_weight=sample_weight,
-                multi_qoi=multi_qoi,
+                multioutput=multioutput,
             )
 
         elif self.mode == "timestep":
-            error_result = self._metric_per_timestep(
+            metric_result = self._metric_per_timestep(
                 y_true=y_true,
                 y_pred=y_pred,
                 sample_weight=sample_weight,
-                multi_qoi=multi_qoi,
+                multioutput=multioutput,
             )
 
-        elif self.mode == "qoi":
-            error_result = self._metric_per_qoi(
-                y_true=y_true, y_pred=y_pred, sample_weight=sample_weight
+        elif self.mode == "feature":
+            metric_result = self._metric_per_feature(
+                y_true=y_true,
+                y_pred=y_pred,
+                sample_weight=sample_weight,
+                multioutput="raw_values",
             )
-
         else:
             raise ValueError(f"Invalid mode={self.mode}. Please report bug.")
 
-        if isinstance(error_result, pd.Series):
-            assert not error_result.isnull().any()
-        elif isinstance(error_result, pd.DataFrame):
-            assert not error_result.isnull().any().any()
+        if isinstance(metric_result, pd.Series):
+            assert not metric_result.isnull().any()
+        elif isinstance(metric_result, pd.DataFrame):
+            assert not metric_result.isnull().any().any()
         else:
-            raise RuntimeError("Bug. Please report.")
+            raise RuntimeError(
+                f"Unknown return type {type(metric_result)}. Please report bug."
+            )
 
-        return error_result
+        return metric_result
 
 
-class TSCKfoldSeries:
-    def __init__(self, n_splits=3, shuffle=False, random_state=None):
+class TSCScoring(object):
+    """Create scoring function from :class:``TSCMetric``.
+
+    Parameters
+    ----------
+    tsc_metric
+        configured metric for time series collections
+
+    greater_is_better
+        If True, the metric measures accuracy, else the metric measures the error.
+
+    **metric_kwargs
+        keyword arguments "sample_weight" and "multioutput" for
+        :py:meth:`TSCMetric.__call__`
+
+    Notes
+    -----
+    According to scikit-learn a `score` is a scalar value where higher values are \
+    better than lower return values \
+    (`ref <https://scikit-learn.org/stable/modules/model_evaluation.html>`_). This means:
+
+        * Usually ``TSCMetric`` returns a vector metric with multiple components (
+          metric per time series, timestep or feature). Therefore, the metric values
+          must be "compressed" again to a single score value.
+        * Currently, all metrics measure the error, to comply with "higher score values
+          are better" the metric values are negated (adaptable to other metrics with
+          `greater_is_better` parameter).
+    """
+
+    def __init__(self, tsc_metric: TSCMetric, greater_is_better=False, **metric_kwargs):
+        self.tsc_metric = tsc_metric
+        self.metric_kwargs = metric_kwargs
+        self.greater_is_better = greater_is_better
+
+    def __call__(
+        self,
+        y_true: TSCDataFrame,
+        y_pred: TSCDataFrame,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> float:
+        """Computes score between two time series collections and specified metric.
+
+        Parameters
+        ----------
+        y_true
+            ground truth time series data
+
+        y_pred
+            predicted time series data
+
+        sample_weight
+            Not to be confused with parameter `samples_weight` in
+            :py:meth:`TSCMetric.__call__`.
+
+            The metric values (usually multiple values, depending on mode) can be weighted
+            or the score, i.e.
+
+            * `TSCMetric.mode=feature` - weight array with shape `(n_feature,)`
+            * `TSCMetric.mode=timeseries` - weight array with shape `(n_timeseries,)`
+            * `TSCMetric.mode=time` - weight array with shape `(n_timesteps,)`
+
+        Returns
+        -------
+        :class:`float`
+            score
+        """
+
+        eval_tsc_metric: pd.Series = self.tsc_metric(
+            y_true=y_true,
+            y_pred=y_pred,
+            sample_weight=self.metric_kwargs.get("sample_weight", None),
+            multioutput=self.metric_kwargs.get("multioutput", "uniform_average"),
+        )
+
+        eval_tsc_metric = series_if_applicable(eval_tsc_metric)
+
+        if isinstance(eval_tsc_metric, pd.DataFrame):
+            raise ValueError(
+                "The TSCMetric must be configured that multioutputs (multiple feature "
+                "columns) are weighted. Provide in 'multioutput' a string 'uniform' or "
+                "an array with individual weights. "
+            )
+
+        if sample_weight is None:
+            score = np.mean(eval_tsc_metric.to_numpy())
+        elif isinstance(sample_weight, np.ndarray):
+            assert len(sample_weight) == len(eval_tsc_metric)
+            score = np.average(eval_tsc_metric.to_numpy(), weights=sample_weight)
+        else:
+            raise TypeError(f"sample_weight={sample_weight} is invalid.")
+
+        if self.greater_is_better:
+            factor = 1
+        else:
+            factor = -1
+
+        return factor * float(score)
+
+
+class TSCKfoldSeries(object):
+    """K-fold splits on entire time series.
+
+    Both the training and the test set consist of time series in its original form. The
+    time series collection must consist of multiple time series.
+
+    Parameters
+    ----------
+    n_splits
+        number of splits
+
+    shuffle
+        If True, the time series are shuffled.
+
+    random_state
+        use fixed seed if `shuffle=True`
+    """
+
+    def __init__(
+        self, n_splits=3, shuffle: bool = False, random_state: Optional[int] = None
+    ):
         self.kfold_splitter = KFold(
             n_splits=n_splits, shuffle=shuffle, random_state=random_state
         )
 
     def split(
         self, X: TSCDataFrame, y=None, groups=None
-    ) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
-        if not X.is_same_ts_length():
+    ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+        """Yields k-folds of training and test indices of time series collection.
+
+        Parameters
+        ----------
+        X
+            time series collection to split
+
+        y: None
+            ignored
+
+        groups: None
+            ignored
+
+        Yields
+        ------
+        numpy.ndarray
+            train indices
+
+        numpy.ndarray
+            test indices
+
+        Raises
+        ------
+        NotImplementedError
+            if time series have not equal length
+
+        """
+        if not X.is_equal_length():
             raise NotImplementedError(
-                "Currently, all time series are required to have "
-                "the same length for this method."
+                "Currently, all time series are required to have the same length for "
+                "this method. This can be generalized, contributions welcome."
             )
 
         n_time_series = X.n_timeseries
@@ -363,15 +619,63 @@ class TSCKfoldSeries:
 
             yield train_indices, test_indices
 
-    def get_n_splits(self, X, y=None, groups=None):
-        return self.kfold_splitter.get_n_splits(X, y, groups=groups)
+    def get_n_splits(self, X=None, y=None, groups=None) -> int:
+        """Number of splits, which are also the number of cross-validation iterations.
+
+        All parameter are ignored to align with scikit-learn's function.
+
+        Parameters
+        ----------
+        X
+            ignored
+
+        y
+            ignored
+
+        groups
+            ignored
+
+        Returns
+        -------
+        """
+        return self.kfold_splitter.get_n_splits(X=X, y=y, groups=groups)
 
 
-class TSCKFoldTime:
-    def __init__(self, n_splits=3):
+class TSCKFoldTime(object):
+    """K-fold splits on time values.
+
+    Parameters
+    ----------
+
+    n_splits
+        number of splits
+    """
+
+    def __init__(self, n_splits: int = 3):
         self.kfold_splitter = KFold(n_splits=n_splits, shuffle=False, random_state=None)
 
     def split(self, X: TSCDataFrame, y=None, groups=None):
+        """Yields k-folds of training and test indices of time series collection.
+
+        Parameters
+        ----------
+        X
+            data to split
+
+        y: None
+            ignored
+
+        groups: None
+            ignored
+
+        Yields
+        ------
+        numpy.ndarray
+            train indices
+
+        numpy.ndarray
+            test indices
+        """
         if not X.is_same_time_values():
             raise NotImplementedError(
                 "Currently, each time series must have the same " "time indices."
@@ -387,70 +691,39 @@ class TSCKFoldTime:
             test_indices = indices_matrix[test].flatten()
             yield train_indices, test_indices
 
-    def get_n_splits(self, X, y=None, groups=None):
-        return self.kfold_splitter.get_n_splits(X, y, groups=groups)
+    def get_n_splits(self, X=None, y=None, groups=None):
+        """Number of splits, which are also the number of cross-validation iterations.
 
+        All parameter are ignored to align with scikit-learn's function.
 
-@warn_experimental_class
-class TSCTrainTestTime:
-    def __init__(self, train_size: float):
-        if not (0 < train_size < 1):
-            raise ValueError("train_size must be between 0 and 1 (exclusively).")
-        self.train_size = train_size
+        Parameters
+        ----------
+        X
+            ignored
 
-    def split(self, X: TSCDataFrame, y=None, groups=None):
-        from sklearn.model_selection import train_test_split
+        y
+            ignored
 
-        train_time_values, test_time_values = train_test_split(
-            X.time_values(unique_values=True),
-            train_size=self.train_size,
-            test_size=1 - self.train_size,
-            shuffle=False,
-        )
+        groups
+            ignored
 
-
-def make_tsc_scorer(metric_func, **metric_kwargs) -> Callable:
-    """
-    As specified by sklearn a score returns a floating point. Therefore, the output
-    of TSC metric needs to be further condensed.
-    """
-
-    def _tsc_scoring(y_true: TSCDataFrame, y_pred: TSCDataFrame, sample_weight=None):
-        """useage of sample_weight depends on the selected metric_func
-         * mode=qoi -> weight each qoi
-         * mode=timeseries -> weight each time series
-         * mode=time -> weight each time point
+        Returns
+        -------
         """
-
-        eval_tsc_metric: pd.Series = metric_func(
-            y_true=y_true,
-            y_pred=y_pred,
-            sample_weight=metric_kwargs.pop("sample_weight", None),
-            multi_qoi=metric_kwargs.pop("multi_qoi", "uniform_average"),
-        )
-
-        if isinstance(eval_tsc_metric, pd.DataFrame):
-            raise ValueError(
-                "The metric_func must be configured such that only a "
-                "pd.Series is used for the scoring function."
-            )
-
-        if sample_weight is None:
-            score = np.mean(eval_tsc_metric.to_numpy())
-        elif isinstance(sample_weight, np.ndarray):
-            assert len(sample_weight) == len(eval_tsc_metric)
-            score = np.average(eval_tsc_metric.to_numpy(), weights=sample_weight)
-        else:
-            raise TypeError(f"sample_weight={sample_weight} is invalid.")
-
-        # score is "greater is better", all TSCMetrics measure the error
-        return -1 * float(score)
-
-    return _tsc_scoring
+        return self.kfold_splitter.get_n_splits(X=X, y=y, groups=groups)
 
 
 def kfold_cv_reassign_ids(X: TSCDataFrame, train_indices, test_indices):
+    """Re-assigns time series ids based on training and test indices.
 
+    Returns
+    -------
+    TSCDataFrame
+        training time series collection
+
+    TSCDataFrame
+        test time series collection
+    """
     # mark train samples with 0 and test samples with 1
     mask_train_test = np.zeros(X.shape[0])
     mask_train_test[test_indices] = 1
@@ -464,7 +737,7 @@ def kfold_cv_reassign_ids(X: TSCDataFrame, train_indices, test_indices):
 
     # ii) detect switch of new ID
     change_id_indicator = np.append(
-        0, np.diff(X.index.get_level_values(TSCDataFrame.IDX_ID_NAME))
+        0, np.diff(X.index.get_level_values(TSCDataFrame.tsc_id_idx_name))
     ).astype(np.bool)
 
     # cumulative sum of on or the other change and reassign IDs
@@ -472,7 +745,7 @@ def kfold_cv_reassign_ids(X: TSCDataFrame, train_indices, test_indices):
     new_ids = np.cumsum(id_cum_sum_mask)
 
     reassigned_ids_idx = pd.MultiIndex.from_arrays(
-        arrays=(new_ids, X.index.get_level_values(TSCDataFrame.IDX_TIME_NAME),)
+        arrays=(new_ids, X.index.get_level_values(TSCDataFrame.tsc_time_idx_name),)
     )
 
     splitted_tsc = TSCDataFrame.from_same_indices_as(
