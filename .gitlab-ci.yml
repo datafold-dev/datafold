@@ -64,5 +64,4 @@ pypi_upload:
     - twine upload dist/*
   only:
     - master
-  when:
-    - manual
+  when: manual
