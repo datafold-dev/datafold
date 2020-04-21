@@ -8,6 +8,7 @@ setup:
   stage: setup_remote
   script:
     - python3 -m pip install --upgrade pip --user
+    - python3 -m pip install --upgrade twine --user
     - python3 -m pip install -r requirements-dev.txt --user
   allow_failure: false
 
@@ -54,3 +55,14 @@ pages:
     - public
   only:
     - master
+
+# requires to set TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD variables
+pypi_upload:
+  stage: deploy
+  script:
+    - python3 setup.py sdist bdist_wheel
+    - twine upload dist/*
+  only:
+    - master
+  when:
+    - manual
