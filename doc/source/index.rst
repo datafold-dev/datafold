@@ -25,7 +25,8 @@ Quick links
 .. Not used -- :ref:`search`
 
 * `Gitlab repository <https://gitlab.com/datafold-dev/datafold>`_
-* `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
+* `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_ (use for
+  feedback of any kind, i.e. user question, feature requests or bug reports)
 * :ref:`genindex` software documentation
 
 -----

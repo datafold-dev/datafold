@@ -191,11 +191,13 @@ Additional developer dependencies are in the next section.
 Contributing
 ============
 
-Bug reports and user questions
-------------------------------
+Bug reports, feature requests and user questions
+------------------------------------------------
 
-For all correspondence regarding the software please open a new issue in the
-**datafold** `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
+We welcome all feedback. For all correspondence please open a new issue in
+the **datafold** `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_.
+We also encourage code contributions as merge requests, but it is a good idea to talk
+about it before.
 
 All code contributors are listed in the
 `contributor list <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`_.

@@ -23,13 +23,15 @@ https://docs.google.com/spreadsheets/d/1PAPRJ63yq9aPC1COLjaQp8mHmEq3rZUzwUYxTuly
 -->
 
 ---
-title: 'datafold: extract manifold structure in time series and point cloud data'
+title: 'datafold: learn manifold from (non-) temporal data'
 tags:
   - Python
+  - extended dynamic mode decomposition
   - manifold assumption
   - data-driven
   - dynamical systems
   - time series
+  
 authors:
   - name: Daniel Lehmberg, (TODO: other?)
     orcid: 0000-0002-4012-5014
@@ -54,10 +56,109 @@ bibliography: paper.bib
 
 # Summary
 
-The package datafold consists of data-driven algorithms with manifold assumption
-. The often implicit assumption of many machine learning algorithms states that
- available high-dimensional data lies on a manifold with intrinsic lower-dimension. 
- 
+!-- include: highly active field of manifold learning and Koopman many algorithms etc. Can be inserted in the architecture 
+!-- the data may be on multiple scales both spatial and temporaly
+!-- model reduction, surrogate models, predictions
+
+Data availability has changed the analysis methods in many scientific fields and applications. While the complex underyling systems such as pyhsical systems remain the same, the number of measurements increases both in quantity and dimension. Data-driven models that learn the underlying geometrical structure, which we refer to manifolds, are a way to make use of this high-dimensional data. Explicitly parametrizing the data manifold and also generalize a model to new unseen data of the same system, allows us to understand the intrinsic structure in latent coordinates. 
+
+In recent years there has been active research for data-driven models that explicitly address manifolds to describe the geometrical structure in the data. This includes a for a variety of tasks, such as model reduction, building surrogate models of simulation software, making predictive models from real world data.
+
+One major direction in the research address tasks to learn non-linear manifolds from high-dimensional point cloud data. This is directly connected to the so-called "manifold assumption", which states that the high-dimensional point cloud is assumed to lie on an intrinsic lower dimensional manifold. The aim is to extract a parsinomenous representation of latent coordinates from data which allows the accuracy of classification or regression models to be increased. In a Machine learning context this is also referred to "non-linear unsupervised learning" or simply "manifold learning". Examples are the Diffusion Maps algorithm, TODO:MORE
+
+Another strong reasearch direction is to approximate the underlying dynamical systems from time series data, also referred to "system identification". In this case the system's phase space is assumed to lie on a manifold. The additional temporal context and inherent order in time series require a different handling. 
+
+ A numerical algorithm including many variants that allow to extract the dynamics from time series data is the Dynamic Mode Decomposition (DMD). It linearly decomposes the time series data into spatio-temporal components and define a linear dynamical system. In order to deal with non-linearity usually this includes a  representation of data. The background theorty is covered by the mathematical operator theory with specifically the Koopman operator (also composition operator). This connection to the operator theory is explicitly made clear in the generalized Extended Dynamic Mode Decomposition (E-DMD). While the exact representation of the Koopman operator acts a infinite dimensional functional space, the E-DMD allows to to set a finite selection of a functional representation, which in the best case linearizes the dynamical system's phase space. The right choice of functional basis is comparable to the Machine Learning task of "model selection". 
+
+
+
+* diffusion Maps
+* DMD & Koopman
+  
+
+
+datafold is a Python package that provides data-driven models that parametrize or exploit the underyling geoemetrical structure inherent of the data. The datafold software architecture consists of three package layers with clearly separated classes on each layer. The modularization allows users a flexible choice of setting up data processing pipelines and at the same time encourage future development. 
+
+
+datafold integrates stongly with the Python scientific computing stack. The lowest level includes data structures to describe time series collections and point clouds on manifolds. on the lowest level subclass from the widely used data structures from NumPy and Pandas. All data-driven models align to the programming interface of scikit-learn. All models are also able to process the provided data structes  time series data may generalize or restrict the input type to a data frame containing time series collection.  
+
+
+
+
+datafold is a Python package that provides data-driven models 
+
+ The aim of these models is to learn underlying hidden geometrical structures and generalize it for tasks such as regression, prediction or classification.  
+  
+
+
+ physical system this challange has changed to now extract pattern and structures in often large scale and high dimensional datasets coming from physical models or real world   
+
+ Many datasets measured from physical models or sensors contain an intrinsic structure.  
+
+
+datafold is a Python package that includes data-driven models with an manifold assumption. The assumption states that the available data lies on an unknown usually non-linear geometrical structure, the mathematical manifold. 
+
+datafold provides two data structures, representing two domains in which we can profit to extract the manifold from data. 
+
+A second data structure adressed by datafold are time series data. The temporal ordered samples come from a dynamical systems, such as an ordinary differential equation system or sensor measurements. datafold provides numerical models
+
+There are further sources that make transformations of the time series data neccessary. In many applications, the individual time series' measurements do not lie on phase space manifold of underlying dynamical system. In such cases It can be neccesary to exploit the temporal information and perform a time delay embedding, which can reconstruct the phase space and increases the dimension. Further sources are feature scaling if the features are non-homogenous. 
+
+To handle this complexity in a user friendly and robust way, datafold provides an implementation of the Extended Model Decomposition (EDMD). The EDMD model subclasses from the scikit-learn's Pipeline class, where all the transformation define the dictionary and the final estimator a DMD based model. This meta estimator captures all parameters of the dictionary and the DMD model in one model. It therefore gives an easy accessible framework to set up of dictionary functions, optimize the parameters with cross validation. 
+
+datafold aligns with the scikit-learn interface. However, whenever necessary it restricts or generalizes the input data to time series data. 
+
+
+
+In many cases the time series samples do notlie directly on the phase space manifold. In such cases we can actually increase the dimension of the time series data by exploiting the temporal ordering (e.g. Takens time delay embedding). The reconstructed phase space can then be  
+
+
+
+In contrast to static point cloud data, the single time series' samples may not capture the phase space manifold. 
+
+
+
+The aim is then to find a set of so-called observable functions that form a function space in which the manifold phase space linearlizes. The selection of suitable observables is similar to the problem of model selection in Machine Learning.
+
+
+
+The aspects of transforming the data, describing the underlying manifold of the point cloud and finally learning the dynamical system is combined into the Extended Dynamic Mode Decomposition. datafold allows to the so-called dictionary, which are all transformation to linearize the manifold, in a flexible and user friendly way.
+
+
+
+The models, however, have to ad data is inherently ordered by it's associated temporal context. 
+
+
+The models imncluded in datafold use the Dynamic Mode Decomposition 
+
+  
+
+
+ we can find in many applications that the actual data lies on an intrinsic lower dimensional geometric structure, a mathematical manifold.
+
+
+
+or have an intrinsic temporal order as in time-series data.  
+
+
+If the  In the case of time series data we which to learn the manifold of the phase space, which allows us to 
+
+
+we may only a low-dimensional time series, for example only a single feature. Exploiting the temporal order of the time series we use techniques to increase the dimension    
+
+
+n many applications In both cases the data can be of high-dimension  the data lies on an unknown geometrical structure (a manifold). This manifold can be of lower dimension than the  actual high dimensional manifold data. 
+
+
+* both static data and time series data for which there are data structures
+* learn a dynamical system from time series data
+* the API aligns with the scikit-learn and generalizes to time series data where required
+* models that view non-temporal time clouds can be used to  
+* Covers the entire machine learning pipeline. From low-level data structures (time
+  -series), to manifold learning algorithms and high-level algorithms to extract dynamics
+  from data. Furthermore: model selection with cross validation (incl. time series)
+- time series models from operator-theory
+
 The software architecture has three layers
  
  * pcfold: data structures TSCDataFrame and PCManifold (embedded with kernel)
@@ -68,18 +169,14 @@ The software architecture has three layers
 * [ ]  clear description of the high-level functionality and purpose of the software for a diverse, non-specialist audience been provided?
 
 High-level functionality: 
-- build data-driven non-parametric models from data (time series or static). This
-  covers the entire machine learning pipeline. From low-level data structures (time
-  -series), to manifold learning algorithms and high-level algorithms to extract dynamics
-  from data. Furthermore: model selection with cross validation (incl. time series)
+
 - available time series data can be high-dimensional and single or collection.
 - geometrical perspective
-- from operator-theory
 - high-dimensional data
 - decompose time series data into spatial-temporal using algorithms from operator theory 
 - data-driven representation in modes of dynamical systems
 - operator theory: representing (non-linear) flows
-- high vs. low spatial dimension -> Takens      
+- high vs. low spatial dimension -> Takens 
 
 * [ ] A statement of need: Do the authors clearly state what problems the software is 
 designed to solve and who the target audience is?
@@ -97,30 +194,8 @@ Target audience: data scientists
 
 * [ ] State of the field: Do the authors describe how this software compares to other commonly-used packages?
 
-pandas: TSCDataFrame subclasses from pandas DataFrame 
-numpy: PCManifold subclasses from np.ndarray
-scikit-learn:
-  - Follow API of building data-driven models 
-  - Uses many internals and BaseEstimator
-  - Generalizes to time series data structure by wrapping 
- 
+
 Similar projects (and separation of scope):
- - pydmd
-    - does implement variants of the DMD (the dictionary handling has to be done by user)
-    - supports only single time series (not multiple)
-    - follows also the scikit-learn API
-    - a wrapper is used to have access to the DMD models (with the above stated
-     restriction) 
- 
-  - pysindy
-    - specializes on the SINDy (sparse regression) method
-    - supports also 
-  
-  - forked code from this project https://github.com/jmbr/diffusion-maps/tree/master
-  /diffusion_maps 
-    - changed to scikit-learn API
-    - improved performance speed
-    - testing against forked code
   
 * [ ] Quality of writing: Is the paper well written (i.e., it does not require editing for structure, language, or writing quality)?
 
@@ -136,21 +211,19 @@ Software is designed to learn models from spatial-temporal data with manifold
  
 Target audience: data scientists dealing with temporal data. 
 
+# Other related software
+
 
 # Examples 
 
-* [ ] Clear up DMDbook example
-* [ ] move limit cycle to tutorial
 * [ ] move method_examples (Yannis group) to tutorials
-* [ ] Make "example", "tutorial", "shocase"? 
-* [ ] How to manage data? Keep separate from Repo 
 
 
 # A list of key references, including to other software addressing related needs.
 
-* [ ] pysindy
-compare to EDMD implementation 
+* [ ] pysindy compare to EDMD implementation 
 * [ ] pydmd
+* []
 
 
 # Acknowledgements
