@@ -1,6 +1,6 @@
 
 What is **datafold**?
-=====================
+===================
 
 **datafold** is a Python package consisting of data-driven algorithms with
 manifold assumption. This means that **datafold** aims to process high
@@ -36,24 +36,23 @@ The source code is distributed under the `MIT license <https://gitlab
 Highlights
 ==========
 
-**datafold** provides:
+**datafold** includes:
 
 * Data structures to handle point clouds on manifolds (`PCManifold`) and time series
   collections (`TSCDataFrame`). The data structures are both used internally and for
   user input.
-* Access to various algorithms to compute distance metrics and kernels (sparse/dense).
 * An efficient implementation of the Diffusion Map algorithm to parametrize a manifold
   from point cloud or to approximate the the eigenfunctions of the Laplace-Beltrami
   operator.
 * Out-of-sample methods such as the (auto-tuned) Laplacian Pyramids or Geometric
   Harmonics to interpolate general function values on manifold point cloud data.
-* (Extended-) Dynamic Mode Decomposition (e.g. classes ``DMDFull`` or ``EDMD``) which
-  are data-driven dynamical models built from time series samples. To improve the
-  model accuracy There are classes that work with time series collections to transform
-  the time series data. This can be scaling of non-homogenous features or to represent
-  the time series in other coordinates (e.g. time delay embedding). Furthermore,
-  ``EDMDCV``  allows to optimize the model parameters, which include set up
-  time series transformations.
+* (Extended-) Dynamic Mode Decomposition (e.g. ``DMDFull`` or ``EDMD``) which
+  are data-driven dynamical models built from time series data. To improve the
+  model's accuracy the available data (hold by a`TSCDataFrame`) can transformed 
+  with a variety of functions and flexibility. This can be scaling of non-homogenous time series 
+  features or to represent or to represent the time series in another coordinate system 
+  (e.g. time delay embedding or diffusion maps). Furthermore, ``EDMDCV``  allows to 
+  optimize the model parameters (including the transformation model parameters). 
 
 How does it compare to other software?
 --------------------------------------

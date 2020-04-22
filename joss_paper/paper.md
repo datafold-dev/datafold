@@ -23,7 +23,7 @@ https://docs.google.com/spreadsheets/d/1PAPRJ63yq9aPC1COLjaQp8mHmEq3rZUzwUYxTuly
 -->
 
 ---
-title: 'datafold: TODO: think of title!'
+title: 'datafold: extract manifold structure in time series and point cloud data'
 tags:
   - Python
   - manifold assumption
