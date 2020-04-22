@@ -48,12 +48,12 @@ Highlights
 * Out-of-sample methods such as the (auto-tuned) Laplacian Pyramids or Geometric
   Harmonics to interpolate general function values on manifold point cloud data.
 * (Extended-) Dynamic Mode Decomposition (e.g. classes ``DMDFull`` or ``EDMD``) which
-   are data-driven dynamical models built from time series samples. To improve the
-   model accuracy There are classes that work with time series collections to transform
-   the time series data. This can be scaling of non-homogenous features or to represent
-   the time series in other coordinates (e.g. time delay embedding). Furthermore,
-   ``EDMDCV``  allows to optimize the model parameters, which include set up
-   time series transformations.
+  are data-driven dynamical models built from time series samples. To improve the
+  model accuracy There are classes that work with time series collections to transform
+  the time series data. This can be scaling of non-homogenous features or to represent
+  the time series in other coordinates (e.g. time delay embedding). Furthermore,
+  ``EDMDCV``  allows to optimize the model parameters, which include set up
+  time series transformations.
 
 How does it compare to other software?
 --------------------------------------
@@ -129,7 +129,7 @@ Alternatively, use :code:`pip3`` if :code:`pip` is reserved for :code:`Python<3`
 From source
 -----------
 
-(requires: `git <https://git-scm.com/>`_ installed)
+(requires: `git <https://git-scm.com/>`_)
 
 #. Clone the repository
 
@@ -166,21 +166,21 @@ this is:
     with a kernel that describes the data locality and hence the geometry.
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`_
-    **datafold** addresses time series data in the data structure ``TSCDataFrame``
-    which subclasses from Pandas' rich data structure
+   **datafold** addresses time series data in the data structure ``TSCDataFrame``
+   which subclasses from Pandas' rich data structure
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
    The entire time series data is captured in a single object but accessing single time
    series, features or time values is then easy.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`_
-    All **datafold** algorithms that part of the "machine learning
-    pipeline" align to the
-    `API <https://scikit-learn.org/stable/developers/develop.html>`_ of scikit-learn.
-    All models subclass from
+   All **datafold** algorithms that part of the "machine learning
+   pipeline" align to the
+   `API <https://scikit-learn.org/stable/developers/develop.html>`_ of scikit-learn.
+   All models subclass from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`_.
-    **datafold** provides also own base classes
-    that orientate with scikit-learn (in a duck-typing way) for required
-    generalizations, such as dealing with ``TSCDataFrame`` as input and output), .
+   **datafold** provides also own base classes
+   that orientate with scikit-learn (in a duck-typing way) for required
+   generalizations, such as dealing with ``TSCDataFrame`` as input and output), .
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`_
     Used for elementary numerical algorithms and data structures, such as linear least
@@ -234,10 +234,10 @@ The **datafold** source code is automatically formatted with
 
 * `black <https://black.readthedocs.io/en/stable/>`_ for code auto formatting
 * `isort <https://timothycrosley.github.io/isort/>`_ for sorting :code:`import` statements
-    alphabetically and sections.
+  alphabetically and sections.
 * `nbstripout <https://github.com/kynan/nbstripout>`_ for removing potentially large (in
-    mega bytes) binary formatted output cells of Jupyter notebooks before they get
-    into the git history.
+  mega bytes) binary formatted output cells of Jupyter notebooks before they get
+  into the git history.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
 commited to the git history. The lsited tools alter the source code in an deterministic
@@ -290,7 +290,7 @@ Additional dependencies (not contained in ``requirements-dev.txt``):
 * `LaTex <https://www.latex-project.org/>`_ to render maths equations,
 * `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
 * `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
-     `nbsphinx` extension that includes tutorials into the documentation).
+  `nbsphinx` extension that includes tutorials into the documentation).
 
 Note that the documentation also builds remotely in the CI pipeline, either as a
 test (all branches but `master`) or to update the web page (only on `master` branch).
