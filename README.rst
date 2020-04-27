@@ -2,11 +2,17 @@
 What is **datafold**?
 ===================
 
-**datafold** is a Python package consisting of data-driven algorithms with
-manifold assumption. This means that **datafold** aims to process high
--dimensional data that lie on an (unknown) geometry (manifold) with intrinsic
-lower-dimension. One major objective of **datafold** is to build build non-parametric
-models of available time series data.
+**datafold** is a Python package providing **data**-driven models with an explicit
+mani**fold** parametrization. This means that **datafold** aims to
+process potentially high-dimensional data that lies on an (unknown) geometry (manifold).
+The data can be unordered point clouds or ordered time series from a dynamical system.
+For the point clouds the aim is to parametrize an (instrinsic) lower dimensional manifold for
+dimension reduction. For Time series data, collected from a dynamical system with a
+phase space being a manifold, can be used to build a model that leans the dynamics.
+
+
+One major objective of **datafold** is to build build non-parametric models of
+available time series data.
 
 The software documentation is available at https://datafold-dev.gitlab.io/datafold ,
 and also includes tutorials that can be downloaded as Jupyter notebooks
