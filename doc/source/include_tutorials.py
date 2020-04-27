@@ -9,9 +9,10 @@ PATH2TUTORIAL = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
 # in the same order they will be listed in the documentation
 include_tutorial_filenames = [
     "basic_datastructures.ipynb",
+    "basic_pcm_subsampling.ipynb",
     "basic_dmap_scurve.ipynb",
     "basic_dmap_digitclustering.ipynb",
-    "basic_pcm_subsampling.ipynb",
+    "basic_gh_oos.ipynb",
     "basic_edmd_limitcycle.ipynb",
 ]
 
