@@ -53,9 +53,9 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         If True the diffusion kernel matrix is normalized (stochastic rows).
 
     alpha
-        Re-normalization parameter. Set to `alpha=0` for graph laplacian, `alpha=0.5`
-        Fokker-Plank and `alpha=1` for Laplace-Beltrami (`is_stochastic=True` in all
-        cases).
+        Re-normalization parameter. Set to `alpha=0` for graph Laplacian, `alpha=0.5`
+        Fokker-Plank operator and `alpha=1` for Laplace-Beltrami operator
+        (`is_stochastic=True` is required in all cases).
 
     symmetrize_kernel
         If True a conjugate transformation of non-symmetric kernel matrices is performed.
@@ -73,17 +73,17 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
     Attributes
     ----------
     X_: PCManifold
-        Training data during fit, is required for out-of-sample mappings. Equipped with \
-        kernel :py:class:`DmapKernelFixed`
+        Training data during fit. The data is required for out-of-sample mappings.
+        Equipped with kernel :py:class:`DmapKernelFixed`
 
     eigenvalues_ : numpy.ndarray
-        Eigenvalues of diffusion kernel in decreasing magnitude order.
+        Eigenvalues of diffusion kernel in decreasing order.
 
     eigenvectors_: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-        Eigenvectors of the kernel matrix to parametrizes the data manifold.
+        Eigenvectors of the kernel matrix to parametrize the data manifold.
 
     inv_coeff_matrix_: numpy.ndarray
-        Coeffficient matrix to map points from embedding space back to original space.\
+        Coefficient matrix to map points from embedding space back to original space.\
         Computation is delayed until `inverse_transform` is called for the first time.
 
     kernel_matrix_ : numpy.ndarray
@@ -319,7 +319,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
         self._setup_kernel()
 
-        # Need to hold X in class to be able to compute cdist distance matrix which is
+        # Need to hold X in class to be able to compute cdist distance matrix, which is
         # required for out-of-sample transforms
         self.X_ = PCManifold(
             X,
@@ -595,11 +595,12 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
 
 
 class LocalRegressionSelection(BaseEstimator, TSCTransformerMixIn):
-    """Automatic selection of functional independent geometric harmonic vectors for or
-    parsimonious representation.
+    """Automatic selection of functional independent geometric harmonic vectors for
+    parsinoneous data manifold embedding.
 
     To measure the functional dependency a local regression regression is performed: The
-    larger the residual between eigenvetor sets the larger the sets are.
+    larger the residuals between eigenvetor sets the more information they add and are
+    therefore more likely to be considered in an embedding.
 
     The kernel used for the local linear regression has a scale of
 
@@ -799,8 +800,8 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixIn):
 
         ######
         # START
-        # The following code was provided by the received code. However, this part
-        # diverges from the paper. Therefore, I use the paper as it also passes the tests.
+        # The following code was provided. However, this part
+        # diverges from the paper. I use the paper version as it also passes the tests.
         ###
         # target_stddev = np.std(target_eigenvector)
         #
