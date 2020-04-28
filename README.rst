@@ -69,7 +69,7 @@ Highlights
   also accounting for time series splitting.
 
 How does it compare to other software?
---------------------------------------
+======================================
 
 *We only consider other Python packages.*
 
