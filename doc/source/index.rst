@@ -15,7 +15,6 @@ Contents
    devapi
    tutorial_index
    references
-   todolist
 
 
 Quick links
@@ -55,8 +54,8 @@ Faculty of Computer Science and Mathematics in
 research group "Pedestrian Dynamics" `www.vadere.org <http://www.vadere.org/>`_,
 
 .. image:: _static/img/hm_logo.png
-   :height: 100px
-   :width: 400px
+   :height: 110px
+   :width: 250px
    :target: https://www.hm.edu/en/index.en.html
 
 2. Technical University of Munich

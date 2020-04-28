@@ -12,11 +12,12 @@ the underlying dynamical system is assumed to have a phase space being a manifol
 Finding a suitable manifold parametrization can then improve the data-driven models to
 learn the dynamics and identify the system.
 
-The software documentation is available at https://datafold-dev.gitlab.io/datafold ,
-and also includes tutorials that can be downloaded as Jupyter notebooks
-`here <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`_ or exectued
-on the webpage documentation
-`here <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_
+The software documentation is available at
+`https://datafold-dev.gitlab.io/datafold <https://datafold-dev.gitlab.io/datafold>`_,
+with executed
+`tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_
+and can be downloaded as
+`Jupyter notebooks <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`_.
 
 The source code is distributed under the `MIT license <https://gitlab
 .com/datafold-dev/datafold/-/blob/master/LICENSE>`_.
@@ -63,7 +64,7 @@ Highlights
   This includes scaling of heterogenous time series features, representing the
   time series in another coordinate system (e.g. Laplace-Beltrami operator) ot to
   reconstruct a diffeomorphic copy of the phase space with time delay embedding (cf.
-   `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`_).
+  `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`_).
 * Building up on the last point, ``EDMDCV`` allows the model parameters (including the
   transformation model parameters) to be optimized with cross-validation and
   also accounting for time series splitting.
@@ -307,6 +308,8 @@ extensions (all install with the development dependencies).
 Additional dependencies (not contained in ``requirements-dev.txt``):
 
 * `LaTex <https://www.latex-project.org/>`_ to render maths equations,
+* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in browser (for
+   Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
 * `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
 * `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
   `nbsphinx` extension that includes the tutorials into the webpage documentation).
