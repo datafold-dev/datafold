@@ -182,7 +182,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
                 )
 
     def transform(self, X: TransformType) -> TransformType:
-        """Perform dictionary transformations on time series data in original space.
+        """Perform dictionary transformations on time series data (original space).
 
         Parameters
         ----------
@@ -213,7 +213,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return X_dict
 
     def inverse_transform(self, X: TransformType) -> TransformType:
-        """Map time series from the dictionary space back to the original space.
+        """Perform inverse dictionary transformations on time series data (dictionary
+        space).
 
         * ``include_id_state=True`` - simply select the original features from the time \
           series.
