@@ -3,7 +3,7 @@ What is **datafold**?
 =====================
 
 **datafold** is a Python package providing **data**-driven models with an explicit
-mani**fold** parametrization. This means that **datafold** aims to
+mani-**fold** parametrization. This means that **datafold** aims to
 process potentially high-dimensional data that lie on an (unknown) geometry (manifold).
 The main data are unordered point clouds or ordered time series from a dynamical system.
 For point clouds a typical use case is to parametrize a manifold of intrinsic lower

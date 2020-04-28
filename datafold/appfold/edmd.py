@@ -87,28 +87,28 @@ from datafold.utils.general import is_integer
 
 class EDMD(Pipeline, TSCPredictMixIn):
     """Extended Dynamic Mode Decomposition model (EDMD) to approximate the Koopman
-    operator to model a dynamical system from time series data with a dictionary of
-    observable functions.
-
+    operator to learn a dynamical system from time series data (transformed with
+    dictionary of observable functions).
     ...
 
     Parameters
     ----------
     dict_steps
-        The order in the list determines the order at which the object's `fit/transform`
-        (and inverse_transform if necessary, see ``include_id_state``)) are processed.
-        All objects in the tuple must be able to deal with time series collection data.
+        `(string identifier, model)` of transform models. Defines a transformation
+        pipeline in which the original time series data is executed in same order as in
+        list) are the observable functions. All models in the list must be able to deal
+        with time series collection data.
 
     dmd_model
-        The final estimator to predict time series (in the dictionary space).
-        Approximates the Koopman matrix in observable space.
+        The final estimator, a DMD based model, to predict time series (in the
+        dictionary space). Approximates the Koopman matrix in observable space.
 
     include_id_state
         If True the original time series states are added to the dictionary (without
         any transformations). After the time series are created in the observable
         space, the mapping back to the original space is easier (at the cost of a
-        larger dictionary) and allows for transformer in the dictionary that do not
-        implement an ``inverse_transform``.
+        larger dictionary dimension) and allows for transformer in the dictionary that
+        do not provide an ``inverse_transform``.
 
         .. note::
             The final dictionary TSCDataFrame must not contain any feature names of the
