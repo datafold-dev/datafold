@@ -36,6 +36,25 @@
 	file = {Dsilva et al. - 2018 - Parsimonious representation of nonlinear dynamical.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/IV4C8NTJ/Dsilva et al. - 2018 - Parsimonious representation of nonlinear dynamical.pdf:application/pdf}
 }
 
+@article{champion_discovery_2019,
+	title = {Discovery of {Nonlinear} {Multiscale} {Systems}: {Sampling} {Strategies} and {Embeddings}},
+	volume = {18},
+	issn = {1536-0040},
+	shorttitle = {Discovery of {Nonlinear} {Multiscale} {Systems}},
+	url = {https://epubs.siam.org/doi/10.1137/18M1188227},
+	doi = {10.1137/18M1188227},
+	abstract = {A major challenge in the study of dynamical systems is that of model discovery: turning data into models that are not just predictive, but provide insight into the nature of the underlying dynamical system that generated the data. This problem is made more difficult by the fact that many systems of interest exhibit diverse behaviors across multiple time scales. We introduce a number of datadriven strategies for discovering nonlinear multiscale dynamical systems and their embeddings from data. We consider two canonical cases: (i) systems for which we have full measurements of the governing variables and (ii) systems for which we have incomplete measurements. For systems with full state measurements, we show that the recent sparse identification of nonlinear dynamical systems (SINDy) method can discover governing equations with relatively little data, provided that accurate measurements of the derivatives can be computed from the data. We introduce a sampling method that allows SINDy to scale efficiently to problems with multiple time scales; specifically, we can discover distinct governing equations at slow and fast scales. For systems with incomplete observations, we show that the Hankel alternative view of Koopman (HAVOK) method, based on time-delay embedding coordinates, can be used to obtain a linear model and Koopman invariant measurement system that nearly perfectly captures the dynamics of nonlinear quasiperiodic systems on the attractor. We introduce two strategies for using HAVOK on systems with multiple time scales. Together, our approaches provide a suite of mathematical strategies for reducing the data required to discover and model nonlinear multiscale systems.},
+	language = {en},
+	number = {1},
+	urldate = {2019-03-06},
+	journal = {SIAM Journal on Applied Dynamical Systems},
+	author = {Champion, Kathleen P. and Brunton, Steven L. and Kutz, J. Nathan},
+	month = jan,
+	year = {2019},
+	pages = {312--333},
+	file = {Champion et al. - 2019 - Discovery of Nonlinear Multiscale Systems Samplin.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/PKFVPH2B/Champion et al. - 2019 - Discovery of Nonlinear Multiscale Systems Samplin.pdf:application/pdf}
+}
+
 @article{tu_dynamic_2014,
 	title = {On {Dynamic} {Mode} {Decomposition}: {Theory} and {Applications}},
 	volume = {1},
@@ -73,6 +92,55 @@
 	year = {2015},
 	pages = {1307--1346},
 	file = {Williams et al. - 2015 - A Data{\textendash}Driven Approximation of the Koopman Operato.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/F97E3V33/Williams et al. - 2015 - A Data{\textendash}Driven Approximation of the Koopman Operato.pdf:application/pdf}
+}
+
+@article{williams_kernel-based_2014,
+	title = {A {Kernel}-{Based} {Approach} to {Data}-{Driven} {Koopman} {Spectral} {Analysis}},
+	url = {http://arxiv.org/abs/1411.2260},
+	abstract = {A data-driven, kernel-based method for approximating the leading Koopman eigenvalues, eigenfunctions, and modes in problems with highdimensional state spaces is presented. This approach approximates the Koopman operator using a set of scalar observables, which are functions that map states to scalars, that is determined implicitly by the choice of a kernel function. This circumvents the computational issues that arise due to the number of basis functions required to span a {\textquotedblleft}sufficiently rich{\textquotedblright} subspace of the space of scalar observables in such applications. We illustrate this method on two examples: the FitzHugh-Nagumo PDE, a prototypical one-dimensional reaction-diffusion system, and vorticity data obtained from experimentally obtained velocity data for flow over a cylinder at Reynolds number 413. In both examples, we compare our results with related methods, such as Dynamic Mode Decomposition (DMD) that have the same cost as our approach.},
+	language = {en},
+	urldate = {2019-08-26},
+	journal = {arXiv:1411.2260 [math]},
+	author = {Williams, Matthew O. and Rowley, Clarence W. and Kevrekidis, Ioannis G.},
+	month = nov,
+	year = {2014},
+	note = {arXiv: 1411.2260},
+	file = {Williams et al. - 2014 - A Kernel-Based Approach to Data-Driven Koopman Spe.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/XFHJN849/Williams et al. - 2014 - A Kernel-Based Approach to Data-Driven Koopman Spe.pdf:application/pdf}
+}
+
+@article{giannakis_data-driven_2019,
+	title = {Data-driven spectral decomposition and forecasting of ergodic dynamical systems},
+	volume = {47},
+	issn = {10635203},
+	url = {https://linkinghub.elsevier.com/retrieve/pii/S1063520317300982},
+	doi = {10.1016/j.acha.2017.09.001},
+	abstract = {We develop a framework for dimension reduction, mode decomposition, and nonparametric forecasting of data generated by ergodic dynamical systems. This framework is based on a representation of the Koopman and Perron{\textendash}Frobenius groups of unitary operators in a smooth orthonormal basis of the L2 space of the dynamical system, acquired from time-ordered data through the diffusion maps algorithm. Using this representation, we compute Koopman eigenfunctions through a regularized advection{\textendash}diffusion operator, and employ these eigenfunctions in dimension reduction maps with projectible dynamics and high smoothness for the given observation modality. In systems with pure point spectra, we construct a decomposition of the generator of the Koopman group into mutually commuting vector fields that transform naturally under changes of observation modality, which we reconstruct in data space through a representation of the pushforward map in the Koopman eigenfunction basis. We also establish a correspondence between Koopman operators and Laplace{\textendash}Beltrami operators constructed from data in Takens delaycoordinate space, and use this correspondence to provide an interpretation of diffusion-mapped delay coordinates for this class of systems. Moreover, we take advantage of a special property of the Koopman eigenfunction basis, namely that the basis elements evolve as simple harmonic oscillators, to build nonparametric forecast models for probability densities and observables. In systems with more complex spectral behavior, including mixing systems, we develop a method inspired from time change in dynamical systems to transform the generator to a new operator with potentially improved spectral properties, and use that operator for vector field decomposition and nonparametric forecasting.},
+	language = {en},
+	number = {2},
+	urldate = {2019-12-14},
+	journal = {Applied and Computational Harmonic Analysis},
+	author = {Giannakis, Dimitrios},
+	month = sep,
+	year = {2019},
+	pages = {338--396},
+	file = {Giannakis - 2019 - Data-driven spectral decomposition and forecasting.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/8Z3GRNGJ/Giannakis - 2019 - Data-driven spectral decomposition and forecasting.pdf:application/pdf}
+}
+
+@article{chiavazzo_reduced_2014,
+	title = {Reduced {Models} in {Chemical} {Kinetics} via {Nonlinear} {Data}-{Mining}},
+	volume = {2},
+	issn = {2227-9717},
+	url = {http://www.mdpi.com/2227-9717/2/1/112},
+	doi = {10.3390/pr2010112},
+	language = {en},
+	number = {1},
+	urldate = {2019-12-14},
+	journal = {Processes},
+	author = {Chiavazzo, Eliodoro and Gear, Charles and Dsilva, Carmeline and Rabin, Neta and Kevrekidis, Ioannis},
+	month = jan,
+	year = {2014},
+	pages = {112--140},
+	file = {Chiavazzo et al. - 2014 - Reduced Models in Chemical Kinetics via Nonlinear .pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/7KILB82F/Chiavazzo et al. - 2014 - Reduced Models in Chemical Kinetics via Nonlinear .pdf:application/pdf}
 }
 
 @inproceedings{rabin_heterogeneous_2012,
@@ -129,6 +197,24 @@
 	file = {Coifman and Lafon - 2006 - Diffusion maps.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/KSIV47IT/Coifman and Lafon - 2006 - Diffusion maps.pdf:application/pdf}
 }
 
+@article{bengio_learning_2004,
+	title = {Learning {Eigenfunctions} {Links} {Spectral} {Embedding} and {Kernel} {PCA}},
+	volume = {16},
+	issn = {0899-7667, 1530-888X},
+	url = {http://www.mitpressjournals.org/doi/10.1162/0899766041732396},
+	doi = {10.1162/0899766041732396},
+	abstract = {In this paper, we show a direct relation between spectral embedding methods and kernel PCA, and how both are special cases of a more general learning problem, that of learning the principal eigenfunctions of an operator defined from a kernel and the unknown data generating density.},
+	language = {en},
+	number = {10},
+	urldate = {2019-12-15},
+	journal = {Neural Computation},
+	author = {Bengio, Yoshua and Delalleau, Olivier and Roux, Nicolas Le and Paiement, Jean-Fran{\c c}ois and Vincent, Pascal and Ouimet, Marie},
+	month = oct,
+	year = {2004},
+	pages = {2197--2219},
+	file = {Bengio et al. - 2004 - Learning Eigenfunctions Links Spectral Embedding a.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/A7AV73WD/Bengio et al. - 2004 - Learning Eigenfunctions Links Spectral Embedding a.pdf:application/pdf}
+}
+
 @article{fernandez_auto-adaptative_2014,
 	title = {Auto-adaptative {Laplacian} {Pyramids} for {High}-dimensional {Data} {Analysis}},
 	url = {http://arxiv.org/abs/1311.6594},
@@ -141,6 +227,50 @@
 	year = {2014},
 	note = {arXiv: 1311.6594},
 	file = {Fern{\'a}ndez et al. - 2014 - Auto-adaptative Laplacian Pyramids for High-dimens.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/8EHEHFF3/Fern{\'a}ndez et al. - 2014 - Auto-adaptative Laplacian Pyramids for High-dimens.pdf:application/pdf}
+}
+
+@article{li_extended_2017,
+	title = {Extended dynamic mode decomposition with dictionary learning: a data-driven adaptive spectral decomposition of the {Koopman} operator},
+	volume = {27},
+	issn = {1054-1500, 1089-7682},
+	shorttitle = {Extended dynamic mode decomposition with dictionary learning},
+	url = {http://arxiv.org/abs/1707.00225},
+	doi = {10.1063/1.4993854},
+	abstract = {Numerical approximation methods for the Koopman operator have advanced considerably in the last few years. In particular, data-driven approaches such as dynamic mode decomposition (DMD) and its generalization, the extended-DMD (EDMD), are becoming increasingly popular in practical applications. The EDMD improves upon the classical DMD by the inclusion of a flexible choice of dictionary of observables that spans a finite dimensional subspace on which the Koopman operator can be approximated. This enhances the accuracy of the solution reconstruction and broadens the applicability of the Koopman formalism. Although the convergence of the EDMD has been established, applying the method in practice requires a careful choice of the observables to improve convergence with just a finite number of terms. This is especially difficult for high dimensional and highly nonlinear systems. In this paper, we employ ideas from machine learning to improve upon the EDMD method. We develop an iterative approximation algorithm which couples the EDMD with a trainable dictionary represented by an artificial neural network. Using the Duffing oscillator and the Kuramoto Sivashinsky PDE as examples, we show that our algorithm can effectively and efficiently adapt the trainable dictionary to the problem at hand to achieve good reconstruction accuracy without the need to choose a fixed dictionary a priori. Furthermore, to obtain a given accuracy we require fewer dictionary terms than EDMD with fixed dictionaries. This alleviates an important shortcoming of the EDMD algorithm and enhances the applicability of the Koopman framework to practical problems.},
+	language = {en},
+	number = {10},
+	urldate = {2020-01-06},
+	journal = {Chaos: An Interdisciplinary Journal of Nonlinear Science},
+	author = {Li, Qianxiao and Dietrich, Felix and Bollt, Erik M. and Kevrekidis, Ioannis G.},
+	month = oct,
+	year = {2017},
+	note = {arXiv: 1707.00225},
+	pages = {103111},
+	file = {Li et al. - 2017 - Extended dynamic mode decomposition with dictionar.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/B3JH9IP8/Li et al. - 2017 - Extended dynamic mode decomposition with dictionar.pdf:application/pdf}
+}
+
+@article{berry_nonparametric_2015,
+	title = {Nonparametric {Uncertainty} {Quantification} for {Stochastic} {Gradient} {Flows}},
+	url = {http://arxiv.org/abs/1407.6972},
+	abstract = {This paper presents a nonparametric statistical modeling method for quantifying uncertainty in stochastic gradient systems with isotropic diffusion. The central idea is to apply the diffusion maps algorithm to a training data set to produce a stochastic matrix whose generator is a discrete approximation to the backward Kolmogorov operator of the underlying dynamics. The eigenvectors of this stochastic matrix, which we will refer to as the diffusion coordinates, are discrete approximations to the eigenfunctions of the Kolmogorov operator and form an orthonormal basis for functions defined on the data set. Using this basis, we consider the projection of three uncertainty quantification (UQ) problems (prediction, filtering, and response) into the diffusion coordinates. In these coordinates, the nonlinear prediction and response problems reduce to solving systems of infinite-dimensional linear ordinary differential equations. Similarly, the continuous-time nonlinear filtering problem reduces to solving a system of infinite-dimensional linear stochastic differential equations. Solving the UQ problems then reduces to solving the corresponding truncated linear systems in finitely many diffusion coordinates. By solving these systems we give a model-free algorithm for UQ on gradient flow systems with isotropic diffusion. We numerically verify these algorithms on a 1-dimensional linear gradient flow system where the analytic solutions of the UQ problems are known. We also apply the algorithm to a chaotically forced nonlinear gradient flow system which is known to be well approximated as a stochastically forced gradient flow.},
+	language = {en},
+	urldate = {2020-01-06},
+	journal = {arXiv:1407.6972 [math]},
+	author = {Berry, Tyrus and Harlim, John},
+	month = feb,
+	year = {2015},
+	note = {arXiv: 1407.6972},
+	file = {Berry and Harlim - 2015 - Nonparametric Uncertainty Quantification for Stoch.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/5VZB38BJ/Berry and Harlim - 2015 - Nonparametric Uncertainty Quantification for Stoch.pdf:application/pdf}
+}
+
+@book{kutz_dynamic_2016,
+	title = {Dynamic mode decomposition. {Data}-{Driven} modelling of complex systems},
+	isbn = {978-1-61197-450-8},
+	language = {en},
+	publisher = {Society for Industrial and Applied Mathematics},
+	author = {Kutz, J. Nathan and Brunton, Steven L. and Brunton, Bingni W. and Proctor, Joshua L.},
+	year = {2016},
+	file = {Kutz et al. - 2016 - Dynamic mode decomposition data-driven modeling of complex systems.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/QLGMX5UB/Kutz et al. - 2016 - Dynamic mode decomposition data-driven modeling of complex systems.pdf:application/pdf}
 }
 
 @article{schmid_dynamic_2010,
@@ -158,4 +288,82 @@
 	year = {2010},
 	pages = {5--28},
 	file = {Schmid - 2010 - Dynamic mode decomposition of numerical and experi.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/YI7Q6K6Q/Schmid - 2010 - Dynamic mode decomposition of numerical and experi.pdf:application/pdf}
+}
+
+@article{belkin_laplacian_2003,
+	title = {Laplacian {Eigenmaps} for {Dimensionality} {Reduction} and {Data} {Representation}},
+	volume = {15},
+	issn = {0899-7667, 1530-888X},
+	url = {http://www.mitpressjournals.org/doi/10.1162/089976603321780317},
+	doi = {10.1162/089976603321780317},
+	language = {en},
+	number = {6},
+	urldate = {2020-04-29},
+	journal = {Neural Computation},
+	author = {Belkin, Mikhail and Niyogi, Partha},
+	month = jun,
+	year = {2003},
+	pages = {1373--1396},
+	file = {Belkin and Niyogi - 2003 - Laplacian Eigenmaps for Dimensionality Reduction a.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/3Y55W6LV/Belkin and Niyogi - 2003 - Laplacian Eigenmaps for Dimensionality Reduction a.pdf:application/pdf}
+}
+
+@article{donoho_hessian_2003,
+	title = {Hessian eigenmaps: {Locally} linear embedding techniques for high-dimensional data},
+	volume = {100},
+	issn = {0027-8424, 1091-6490},
+	shorttitle = {Hessian eigenmaps},
+	url = {http://www.pnas.org/cgi/doi/10.1073/pnas.1031596100},
+	doi = {10.1073/pnas.1031596100},
+	language = {en},
+	number = {10},
+	urldate = {2020-04-29},
+	journal = {Proceedings of the National Academy of Sciences},
+	author = {Donoho, D. L. and Grimes, C.},
+	month = may,
+	year = {2003},
+	pages = {5591--5596},
+	file = {Donoho and Grimes - 2003 - Hessian eigenmaps Locally linear embedding techni.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/YJ4CN4L4/Donoho and Grimes - 2003 - Hessian eigenmaps Locally linear embedding techni.pdf:application/pdf}
+}
+
+@incollection{rand_detecting_1981,
+	address = {Berlin, Heidelberg},
+	title = {Detecting strange attractors in turbulence},
+	volume = {898},
+	isbn = {978-3-540-11171-9 978-3-540-38945-3},
+	url = {http://link.springer.com/10.1007/BFb0091924},
+	language = {en},
+	urldate = {2020-04-29},
+	booktitle = {Dynamical {Systems} and {Turbulence}, {Warwick} 1980},
+	publisher = {Springer Berlin Heidelberg},
+	author = {Takens, Floris},
+	editor = {Rand, David and Young, Lai-Sang},
+	year = {1981},
+	doi = {10.1007/BFb0091924},
+	note = {Series Title: Lecture Notes in Mathematics},
+	pages = {366--381},
+	file = {Takens - 1981 - Detecting strange attractors in turbulence.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/RHL8943B/Takens - 1981 - Detecting strange attractors in turbulence.pdf:application/pdf}
+}
+
+@book{bishop_pattern_2006,
+	address = {New York},
+	series = {Information science and statistics},
+	title = {Pattern recognition and machine learning},
+	isbn = {978-0-387-31073-2},
+	language = {en},
+	publisher = {Springer},
+	author = {Bishop, Christopher M.},
+	year = {2006},
+	keywords = {Machine learning, Pattern perception},
+	file = {Bishop - 2006 - Pattern recognition and machine learning.PDF:/home/daniel/LRZ Sync+Share/Zotero/storage/VFIFUWNW/Bishop - 2006 - Pattern recognition and machine learning.PDF:application/pdf}
+}
+
+@article{pedregosa_scikit-learn_2011,
+	title = {Scikit-learn: {Machine} {Learning} in {Python}},
+	abstract = {Scikit-learn is a Python module integrating a wide range of state-of-the-art machine learning algorithms for medium-scale supervised and unsupervised problems. This package focuses on bringing machine learning to non-specialists using a general-purpose high-level language. Emphasis is put on ease of use, performance, documentation, and API consistency. It has minimal dependencies and is distributed under the simplified BSD license, encouraging its use in both academic and commercial settings. Source code, binaries, and documentation can be downloaded from http://scikit-learn.sourceforge.net.},
+	language = {en},
+	journal = {MACHINE LEARNING IN PYTHON},
+	author = {Pedregosa, Fabian and Varoquaux, Gael and Gramfort, Alexandre and Michel, Vincent and Thirion, Bertrand and Grisel, Olivier and Blondel, Mathieu and Prettenhofer, Peter and Weiss, Ron and Dubourg, Vincent and Vanderplas, Jake and Passos, Alexandre and Cournapeau, David},
+	year = {2011},
+	pages = {6},
+	file = {Pedregosa et al. - Scikit-learn Machine Learning in Python.pdf:/home/daniel/LRZ Sync+Share/Zotero/storage/ICQHZ5DJ/Pedregosa et al. - Scikit-learn Machine Learning in Python.pdf:application/pdf}
 }
