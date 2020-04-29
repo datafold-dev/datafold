@@ -27,7 +27,7 @@ https://docs.google.com/spreadsheets/d/1PAPRJ63yq9aPC1COLjaQp8mHmEq3rZUzwUYxTuly
 * [ ] Automated tests: Are there automated tests or manual steps described so that the functionality of the software can be verified?
 * [ ] Community guidelines: Are there clear guidelines for third parties wishing to 1) Contribute to the software 2) Report issues or problems with the software 3) Seek support
 -->
-
+---
 title: 'datafold: data-driven models with manifold structure for (non-) temporal data'
 tags:
   - data driven models
@@ -56,9 +56,9 @@ affiliations:
    index: 1
  - name: Technical University of Munich
    index: 2
+
 date: 29 April 2020
 bibliography: paper.bib
-
 ---
 
 # Introduction
