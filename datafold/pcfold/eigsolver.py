@@ -1,5 +1,5 @@
 import sys
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 import scipy.sparse
@@ -16,11 +16,58 @@ class NumericalMathError(Exception):
         super(NumericalMathError, self).__init__(message)
 
 
-def scipy_eigsolver(kernel_matrix, n_eigenpairs, is_symmetric, is_stochastic):
-    """Selects the parametrization for scipy eigensolver depending on the
-    properties of the kernel.
+def scipy_eigsolver(
+    kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
+    n_eigenpairs: int,
+    is_symmetric: bool,
+    is_stochastic: bool,
+):
+    """Compute eigenpairs of kernel matrix with scipy.
 
+    The scipy solver is selected based on the number of eigenpairs to compute. Note
+    that also for dense matrix cases a sparse solver is selected. There are two reasons
+    for this decsision:
 
+    1. General dense matrix eigensolver only allow to compute *all* eigenpairs. This
+       is computaional more costly than to put a dense matrix in a sparse solver.
+    2. The hermitian (symmetric) eigh solver allows a partial computation of
+       eigenpairs, but it showed to be slower in microbenchmark tests than the sparse
+       solvers for dense matrices.
+
+    Internal selection:
+
+    * If :code:`n_eigenpairs == n_samples` (for dense / sparse):
+      * symmetric `eigh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html#scipy.linalg.eigh>`_
+      * non-symmetric `eig  <https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eig.html#scipy.linalg.eig>`_
+
+    * If :code:`n_eigenpairs < n_samples` (for dense / sparse):
+      * symmetric `eigsh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html>`_
+      * non-symmetric `eigs <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html#scipy.sparse.linalg.eigs>`_
+    
+    Parameters
+    ----------
+
+    kernel_matrix
+        Matrix of shape `(n_samples, n_samples)`.
+
+    n_eigenpairs
+        Number of eigenpairs to compute.
+
+    is_symmetric
+        True if matrix is symmetric. Note that there is no check and also numerical
+        noise that breaks the symmetry can lead to instabilities.
+
+     is_stochastic
+        True if the matrix is row-stochastic. This enables setting a `sigma` close to 1
+        to accelerate convergence.
+
+    Returns
+    -------
+    numpy.ndarray
+        eigenvalues of shape `(n_eigenpairs,)`
+
+    numpy.ndarray
+        eigenvectors of shape `(n_samples, n_eigenpairs)`
     """
 
     n_samples, n_features = kernel_matrix.shape
@@ -32,11 +79,6 @@ def scipy_eigsolver(kernel_matrix, n_eigenpairs, is_symmetric, is_stochastic):
             scipy_eigvec_solver = scipy.linalg.eigh
         else:
             scipy_eigvec_solver = scipy.linalg.eig
-
-        # symmetric case:
-        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html#scipy.linalg.eigh
-        # non-symmetric case:
-        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eig.html#scipy.linalg.eig
         solver_kwargs = {"check_finite": False}  # should be already checked
 
     else:  # n_eigenpairs < matrix.shape[1]
@@ -45,10 +87,6 @@ def scipy_eigsolver(kernel_matrix, n_eigenpairs, is_symmetric, is_stochastic):
         else:
             scipy_eigvec_solver = scipy.sparse.linalg.eigs
 
-        # symmetric case:
-        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html
-        # non-symmetric case:
-        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html#scipy.sparse.linalg.eigs
         solver_kwargs = {
             "k": n_eigenpairs,
             "which": "LM",
@@ -76,41 +114,41 @@ _valid_backends = ["scipy"]
 
 
 def compute_kernel_eigenpairs(
-    kernel_matrix: Union[np.ndarray, scipy.sparse.spmatrix],
+    kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
     n_eigenpairs: int,
     is_symmetric: bool = False,
     is_stochastic: bool = False,
     backend: str = "scipy",
-):
-    """Computing eigenpairs of kernel matrices by exploiting.
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute eigenpairs (eigenvalues and -vectors) of a kernel matrix by exploiting
+    kernel properties if applicable.
 
     Parameters
     ----------
     kernel_matrix
-        Two dimensional square matrix, dense or sparse.
+        Kernel matrix with shape `(n_samples, n_samples)`.
 
     n_eigenpairs
         Number of eigenpairs to compute.
 
     is_symmetric
-        If True this allows for specialized algorithms exploiting symmetry and enables
-        an additional check if all eigenvalues are real valued.
+        If True, this allows for specialized algorithms exploiting symmetry and enables
+        an additional numerical sanity check that all eigenvalues are real valued.
 
     is_stochastic
-        If True this allows to improve convergence because the trivial first eigenvalue
-        is known.
+        If True, this allows to improve convergence because the trivial first eigenvalue
+        is known and all following eigenvalues are smaller.
 
     backend
-        * "scipy" - selects between\
-           `scipy.eigs <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html#scipy.sparse.linalg.eigs>`\
-            and\
-          `scipy.eigsh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html>`
+        * Valid backends: "scipy"
 
     Returns
     -------
-    Tuple[numpy.ndarray, numpy.ndarray]
-        Eigenpairs sorted by largest (magnitude) eigenvalue, decreasing. The
-        eigenvectors are not necessarily normalized.
+    numpy.ndarray
+        Eigenvalues in ascending order (magnitude for complex values)
+
+    numpy.ndarray
+        Eigenvectors (not necessarily normalized) in same eigenvalue order.
     """
 
     if kernel_matrix.ndim != 2 or kernel_matrix.shape[0] != kernel_matrix.shape[1]:

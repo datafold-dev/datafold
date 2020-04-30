@@ -503,6 +503,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         Time delta during measured during fit. This is primarily used to check that
         `transform` or `inverse_transform` data still have the same time delta for
         consistency.
+
+    References
+    ----------
+
+    :cite:`rand_detecting_1981`
     """
 
     def __init__(
