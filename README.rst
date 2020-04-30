@@ -16,7 +16,7 @@ The software documentation is available at
 `https://datafold-dev.gitlab.io/datafold <https://datafold-dev.gitlab.io/datafold>`_,
 with executed
 `tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_
-and can be downloaded as
+or can be downloaded as
 `Jupyter notebooks <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`_.
 
 The source code is distributed under the `MIT license <https://gitlab
