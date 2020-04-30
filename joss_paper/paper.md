@@ -50,7 +50,7 @@ In contrast, the second type of model includes an *explicit* parametrization of 
 
 datafold is a Python package providing **data**-driven models with an explicit mani-**fold** parametrization. The software provides a set of models and data structures, which are all integrated in a software architecture with clear modularization (the model API is used as a template from the scikit-learn project, `@pedregosa_scikit-learn_2011:2011`). The software design of datafold can accomodate models that range from higher level tasks (e.g., system identification, `@williams_datadriven_2015:2015`) to lower level algorithms (e.g. encoding proximity information on a manifold `[@coifman_diffusion_2006:2006]`). In datafold we address data with and without temporal context, which both are further discussed in the following sections. The two types reflect strong research branches of data-driven analysis with a manifold context. We want to support the active research in the scope of datafold and target students, researchers and experienced practitioners from different fields for dataset analysis.
 
-![(Left) Point cloud of embedded hand written digits between 0 to 5. Each image is a 64 dimensional point from an 8 x 8 image. (Right) Conceptual illustration of a sampled time series forming a phase space with geometrical manifold structure \label{fig:manifold}](manifold_figure.png)
+![(Left) Point cloud of embedded hand written digits between 0 and 5. Each point from the original space is a 64 dimensional from an 8 x 8 image. (Right) Conceptual illustration of a three dimensional time series forming a phase space with geometrical structure. \label{fig:manifold}](manifold_figure.png)
 
 ## 1. Point cloud data
 
