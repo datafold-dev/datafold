@@ -28,7 +28,8 @@ class GeometricHarmonicsInterpolator(
         Bandwidth/scale of diffusion map kernel (see :py:class:`DmapKernelFixed`).
 
     n_eigenpairs
-        Number of eigenpairs to compute from computed diffusion kernel matrix.
+        Number of eigenpairs (geometric harmonics) to compute from computed diffusion
+        kernel matrix.
 
     cut_off
         Distance cut off, kernel values with a corresponding larger Euclidean distance
@@ -46,7 +47,8 @@ class GeometricHarmonicsInterpolator(
     symmetrize_kernel
         If True a conjugate transformation of non-symmetric kernel matrices is performed.
         This improves numerical stability and allows to use eigensolver algorithms
-        designed for Hermitian matrices.
+        designed for Hermitian matrices. If kernel is symmetric already (if
+        `is_stochastic=False`, then the parameter has no effect).
 
     dist_backend
         Backend of distance matrix computation. Defaults to `guess_optimal`,
@@ -92,7 +94,6 @@ class GeometricHarmonicsInterpolator(
         cut_off: float = np.inf,
         is_stochastic: bool = False,
         alpha: float = 1,
-        # NOTE for docu: if is_stochastic=False, then this is not really required
         symmetrize_kernel=True,
         dist_backend="guess_optimal",
         dist_backend_kwargs=None,
