@@ -952,17 +952,15 @@ def compute_distance_matrix(
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
             cut off must be stated in in Eucledian distance (not squared cut off).
 
-    kmin
-        input for continuous nearest neighbor
-
-    tol
-        tolerance used in continuous nearest neighbors
+    kmin: ignored
+        ``NotImplemented`` - make sure in for sparse distance matrices that they have
+        at least k connections
 
     backend
         backend to compute distance matrix
 
     **backend_kwargs
-        keyword agruments handled to selected backend
+        keyword arguments handled to selected backend
 
     Returns
     -------
@@ -989,13 +987,6 @@ def compute_distance_matrix(
 
     is_pdist = Y is None
     is_sparse = cut_off is not None
-
-    if not is_sparse and kmin > 0:
-        # TODO: (raise error early, before expensive distance matrix is computed)
-        raise NotImplementedError(
-            "fix_kmin_rows currently only works for sparse distance matrices (i.e. with "
-            "set cut_off)."
-        )
 
     if metric == "sqeuclidean":
         if cut_off is not None:
@@ -1029,10 +1020,6 @@ def compute_distance_matrix(
             f"cut_off={cut_off} value has no effect on sparsity of distance matrix, "
             f"the sparse matrix is effectively dense."
         )
-
-    if kmin > 0:
-        logger.info("apply continuous nearest neighbor on distance matrix")
-        distance_matrix = apply_continuous_nearest_neighbor(distance_matrix, kmin, tol)
 
     if scipy.sparse.issparse(distance_matrix):
         if not isinstance(distance_matrix, scipy.sparse.csr_matrix):

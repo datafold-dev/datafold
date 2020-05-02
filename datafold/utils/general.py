@@ -64,20 +64,21 @@ def is_df_same_index(
     return is_index_same and is_columns_same
 
 
-def is_integer(n) -> bool:
-    """Checks if `n` is an integer scalar, with the following considerations:
-    * `n` is a float (built in) -> check if conversion to int is without losses
-    * `n` is
+def is_integer(n: object) -> bool:
+    """Checks if `n` is an integer scalar.
+
+    * `n` is a float (built-in) -> check if conversion to int is without precision loss
+    + `n` is an integer built-in or numpy.integer
 
     Parameters
     ----------
     n
-        Data structure to check.
+        object to check
 
     Returns
     -------
     bool
-        Whether it is an `n` is an integer.
+        True if `n` is an integer or a float without decimal places.
 
     """
     return isinstance(n, (int, np.integer)) or (
@@ -85,18 +86,18 @@ def is_integer(n) -> bool:
     )
 
 
-def is_float(n) -> bool:
+def is_float(n: object) -> bool:
     """Checks if `n` is a floating scalar.
 
     Parameters
     ----------
     n
-        Data structure to check.
+        object to check
 
     Returns
     -------
     bool
-        Whether it is an `n` is a float.
+        True if `n` is a float.
 
     """
 
@@ -219,7 +220,7 @@ def diagmat_dot_mat(diag_elements, matrix, out=None):
 
 
 def is_symmetric_matrix(matrix: np.ndarray, tol: float = 0) -> bool:
-    """Checks if a matrix is symmetric.
+    """Checks whether a matrix is symmetric.
 
     Parameters
     ----------
@@ -231,7 +232,7 @@ def is_symmetric_matrix(matrix: np.ndarray, tol: float = 0) -> bool:
     Returns
     -------
     bool
-        True if symmetric
+        True if symmetric.
     """
 
     if matrix.ndim != 2:
@@ -296,8 +297,11 @@ def random_subsample(data: np.ndarray, n_samples: int) -> Tuple[np.ndarray, np.n
 
     Returns
     -------
-    Tuple[np.ndarray, np.ndarray]
-        subsample and corresponding indices
+    numpy.ndarray
+        subsampled array
+
+    numpy.ndarray
+        indices in the subsample from the original array
     """
 
     data = check_array(data, force_all_finite=False, ensure_min_samples=2,)

@@ -565,6 +565,7 @@ class DmapKernelFixed(PCManifoldKernel):
 
     Parameters
     ----------
+
     epsilon
         Gaussian kernel scale
 
@@ -820,6 +821,187 @@ class DmapKernelFixed(PCManifoldKernel):
         )
 
         return kernel_matrix, basis_change_matrix, row_sums_alpha
+
+
+class ContinuousNNKernel(PCManifoldKernel):
+    def __init__(self, k_neighbor, delta):
+
+        if not is_integer(k_neighbor):
+            raise TypeError("n_neighbors must be an integer")
+        else:
+            # make sure to use only Python built-in from now on
+            self.k_neighbor = int(k_neighbor)
+
+        try:
+            # make sure we only use Python built-in
+            self.delta = float(delta)
+        except:
+            raise TypeError("delta must be of type float")
+
+        super(ContinuousNNKernel, self).__init__()
+
+    def __call__(
+        self,
+        X,
+        Y=None,
+        dist_cut_off=None,
+        dist_backend="brute",
+        kernel_kwargs=None,
+        dist_backend_kwargs=None,
+    ):
+        distance_matrix = compute_distance_matrix(
+            X,
+            Y,
+            metric="euclidean",
+            cut_off=None,
+            backend=dist_backend,
+            **{} if dist_backend_kwargs is None else dist_backend_kwargs,
+        )
+
+        is_pdist = Y is None
+        return self.eval(
+            distance_matrix,
+            is_pdist=is_pdist,
+            **{} if kernel_kwargs is None else kernel_kwargs,
+        )
+
+    def _validate(self, distance_matrix, is_pdist, reference_dist_knn):
+        if distance_matrix.ndim != 2:
+            raise ValueError("distance_matrix must be a two-dimensional array")
+
+        n_samples_Y, n_samples_X = distance_matrix.shape
+
+        if is_pdist:
+            if n_samples_Y != n_samples_X:
+                raise ValueError("if is_pdist=True, the distance matrix must be square")
+
+            if not is_symmetric_matrix(distance_matrix):
+                raise ValueError(
+                    "if is_pdist=True, the distance matrix must be symmetric"
+                )
+
+            if (np.diag(distance_matrix) != 0).all():
+                raise ValueError(
+                    "if is_pdist=True, distance_matrix must have zeros on " "diagonal "
+                )
+        else:
+            if reference_dist_knn is None:
+                raise ValueError(
+                    "if is_pdist=False, cdist_reference_k_nn must be provided"
+                )
+
+            if not isinstance(reference_dist_knn, np.ndarray):
+                raise TypeError("cdist_reference_k_nn must be of type numpy.ndarray")
+
+            if reference_dist_knn.ndim != 1:
+                raise ValueError("cdist_reference_k_nn must be 1 dim.")
+
+            if reference_dist_knn.shape[0] != n_samples_X:
+                raise ValueError(
+                    f"len(cdist_reference_k_nn)={reference_dist_knn.shape[0]} "
+                    f"must be distance.shape[1]={n_samples_X}"
+                )
+
+            if self.k_neighbor < 1 or self.k_neighbor > n_samples_X - 1:
+                raise ValueError(
+                    "n_neighbors must be in the range 1 to number of samples"
+                )
+
+    def _kth_dist_sparse(self, distance_matrix: scipy.sparse.csr_matrix):
+
+        # 7000 x 7000 dense matrix
+        # COMPARE AGAINST np.partition
+        # took 0.43294286727905273 s
+
+        # _get_kth_largest_elements_sparse with numba:
+        # took 2.059335470199585 s (including compilation: 2.994014024734497)
+
+        # _get_kth_largest_elements_sparse without numba
+        # took 137.49374675750732 s
+
+        # Note, that when the matrix is actually sparse, the algorithm may improve in
+        # comparision.
+
+        try:
+            from numba import njit
+        except ImportError:
+            raise ImportError(
+                "ContinuousNNKernel with sparse distance matrix requires numba installed "
+            )
+
+        @njit(fastmath=True)
+        def _get_kth_largest_elements_sparse(
+            data: np.ndarray, indptr: np.ndarray, row_nnz, k: int,
+        ):
+            dist_knn = np.zeros(len(indptr))
+
+            for i in range(len(indptr) - 1):
+
+                start_row = indptr[i]
+                current_array = np.sort(data[start_row : start_row + k + 1])
+
+                for j in range(k + 1, row_nnz[i]):
+                    if data[start_row + j] < current_array[-1]:
+                        current_array[-1] = data[start_row + j]
+                        current_array = np.sort(current_array)
+
+                dist_knn[i] = current_array[-1]
+
+            return dist_knn
+
+        row_nnz = distance_matrix.getnnz(axis=1)
+
+        if (row_nnz < self.k_neighbor).any():
+            raise ValueError("")
+
+        return _get_kth_largest_elements_sparse(
+            distance_matrix.data, distance_matrix.indptr, row_nnz, self.k_neighbor,
+        )
+
+    def eval(self, distance_matrix, is_pdist=False, reference_dist_knn=None):
+
+        self._validate(
+            distance_matrix=distance_matrix,
+            is_pdist=is_pdist,
+            reference_dist_knn=reference_dist_knn,
+        )
+
+        if isinstance(distance_matrix, np.ndarray):
+            dist_knn = np.partition(distance_matrix, self.k_neighbor, axis=1)[
+                :, self.k_neighbor
+            ]
+        elif isinstance(distance_matrix, scipy.sparse.csr_matrix):
+            dist_knn = self._kth_dist_sparse(distance_matrix)
+
+        else:
+            raise TypeError(
+                f"distance_matrix={type(distance_matrix)} type not supported"
+            )
+
+        # TODO: the following breaks sparsity for large distance matrices:
+        #   if distance_matrix is large&sparse, then outer will now be a allocating the
+        #   same space to a full distance matrix --> requires a
+        #   outer_division_sparse
+        if is_pdist:
+            distance_factors = np.outer(dist_knn, dist_knn)
+        else:
+            distance_factors = np.outer(dist_knn, reference_dist_knn)
+
+        distance_factors = np.sqrt(distance_factors, out=distance_factors)
+
+        distance_factors = np.divide(
+            distance_matrix, distance_factors, out=distance_factors
+        )
+
+        # TODO: always sparse:
+        kernel_matrix = scipy.sparse.csr_matrix(distance_factors < self.delta)
+
+        if is_pdist:
+            # return dist_knn, which is required for cdist_k_nearest_neighbor in
+            # order to do a cdist request
+            return kernel_matrix, dist_knn
+        else:
+            return kernel_matrix
 
 
 class DmapKernelVariable(PCManifoldKernel):
