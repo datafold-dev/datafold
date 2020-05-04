@@ -1,4 +1,3 @@
-
 What is **datafold**?
 =====================
 
@@ -206,15 +205,15 @@ Additional developer dependencies are in the next section.
 Contributing
 ============
 
-Bug reports and user questions
-------------------------------
+Usage questions and bug reports
+-------------------------------
 
-Any contribution (code/tutorials/documentation improvements) and feedback is very
-welcome. For all correspondence regarding the software please open a new issue in the
-**datafold** `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
+Any contribution (including code/tutorials/documentation improvements) and feedback is
+very welcome. For all correspondence regarding the software please open a new issue in the
+**datafold** `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_.
 
-All code contributors are listed in the
-`contributor list <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`_.
+In other cases, the `contributor list <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`_.
+includes email contact.
 
 Setting up development environment
 ----------------------------------
@@ -222,17 +221,20 @@ Setting up development environment
 Install developer dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In the file ``requirements-dev.txt`` all developing dependencies are listed. Install the
-dependencies with ``pip`` (/ ``pip3``):
+The file
+`requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`_
+includes all package and developing dependencies. Install the dependencies with
+``pip`` (or ``pip3``):
 
 .. code-block:: bash
 
    pip install -r requirements-dev.txt
 
 The recommended (but optional) way is to install all packages into a
-`virtual environment <https://virtualenv.pypa.io/en/stable/>`_. This avoids conflicts
-with other dependencies on system packages level. In order to set up a virtual
-environment run from the root directory:
+`virtual environment <https://virtualenv.pypa.io/en/stable/>`_ (`virtualenv` is not
+included in ``requirements-dev``). This avoids conflicts with other dependencies on
+system package level. In order to set up a virtual environment run from root
+directory:
 
 .. code-block:: bash
 
@@ -241,36 +243,35 @@ environment run from the root directory:
     pip install --upgrade pip
     pip install -r requirements-dev.txt
 
-Alternatively, use `python3` and `pip3`.
+Alternatively, use ``python3``.
 
 Install git pre-commit hooks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The **datafold** source code is automatically formatted with
+The **datafold** files are formatted with
 
-
-* `black <https://black.readthedocs.io/en/stable/>`_ for Python soruce code auto
-  formatting
+* `black <https://black.readthedocs.io/en/stable/>`_ for auto formatting of Python
+  source code
 * `isort <https://timothycrosley.github.io/isort/>`_ for sorting :code:`import` statements
-  in the source code alphabetically and in sections.
+  in Python source code; alphabetically and in sections.
 * `nbstripout <https://github.com/kynan/nbstripout>`_ for removing potentially large (in
-  mega bytes) binary formatted output cells of Jupyter notebooks before they get
-  into the git history.
+  mega bytes) binary output cells of Jupyter notebooks before they get into the git
+  history.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
 commited to the git history. The tools alter the source code in an deterministic
-way (i.e. they should only format the code once, which is indicated with "failed") and
-should not break the code (at least promised). To set up the tools, the most convenient
-way is to install the git commit-hooks via the tool
-`pre-commit <https://pre-commit.com/>`_ (it installs with the development dependencies).
-To install the hooks run from root directory:
+way (i.e. they should only format the code once) and should not break the code (at
+least promised). To set up the tools, the most convenient way is to install the git
+commit-hooks via the tool `pre-commit <https://pre-commit.com/>`_ (it installs with the
+dev-requirements). To install the git hooks run from root directory:
 
 .. code-block:: bash
 
    pre-commit install
 
-The installed hooks run before each commit. To also execute the hooks without a commit or
-for testing purposes) run from root directory:
+The installed hooks then run before each new commit (on the local computer). To also
+execute the hooks without a commit or to format the code during implementation run
+from root directory:
 
 .. code-block:: bash
 
@@ -280,7 +281,7 @@ Run tests
 ^^^^^^^^^
 
 The tests are executed with `nose <https://nose.readthedocs.io/en/latest/>`_ (installs
-with development dependencies). 
+with dev-dependencies).
 
 To execute all **datafold** unit tests locally run from the root directory:
 
@@ -303,19 +304,22 @@ Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The documentation uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ and multiple \
-extensions (all install with the development dependencies).
+Sphinx extensions (all install with the dev-dependencies).
 
 Additional dependencies (not contained in ``requirements-dev.txt``):
 
-* `LaTex <https://www.latex-project.org/>`_ to render maths equations,
-* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in browser (for
-   Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
+* `LaTex <https://www.latex-project.org/>`_ (and packages required by `mathjax`) to render
+  maths equations,
+* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in html (for
+  Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
 * `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
-* `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
-  `nbsphinx` extension that includes the tutorials into the webpage documentation).
+* `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by the
+  Sphinx extension `nbsphinx`, which includes the executed Jupyter tutorials to the
+  online documentation.
 
 Note that the documentation also builds remotely in the CI pipeline, either as a
-test (all branches except `master`) or to update the web page (only for `master`).
+test (all branches except `master`) or to update the online documentation (only for
+`master`).
 
 The **datafold** source code is documented with
 `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`_ style. To
