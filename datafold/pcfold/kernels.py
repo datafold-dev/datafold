@@ -60,30 +60,37 @@ def _symmetric_matrix_division(
     vec_right: Optional[np.ndarray] = None,
     scalar: float = 1.0,
 ) -> np.ndarray:
-    r"""Solves a symmetric division appearing in kernels.
+    r"""Symmetric division, which often appears in kernels.
 
     .. math::
         \frac{M_{i, j}}{a v^(l)_i v^(r)_j}
 
-    where :math:`M` is a matrix and its elements are divided by the elements of the (
-    left/right) vector :math:`v` and scalar :math:`a`.
+    where :math:`M` is a (kernel-) matrix and its elements are divided by the
+    (left and right) vector elements :math:`v` and scalar :math:`a`.
 
     .. warning::
-        The function may overwrite the matrix for performance reasons. Make a copy
-        beforehand if necessary.
+        The function is in-place and may therefore overwrite the matrix. Make a copy
+        beforehand if the old values are still required.
 
     Parameters
     ----------
     matrix
-        matrix to apply symmetric division on
+        Matrix of shape `(n_rows, n_columns)` to apply symmetric division on.
+        If matrix is square and ``vec_right=None``, then `matrix` is assumed to be
+        symmetric (this enables removing numerical noise to return a perfectly symmetric
+        matrix).
+        
     vec
-        vector in the denominator
+        Vector of shape `(n_rows,)` in the denominator (Note, the reciprocal
+        is is internal of the function).
         
     vec_right
-        If matrix is non-square input is required, else :code:`vec_right=vec`
+        Vector of shape `(n_columns,)`. If matrix is non-square or matrix input is
+        not symmetric, then this input is required. If None, it is set
+        to ``vec_right=vec``.
 
     scalar
-        scalar in the denominator
+        Scalar ``a`` in the denominator.
 
     Returns
     -------
@@ -105,7 +112,12 @@ def _symmetric_matrix_division(
         right_inv_diag_sparse = scipy.sparse.spdiags(
             vec_inv_right, 0, m=matrix.shape[1], n=matrix.shape[1]
         )
-        # TODO: not sure if scipy does this efficiently?
+
+        # See file mircobenchmark_sparse_outer_division.py:
+        # The performance of DIA-sparse matrices is good if the matrix is actually
+        # sparse. I.e. the performance drops for a dense-sparse matrix. There is another
+        # implementation in the mircrobenchmark that also handles this case well,
+        # however, it requires numba.
         matrix = left_inv_diag_sparse @ matrix @ right_inv_diag_sparse
     else:
         # Solves efficiently:
@@ -829,14 +841,17 @@ class ContinuousNNKernel(PCManifoldKernel):
         if not is_integer(k_neighbor):
             raise TypeError("n_neighbors must be an integer")
         else:
-            # make sure to use only Python built-in from now on
+            # make sure to only use Python built-in
             self.k_neighbor = int(k_neighbor)
 
-        try:
-            # make sure we only use Python built-in
+        if not is_float(delta):
+            if is_integer(delta):
+                self.delta = float(delta)
+            else:
+                raise TypeError("delta must be of type float")
+        else:
+            # make sure to only use Python built-in
             self.delta = float(delta)
-        except:
-            raise TypeError("delta must be of type float")
 
         super(ContinuousNNKernel, self).__init__()
 
@@ -909,43 +924,18 @@ class ContinuousNNKernel(PCManifoldKernel):
 
     def _kth_dist_sparse(self, distance_matrix: scipy.sparse.csr_matrix):
 
-        # 7000 x 7000 dense matrix
-        # COMPARE AGAINST np.partition
-        # took 0.43294286727905273 s
+        # see mircorbenchmark_kth_nn.py for a comprison of implementations for the
+        # sparse case
 
-        # _get_kth_largest_elements_sparse with numba:
-        # took 2.059335470199585 s (including compilation: 2.994014024734497)
-
-        # _get_kth_largest_elements_sparse without numba
-        # took 137.49374675750732 s
-
-        # Note, that when the matrix is actually sparse, the algorithm may improve in
-        # comparision.
-
-        try:
-            from numba import njit
-        except ImportError:
-            raise ImportError(
-                "ContinuousNNKernel with sparse distance matrix requires numba installed "
-            )
-
-        @njit(fastmath=True)
         def _get_kth_largest_elements_sparse(
-            data: np.ndarray, indptr: np.ndarray, row_nnz, k: int,
+            data: np.ndarray, indptr: np.ndarray, row_nnz, k_neighbor: int,
         ):
-            dist_knn = np.zeros(len(indptr))
-
-            for i in range(len(indptr) - 1):
-
+            dist_knn = np.zeros(len(row_nnz))
+            for i in range(len(row_nnz)):
                 start_row = indptr[i]
-                current_array = np.sort(data[start_row : start_row + k + 1])
-
-                for j in range(k + 1, row_nnz[i]):
-                    if data[start_row + j] < current_array[-1]:
-                        current_array[-1] = data[start_row + j]
-                        current_array = np.sort(current_array)
-
-                dist_knn[i] = current_array[-1]
+                dist_knn[i] = np.partition(
+                    data[start_row : start_row + row_nnz[i]], k_neighbor - 1
+                )[k_neighbor - 1]
 
             return dist_knn
 
@@ -972,33 +962,32 @@ class ContinuousNNKernel(PCManifoldKernel):
             ]
         elif isinstance(distance_matrix, scipy.sparse.csr_matrix):
             dist_knn = self._kth_dist_sparse(distance_matrix)
-
         else:
             raise TypeError(
-                f"distance_matrix={type(distance_matrix)} type not supported"
+                f"type(distance_matrix)={type(distance_matrix)} not supported."
             )
 
-        # TODO: the following breaks sparsity for large distance matrices:
-        #   if distance_matrix is large&sparse, then outer will now be a allocating the
-        #   same space to a full distance matrix --> requires a
-        #   outer_division_sparse
-        if is_pdist:
-            distance_factors = np.outer(dist_knn, dist_knn)
-        else:
-            distance_factors = np.outer(dist_knn, reference_dist_knn)
-
-        distance_factors = np.sqrt(distance_factors, out=distance_factors)
-
-        distance_factors = np.divide(
-            distance_matrix, distance_factors, out=distance_factors
+        distance_factors = _symmetric_matrix_division(
+            distance_matrix,
+            vec=np.sqrt(dist_knn),
+            vec_right=np.sqrt(reference_dist_knn)
+            if reference_dist_knn is not None
+            else None,
         )
 
-        # TODO: always sparse:
-        kernel_matrix = scipy.sparse.csr_matrix(distance_factors < self.delta)
+        if isinstance(distance_factors, np.ndarray):
+            kernel_matrix = scipy.sparse.csr_matrix(
+                distance_factors < self.delta, dtype=np.bool
+            )
+        else:
+            assert isinstance(distance_factors, scipy.sparse.csr_matrix)
+            distance_factors.data = (distance_factors.data < self.delta).astype(np.bool)
+            distance_factors.eliminate_zeros()
+            kernel_matrix = distance_factors
 
         if is_pdist:
             # return dist_knn, which is required for cdist_k_nearest_neighbor in
-            # order to do a cdist request
+            # order to do a follow-up cdist request (then as reference_dist_knn as input).
             return kernel_matrix, dist_knn
         else:
             return kernel_matrix
