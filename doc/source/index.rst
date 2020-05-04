@@ -16,7 +16,6 @@ Contents
    tutorial_index
    references
 
-
 Quick links
 ===========
 
