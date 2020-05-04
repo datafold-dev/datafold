@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import abc
-import logging
+import warnings
 from typing import Optional, Sequence, Type, Union
 
 import numexpr as ne
@@ -10,10 +10,10 @@ import scipy.sparse
 import scipy.spatial
 from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
-from sklearn.neighbors import NearestNeighbors
+from sklearn.neighbors import BallTree, NearestNeighbors
 
 from datafold.decorators import warn_experimental_function
-from datafold.utils.general import if1dim_colvec
+from datafold.utils.general import if1dim_colvec, if1dim_rowvec
 
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only
@@ -24,8 +24,6 @@ try:
 except ImportError:
     rdist = None
     IS_IMPORTED_RDIST = False
-
-logger = logging.getLogger(__name__)
 
 
 class DistanceAlgorithm(metaclass=abc.ABCMeta):
@@ -818,6 +816,109 @@ def _k_smallest_element_value(
     return k_smallest_values
 
 
+def _ensure_kmin_nearest_neighbor(
+    X: np.ndarray,
+    Y: Optional[np.ndarray],
+    metric,
+    kmin,
+    distance_matrix: scipy.sparse.csr_matrix,
+) -> scipy.sparse.csr_matrix:
+    """Compute `kmin` nearest neighbors for all samples that do not have at least
+    `kmin` neighbors yet.
+
+    The usecase is especially for outlier in a range-neighbor search (the number of
+    neighbors vary). This can have unwanted side effects because the nearest neighbor
+    graph is then not fully connected.
+
+    Internally, the k-NN query is carried out by a :class:`sklearn.neighbors.BallTree`.
+
+    .. note::
+        Inserting the kmin requirement currently breaks the symmetry of the distance
+        matrix for the pdist case.
+
+    Parameters
+    ----------
+    X
+        Point cloud of shape `(n_samples_X, n_features_X)`.
+    
+    Y
+        Query point cloud of shape `(n_samples_Y, n_features_Y)`. If not given, 
+        then `Y=X` (pdist case). 
+    
+    metric
+        distance metric
+        
+    kmin
+        Minimum number of neighbors. Note, for the `pdist` case, `kmin==1` is already
+        fulfilled by the diagonal line (self-distances).
+
+    distance_matrix
+        Current distance matrix. The values are inserted.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix
+        distance matrix
+    """
+
+    current_nnz = distance_matrix.getnnz(axis=1)
+    knn_query_indices = np.where(current_nnz < kmin)[0]
+
+    if len(knn_query_indices) != 0:
+        if Y is None:
+            Y = X.view()
+
+        if (
+            Y.shape[0] != distance_matrix.shape[0]
+            or X.shape[0] != distance_matrix.shape[1]
+        ):
+            raise ValueError("Mismatch between datasets and distance matrix.")
+
+        _ball_tree = BallTree(X, leaf_size=40, metric=metric)
+        distances, columns_indices = _ball_tree.query(
+            Y[knn_query_indices, :],
+            k=kmin,
+            return_distance=True,
+            dualtree=False,
+            breadth_first=False,
+            sort_results=False,
+        )
+
+        distances = np.reshape(
+            distances, newshape=np.product(distances.shape), order="C"
+        )
+
+        # Note: duplicates and trivial self-distances in the pdist are assumed to already
+        # covered by the DistanceAlgorithm (always contained in the radius!)
+
+        nnz_distance_mask = (distances != 0).astype(np.bool)
+        distances = distances[nnz_distance_mask]
+
+        knn_query_indices = np.repeat(knn_query_indices, kmin)[nnz_distance_mask]
+
+        columns_indices = np.reshape(
+            columns_indices, newshape=np.product(columns_indices.shape), order="C"
+        )[nnz_distance_mask]
+
+        kmin_elements_csr = scipy.sparse.csr_matrix(
+            (distances, (knn_query_indices, columns_indices)),
+            shape=distance_matrix.shape,
+        )
+
+        # In scipy zeros are removed after when in the +=
+        # it is necessary to maintain the explicit zeros (NOTE: in distance matrix a zero
+        # that is not stored is a placeholder for "large distance")
+        # Therefore, in order to not unnecessarily change the sparsity structure of the
+        # final distance matrix, the zero distances are sorted out here.
+        distance_matrix.data[distance_matrix.data == 0] = -1  # use invalid distance
+        distance_matrix += kmin_elements_csr
+
+        # recover back and save explicit zero
+        distance_matrix.data[distance_matrix.data == -1] = 0
+
+    return distance_matrix
+
+
 def _all_available_distance_algorithm():
     """Searches for valid subclasses of :py:class:`DistanceAlgorithm`
 
@@ -952,9 +1053,8 @@ def compute_distance_matrix(
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
             cut off must be stated in in Eucledian distance (not squared cut off).
 
-    kmin: ignored
-        ``NotImplemented`` - make sure in for sparse distance matrices that they have
-        at least k connections
+    kmin
+        Minimum number of neighbors. Ignored if `cut_off=np.inf` (i.e. dense case).
 
     backend
         backend to compute distance matrix
@@ -971,19 +1071,37 @@ def compute_distance_matrix(
 
     if not isinstance(X, np.ndarray):
         X = np.asarray(X)
-
     X = if1dim_colvec(X)
+
+    if Y is not None and not isinstance(Y, np.ndarray):
+        Y = np.asarray(Y)
+
+    if Y is not None:
+        Y = if1dim_rowvec(Y)
+
+        if X.shape[1] != Y.shape[1]:
+            raise ValueError(
+                "mismatch of point dimension: "
+                f"X.shape[1]={X.shape[1]} != Y.shape[1]={Y.shape[1]} "
+            )
 
     if X.shape[0] <= 1:
         raise ValueError(
             f"number of samples has to be greater than 1. Got {X.shape[0]}"
         )
 
-    logger.info("Setting up computation of distance matrix.")
+    if cut_off is not None:
+        if cut_off <= 0:
+            raise ValueError(f"cut_off={cut_off} must be a positive float.")
 
-    if cut_off is not None and np.isinf(cut_off):
-        # use dense case if cut_off is infinite
-        cut_off = None
+        try:
+            cut_off = float(cut_off)  # make sure to only deal with Python built-in
+        except:
+            raise TypeError(f"type(cut_off)={type(cut_off)} must be of type float")
+
+        if np.isinf(cut_off):
+            # use dense case if cut_off is infinite
+            cut_off = None
 
     is_pdist = Y is None
     is_sparse = cut_off is not None
@@ -998,8 +1116,6 @@ def compute_distance_matrix(
     backend_class = get_backend_distance_algorithm(backend)
     distance_method = backend_class(metric=metric)
 
-    logger.info(f"Start computing distance matrix.")
-
     if is_pdist:
         distance_matrix = distance_method.pdist(X, cut_off, **backend_kwargs)
     else:  # cdist
@@ -1009,27 +1125,42 @@ def compute_distance_matrix(
         # dense case stored in a sparse distance matrix -> convert to np.ndarray
         distance_matrix = distance_matrix.toarray()
 
-    if is_sparse and not scipy.sparse.issparse(distance_matrix):
-        raise RuntimeError(
-            "Distance_matrix is expected to be sparse but returned "
-            "distance matrix is dense. Please report bug. "
-        )
+    if is_sparse:
 
-    if is_sparse and distance_matrix.nnz == np.product(distance_matrix.shape):
-        logger.info(
-            f"cut_off={cut_off} value has no effect on sparsity of distance matrix, "
-            f"the sparse matrix is effectively dense."
-        )
+        if not scipy.sparse.issparse(distance_matrix):
+            raise RuntimeError(
+                "Distance_matrix is expected to be sparse but DistanceAlgorithm "
+                f"{backend} returned dense matrix. Please report bug."
+            )
 
-    if scipy.sparse.issparse(distance_matrix):
         if not isinstance(distance_matrix, scipy.sparse.csr_matrix):
-            # For now only return CSR format.
+            # Currently, we only return a sparse matrix in CSR format.
             distance_matrix = distance_matrix.tocsr()
 
-        # Sort_indices return immediately if indices are already sorted.
-        # If not sorted, the call can be costly (depending on nnz), but is better for
-        # later usage
+        # only for the sparse case we care about kmin:
+        if (kmin > 0 and not is_pdist) or (kmin > 1 and is_pdist):
+            # kmin == 1 and is_pdist does not need treatment because the diagonal is set.
+            distance_matrix = _ensure_kmin_nearest_neighbor(
+                X, Y, metric=metric, kmin=kmin, distance_matrix=distance_matrix
+            )
+
+        # sort_indices returns immediately if indices are already sorted.
+        # If not sorted, the call could be costly (depending on nnz), but is better for
+        # follow-up handling.
         distance_matrix.sort_indices()
+
+        n_elements_stored = (
+            distance_matrix.nnz
+            + len(distance_matrix.indptr)
+            + len(distance_matrix.indices)
+        )
+        if n_elements_stored > np.product(distance_matrix.shape):
+            warnings.warn(
+                f"cut_off={cut_off} value does not lead to reduced memory requirements "
+                f"with sparse matrix. The sparse matrix stores {n_elements_stored} "
+                f"which exceeds a dense matrix by "
+                f"{n_elements_stored - np.product(distance_matrix.shape)} elements."
+            )
 
     return distance_matrix
 

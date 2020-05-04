@@ -836,6 +836,11 @@ class DmapKernelFixed(PCManifoldKernel):
 
 
 class ContinuousNNKernel(PCManifoldKernel):
+
+    # TODO: Currently, in the pdist case, the self-zero is considered as a valid neighbor.
+    #  Is this correct? If the trivial self-distance is not considered, how does this
+    #  affect the cdist case (k+1)?
+
     def __init__(self, k_neighbor, delta):
 
         if not is_integer(k_neighbor):

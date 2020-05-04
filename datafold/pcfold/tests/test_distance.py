@@ -10,6 +10,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 
 from datafold.pcfold.distance import (
     _all_available_distance_algorithm,
+    _ensure_kmin_nearest_neighbor,
     _k_smallest_element_value,
     apply_continuous_nearest_neighbor,
     compute_distance_matrix,
@@ -381,4 +382,56 @@ class TestDistAlgorithms(unittest.TestCase):
 
                 except Exception as e:
                     print(f"{algo.backend_name} failed for metric {metric}")
+                    raise e
+
+    def test_ensure_kmin_nearest_neighbours_pdist(self):
+
+        for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
+
+            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int):
+
+                cut_off = np.quantile(pdist(self.data_X), q=quantile)
+                # The matrix is essentially zero, with only the diagonal saved zeros
+                pdist_distance_matrix = compute_distance_matrix(
+                    self.data_X, cut_off=cut_off
+                )
+
+                distance_matrix = _ensure_kmin_nearest_neighbor(
+                    self.data_X,
+                    Y=None,
+                    metric="euclidean",
+                    kmin=kmin,
+                    distance_matrix=pdist_distance_matrix,
+                )
+
+                try:
+                    self.assertTrue((distance_matrix.getnnz(axis=1) >= kmin).all())
+                except AssertionError as e:
+                    print(f"Failed for quantile={quantile} and kmin={kmin}")
+                    raise e
+
+    def test_ensure_kmin_nearest_neighbours_cdist(self):
+
+        for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
+
+            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int):
+
+                cut_off = np.quantile(pdist(self.data_X), q=quantile)
+                # The matrix is essentially zero, with only the diagonal saved zeros
+                cdist_distance_matrix = compute_distance_matrix(
+                    self.data_X, Y=self.data_Y, cut_off=cut_off
+                )
+
+                distance_matrix = _ensure_kmin_nearest_neighbor(
+                    self.data_X,
+                    Y=self.data_Y,
+                    metric="euclidean",
+                    kmin=kmin,
+                    distance_matrix=cdist_distance_matrix,
+                )
+
+                try:
+                    self.assertTrue((distance_matrix.getnnz(axis=1) >= kmin).all())
+                except AssertionError as e:
+                    print(f"Failed for quantile={quantile} and kmin={kmin}")
                     raise e
