@@ -868,7 +868,7 @@ class ContinuousNNKernel(PCManifoldKernel):
             X,
             Y,
             metric="euclidean",
-            cut_off=None,
+            cut_off=dist_cut_off,
             backend=dist_backend,
             **{} if dist_backend_kwargs is None else dist_backend_kwargs,
         )
@@ -895,7 +895,12 @@ class ContinuousNNKernel(PCManifoldKernel):
                     "if is_pdist=True, the distance matrix must be symmetric"
                 )
 
-            if (np.diag(distance_matrix) != 0).all():
+            if isinstance(distance_matrix, np.ndarray):
+                diagonal = np.diag(distance_matrix)
+            else:
+                diagonal = np.asarray(distance_matrix.diagonal(0))
+
+            if (diagonal != 0).all():
                 raise ValueError(
                     "if is_pdist=True, distance_matrix must have zeros on " "diagonal "
                 )
@@ -942,7 +947,10 @@ class ContinuousNNKernel(PCManifoldKernel):
         row_nnz = distance_matrix.getnnz(axis=1)
 
         if (row_nnz < self.k_neighbor).any():
-            raise ValueError("")
+            raise ValueError(
+                f"There are {(row_nnz < self.k_neighbor).sum()} points that "
+                f"do not have at least k_neighbor={self.k_neighbor}."
+            )
 
         return _get_kth_largest_elements_sparse(
             distance_matrix.data, distance_matrix.indptr, row_nnz, self.k_neighbor,
@@ -957,7 +965,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         )
 
         if isinstance(distance_matrix, np.ndarray):
-            dist_knn = np.partition(distance_matrix, self.k_neighbor, axis=1)[
+            dist_knn = np.partition(distance_matrix, self.k_neighbor, axis=-1)[
                 :, self.k_neighbor
             ]
         elif isinstance(distance_matrix, scipy.sparse.csr_matrix):
