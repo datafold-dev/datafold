@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import warnings
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -165,7 +166,7 @@ def sort_eigenpairs(
 
 
 def mat_dot_diagmat(
-    matrix, diag_elements, out: Optional[np.ndarray] = None
+    matrix: np.ndarray, diag_elements: np.ndarray, out: Optional[np.ndarray] = None
 ) -> np.ndarray:
     """Efficient computation of matrix time diagonal matrix.
 
@@ -192,9 +193,8 @@ def mat_dot_diagmat(
     return np.multiply(diag_elements, matrix, out=out)
 
 
-def diagmat_dot_mat(diag_elements, matrix, out=None):
-    """
-    Efficient computation of diagonal matrix times matrix.
+def diagmat_dot_mat(diag_elements: np.ndarray, matrix: np.ndarray, out=None):
+    """Efficient computation of diagonal matrix times matrix.
 
     This computes
 
@@ -219,7 +219,9 @@ def diagmat_dot_mat(diag_elements, matrix, out=None):
     return np.multiply(matrix, diag_elements[:, np.newaxis], out=out)
 
 
-def is_symmetric_matrix(matrix: np.ndarray, tol: float = 0) -> bool:
+def is_symmetric_matrix(
+    matrix: Union[np.ndarray, scipy.sparse.csr_matrix], tol: float = 0
+) -> bool:
     """Checks whether a matrix is symmetric.
 
     Parameters

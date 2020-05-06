@@ -15,6 +15,7 @@ from datafold.pcfold.distance import (
     apply_continuous_nearest_neighbor,
     compute_distance_matrix,
 )
+from datafold.utils.general import is_symmetric_matrix
 
 
 class TestContinuousDistance(unittest.TestCase):
@@ -265,6 +266,9 @@ class TestDistAlgorithms(unittest.TestCase):
                     nptest.assert_allclose(
                         actual.toarray(), expected, atol=1e-14, rtol=1e-14
                     )
+
+                    self.assertTrue(is_symmetric_matrix(actual, tol=0))
+
                 except Exception as e:
                     print(f"{algo.backend_name} failed for metric {metric}")
                     raise e
@@ -333,6 +337,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         **backend_options,
                     )
 
+                    self.assertTrue(is_symmetric_matrix(actual, tol=0))
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
                         expected.data, actual.data, atol=1e-14, rtol=1e-14
@@ -406,6 +411,17 @@ class TestDistAlgorithms(unittest.TestCase):
 
                 try:
                     self.assertTrue((distance_matrix.getnnz(axis=1) >= kmin).all())
+                    self.assertTrue(is_symmetric_matrix(distance_matrix))
+
+                    rows, columns = distance_matrix.nonzero()
+                    actual = scipy.sparse.csr_matrix(
+                        (pdist_distance_matrix[rows, columns].A1, (rows, columns),),
+                        shape=distance_matrix.shape,
+                    )
+                    self.assertTrue(is_symmetric_matrix(actual))
+                    nptest.assert_array_equal(
+                        actual.toarray(), distance_matrix.toarray(),
+                    )
                 except AssertionError as e:
                     print(f"Failed for quantile={quantile} and kmin={kmin}")
                     raise e
@@ -431,6 +447,15 @@ class TestDistAlgorithms(unittest.TestCase):
                 )
 
                 try:
+
+                    rows, columns = distance_matrix.nonzero()
+                    actual = scipy.sparse.csr_matrix(
+                        (cdist_distance_matrix[rows, columns].A1, (rows, columns),),
+                        shape=distance_matrix.shape,
+                    )
+                    nptest.assert_array_equal(
+                        actual.toarray(), distance_matrix.toarray()
+                    )
                     self.assertTrue((distance_matrix.getnnz(axis=1) >= kmin).all())
                 except AssertionError as e:
                     print(f"Failed for quantile={quantile} and kmin={kmin}")
