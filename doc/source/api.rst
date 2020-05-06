@@ -2,8 +2,8 @@ Software documentation
 ======================
 
 **datafold** 's software architecture consists of three package layers (from high level to
-low level: :module:`datafold.appfold`, :module:`datafold.dynfold` and
-:module:`datafold.pcfold`). The three layers encapsualte a workflow hierarchy, from low
+low level: :py:class:`datafold.appfold`, :py:class:`datafold.dynfold` and
+:py:class:`datafold.pcfold`). The three layers encapsualte a workflow hierarchy, from low
 level data structures and algorithms, data transformations on the medium layer and high
 level meta-models to solve complex machine learning tasks. The datafold software
 architecture aims to ensure a high degree of modularity to allow ongoing contribution in

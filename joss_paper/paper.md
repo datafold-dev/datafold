@@ -32,6 +32,10 @@ date: 06 May 2020
 bibliography: paper.bib
 ---
 
+# TODO
+Alt. titles:
+
+* datafold: data-driven models with explicit parametrization of non-linear manifolds   
 
 # Summary
 

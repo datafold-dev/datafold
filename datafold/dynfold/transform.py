@@ -507,7 +507,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
     References
     ----------
 
-    :cite:`rand_detecting_1981`
+    * Original paper from Takens :cite:`rand_detecting_1981`
+    * Takens delay embedding int the context of time series data
+      :cite:`champion_discovery_2019` (the time delay embedding can is
+      then part of the :py:class:`.EDMD` dictionary).
+
     """
 
     def __init__(

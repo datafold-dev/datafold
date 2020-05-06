@@ -29,14 +29,30 @@ InitialConditionType = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
 
 
 class TSCBaseMixIn:
+    """Class to provide functionality internally required in the MixIn's provided in
+    *datafold*.
+
+    See Also
+    --------
+
+    :class:`.TSCTransformerMixIn`
+
+    :class:`.TSCPredictMixIn`
+    """
+
     def _strictly_pandas_df(self, df):
-        # This returns False for subclasses (TSCDataFrame)
+        """Check if the type is strcitly a pandas.Dataframe (i.e., is False for
+        TSCDataFrame).
+        """
         return type(df) == pd.DataFrame
 
     def _has_feature_names(self, _obj):
+        # True, for pandas.DataFrame or TSCDataFrame
         return isinstance(_obj, pd.DataFrame)
 
     def _X_to_numpy(self, X):
+        """ Returns a numpy array of the data. 
+        """
         if self._has_feature_names(X):
             X = X.to_numpy()
             # a row in a df is always a single sample (which requires to be
