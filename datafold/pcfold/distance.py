@@ -823,18 +823,15 @@ def _ensure_kmin_nearest_neighbor(
     kmin: int,
     distance_matrix: scipy.sparse.csr_matrix,
 ) -> scipy.sparse.csr_matrix:
-    """Compute `kmin` nearest neighbors for all samples that do not have at least
-    `kmin` neighbors yet.
+    """Computes `kmin` nearest neighbors for all points that in the current distance
+    matrix have not at least `kmin` neighbors, yet.
 
-    The usecase is especially for outlier in a range-neighbor search (the number of
-    neighbors vary). This can have unwanted side effects because the nearest neighbor
-    graph is then not fully connected.
+    This function is especially for outlier in a range-neighbor search (i.e., where the
+    number of neighbors vary). If outlier have no (or only self neighbor), then this can
+    have unwanted side effects because the nearest neighbor graph is then not fully
+    connected.
 
-    Internally, the k-NN query is carried out by a :class:`sklearn.neighbors.BallTree`.
-
-    .. note::
-        Inserting the kmin requirement currently breaks the symmetry of the distance
-        matrix for the pdist case.
+    Internally, the k-NN query is carried out using :class:`sklearn.neighbors.BallTree`.
 
     Parameters
     ----------
@@ -858,7 +855,7 @@ def _ensure_kmin_nearest_neighbor(
     Returns
     -------
     scipy.sparse.csr_matrix
-        distance matrix
+        distance matrix with shape `(n_samples_Y, n_samples_X)`
     """
 
     current_nnz = distance_matrix.getnnz(axis=1)
