@@ -13,7 +13,7 @@ from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import BallTree, NearestNeighbors
 
 from datafold.decorators import warn_experimental_function
-from datafold.utils.general import if1dim_colvec, if1dim_rowvec
+from datafold.utils.general import if1dim_colvec, if1dim_rowvec, is_symmetric_matrix
 
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only
@@ -819,8 +819,8 @@ def _k_smallest_element_value(
 def _ensure_kmin_nearest_neighbor(
     X: np.ndarray,
     Y: Optional[np.ndarray],
-    metric,
-    kmin,
+    metric: str,
+    kmin: int,
     distance_matrix: scipy.sparse.csr_matrix,
 ) -> scipy.sparse.csr_matrix:
     """Compute `kmin` nearest neighbors for all samples that do not have at least
@@ -863,16 +863,19 @@ def _ensure_kmin_nearest_neighbor(
 
     current_nnz = distance_matrix.getnnz(axis=1)
     knn_query_indices = np.where(current_nnz < kmin)[0]
+    is_pdist = Y is None
 
     if len(knn_query_indices) != 0:
-        if Y is None:
-            Y = X.view()
 
-        if (
-            Y.shape[0] != distance_matrix.shape[0]
-            or X.shape[0] != distance_matrix.shape[1]
-        ):
-            raise ValueError("Mismatch between datasets and distance matrix.")
+        if is_pdist:
+            Y = X.view()
+        else:
+            assert isinstance(Y, np.ndarray)
+            if (
+                Y.shape[0] != distance_matrix.shape[0]
+                or X.shape[0] != distance_matrix.shape[1]
+            ):
+                raise ValueError("Mismatch between dataset and distance matrix.")
 
         _ball_tree = BallTree(X, leaf_size=40, metric=metric)
         distances, columns_indices = _ball_tree.query(
@@ -890,7 +893,6 @@ def _ensure_kmin_nearest_neighbor(
 
         # Note: duplicates and trivial self-distances in the pdist are assumed to already
         # covered by the DistanceAlgorithm (always contained in the radius!)
-
         nnz_distance_mask = (distances != 0).astype(np.bool)
         distances = distances[nnz_distance_mask]
 
@@ -900,23 +902,38 @@ def _ensure_kmin_nearest_neighbor(
             columns_indices, newshape=np.product(columns_indices.shape), order="C"
         )[nnz_distance_mask]
 
+        if is_pdist:
+
+            knn_query_indices, columns_indices, distances = np.unique(
+                np.vstack(
+                    [
+                        np.column_stack(
+                            [knn_query_indices, columns_indices, distances]
+                        ),
+                        np.column_stack(
+                            [columns_indices, knn_query_indices, distances]
+                        ),
+                    ]
+                ),
+                axis=0,
+            ).T
+
         kmin_elements_csr = scipy.sparse.csr_matrix(
             (distances, (knn_query_indices, columns_indices)),
             shape=distance_matrix.shape,
         )
 
-        # In scipy zeros are removed after when in the +=
-        # it is necessary to maintain the explicit zeros (NOTE: in distance matrix a zero
-        # that is not stored is a placeholder for "large distance")
-        # Therefore, in order to not unnecessarily change the sparsity structure of the
-        # final distance matrix, the zero distances are sorted out here.
-        distance_matrix.data[distance_matrix.data == 0] = -1  # use invalid distance
-        distance_matrix += kmin_elements_csr
+        # TODO: This changes the sparsity structure and raises a warning. I am not sure
+        #  how to do make it right. For this attempt the tests fail:
+        #  distance_matrix.tolil(copy=False)[
+        #      kmin_elements_csr.nonzero()
+        #  ] = kmin_elements_csr.data
+        #  maybe the best is to combine the elements of kmin_elements_csr and distance
+        #  matrix into one set (sorting out the upper triangle for pdist) and then
+        #  create a new sparse matrix...
+        distance_matrix[kmin_elements_csr.nonzero()] = kmin_elements_csr.data
 
-        # recover back and save explicit zero
-        distance_matrix.data[distance_matrix.data == -1] = 0
-
-    return distance_matrix
+    return distance_matrix.tocsr()
 
 
 def _all_available_distance_algorithm():
@@ -1141,7 +1158,7 @@ def compute_distance_matrix(
         if (kmin > 0 and not is_pdist) or (kmin > 1 and is_pdist):
             # kmin == 1 and is_pdist does not need treatment because the diagonal is set.
             distance_matrix = _ensure_kmin_nearest_neighbor(
-                X, Y, metric=metric, kmin=kmin, distance_matrix=distance_matrix
+                X, Y, metric=metric, kmin=kmin, distance_matrix=distance_matrix,
             )
 
         # sort_indices returns immediately if indices are already sorted.

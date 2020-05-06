@@ -282,10 +282,10 @@ class PCManifoldKernel(Kernel):
         kernel_kwargs: Optional[Dict[str, object]] = None,
         dist_backend_kwargs: Optional[Dict[str, object]] = None,
     ) -> np.ndarray:
-        """Compute the kernel matrix.
+        """Abstract method to compute the kernel matrix.
         
         If `Y` is given, the kernel matrix is computed component-wise, and if `Y=None`
-        the kernel matrix is computed pairs-wise.
+        the kernel matrix is computed pairwise.
         
         Parameters
         ----------
@@ -309,9 +309,9 @@ class PCManifoldKernel(Kernel):
 
         Returns
         -------
-        np.ndarray
-            kernel matrix with shape `(n_samples, n_samples)` (if `Y is None`) or
-            `(n_samples_y, n_samples)` if `Y it not None`
+        numpy.ndarray
+            kernel matrix with shape `(n_samples, n_samples)` for pair-wise kernels or
+            `(n_samples_y, n_samples)` for component wise kernels
         """
 
         raise NotImplementedError("base class")
@@ -329,10 +329,11 @@ class PCManifoldKernel(Kernel):
         ----------
 
         distance_matrix
-            distance matrix with shape `(n_samples, n_samples)`. For the sparse case note
-            that the kernel acts on all stored data, i.e. usually real distance zeros
-            must be stored in the matrix and only very large distance values (resulting
-            in small kernel values) should not be stored.
+            distance matrix with shape `(n_samples_X, n_samples_Y)`. For the sparse case
+            note that the kernel acts on all stored data, i.e. usually point
+            pairs that have distance zero (duplicates or self points) must be stored
+            in the matrix and only very large distance values (resulting in small
+            kernel values) should not be stored.
         
         Returns
         -------
@@ -478,8 +479,7 @@ class InverseMultiquadricKernel(RadialBasisKernel):
     .. math::
         K = \sqrt(\frac{1}{2\varepsilon} \cdot D + 1)^{-1}
 
-
-    where :math:`D` is the squared euclidean distance matrix.
+    where :math:`D` is the squared Euclidean distance matrix.
 
     Parameters
     ----------
@@ -496,7 +496,7 @@ class InverseMultiquadricKernel(RadialBasisKernel):
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         return _apply_kernel_function_numexpr(
             distance_matrix,
-            expr="1.0 / sqrt(1.0 / (2*eps) * D + 1.0) ",
+            expr="1.0 / sqrt(1.0 / (2*eps) * D + 1.0)",
             expr_dict={"eps": self.epsilon},
         )
 
@@ -507,8 +507,7 @@ class CubicKernel(RadialBasisKernel):
     .. math::
         K= D^{3}
 
-
-    where :math:`D` is the euclidean distance matrix.
+    where :math:`D` is the Euclidean distance matrix.
     """
 
     def __init__(self):
@@ -527,8 +526,7 @@ class QuinticKernel(RadialBasisKernel):
     .. math::
         K= D^{5}
 
-
-    where :math:`D` is the euclidean distance matrix.
+    where :math:`D` is the Euclidean distance matrix.
     """
 
     def __init__(self):
@@ -548,7 +546,7 @@ class ThinPlateKernel(RadialBasisKernel):
         K = xlogy(D^2, D)
 
 
-    where :math:`D` is the euclidean distance matrix and argument for
+    where :math:`D` is the Euclidean distance matrix and argument for
     :class:`scipy.special.xlogy`
     """
 
@@ -556,24 +554,13 @@ class ThinPlateKernel(RadialBasisKernel):
         super(ThinPlateKernel, self).__init__(distance_metric="euclidean")
 
     def eval(self, distance_matrix: np.ndarray) -> np.ndarray:
-        """Evaluate kernel on pre-computed distance matrix.
 
-        Parameters
-        ----------
-        distance_matrix
-
-        Returns
-        -------
-        numpy.ndarray
-            kernel matrix with same type and shape as `distance_matrix`
-
-        """
         return xlogy(np.square(distance_matrix), distance_matrix)
 
 
 class DmapKernelFixed(PCManifoldKernel):
-    """Diffusion maps kernel with fixed bandwidth of the internal Gaussian radial basis
-    kernel.
+    """Diffusion maps kernel with fixed kernel-bandwidth of the internal Gaussian radial
+    basis kernel.
 
     Parameters
     ----------
@@ -590,7 +577,7 @@ class DmapKernelFixed(PCManifoldKernel):
 
     symmetrize_kernel
         If True, performs a conjugate transformation which can improve numerical
-        stability for operations (such as eigenpairs) of kernel matrix.
+        stability for matrix operations (such as computing eigenpairs).
 
 
     See Also
@@ -599,7 +586,6 @@ class DmapKernelFixed(PCManifoldKernel):
 
     References
     ----------
-
     :cite:`coifman_diffusion_2006`
     """
 
@@ -636,8 +622,6 @@ class DmapKernelFixed(PCManifoldKernel):
 
         self.row_sums_init = None
 
-        # TODO: check if the super call is reaching the Kernel class, currently the
-        #  output does not show the params
         super(DmapKernelFixed, self).__init__()
 
     def _normalize_sampling_density_kernel_matrix(
@@ -658,9 +642,6 @@ class DmapKernelFixed(PCManifoldKernel):
 
         if self.alpha < 1:
             row_sums_alpha = np.power(row_sums, self.alpha, out=row_sums)
-            # TODO: not sure why this line is here, maybe can remove:
-            #  (comment out for now)
-            # row_sums_alpha = np.nan_to_num(row_sums_alpha, copy=False)
         else:  # no need to power with 1
             row_sums_alpha = row_sums
 
@@ -696,7 +677,7 @@ class DmapKernelFixed(PCManifoldKernel):
                 )
 
             if self.is_symmetric_transform(is_pdist):
-                # increases numerical stability when solving the eigenproblem
+                # Increases numerical stability when solving the eigenproblem
                 # Note1: when using the (symmetric) conjugate matrix, the eigenvectors
                 #        have to be transformed back to match the original
                 # Note2: the similarity transform only works for the is_pdist case
@@ -723,7 +704,7 @@ class DmapKernelFixed(PCManifoldKernel):
         return rbf_kernel, basis_change_matrix, row_sums_alpha
 
     def is_symmetric_transform(self, is_pdist: bool) -> bool:
-        """Indicates whether a symmetric kernel matrix transform is actually applied.
+        """Indicates whether a symmetric kernel matrix transform is applied.
 
         Parameters
         ----------
@@ -732,7 +713,6 @@ class DmapKernelFixed(PCManifoldKernel):
 
         Returns
         -------
-
         """
 
         # If the kernel is made stochastic, it looses the symmetry, if symmetric_kernel
@@ -754,14 +734,57 @@ class DmapKernelFixed(PCManifoldKernel):
 
     def __call__(
         self,
-        X,
-        Y=None,
-        dist_cut_off=None,
-        dist_backend="guess_optimal",
-        kernel_kwargs=None,
-        dist_backend_kwargs=None,
+        X: np.ndarray,
+        Y: Optional[np.ndarray] = None,
+        dist_cut_off: Optional[float] = None,
+        dist_backend: str = "guess_optimal",
+        kernel_kwargs: Optional[Dict] = None,
+        dist_backend_kwargs: Optional[Dict] = None,
     ):
+        """Evaluate the diffusion maps kernel.
 
+        Parameters
+        ----------
+        X
+            Reference point cloud of shape `(n_samples_X, n_features_X)`.
+
+        Y
+            Query point cloud of shape `(n_samples_Y, n_features_Y)`. If not given,
+            then `Y=X`.
+
+        dist_cut_off
+            Radius to cut off larger distance values.
+
+        dist_backend
+            name of :py:class:`DistanceAlgorithm`
+
+        kernel_kwargs
+            * ``row_sums_alpha_fit`` - the row sum values for alpha-normalization
+                computed during pairwise computation. This is required for ``Y is not X``
+                and ``alpha>0``
+
+        dist_backend_kwargs
+            keyword arguments handled to the distance algorithm
+
+
+
+        Returns
+        -------
+        :class:`numpy.ndarray`, :class:`scipy.sparse.csr_matrix`
+            kernel matrix (or conjugate of it) with same type and shape as
+            `distance_matrix`
+
+        Optional[scipy.sparse.dia_matrix]
+            Basis change matrix (sparse diagonal) if `is_symmetrize=True` and only
+            returned if the kernel matrix is a symmetric conjugate of the true kernel
+            matrix. Required to recover the diffusion map eigenvectors from the
+            symmetric conjugate matrix.
+
+        Optional[numpy.ndarray]
+            Row sums from re-normalization, only returned for pairwise computations.
+            The values are required for follow up out-of-sample kernel evaluations
+            (`Y is not None`).
+        """
         if kernel_kwargs is None:
             kernel_kwargs = {}
 
@@ -809,17 +832,8 @@ class DmapKernelFixed(PCManifoldKernel):
 
         Returns
         -------
-        :class:`numpy.ndarray`, :class:`scipy.sparse.csr_matrix`
-            kernel matrix (or conjugate of it) with same type and shape as
-            `distance_matrix`
 
-        Optional[:class:`scipy.sparse.dia_matrix`]
-            basis change matrix if `is_symmetrize=True` and the original kernel is
-            non-symmetric
-
-        Optional[:class:`numpy.ndarray`]
-            Row sums from re-normalization, only returned for the `Y is None` case and
-            are required for follow up out-of-sample kernel evaluations (`Y is not None`).
+        see :meth:`__call__`
         """
 
         row_sums_alpha_fit = self._read_kernel_kwargs(kernel_kwargs, is_pdist)
@@ -907,7 +921,7 @@ class ContinuousNNKernel(PCManifoldKernel):
 
             if (diagonal != 0).all():
                 raise ValueError(
-                    "if is_pdist=True, distance_matrix must have zeros on " "diagonal "
+                    "if is_pdist=True, distance_matrix must have zeros on diagonal "
                 )
         else:
             if reference_dist_knn is None:
@@ -934,7 +948,7 @@ class ContinuousNNKernel(PCManifoldKernel):
 
     def _kth_dist_sparse(self, distance_matrix: scipy.sparse.csr_matrix):
 
-        # see mircorbenchmark_kth_nn.py for a comprison of implementations for the
+        # see mircobenchmark_kth_nn.py for a comparison of implementations for the
         # sparse case
 
         def _get_kth_largest_elements_sparse(
