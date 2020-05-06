@@ -1,5 +1,5 @@
 ---
-title: 'datafold: 
+title: 'datafold: efficient algorithms for data close to non-linear manifolds'
 tags:
   - data driven models
   - manifold 
@@ -28,9 +28,10 @@ affiliations:
  - name: Technical University of Munich
    index: 2
 
-date: 29 April 2020
+date: 06 May 2020
 bibliography: paper.bib
 ---
+
 
 # Summary
 
