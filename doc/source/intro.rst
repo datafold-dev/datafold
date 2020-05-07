@@ -14,7 +14,7 @@ data-driven scenarios, such as enriching the analysis of unknown
 systems, or merely serve as an equation-free surrogate by providing
 fast, albeit approximate, responses for unseen data.
 
-However, expanding datasets also create challanges throughout the entire
+However, expanding datasets also create challenges throughout the entire
 analysis workflow from processing, extracting, to interpreting data. On
 the other hand, new data often does not provide completely new and
 uncorrelated information to existing data. One way to handle this
@@ -24,7 +24,7 @@ ambient data space, and finding a suitable set of coordinates can reduce
 the dataset to its intrinsic data geometry. We refer to this geometric
 structure encoded in the data as a "manifold". In mathematical terms, a
 manifold is a topological space that is locally homeomorphic to the
-Eucledian space. Because of the *local* property, finding a *global*
+Euclidean space. Because of the *local* property, finding a *global*
 parametrization of a (smooth) manifold therefore requires accounting for
 non-linearity (curvature). The well-known manifold hypothesis states
 that such manifolds underlie many observations and processes, including
@@ -95,7 +95,7 @@ practitioners from different fields for dataset analysis.
 -------------------
 
 The first type of data are unordered samples in high-dimensional point
-clouds. These datasets are often directly connected to the "manifold
+clouds. These dataset are often directly connected to the "manifold
 assumption", which states that the data is assumed to lie close to an
 intrinsic lower dimensional manifold. Our software aims to find a low
 dimensional parametrization (embedding) of the manifold. In a machine
@@ -115,7 +115,7 @@ in addition to dimension reduction, a user can approximate the
 Laplace-Beltrami operator, Fokker-Plank operator or the graph Laplacian.
 
 *datafold* provides functionality to address aspects in the context of
-non-linear manifold learning. These aspects are a tradeoff from linear
+non-linear manifold learning. These aspects are a trade-off from linear
 dimension reduction. For example, this is estimating the kernel scale
 parameters to describe the locality of points in a dataset. An important
 further issue is to extending the image and/or pre-image mapping between
@@ -124,7 +124,7 @@ analysis :cite:`chiavazzo_reduced_2014`). These so-called
 "out-of-sample" models interpolate general function values of the
 manifold point cloud and, therefore, have to handle a large input data
 dimensions. Two examples of out-of-sample methods are the "Geometric
-Harmonics" interpolation with multiscale extension
+Harmonics" interpolation with multi-scale extension
 :cite:`coifman_geometric_2006` and the the Laplacian Pyramids
 :cite:`fernandez_auto-adaptative_2014`, :cite:`rabin_heterogeneous_2012`.
 
@@ -140,7 +140,7 @@ and a rule of how to evolve a given state to a future state. The phase
 space is assumed to be a manifold. The temporal context and inherent
 order of time series data require a more specialized data structure
 compared to general point clouds. This includes that the usual
-assumption of idependent and identically distributed (i.i.d.) samples no
+assumption of independent and identically distributed (i.i.d.) samples no
 longer holds. However, to describe the phase space manifold, models for
 point cloud data become relevant again and can improve the accuracy to
 identify a dynamical system from data.
@@ -192,6 +192,6 @@ reflects a workflow hierarchy: from low level data structures and
 algorithms to high level meta models intended to solve complex machine
 learning tasks. Setting up a data-driven model to solve complex tasks
 (such as the E-DMD model) can include a flexible number of data
-transformations in a processing pipeline. The modularity in datafold
+transformations in a processing pipeline. The modularity in *datafold*
 mirrors both a high flexibility to test model configurations and
 openness to new model implementations with a clear and isolated scope.
