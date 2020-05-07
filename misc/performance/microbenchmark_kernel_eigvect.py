@@ -2,6 +2,7 @@ import functools
 import timeit
 
 import numpy as np
+from scipy.linalg import eigh
 from scipy.sparse import csc_matrix, csr_matrix
 from scipy.sparse.linalg import eigs, eigsh
 from sklearn.datasets import make_swiss_roll
@@ -97,6 +98,12 @@ def case_eigdh(m):
     print_first_eigval(eigval)
     eigval = eigval[:nr_evec]
     eigvec = eigvec[:, :nr_evec]
+
+
+def case_eigh(m):
+    eigvals = (m.shape[1] - nr_evec - 1, m.shape[1] - 1)
+    eigval, eigvec = eigh(m, eigvals=eigvals)
+    print_first_eigval(eigval)
 
 
 def case_eigs_sigma(m, s):
@@ -206,6 +213,12 @@ if compute_exact:
     print(f"case_eigd {t}")
     print(str_sep)
 
+t = timeit.timeit(
+    functools.partial(case_eigh, dmap_fixed_symmetric_nonstoch), number=NUMBER_OF_RUNS,
+)
+print(f"case_case_scipy_eigh {t}")
+print(str_sep)
+
 sigma = 1
 t = timeit.timeit(
     functools.partial(case_eigs_sigma, dmap_fixed_nonsymmetric_nonstoch, sigma),
@@ -261,7 +274,6 @@ t = timeit.timeit(
 )
 print(f"case_eigsh_sigma_sparsify_sigma_{sigma} {t}")
 print(str_sep)
-
 
 print("\n\nSYMMETRIC-STOCHASTIC VARIABLE KERNEL MATRIX")
 if compute_exact:
