@@ -888,6 +888,8 @@ class ContinuousNNKernel(PCManifoldKernel):
             Y,
             metric="euclidean",
             cut_off=dist_cut_off,
+            # minimum number of neighbors required in the sparse case!
+            kmin=self.k_neighbor,
             backend=dist_backend,
             **{} if dist_backend_kwargs is None else dist_backend_kwargs,
         )

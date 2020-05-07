@@ -1040,7 +1040,6 @@ def compute_distance_matrix(
     metric: str = "euclidean",
     cut_off: Optional[float] = None,
     kmin: int = 0,
-    tol: float = 1.0,
     backend: Union[str, Type[DistanceAlgorithm]] = "brute",
     **backend_kwargs,
 ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
