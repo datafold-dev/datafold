@@ -971,7 +971,7 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         numpy.ndarray
-            feature values with shape `(n_timeseries, n_timesteps)`
+            feature values of shape `(n_timeseries, n_timesteps)`
 
         Raises
         ------
@@ -1019,7 +1019,7 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         Union[pd.DataFrame, TSCDataFrame]
-            initial states with shape `(n_samples, n_features)`
+            initial states of shape `(n_samples, n_features)`
 
         Raises
         ------
@@ -1054,7 +1054,7 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         Union[pd.DataFrame, TSCDataFrame]
-            final states with shape `(n_samples, n_features)`
+            final states of shape `(n_samples, n_features)`
 
         Raises
         ------
@@ -1133,7 +1133,7 @@ class InitialCondition(object):
         Parameters
         ----------
         X
-            initial conditions with shape `(n_ic, n_features)`
+            initial conditions of shape `(n_ic, n_features)`
 
         columns
             feature names in model during fit (they can be accessed with

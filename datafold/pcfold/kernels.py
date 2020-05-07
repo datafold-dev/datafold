@@ -278,10 +278,10 @@ class PCManifoldKernel(Kernel):
         Parameters
         ----------
         X
-            data with shape `(n_samples, n_features)`
+            data of shape `(n_samples, n_features)`
 
         Y
-            reference data with shape `(n_samples_y, n_features_y)`
+            reference data of shape `(n_samples_y, n_features_y)`
 
         dist_cut_off
             cut off distance
@@ -298,7 +298,7 @@ class PCManifoldKernel(Kernel):
         Returns
         -------
         np.ndarray
-            kernel matrix with shape `(n_samples, n_samples)` (if `Y is None`) or
+            kernel matrix os shape `(n_samples, n_samples)` (if `Y is None`) or
             `(n_samples_y, n_samples)` if `Y it not None`
         """
 
@@ -317,7 +317,7 @@ class PCManifoldKernel(Kernel):
         ----------
 
         distance_matrix
-            distance matrix with shape `(n_samples, n_samples)`. For the sparse case note
+            distance matrix of shape `(n_samples, n_samples)`. For the sparse case note
             that the kernel acts on all stored data, i.e. usually real distance zeros
             must be stored in the matrix and only very large distance values (resulting
             in small kernel values) should not be stored.
@@ -789,7 +789,7 @@ class DmapKernelFixed(PCManifoldKernel):
         ----------
 
         distance_matrix
-            distance matrix with shape `(n_samples, n_samples)`. For the sparse case note
+            distance matrix of shape `(n_samples, n_samples)`. For the sparse case note
             that the kernel acts on all stored data, i.e. usually real distance zeros
             must be stored in the matrix and only very large distance values (resulting
             in small kernel values) should not be stored.
