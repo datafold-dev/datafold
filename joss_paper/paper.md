@@ -45,6 +45,7 @@ Alt. titles:
 * I took out a "contradiction" where I saw none. And a "on the one hand" where there was no "other hand".
 * There are two or three spots where I do not follow you completely, but mostly I find it very clear.
 * *Can we bragg more?* If this is supposed to be a teaser, where is the eniticing news? If you tell me where *datafold* is unique, I can help with finding the words to sell it.
+* Add things liek "for the first time", "newly", "unique", "where others lack...", "datafold closes this gap", "datafold facilitates" at the right spots.
 
 # Summary
 Ever increasing data availability has changed the way data is analyzed and interpreted in many scientific fields. While the underlying complex systems remain the same, data measurements increase in both quantity and dimension. The main drivers are larger computer simulation capabilities and increasingly versatile sensors. In contrast to an equation-driven workflow, a scientist can use data-driven models to analyze a wider range of systems that may also involve systems with unknown or intractable equations. The models can be applied to a variety of data-driven scenarios, such as enriching the analysis of unknown systems, or merely serve as an equation-free surrogate by providing fast, albeit approximate, responses to unseen data. 
