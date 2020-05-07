@@ -126,7 +126,7 @@ def compute_kernel_eigenpairs(
     Parameters
     ----------
     kernel_matrix
-        Kernel matrix with shape `(n_samples, n_samples)`.
+        Kernel matrix of shape `(n_samples, n_samples)`.
 
     n_eigenpairs
         Number of eigenpairs to compute.

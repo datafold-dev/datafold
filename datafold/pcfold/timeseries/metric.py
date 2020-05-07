@@ -349,7 +349,7 @@ class TSCMetric(object):
         Parameters
         ----------
         y_true
-            Ground truth time series collection (basis for scaling), with shape
+            Ground truth time series collection (basis for scaling), of shape
             `(n_samples, n_features)`.
 
         y_pred
@@ -359,11 +359,11 @@ class TSCMetric(object):
         sample_weight
             Gives samples individual weights depending on the `mode`.
 
-            * `mode=timeseries` array with shape `(n_timesteps,)`. Each time step has a \
+            * `mode=timeseries` array of shape `(n_timesteps,)`. Each time step has a \
                different weight (Note the time values can be different).
-            * `mode=feature` array with shape `(n_samples,)`. Each feature sample has a \
+            * `mode=feature` array of shape `(n_samples,)`. Each feature sample has a \
                different weight.
-            * `mode=timestep` array with shape `(n_timeseries,)`. Each time series has \
+            * `mode=timestep` array of shape `(n_timeseries,)`. Each time series has \
                a different weight.
 
         multioutput
@@ -374,7 +374,7 @@ class TSCMetric(object):
             * "raw_values" - returns metric per feature
             * "uniform_average" returns metric of all features averaged with uniform \
                weight
-            * ``numpy.ndarray`` with shape `(n_features,)` - returns metric for all \
+            * ``numpy.ndarray`` of shape `(n_features,)` - returns metric for all \
                features averaged with specified weights
 
         Returns
@@ -502,9 +502,9 @@ class TSCScoring(object):
             The metric values (usually multiple values, depending on mode) can be weighted
             or the score, i.e.
 
-            * `TSCMetric.mode=feature` - weight array with shape `(n_feature,)`
-            * `TSCMetric.mode=timeseries` - weight array with shape `(n_timeseries,)`
-            * `TSCMetric.mode=time` - weight array with shape `(n_timesteps,)`
+            * `TSCMetric.mode=feature` - weight array of shape `(n_feature,)`
+            * `TSCMetric.mode=timeseries` - weight array of shape `(n_timeseries,)`
+            * `TSCMetric.mode=time` - weight array of shape `(n_timesteps,)`
 
         Returns
         -------

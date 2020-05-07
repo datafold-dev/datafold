@@ -128,7 +128,7 @@ def plot_pairwise_eigenvector(
     Parameters
     ----------
     eigenvectors
-        Eigenvectors of the kernel matrix with shape `(n_samples, n_eigenvectors)`. The
+        Eigenvectors of the kernel matrix of shape `(n_samples, n_eigenvectors)`. The
         eigenvectors are assumed to be sorted by the index.
 
     n

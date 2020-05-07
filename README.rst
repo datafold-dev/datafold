@@ -1,21 +1,19 @@
-What is **datafold**?
+What is *datafold*?
 =====================
 
-**datafold** is a Python package providing **data**-driven models with an explicit
-mani-**fold** parametrization. This means that **datafold** aims to
-process potentially high-dimensional data that lie on an (unknown) geometry (manifold).
-The main data are unordered point clouds or ordered time series from a dynamical system.
-For point clouds a typical use case is to parametrize a manifold of intrinsic lower
+*datafold* is a Python package providing **data**-driven models with an explicit
+mani-**fold** parametrization. This means that *datafold* aims to
+process potentially high-dimensional data that lie near an (unknown) geometry (manifold).
+The data can be unordered point clouds or ordered time series from a dynamical system.
+For point clouds a typical use case is to parametrize a manifold with intrinsic lower
 dimension to enable (non-linear) dimension reduction. For time series data
 the underlying dynamical system is assumed to have a phase space being a manifold.
-Finding a suitable manifold parametrization can then improve the data-driven models to
-learn the dynamics and identify the system.
 
 The software documentation is available at
 `https://datafold-dev.gitlab.io/datafold <https://datafold-dev.gitlab.io/datafold>`_,
 with executed
-`tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_
-or can be downloaded as
+`tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_ , which can be
+downloaded as
 `Jupyter notebooks <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`_.
 
 The source code is distributed under the `MIT license <https://gitlab
@@ -42,13 +40,13 @@ very welcome. Please go to the section "Contributing" below for further details.
          * `minor` - adding functionality in a backwards-compatible manner
          * `patch` - backwards-compatible bug fixes
 
-       Because **datafold** is a research-driven project there is no intention of
+       Because *datafold* is a research-driven project there is no intention of
        indicating a feature complete milestone with version `1.0`.
 
 Highlights
 ==========
 
-**datafold** includes:
+*datafold* includes:
 
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are both used internally and for
@@ -76,7 +74,7 @@ How does it compare to other software?
 * `scikit-learn <https://scikit-learn.org/stable/>`_
    provides "classical" algorithms of the entire machine learning pipeline. The main
    class of models map feature inputs to a fixed number of target output(s), such as in
-   regression or classification. **datafold** also includes models
+   regression or classification. *datafold* also includes models
    of this class (Note the scikit-learn part in section "Dependencies") but also
    include models that generalize to data-driven models aiming
    dynamical systems (and therefore time series data). The number of outputs from a
@@ -90,16 +88,16 @@ How does it compare to other software?
    variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia
    .org/wiki/Dynamic_mode_decomposition>`_. Some of the DMD models are special
    cases of a dictionary of the `Extended Dynamic Mode Decomposition`, other DMD
-   variants are currently not covered in **datafold**. In ``datafold.dynfold.dmd.py`` is
+   variants are currently not covered in *datafold*. In ``datafold.dynfold.dmd.py`` is
    an (experimental) wrapper for the ``PyDMD`` package. A major limitation of ``PyDMD``,
    however, is that it only allows single time series as input (``numpy.ndarray``),
-   see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`_. **datafold**
+   see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`_. *datafold*
    solves this issue with the data structure ``TSCDataFrame``.
 
 * `PySINDy <https://pysindy.readthedocs.io/en/latest/>`_
    specializes on a `sparse` identification of dynamical systems to infer governing
    equations. `SINDy` is basically a DMD variant and not yet implemented in
-   **datafold**. `PySINDy` also provides time series transformations, which
+   *datafold*. `PySINDy` also provides time series transformations, which
    in `PySINDy` are referred to as `library` (which matches the defintion of
    `dictionary` in  the `Extended Dynamic Mode Decomposition`). `PySINDy` also supports
    multiple time series (lists of time series and correspinding time values).
@@ -112,7 +110,7 @@ How does it compare to other software?
    mathematical background theory and the learning process is not deterministic. The
    models are basically a black-box but nonetheless in often cases very successful. There
    are also scientific works that combine neural networks with models within the scope of
-   **datafold** (currently not included). The models in **datafold** can also deal with
+   *datafold* (currently not included). The models in *datafold* can also deal with
    smaller data sets that are not suitable for neural networks, which usually need a
    medium to large sized datasets (all relative to the actual problem).
 
@@ -120,7 +118,7 @@ How does it compare to other software?
 How to get it?
 ==============
 
-Installation of **datafold** requires ``Python>=3.6``,
+Installation of *datafold* requires ``Python>=3.6``,
 `pip <https://pip.pypa.io/en/stable/>`_ and
 `setuptools <https://setuptools.readthedocs.io/en/latest/>`_ installed (the two
 packages usually ship with Python). Package dependencies are listed in the
@@ -129,7 +127,7 @@ next section.
 From PyPI
 ---------
 
-**datafold** is hosted on the official Python package index (PyPI)
+*datafold* is hosted on the official Python package index (PyPI)
 (https://pypi.org/project/datafold/) and can be installed with: 
 
 .. code-block:: bash
@@ -167,19 +165,19 @@ The dependencies are managed in `setup.py <https://gitlab
 .com/datafold-dev/datafold/-/blob/master/setup.py>`_ and install
 (if not available) with the package manager ``pip``.
 
-**datafold** integrates with common packages from the
+*datafold* integrates with common packages from the
 `Python scientific computing stack <https://www.scipy.org/about.html>`_. Specifically,
 this is:
 
 * `NumPy <https://numpy.org/>`_
-    The data structure ``PCManifold`` in **datafold** subclasses from NumPy's ``ndarray``
+    The data structure ``PCManifold`` in *datafold* subclasses from NumPy's ``ndarray``
     to represent a point cloud on a manifold. A ``PCManifold`` point cloud is associated
     with a kernel that describes the data locality and hence the geometry. NumPy is
-    used throughout **datafold** and is the default for all numerical data (data
+    used throughout *datafold* and is the default for all numerical data (data
     structures and algorithms).
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`_
-   **datafold** addresses time series data in the data structure ``TSCDataFrame``
+   *datafold* addresses time series data in the data structure ``TSCDataFrame``
    which subclasses from Pandas' rich data structure
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
    Internally, this is again a NumPy array. However, a data frame allows extended
@@ -187,17 +185,17 @@ this is:
    be captured in a single object with easy data slicing and time series functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`_
-   All **datafold** algorithms that are part of the "machine learning pipeline" align
+   All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`_.
    This is done by subclassing from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`_.
-   or appropriate "MixIns". **datafold** also provides own base classes
+   or appropriate "MixIns". *datafold* also provides own base classes
    that align with scikit-learn (in a duck-typing way) for the required
    generalizations with respect to ``TSCDataFrame`` as input and output.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`_
     Used for elementary numerical algorithms and data structures. Examples in
-    **datafold** include the (sparse) linear least square regression, (sparse) solving
+    *datafold* include the (sparse) linear least square regression, (sparse) solving
     for eigenpairs and sparse matrices as data structure for kernel matrices.
 
 Additional developer dependencies are in the next section.
@@ -210,7 +208,7 @@ Bug reports, feature requests and user questions
 
 Any contribution (code/tutorials/documentation improvements) and feedback is very
 welcome. For all correspondence regarding the software please open a new issue in the
-**datafold** `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
+*datafold* `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
 
 All code contributors are listed in the
 `contributor list <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`_.
@@ -245,7 +243,7 @@ Alternatively, use `python3` and `pip3`.
 Install git pre-commit hooks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The **datafold** source code is automatically formatted with
+The *datafold* source code is automatically formatted with
 
 
 * `black <https://black.readthedocs.io/en/stable/>`_ for Python soruce code auto
@@ -281,7 +279,7 @@ Run tests
 The tests are executed with `nose <https://nose.readthedocs.io/en/latest/>`_ (installs
 with development dependencies). 
 
-To execute all **datafold** unit tests locally run from the root directory:
+To execute all *datafold* unit tests locally run from the root directory:
 
 .. code-block:: bash
 
@@ -316,7 +314,7 @@ Additional dependencies (not contained in ``requirements-dev.txt``):
 Note that the documentation also builds remotely in the CI pipeline, either as a
 test (all branches except `master`) or to update the web page (only for `master`).
 
-The **datafold** source code is documented with
+The *datafold* source code is documented with
 `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`_ style. To
 build the documentation run from root directory
 

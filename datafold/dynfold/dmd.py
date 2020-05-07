@@ -40,15 +40,15 @@ class LinearDynamicalSystem(object):
             \frac{d}{dt} x(t) = \mathcal{A} \cdot x(t)\\
             \mathcal{A} \in \mathbb{R}^{[m \times m]}
 
-    This system can also be written in terms of a discrete-time system
+    This continuous-system representation can also be written in terms of a discrete-time
+    system
 
     - discrete
         .. math::
             x_{n+1} = A \cdot x_{n}
 
-        and :math:`A = \exp(\mathcal{A} \Delta t)`, a constant matrix, which describes the
-        linear evolution of the systems' states :math:`x` with state length :math:`m`.
-
+    and :math:`A = \exp(\mathcal{A} \Delta t)`, a constant matrix, which describes the
+    linear evolution of the systems' states :math:`x` with state length :math:`m`.
 
     Parameters
     ----------
@@ -61,9 +61,8 @@ class LinearDynamicalSystem(object):
 
     time_invariant
         If True, the system internally always starts with `time=0`. \
-        This is irrespective of the time given in the time values (If initial time is
-        larger than zero, the internal times are then corrected to the the requested
-        time).
+        This is irrespective of the time given in the time values and if the initial
+        time is larger than zero, the internal times are corrected to the requested time.
 
     References
     ----------
@@ -129,7 +128,7 @@ class LinearDynamicalSystem(object):
         time_series_ids: Optional[Dict] = None,
         feature_columns: Optional[Union[pd.Index, list]] = None,
     ):
-        r"""Evolve the dynamical system with the spectral components of the dynamical
+        r"""Evolve the dynamical system with spectral components of the dynamical
         matrix in the linear system.
 
         Using the eigenvalues :math:`\Lambda` and eigenvectors :math:`\Psi` of the
@@ -167,25 +166,25 @@ class LinearDynamicalSystem(object):
         Parameters
         ----------
         dynmatrix
-            Spectral linear time map with shape `(n_feature, n_feature_states)`, \
+            Spectral linear time map of shape `(n_feature, n_feature_states)`, \
             where `n_feature_states` is the length of the initial condition.
 
             * right eigenvectors :math:`\Psi` of matrix :math:`A` (in this case \
               `n_feature=n_feature_states`), or
             * linear transformation of right eigenvectors :math:`D \cdot \Psi` (this \
               case allows `n_feature` to be larger or smaller than `n_feature_states`). \
-              The matrix :math:`D` allows to linearly map the states directly to another \
-              space (e.g. only a selection of states to reduce memory footprint).
+              The matrix :math:`D` linearly maps the states directly to another \
+              space (e.g., only a selection of states to reduce memory footprint).
 
         eigenvalues
             eigenvalues of matrix :math:`A`
 
         time_delta
-            time delta :math:`\Delta t` of a continuous system
+            Time delta :math:`\Delta t` for a continuous system.
 
         initial_conditions
-            one initial condition with shape `(n_features,)` or multiple with shape \
-            `(n_features, n_initial_conditions)`
+            Single initial condition of shape `(n_features,)` or multiple of shape \
+            `(n_features, n_initial_conditions)`.
 
         time_values
            Values to evaluate the linear system at
@@ -194,13 +193,13 @@ class LinearDynamicalSystem(object):
            * `mode="discrete"` - :math:`n \in \mathbb{N}_0`
 
         time_series_ids
-           Unique integer time series IDs with shape `(n_initial_conditions,)` for each \
+           Unique integer time series IDs of shape `(n_initial_conditions,)` for each \
            respective initial condition in the resulting time series collection. \
-           Defaults to (0, 1, 2, ...).
+           Defaults to `(0, 1, 2, ...)`.
 
         feature_columns
-            Unique feature columns names with shape `(n_feature,)` in the result time \
-            series collection. Defaults to (0, 1, 2, ...).
+            Unique feature columns names of shape `(n_feature,)` in the result time \
+            series collection. Defaults to `(0, 1, 2, ...)`.
 
         Returns
         -------
@@ -256,21 +255,21 @@ class LinearDynamicalSystem(object):
 
 
 class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
-    r"""Abstract base class for Dynamic Mode Decomposition (DMD) models to approximate
-    the Koopman operator.
+    r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
 
     The Koopman matrix :math:`K` defines a linear dynamical system
 
     .. math:: K^n x_0 &= x_k
 
     with :math:`x_k` being the (column) state vector of the system at time :math:`k`.
-    When solving the eigenpairs of the Koopman matrix \
+
+    The the spectrum of the Koopman matrix \
     (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` eigenvalues on diagonal):
 
     .. math:: K \Psi_r = \Psi_r \Lambda
 
-    then this enables further analysis and inexpensive evaluation of the above linear
-    dynamical system (matrix power of diagonal matrix :math:`\Lambda` instead of
+    enable further analysis about the systems and inexpensive evaluation of the above
+    linear dynamical system (matrix power of diagonal matrix :math:`\Lambda` instead of
     :math:`K`):
 
     .. math::
@@ -294,10 +293,11 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
            \Psi_l x_0 = b
 
 
-    All subclasses must provide the (right) eigenpairs :math:`\left(\Lambda, \Psi_r\right)`,
-    in respective attributes :code:`eigenvalues_` and :code:`eigenvectors_right_`. If
-    the left eigenvectors (attribute :code:`eigenvectors_left_`) are available the
-    initial condition always solves with the second case for :math:`b`.
+    All subclasses must provide the (right) eigenpairs
+    :math:`\left(\Lambda, \Psi_r\right)`, in respective attributes
+    :code:`eigenvalues_` and :code:`eigenvectors_right_`. If the left eigenvectors
+    (attribute :code:`eigenvectors_left_`) are available the initial condition always
+    solves with the second case for :math:`b` (as it is more efficient).
 
     See Also
     --------
@@ -423,12 +423,12 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     def predict(
         self, X: InitialConditionType, time_values=None, **predict_params
     ) -> TSCDataFrame:
-        """Predict time series data for each initial condition for the time values.
+        """Predict time series data for each initial condition and time values.
 
         Parameters
         ----------
         X: pandas.DataFrame, numpy.ndarray
-            Initial conditions with shape `(n_initial_condition, n_features)`.
+            Initial conditions of shape `(n_initial_condition, n_features)`.
 
         time_values
             Time values to evaluate the model at.
@@ -436,18 +436,18 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         Keyword Args
         ------------
 
-        post_map: np.ndarray
+        post_map: numpy.ndarray
             A matrix that is combined with the right eigenvectors. \
             :code:`post_map @ eigenvectors_right_`.
 
-        feature_columns:
-            If post_map is given and the state lengths changes, new feature names must \
-            be provided.
+        feature_columns: pandas.Index
+            If post_map is given with a changed state length, then new feature names
+            must be provided.
 
         Returns
         -------
         TSCDataFrame
-            time series predictions with shape `(n_time_values, n_features)` for each
+            time series predictions of shape `(n_time_values, n_features)` for each
             initial condition
         """
 
@@ -479,7 +479,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         )
 
     def reconstruct(self, X: TSCDataFrame):
-        """Reconstruct existing time series collection.
+        """Reconstruct time series collection.
 
         Extract the same initial states from the time series in the collection and
         predict the other states with the model at the same time values.
@@ -491,7 +491,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         Returns
         -------
-        X_reconstruct: TSCDataFrame of same shape as input.
+        TSCDataFrame
+            same shape as input `X`
         """
 
         check_is_fitted(self)
@@ -514,7 +515,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         return X_reconstruct_ts
 
     def fit_predict(self, X: TSCDataFrame, **fit_params):
-        """Fit the model and reconstruct the time series training data.
+        """Fit model and reconstruct the time series data.
 
         Parameters
         ----------
@@ -531,7 +532,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     def score(self, X: TSCDataFrame, y=None, sample_weight=None) -> float:
         """Score DMD model by reconstructing time series data with same initial condition.
 
-        The default metric (see :class:`TSCMetric` used is mode="feature", "metric=rmse"
+        The default metric (see :class:`.TSCMetric` used is mode="feature", "metric=rmse"
         and "min-max" scaling.
 
         Parameters
@@ -577,12 +578,13 @@ class DMDFull(DMDBase):
     ----------
 
     is_diagonalize
-        Whether to also compute the left eigenvectors. If True, then there is no
-        additional least squares solution required for evaluating the linear dynamical
+        If True also the left eigenvectors are computed. This is more efficient to
+        solve for initial conditions, because there there is no least
+        squares solution required for evaluating the linear dynamical
         system (see :class:`LinearDynamicalSystem`)
 
     rcond: Optional[float]
-        Parameter handled to `numpy.linalg.lstsq <https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.lstsq.html>`_
+        Parameter handled to `numpy.linalg.lstsq`_
 
     Attributes
     ----------
@@ -594,13 +596,10 @@ class DMDFull(DMDBase):
         All right eigenvectors of Koopman matrix.
 
     eigenvectors_left_: numpy.ndarray
-        Left eigenvectors of Koopman matrix if ``is_diagonalize=True``.
+        All left eigenvectors of Koopman matrix if ``is_diagonalize=True``.
 
     koopman_matrix_: numpy.ndarray
-        Koopman matrix obtained from least squares
-
-        .. note::
-            This is subject to get removed, the spectral parts are sufficient.
+        Koopman matrix obtained from least squares.
 
     References
     ----------
@@ -736,11 +735,12 @@ class DMDEco(DMDBase):
     r"""Dynamic Mode Decomposition of time series data with prior singular value
     decomposition (SVD).
 
-    The singular velue decomposition reduces the data and the Koopman operator is
+    The singular value decomposition (SVD) reduces the data and the Koopman operator is
     computed in this reduced space. This DMD model is particularly interesting for high
-    dimensional data (large number of features).
+    dimensional data (large number of features), for example solutions of partial
+    differential equations (PDE) with many evaluated grid points.
 
-    The procedure is as follows:
+    The procedure of ``DMDEco`` is as follows:
 
     1. Compute the singular value decomposition of the data and use the leading `k`
     singular values and corresponding vectors in :math:`U` and :math:`V`.
@@ -748,12 +748,12 @@ class DMDEco(DMDBase):
     .. math::
         X \approx U \Sigma V^*
 
-    2. Compute the Koopman matrix on the SVD coordinates:
+    2. Compute the Koopman matrix in the SVD coordinates:
 
     .. math::
         K = U^T X' V \Sigma^{-1}
 
-    3. Compute the eigenpairs (in matrix form):
+    3. Compute all eigenpairs of Koopman matrix:
 
     .. math::
         K W_r = W_r \Omega
@@ -772,17 +772,18 @@ class DMDEco(DMDBase):
     Parameters
     ----------
     svd_rank: int
-        Number of eigenpairs (with largest eigenvalues) to keep
+        Number of eigenpairs (with largest eigenvalues, in magnitude) to keep.
 
 
     Attributes
     ----------
 
     eigenvalues_ : numpy.ndarray
-        All eigenvalues (svd_rank,) of the (reduced) Koopman matrix .
+        All eigenvalues of shape `(svd_rank,)` of the (reduced) Koopman matrix .
 
     eigenvectors_right_ : numpy.ndarray
-        All right eigenvectors of the reduced Koopman matrix.
+        All right eigenvectors of shape `(svd_rank, svd_rank)` of the reduced Koopman
+        matrix.
 
     References
     ----------
