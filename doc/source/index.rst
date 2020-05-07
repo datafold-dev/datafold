@@ -9,9 +9,12 @@ Contents
    in include_tutorials.py
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    intro
+.. toctree::
+   :maxdepth: 2
+
    api
    devapi
    tutorial_index
