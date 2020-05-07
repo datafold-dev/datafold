@@ -39,6 +39,13 @@ Alt. titles:
 * datafold: efficient data-driven models for (points/samples) lying near non-linear
   manifolds
 
+# Gerta's comments
+
+* I took out most of the brackets (), because they interrupt the flow of a sentence. If it's important, you don't need a bracket, if it's not, drop it entirely.
+* I took out a "contradiction" where I saw none. And a "on the one hand" where there was no "other hand".
+* There are two or three spots where I do not follow you completely, but mostly I find it very clear.
+* *Can we bragg more?* If this is supposed to be a teaser, where is the eniticing news? If you tell me where *datafold* is unique, I can help with finding the words to sell it.
+
 # Summary
 Ever increasing data availability has changed the way data is analyzed and interpreted in many scientific fields. While the underlying complex systems remain the same, data measurements increase in both quantity and dimension. The main drivers are larger computer simulation capabilities and increasingly versatile sensors. In contrast to an equation-driven workflow, a scientist can use data-driven models to analyze a wider range of systems that may also involve systems with unknown or intractable equations. The models can be applied to a variety of data-driven scenarios, such as enriching the analysis of unknown systems, or merely serve as an equation-free surrogate by providing fast, albeit approximate, responses to unseen data. 
 
@@ -64,6 +71,6 @@ As a second type of data, *datafold* targets time series and collections thereof
 
 Daniel Lehmberg (DL) is supported by the German Research Foundation (DFG), grant no. KO 5257/3-1. DL thanks the research office (FORWIN) of Munich University of Applied Sciences and CeDoSIA of TUM Graduate School at the Technical University of Munich for their support.
 
-TODO: Others!
+TODO: Others! (GK: I suggest you mention your stay with Yannis' group.)
 
 
