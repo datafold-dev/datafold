@@ -20,7 +20,7 @@ arethree type of models in this layer:
       thereof). These methods have the prefix `TSC` in the classname. The
       transformations include time delay embedding
       :class:`.TSCTakensEmbedding`, but also scikit-learn wrappers like feature scaling
-      or :class:`TSCPrincipalComponent`m which generalize the input and output to time
+      or :class:`TSCPrincipalComponent` which generalize the input and output to time
       series data.
 
 2. Models subclassing :class:`sklearn.base.RegressorMixin`:

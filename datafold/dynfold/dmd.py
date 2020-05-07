@@ -584,7 +584,7 @@ class DMDFull(DMDBase):
         system (see :class:`LinearDynamicalSystem`)
 
     rcond: Optional[float]
-        Parameter handled to `numpy.linalg.lstsq`_
+        Parameter handled to :class:`numpy.linalg.lstsq`
 
     Attributes
     ----------
