@@ -168,6 +168,7 @@ class GeometricHarmonicsInterpolator(
     def _get_tags(self):
         _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
         _tags["multioutput"] = True
+        _tags["poor_score"] = True  # the default score is negative (RMSE error)
         return _tags
 
     def predict(self, X: np.ndarray) -> np.ndarray:
