@@ -13,7 +13,7 @@ from datafold.utils.general import is_df_same_index, series_if_applicable
 
 
 class TSCMetric(object):
-    """Compute error metrics with different modes between two time series collections.
+    """Compute error metrics for time series collection data.
 
     Parameters
     ----------
@@ -31,7 +31,7 @@ class TSCMetric(object):
         compute metric per "timeseries", "timestep" or "feature"
 
     scaling
-        Prior scaling (useful for non-homogenous time series features).
+        Prior scaling (useful for heterogeneous time series features).
 
         * "id" - no scaling,
         * "min-max" - each feature is scaled into (0, 1) range,
@@ -41,7 +41,7 @@ class TSCMetric(object):
     References
     ----------
 
-    rrmse is from :cite:`le_clainche_higher_2017`
+    "rrmse" is taken from :cite:`le_clainche_higher_2017`
 
     """
 
@@ -153,8 +153,8 @@ class TSCMetric(object):
     def _max_error(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-        """ Only a wrapper for sklean.metrics.max_error to allow sample weight and
-        multioutput arguments.
+        """Wrapper for :class:`sklean.metrics.max_error` to allow `sample_weight` and
+        `multioutput` arguments (both have not effect).
         """
 
         # fails if y is multioutput
@@ -344,7 +344,7 @@ class TSCMetric(object):
         sample_weight: Optional[np.ndarray] = None,
         multioutput: Union[str, np.ndarray] = "raw_values",
     ) -> Union[pd.Series, pd.DataFrame]:
-        """Evaluate specified metric.
+        """Compute metric between two time series collections.
         
         Parameters
         ----------
@@ -367,26 +367,26 @@ class TSCMetric(object):
                a different weight.
 
         multioutput
-            metric evaluated over multiple features (columns), specify how to weigh each
-            feature. The parameter is ignored for `mode=feature`, because each feature is
-            treated as a scalar value.
+            Handling of metric, if evaluated over multiple features (columns), specify
+            how to weight each feature. The parameter is ignored for `mode=feature`,
+            because then each feature is a single output.
 
-            * "raw_values" - returns metric per feature
-            * "uniform_average" returns metric of all features averaged with uniform \
-               weight
+            * "raw_values" - returns metric per feature (i.e., the metric is not reduced)
+            * "uniform_average" - returns metric averaged over all features averaged with
+              uniform weight
             * ``numpy.ndarray`` of shape `(n_features,)` - returns metric for all \
                features averaged with specified weights
 
         Returns
         -------
-        Union[pd.Series, pd.DataFrame]
-            metric evaluations, `pandas.DataFrame` for `raw_values`
+        Union[pd.Series, pandas.DataFrame]
+            metric evaluations, `pandas.DataFrame` for `multioutput=raw_values`
 
         Raises
         ------
         TSCException
             If not all values are finite in `y_true` or `y_pred` or if \
-            ``TSCDataFrame`` properties do not allow for a `sample_weight` argument.
+            :class:`TSCDataFrame` properties do not allow for a `sample_weight` argument.
 
         """
 
@@ -399,9 +399,10 @@ class TSCMetric(object):
         # checks:
         y_true.tsc.check_finite()
         y_pred.tsc.check_finite()
-        is_df_same_index(
-            y_true, y_pred, check_index=True, check_column=True, handle="raise"
-        )
+        if not is_df_same_index(
+            y_true, y_pred, check_index=True, check_column=True, handle="return"
+        ):
+            raise ValueError("Indices between 'y_pred' and 'y_true' must be equal.")
 
         # scaling:
         y_true, y_pred = self._scaling(y_true=y_true, y_pred=y_pred)
@@ -446,12 +447,12 @@ class TSCMetric(object):
 
 
 class TSCScoring(object):
-    """Create scoring function from :class:``TSCMetric``.
+    """Create scoring function from :class:`.TSCMetric`.
 
     Parameters
     ----------
     tsc_metric
-        configured metric for time series collections
+        Time series collections metric.
 
     greater_is_better
         If True, the metric measures accuracy, else the metric measures the error.
@@ -466,12 +467,11 @@ class TSCScoring(object):
     better than lower return values \
     (`ref <https://scikit-learn.org/stable/modules/model_evaluation.html>`_). This means:
 
-        * Usually ``TSCMetric`` returns a vector metric with multiple components (
-          metric per time series, timestep or feature). Therefore, the metric values
-          must be "compressed" again to a single score value.
+        * Usually :class:`.TSCMetric` returns a vector metric with multiple components
+          (metric per time series, timestep or feature). Therefore, the metric values
+          must be "compressed" again to obtain a single score value.
         * Currently, all metrics measure the error, to comply with "higher score values
-          are better" the metric values are negated (adaptable to other metrics with
-          `greater_is_better` parameter).
+          are better" the metric values are negated.
     """
 
     def __init__(self, tsc_metric: TSCMetric, greater_is_better=False, **metric_kwargs):
@@ -485,22 +485,22 @@ class TSCScoring(object):
         y_pred: TSCDataFrame,
         sample_weight: Optional[np.ndarray] = None,
     ) -> float:
-        """Computes score between two time series collections and specified metric.
+        """Computes score between two time series collections.
 
         Parameters
         ----------
         y_true
-            ground truth time series data
+            Ground truth time series data.
 
         y_pred
-            predicted time series data
+            Predicted time series data.
 
         sample_weight
             Not to be confused with parameter `samples_weight` in
             :py:meth:`TSCMetric.__call__`.
 
             The metric values (usually multiple values, depending on mode) can be weighted
-            or the score, i.e.
+            for the score:
 
             * `TSCMetric.mode=feature` - weight array of shape `(n_feature,)`
             * `TSCMetric.mode=timeseries` - weight array of shape `(n_timeseries,)`
@@ -547,19 +547,20 @@ class TSCScoring(object):
 class TSCKfoldSeries(object):
     """K-fold splits on entire time series.
 
-    Both the training and the test set consist of time series in its original form. The
-    time series collection must consist of multiple time series.
+    Both the training and the test set consist of time series in its original length.
+    Therefore, to perform the split, the time series collection must consist of
+    multiple time series.
 
     Parameters
     ----------
     n_splits
-        number of splits
+        The number of splits.
 
     shuffle
         If True, the time series are shuffled.
 
     random_state
-        use fixed seed if `shuffle=True`
+        Use fixed seed if `shuffle=True`.
     """
 
     def __init__(
@@ -577,7 +578,7 @@ class TSCKfoldSeries(object):
         Parameters
         ----------
         X
-            time series collection to split
+            The time series collection to split.
 
         y: None
             ignored
@@ -596,8 +597,7 @@ class TSCKfoldSeries(object):
         Raises
         ------
         NotImplementedError
-            if time series have not equal length
-
+            If time series have not equal length.
         """
         if not X.is_equal_length():
             raise NotImplementedError(
@@ -644,11 +644,17 @@ class TSCKfoldSeries(object):
 class TSCKFoldTime(object):
     """K-fold splits on time values.
 
+    The splits are along the time axis. This means that the time series collection can
+    also consist of only a single time series. Note that if a block is taken from
+    testing, then this results in more training series as in the original time series
+    collection. For example, for a single time series this would result in two training
+    time series and one test time series.
+
     Parameters
     ----------
 
     n_splits
-        number of splits
+        The number of splits.
     """
 
     def __init__(self, n_splits: int = 3):
@@ -719,10 +725,10 @@ def kfold_cv_reassign_ids(X: TSCDataFrame, train_indices, test_indices):
     Returns
     -------
     TSCDataFrame
-        training time series collection
+        The training time series collection.
 
     TSCDataFrame
-        test time series collection
+        The test time series collection.
     """
     # mark train samples with 0 and test samples with 1
     mask_train_test = np.zeros(X.shape[0])
