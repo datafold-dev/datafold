@@ -79,7 +79,7 @@ def _symmetric_matrix_division(
         If matrix is square and ``vec_right=None``, then `matrix` is assumed to be
         symmetric (this enables removing numerical noise to return a perfectly symmetric
         matrix).
-        
+
     vec
         Vector of shape `(n_rows,)` in the denominator (Note, the reciprocal
         is is internal of the function).
@@ -306,10 +306,10 @@ class PCManifoldKernel(Kernel):
         Parameters
         ----------
         X
-            data with shape `(n_samples, n_features)`
+            data of shape `(n_samples, n_features)`
 
         Y
-            reference data with shape `(n_samples_y, n_features_y)`
+            reference data of shape `(n_samples_y, n_features_y)`
 
         dist_cut_off
             cut off distance
@@ -345,11 +345,11 @@ class PCManifoldKernel(Kernel):
         ----------
 
         distance_matrix
-            distance matrix with shape `(n_samples_X, n_samples_Y)`. For the sparse case
-            note that the kernel acts on all stored data, i.e. usually point
+            distance matrix of shape `(n_samples_X, n_samples_Y)`. For the sparse case note
+            that the kernel acts on all stored data, i.e. usually point
             pairs that have distance zero (duplicates or self points) must be stored
-            in the matrix and only very large distance values (resulting in small
-            kernel values) should not be stored.
+            in the matrix and only very large distance values (resulting
+            in small kernel values) should not be stored.
         
         Returns
         -------
@@ -841,7 +841,7 @@ class DmapKernelFixed(PCManifoldKernel):
         ----------
 
         distance_matrix
-            distance matrix with shape `(n_samples, n_samples)`. For the sparse case note
+            distance matrix of shape `(n_samples, n_samples)`. For the sparse case note
             that the kernel acts on all stored data, i.e. usually real distance zeros
             must be stored in the matrix and only very large distance values (resulting
             in small kernel values) should not be stored.
