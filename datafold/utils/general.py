@@ -281,7 +281,10 @@ def remove_numeric_noise_symmetric_matrix(
     # precision, but NumPy does not seem to provide anything for this?
 
     if scipy.sparse.issparse(matrix):
+        # need to preserve of explicit stored zeros (-> distance matrix)
+        matrix.data[matrix.data == 0] = np.nan
         matrix = (matrix + matrix.T) / 2.0
+        matrix.data[np.isnan(matrix.data)] = 0
     else:
         matrix = np.add(matrix, matrix.T, out=matrix)
         matrix = np.divide(matrix, 2.0, out=matrix)

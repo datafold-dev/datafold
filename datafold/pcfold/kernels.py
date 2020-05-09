@@ -96,14 +96,25 @@ def _symmetric_matrix_division(
     -------
     numpy.ndarray
     """
-    assert vec.ndim == 1
 
-    vec_inv_left = np.reciprocal(vec)
+    if matrix.ndim != 2:
+        raise ValueError("matrix must be two dimensional")
+
+    if matrix.shape[0] != matrix.shape[1] and vec_right is None:
+        raise ValueError("if matrix is non-square then vec_right must be provided")
+
+    vec_inv_left = np.reciprocal(vec.astype(np.float64))
 
     if vec_right is None:
         vec_inv_right = vec_inv_left.view()
     else:
-        vec_inv_right = np.reciprocal(vec_right)
+        vec_inv_right = np.reciprocal(vec_right.astype(np.float64))
+
+    if vec_inv_left.ndim != 1 or vec_inv_left.shape[0] != matrix.shape[0]:
+        raise ValueError("input 'vec' has the wrong shape or dimension")
+
+    if vec_inv_right.ndim != 1 or vec_inv_right.shape[0] != matrix.shape[1]:
+        raise ValueError("input 'vec_right' has the wrong shape or dimension")
 
     if scipy.sparse.issparse(matrix):
         left_inv_diag_sparse = scipy.sparse.spdiags(
@@ -118,7 +129,12 @@ def _symmetric_matrix_division(
         # sparse. I.e. the performance drops for a dense-sparse matrix. There is another
         # implementation in the mircrobenchmark that also handles this case well,
         # however, it requires numba.
+
+        # The zeros are removed in the matrix multiplication. However, if matrix is a
+        # distance matrix we need to preserve the "true zeros"!
+        matrix.data[matrix.data == 0] = np.nan
         matrix = left_inv_diag_sparse @ matrix @ right_inv_diag_sparse
+        matrix.data[np.isnan(matrix.data)] = 0
     else:
         # Solves efficiently:
         # np.diag(1/vector_elements) @ matrix @ np.diag(1/vector_elements)
@@ -948,34 +964,43 @@ class ContinuousNNKernel(PCManifoldKernel):
                     "n_neighbors must be in the range 1 to number of samples"
                 )
 
-    def _kth_dist_sparse(self, distance_matrix: scipy.sparse.csr_matrix):
+    def _kth_nn_dist(
+        self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
+    ) -> np.ndarray:
 
-        # see mircobenchmark_kth_nn.py for a comparison of implementations for the
-        # sparse case
+        if isinstance(distance_matrix, np.ndarray):
+            return np.partition(distance_matrix, self.k_neighbor - 1, axis=1)[
+                :, self.k_neighbor - 1
+            ]
+        elif isinstance(distance_matrix, scipy.sparse.csr_matrix):
+            # see mircobenchmark_kth_nn.py for a comparison of implementations for the
+            # sparse case
 
-        def _get_kth_largest_elements_sparse(
-            data: np.ndarray, indptr: np.ndarray, row_nnz, k_neighbor: int,
-        ):
-            dist_knn = np.zeros(len(row_nnz))
-            for i in range(len(row_nnz)):
-                start_row = indptr[i]
-                dist_knn[i] = np.partition(
-                    data[start_row : start_row + row_nnz[i]], k_neighbor - 1
-                )[k_neighbor - 1]
+            def _get_kth_largest_elements_sparse(
+                data: np.ndarray, indptr: np.ndarray, row_nnz, k_neighbor: int,
+            ):
+                dist_knn = np.zeros(len(row_nnz))
+                for i in range(len(row_nnz)):
+                    start_row = indptr[i]
+                    dist_knn[i] = np.partition(
+                        data[start_row : start_row + row_nnz[i]], k_neighbor - 1
+                    )[k_neighbor - 1]
 
-            return dist_knn
+                return dist_knn
 
-        row_nnz = distance_matrix.getnnz(axis=1)
+            row_nnz = distance_matrix.getnnz(axis=1)
 
-        if (row_nnz < self.k_neighbor).any():
-            raise ValueError(
-                f"There are {(row_nnz < self.k_neighbor).sum()} points that "
-                f"do not have at least k_neighbor={self.k_neighbor}."
+            if (row_nnz < self.k_neighbor).any():
+                raise ValueError(
+                    f"There are {(row_nnz < self.k_neighbor).sum()} points that "
+                    f"do not have at least k_neighbor={self.k_neighbor}."
+                )
+
+            return _get_kth_largest_elements_sparse(
+                distance_matrix.data, distance_matrix.indptr, row_nnz, self.k_neighbor,
             )
-
-        return _get_kth_largest_elements_sparse(
-            distance_matrix.data, distance_matrix.indptr, row_nnz, self.k_neighbor,
-        )
+        else:
+            raise TypeError(f"Not supported type {type(distance_matrix)}")
 
     def eval(self, distance_matrix, is_pdist=False, reference_dist_knn=None):
 
@@ -985,16 +1010,14 @@ class ContinuousNNKernel(PCManifoldKernel):
             reference_dist_knn=reference_dist_knn,
         )
 
-        if isinstance(distance_matrix, np.ndarray):
-            dist_knn = np.partition(distance_matrix, self.k_neighbor, axis=-1)[
-                :, self.k_neighbor
-            ]
-        elif isinstance(distance_matrix, scipy.sparse.csr_matrix):
-            dist_knn = self._kth_dist_sparse(distance_matrix)
-        else:
-            raise TypeError(
-                f"type(distance_matrix)={type(distance_matrix)} not supported."
-            )
+        # print("dist_knn:")
+        dist_knn = self._kth_nn_dist(distance_matrix)
+        # print(dist_knn)
+        #
+        # try:
+        #     print(f"distance_matrix.nnz={distance_matrix.nnz}")
+        # except:
+        #     pass
 
         distance_factors = _symmetric_matrix_division(
             distance_matrix,
@@ -1003,6 +1026,16 @@ class ContinuousNNKernel(PCManifoldKernel):
             if reference_dist_knn is not None
             else None,
         )
+
+        # print("distance_factors:")
+        # try:
+        #     print(distance_factors.toarray())
+        #     print(distance_factors.nnz)
+        #
+        # except:
+        #     print(distance_factors)
+
+        # print("------------------------------------------------------")
 
         if isinstance(distance_factors, np.ndarray):
             kernel_matrix = scipy.sparse.csr_matrix(
