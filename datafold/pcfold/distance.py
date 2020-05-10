@@ -133,7 +133,7 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
         From a component-wise distance computation follow the general matrix properties:
 
-        * rectangular matrix with shape (n_samples_Y, n_samples_X)
+        * rectangular matrix of shape (n_samples_Y, n_samples_X)
         * outlier points can lead to zero columns / rows
         """
 
@@ -253,7 +253,7 @@ class BruteForceDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples, n_features)`
+            point cloud of shape `(n_samples, n_features)`
 
         cut_off
             distances larger than `cut_off` are set to zero
@@ -274,7 +274,7 @@ class BruteForceDist(DistanceAlgorithm):
         Returns
         -------
         Union[numpy.ndarray, scipy.sparse.csr_matrix]
-            distance matrix with shape `(n_samples, n_samples)`
+            distance matrix of shape `(n_samples, n_samples)`
         """
         if exact_numeric:
             X = np.array(X)
@@ -304,15 +304,15 @@ class BruteForceDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples_X, n_features_X)`
+            point cloud of shape `(n_samples_X, n_features_X)`
 
         Y
-            point cloud with shape `(n_samples_Y, n_features_Y)`
+            point cloud of shape `(n_samples_Y, n_features_Y)`
 
         Returns
         -------
         Union[numpy.ndarray, scipy.sparse.csr_matrix]
-            distance matrix with shape `(n_samples_Y, n_samples_X)`
+            distance matrix of shape `(n_samples_Y, n_samples_X)`
         """
 
         if exact_numeric:
@@ -388,7 +388,7 @@ class RDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples, n_features)`
+            point cloud of shape `(n_samples, n_features)`
 
         cut_off
             distances (always Euclidean) larger than `cut_off` are set to zero
@@ -399,7 +399,7 @@ class RDist(DistanceAlgorithm):
         Returns
         -------
         scipy.sparse.csr_matrix
-            distance matrix with shape `(n_samples, n_samples)`
+            distance matrix of shape `(n_samples, n_samples)`
         """
 
         max_distance = self._numeric_cut_off(cut_off)
@@ -433,15 +433,15 @@ class RDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples_X, n_features_X)`
+            point cloud of shape `(n_samples_X, n_features_X)`
 
         Y
-            point cloud with shape `(n_samples_Y, n_features_Y)`
+            point cloud of shape `(n_samples_Y, n_features_Y)`
 
         Returns
         -------
         scipy.sparse.csr_matrix
-            distance matrix with shape `(n_samples_Y, n_samples_X)`
+            distance matrix of shape `(n_samples_Y, n_samples_X)`
         """
 
         max_distance = self._numeric_cut_off(cut_off)
@@ -500,7 +500,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples, n_features)`
+            point cloud of shape `(n_samples, n_features)`
 
         cut_off
             larger distances (in Euclidean metric) are set to zero
@@ -511,7 +511,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         Returns
         -------
         scipy.sparse.csr_matrix
-            distance matrix with shape `(n_samples, n_samples)`
+            distance matrix of shape `(n_samples, n_samples)`
         """
 
         # TODO: if necessary there are build_options and compute_options required,
@@ -543,15 +543,15 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples_X, n_features_X)`
+            point cloud of shape `(n_samples_X, n_features_X)`
 
         Y
-            point cloud with shape `(n_samples_Y, n_features_Y)`
+            point cloud of shape `(n_samples_Y, n_features_Y)`
 
         Returns
         -------
         scipy.sparse.csr_matrix
-            distance matrix with shape `(n_samples_Y, n_samples_X)`
+            distance matrix of shape `(n_samples_Y, n_samples_X)`
         """
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)
@@ -604,7 +604,7 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples, n_features)`
+            point cloud of shape `(n_samples, n_features)`
 
         cut_off
             larger distances are set to zero (see
@@ -616,7 +616,7 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         Returns
         -------
         scipy.sparse.csr_matrix
-            distance matrix with shape `(n_samples, n_samples)`
+            distance matrix of shape `(n_samples, n_samples)`
         """
         metric, cut_off = self._map_metric_and_cut_off(cut_off)
 
@@ -650,15 +650,15 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples_X, n_features_X)`
+            point cloud of shape `(n_samples_X, n_features_X)`
 
         Y
-            point cloud with shape `(n_samples_Y, n_features_Y)`
+            point cloud of shape `(n_samples_Y, n_features_Y)`
 
         Returns
         -------
         scipy.sparse.csr_matrix
-            distance matrix with shape `(n_samples_Y, n_samples_X)`
+            distance matrix of shape `(n_samples_Y, n_samples_X)`
         """
         metric, cut_off = self._map_metric_and_cut_off(cut_off)
 
@@ -719,7 +719,7 @@ class GuessOptimalDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples, n_features)`
+            point cloud of shape `(n_samples, n_features)`
 
         cut_off
             larger distances are set to zero
@@ -730,7 +730,7 @@ class GuessOptimalDist(DistanceAlgorithm):
         Returns
         -------
         scipy.sparse.csr_matrix
-            distance matrix with shape `(n_samples, n_samples)`
+            distance matrix of shape `(n_samples, n_samples)`
         """
         return self._guess_optimal_backend(cut_off).pdist(X, cut_off, **backend_options)
 
@@ -748,15 +748,15 @@ class GuessOptimalDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud with shape `(n_samples_X, n_features_X)`
+            point cloud of shape `(n_samples_X, n_features_X)`
 
         Y
-            point cloud with shape `(n_samples_Y, n_features_Y)`
+            point cloud of shape `(n_samples_Y, n_features_Y)`
 
         Returns
         -------
         Union[numpy.ndarray, scipy.sparse.csr_matrix]
-            distance matrix with shape `(n_samples_Y, n_samples_X)`
+            distance matrix of shape `(n_samples_Y, n_samples_X)`
         """
         return self._guess_optimal_backend(cut_off).cdist(
             X, Y, cut_off, **backend_options
@@ -1053,10 +1053,10 @@ def compute_distance_matrix(
     ----------
 
     X
-        point cloud with shape `(n_samples_X, n_features_X)`
+        point cloud of shape `(n_samples_X, n_features_X)`
 
     Y
-        reference point cloud for component-wise computation with shape \
+        reference point cloud for component-wise computation of shape \
         `(n_samples_Y, n_features_Y)`
     
     metric
@@ -1082,8 +1082,8 @@ def compute_distance_matrix(
     Returns
     -------
     Union[numpy.ndarray, scipy.sparse.csr_matrix]
-        distance matrix with shape `(n_samples_X, n_samples_X)` if `Y=None`, \
-        else with shape `(n_samples_Y, n_samples_X)`
+        distance matrix of shape `(n_samples_X, n_samples_X)` if `Y=None`, \
+        else of shape `(n_samples_Y, n_samples_X)`
     """
 
     if not isinstance(X, np.ndarray):

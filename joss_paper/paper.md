@@ -1,163 +1,72 @@
-<!---
-From:
-https://joss.readthedocs.io/en/latest/submitting.html#what-should-my-paper-contain
-
-Your paper should include:
-
-* A list of the authors of the software and their affiliations, using the correct
- format (see the example below).
-* A summary describing the high-level functionality and purpose of the software for a
- diverse, non-specialist audience.
-* A clear Statement of Need that illustrates the research purpose of the software.
-* A list of key references, including to other software addressing related needs.
-* Mention (if applicable) of any past or ongoing research projects using the software
- and recent scholarly publications enabled by it.
-* Acknowledgement of any financial support.
-
-Check compilation of paper here:
-https://whedon.theoj.org/
-
-List of potential reviewers (check out who matches!):
-https://docs.google.com/spreadsheets/d/1PAPRJ63yq9aPC1COLjaQp8mHmEq3rZUzwUYxTulyu78/edit#gid=856801822
-
--->
-
 ---
-title: 'datafold: extract manifold structure in time series and point cloud data'
+title: 'datafold: efficient algorithms for data lying close to non-linear manifolds'
 tags:
-  - Python
-  - manifold assumption
-  - data-driven
-  - dynamical systems
+  - data driven models
+  - manifold 
   - time series
+  - extended dynamic mode decomposition 
+  - dynamical systems
+  - Python
+ 
 authors:
-  - name: Daniel Lehmberg, (TODO: other?)
+  - name: Daniel Lehmberg
     orcid: 0000-0002-4012-5014
     affiliation: "1, 2" # (Multiple affiliations must be quoted)
+  - name: Felix Dietrich
+    orcid: 0000-0002-4012-5014
+    affiliation: 2
+  - name: Gerta Köster 
+    orcid: 0000-0002-4012-5014
+    affiliation: 1
+  - name: Hans-Joachim Bungartz
+    orcid: 0000-0002-4012-5014
+    affiliation: 2
+  
 affiliations:
  - name: Munich University of Applied Sciences
    index: 1
  - name: Technical University of Munich
    index: 2
-date: DD MMMM YYYY
+
+date: 06 May 2020
 bibliography: paper.bib
 ---
 
 # TODO
-* [ ] A statement of need: Do the authors clearly state what problems the software is designed to solve and who the target audience is?
-* [ ] Installation instructions: Is there a clearly-stated list of dependencies? Ideally these should be handled with an automated package management solution.
-* [ ] Example usage: Do the authors include examples of how to use the software (ideally to solve real-world analysis problems).
-* [ ] Functionality documentation: Is the core functionality of the software documented to a satisfactory level (e.g., API method documentation)?
-* [ ] Automated tests: Are there automated tests or manual steps described so that the functionality of the software can be verified?
-* [ ] Community guidelines: Are there clear guidelines for third parties wishing to 1) Contribute to the software 2) Report issues or problems with the software 3) Seek support
+Alt. titles:
 
+* datafold: data-driven models with explicit parametrization of non-linear manifolds
+* datafold: efficient data-driven models for (points/samples) lying near non-linear
+  manifolds
 
 # Summary
 
-The package datafold consists of data-driven algorithms with manifold assumption
-. The often implicit assumption of many machine learning algorithms states that
- available high-dimensional data lies on a manifold with intrinsic lower-dimension. 
- 
-The software architecture has three layers
- 
- * pcfold: data structures TSCDataFrame and PCManifold (embedded with kernel)
- * dynfold: algorithms to extract dynamics from time series or parametrize underlying
-  geometrical structures from data
- * appfold: algorithms characterized by combining multiple algorithms   
- 
-* [ ]  clear description of the high-level functionality and purpose of the software for a diverse, non-specialist audience been provided?
+Ever increasing data availability has changed the way data is analyzed and interpreted in many scientific fields. While the (hidden) complex systems being analyzed remain the same, data measurements increase in both quantity and dimension. The main drivers of increasing data availability are larger (computer) simulation capabilities and increasingly versatile and sensors. Contrasting with an equation-driven workflow, a scientist can use data-driven models to analyze a wider range of systems that may also involve systems with unknown or intractable equations. The models can be used in a variety of data-driven scenarios, such as enriching the analysis of unknown systems, or merely serve as an equation-free surrogate by providing fast, albeit approximate, responses for unseen data. 
 
-High-level functionality: 
-- build data-driven non-parametric models from data (time series or static). This
-  covers the entire machine learning pipeline. From low-level data structures (time
-  -series), to manifold learning algorithms and high-level algorithms to extract dynamics
-  from data. Furthermore: model selection with cross validation (incl. time series)
-- available time series data can be high-dimensional and single or collection.
-- geometrical perspective
-- from operator-theory
-- high-dimensional data
-- decompose time series data into spatial-temporal using algorithms from operator theory 
-- data-driven representation in modes of dynamical systems
-- operator theory: representing (non-linear) flows
-- high vs. low spatial dimension -> Takens      
+However, expanding datasets also create challenges throughout the analysis workflow from processing, extracting, to interpreting data. On the other hand, new data often does not provide completely new and uncorrelated information to existing data. One way to handle this contradiction is to understand and parametrize the intrinsic data geometry. This structure is often of much lower dimension than the ambient data space, and finding a suitable set of coordinates can reduce the dataset to its intrinsic data geometry. We refer to this geometric structure encoded in the data as a "manifold". In mathematical terms, a manifold is a topological space that is locally homeomorphic to the Euclidian space. Because of the *local* property, finding a *global* parametrization of a (smooth) manifold, therefore requires accounting for non-linearity (curvature). The well-known manifold hypothesis states that such manifolds underlie many observations and processes, including time-dependent systems.
 
-* [ ] A statement of need: Do the authors clearly state what problems the software is 
-designed to solve and who the target audience is?
+In general, all data-driven models presume some pattern or structure in the available data. Many successful machine learning algorithms adapt to this underlying structure to solve tasks like regression or classification. Models can be distinguished and classified with many criteria, for example, with respect to data assumptions or application context (e.g., `[@bishop16:2006]`). In this work, we separate models based on whether the model includes a parametrization of the learnt data manifold. 
 
-Problems to solve: 
-- data analysis extract and create reduced representations of coherent dynamical patterns
- hidden in high-dimensional data 
-- Construct data-driven models from non-linear, high-dimensional time-series data are
-   not covered with manifold assumption assumption. Highlighting the EDMD which has a
-- combine different levels of extracting dynamics into one code base (framework)
-- EDMD and EDMDCV provide a high-level interface, where a variable number of
-transformation (and back-transformations) are handled
+*datafold* is a Python package providing **data**-driven models with an *explicit* mani-**fold** parametrization. The explicit parametrization allows prior knowledge of a system and its problem-specific domain to be included, such as the (partially) known governing equation terms of a system `@williams4:2015, @brunton18:2016]` or the proximity between points in the dataset `[@coifman8:2006]`. The software provides a set of models and data structures, which are all integrated in a software architecture with clear modularization (the model API is used as a template from the `scikit-learn` project, `@pedregosa17:2011`). The software design of datafold can accomodate models that range from higher level tasks (e.g., system identification, `@williams4:2015`) to lower level algorithms (e.g., encoding proximity information on a manifold `[@coifman8:2006]`). *datafold* provides an open-source software platform with a design that reflects a workflow hierarchy: from low level data structures and algorithms to high level meta models intended to solve complex machine learning tasks. The modularity in *datafold* mirrors both a high flexibility to test model configurations and openness to new model implementations with a clear and isolated scope. We want to support active research in the scope of data-driven analysis with manifold context and target students, researchers and experienced practitioners from different fields for dataset analysis.
 
-Target audience: data scientists 
+In *datafold* we address data static point clouds and temporal ordered time series data.
 
-* [ ] State of the field: Do the authors describe how this software compares to other commonly-used packages?
+![(Left) Point cloud of embedded hand written digits between 0 and 5. Each point has 64 dimensions with each dimension being a pixel of an an 8 x 8 image. (Right) Conceptual illustration of a three dimensional time series forming a phase space with geometrical structure. The time series start in the `(x,y)` plane and end in the `z`-axis \label{fig:manifold}](manifold_figure.png)
 
-pandas: TSCDataFrame subclasses from pandas DataFrame 
-numpy: PCManifold subclasses from np.ndarray
-scikit-learn:
-  - Follow API of building data-driven models 
-  - Uses many internals and BaseEstimator
-  - Generalizes to time series data structure by wrapping 
- 
-Similar projects (and separation of scope):
- - pydmd
-    - does implement variants of the DMD (the dictionary handling has to be done by user)
-    - supports only single time series (not multiple)
-    - follows also the scikit-learn API
-    - a wrapper is used to have access to the DMD models (with the above stated
-     restriction) 
- 
-  - pysindy
-    - specializes on the SINDy (sparse regression) method
-    - supports also 
-  
-  - forked code from this project https://github.com/jmbr/diffusion-maps/tree/master
-  /diffusion_maps 
-    - changed to scikit-learn API
-    - improved performance speed
-    - testing against forked code
-  
-* [ ] Quality of writing: Is the paper well written (i.e., it does not require editing for structure, language, or writing quality)?
+## 1. Point cloud data
 
-* [ ] References: Is the list of references complete, and is everything cited appropriately that should be cited (e.g., papers, datasets, software)? Do references in the text use the proper citation syntax?
-
-# Statement of Need
-* [ ] Do the authors clearly state what problems the software is designed to solve and who
- the target audience is?
-
-Software is designed to learn models from spatial-temporal data with manifold
- assumption and algorithms
- based on operator-theory. 
- 
-Target audience: data scientists dealing with temporal data. 
+High-dimensional and unordered point clouds are often directly connected to the "manifold assumption", which states that the data is assumed to lie close to an intrinsic lower dimensional manifold. Our software aims to find a low dimensional parametrization (embedding) of the manifold. In a machine learning context this is also referred to as "non-linear unsupervised learning" or shorter "manifold learning". Often the models are endowed with a kernel which encodes the proximity between data with the aim to preserve local structures. Examples are the general "Kernel Principal Component Analysis" `[@bengio9:2004]`, "Local Linear Embedding" `[@belkin14:2003]`, or "Hessian Eigenmaps" `[@donoho15:2003]`. A variety of manifold learning models already exist in the `scikit-learn` Python package. In addition to these, *datafold* provides an efficient implementation of the "Diffusion Maps" model `[@coifman8:2006]`. The model includes an optional sparse kernel matrix representation that allows datasets to be scaled that comprise an increasing number of points. In addition to dimension reduction, with "Diffusion Maps" a user can approximate the Laplace-Beltrami operator, Fokker-Plank operator or the graph Laplacian. *datafold* also provides functionality for follow up aspects of non-linear manifold learning. Important issues are estimating the kernel scale parameters to describe the locality of points in a dataset and extending the embedding to unseen data. The latter refers to the image and/or pre-image mapping between the original and latent space (e.g., see analysis in `[@chiavazzo19:2014]`). These so-called "out-of-sample" extension interpolate general function values on manifold point clouds and, therefore, have to handle large input data dimensions `[@coifman7:2006; @fernandez10:2014; @rabin6:2012]`.
 
 
-# Examples 
+## 2. Time series data
 
-* [ ] Clear up DMDbook example
-* [ ] move limit cycle to tutorial
-* [ ] move method_examples (Yannis group) to tutorials
-* [ ] Make "example", "tutorial", "shocase"? 
-* [ ] How to manage data? Keep separate from Repo 
-
-
-# A list of key references, including to other software addressing related needs.
-
-* [ ] pysindy
-compare to EDMD implementation 
-* [ ] pydmd
+As a second type of data, *datafold* targets time series (and collections thereof). In this case a data-driven model aims to fit and generalize the underlying dynamics to perform prediction or regression. Usually, the phase space of the dynamical system, underlying the time series observations, is assumed to be a manifold (see a conceptual illustration in \autoref{fig:manifold}). *datafold* focuses on the "Dynamic Mode Decomposition" (DMD) `[@schmid13:2010; @tu3:2014; @kutz12:2016]` and the "Extended Dynamic Mode Decomposition" (E-DMD) `[@williams4:2015]`. DMD linearly decomposes the available time series data into spatio-temporal components, which then define a linear dynamical system. Many DMD based variants address the generally non-linear underlying dynamical system. This is usually done by changing the time series coordinates in a step before DMD is applied `[@williams4:2015; @champion2:2019; @le0:2017; @giannakis1:2019]`. The justification of this workflow is covered by operator theory and functional analysis, specifically the Koopman operator. In practice, the E-DMD approximates the Koopman operator with a matrix, based on a finite set of functions evaluated on the available data, the so-called "dictionary". Finding a good choice of dictionary is comparable to the machine learning task of "model selection". One main objective in the model implementation of E-DMD included in *datafold* is therefore a great flexibility in setting up a data processing pipeline.
 
 
 # Acknowledgements
 
-Daniel Lehmberg 
-is supported by the German Research Foundation (DFG), grant no. KO 5257/3-1. DL thanks
- the research office (FORWIN) of Munich University of Applied Sciences and CeDoSIA of
-  TUM Graduate School at the Technical University of Munich for their support.
+Daniel Lehmberg (DL) is supported by the German Research Foundation (DFG), grant no. KO 5257/3-1. DL thanks the research office (FORWIN) of Munich University of Applied Sciences and CeDoSIA of TUM Graduate School at the Technical University of Munich for their support.
 
-# References
+TODO: Others!
+
+

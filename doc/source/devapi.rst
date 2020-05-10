@@ -48,4 +48,4 @@ Modules
     :skip: NearestNeighbors,apply_continuous_nearest_neighbor,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,warn_experimental_function,warn_experimental_function,Sequence,Type
 
 .. automodapi:: datafold.pcfold.eigsolver
-    :skip: Callable,sort_eigenpairs,is_symmetric_matrix
+    :skip: Callable,sort_eigenpairs,is_symmetric_matrix, Tuple

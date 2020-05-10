@@ -25,36 +25,35 @@ class GeometricHarmonicsInterpolator(
     Parameters
     ----------
     epsilon
-        Bandwidth/scale of diffusion map kernel (see :py:class:`DmapKernelFixed`).
+        Bandwidth (scale) of internal kernel :class:`.DmapKernelFixed`.
 
     n_eigenpairs
         Number of eigenpairs (geometric harmonics) to compute from computed diffusion
         kernel matrix.
 
     cut_off
-        Distance cut off, kernel values with a corresponding larger Euclidean distance
-        are set to zero. Lower values increases the sparsity of kernel matrices and
-        faster computation of eigenpairs at the cost of accuracy.
+        Distance cut off, distance values with a larger Euclidean distance
+        are set to zero. Lower cut off values increase the sparsity of
+        kernel matrices and can result in faster computation of eigenpairs (which can
+        be at the cost accuracy).
 
     is_stochastic
         If True the diffusion kernel matrix is normalized (stochastic rows).
 
     alpha
-        Re-normalization parameter. Set to `alpha=0` for graph laplacian, `alpha=0.5`
-        Fokker-Plank and `alpha=1` for Laplace-Beltrami (`is_stochastic=True` in all
-        cases).
+        Re-normalization parameter. ``alpha=1`` corrects the sampling density in the
+        data.
 
     symmetrize_kernel
-        If True a conjugate transformation of non-symmetric kernel matrices is performed.
-        This improves numerical stability and allows to use eigensolver algorithms
-        designed for Hermitian matrices. If kernel is symmetric already (if
-        `is_stochastic=False`, then the parameter has no effect).
+        If True a conjugate transformation is performed if the kernel matrix is
+        non-symmetric. This improves numerical stability and allows eigensolver
+        algorithms designed for Hermitian matrices to be used. If kernel is symmetric
+        already (`is_stochastic=False`), then the parameter has no effect.
 
     dist_backend
         Backend of distance matrix computation. Defaults to `guess_optimal`,
-        which selects the backend based on the selection of ``cut_off`` and the
-        available algorithms. See also
-        :py:class:`.DistanceAlgorithm`.
+        which selects the backend based on parameter ``cut_off`` and the
+        available distance matrix algorithms. See also :class:`.DistanceAlgorithm`.
 
     dist_backend_kwargs,
         Keyword arguments handled to distance matrix backend.
@@ -63,7 +62,8 @@ class GeometricHarmonicsInterpolator(
     ----------
 
     X_: PCManifold
-        Training data during fit, is required for out-of-sample interpolations.
+        Training data during fit. The data is required to perform out-of-sample
+        interpolations. Equipped with kernel :py:class:`DmapKernelFixed`.
 
     y_: numpy.ndarray
         Target function values, can be multi-dimensional.
@@ -77,9 +77,6 @@ class GeometricHarmonicsInterpolator(
 
     kernel_matrix_: numpy.ndarray
         Kernel matrix computed during fit.
-
-        .. note::
-            Currently, the kernel matrix is only used for testing. It may be removed.
 
     References
     ----------
@@ -171,20 +168,21 @@ class GeometricHarmonicsInterpolator(
     def _get_tags(self):
         _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
         _tags["multioutput"] = True
+        _tags["poor_score"] = True  # the default score is negative (RMSE error)
         return _tags
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Evaluate model at the given points.
+        """Evaluate model for out-of-sample points.
 
         Parameters
         ----------
         X
-            Out-of-sample points to interpolate with shape `(n_samples, n_features)`.
+            Out-of-sample of shape `(n_samples, n_features)`.
 
         Returns
         -------
         numpy.ndarray
-            interpolated function values with shape `(n_samples, n_targets)`
+            interpolated function values of shape `(n_samples, n_targets)`
         """
 
         check_is_fitted(
@@ -214,14 +212,14 @@ class GeometricHarmonicsInterpolator(
         return np.squeeze(kernel_matrix @ self._aux)
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "GeometricHarmonicsInterpolator":
-        """Fit model
+        """Fit model.
 
         Parameters
         ----------
         X
-            Training samples with shape `(n_samples, n_features)`.
+            Training samples of shape `(n_samples, n_features)`.
         y
-            Target function values with shape `(n_samples, n_targets)`
+            Target function values of shape `(n_samples, n_targets)`
 
         Returns
         -------
@@ -272,7 +270,7 @@ class GeometricHarmonicsInterpolator(
     def gradient(self, X: np.ndarray, vcol: Optional[int] = None) -> np.ndarray:
         """Evaluate gradient of interpolator at the given points.
 
-        .. note::
+        .. warning::
             This code is known to have a bug. (see gitlab issue #16).
             Contributions are welcome.
 
@@ -345,23 +343,28 @@ class GeometricHarmonicsInterpolator(
         sample_weight: Optional[np.ndarray] = None,
         multioutput: str = "raw_values",
     ) -> float:
-        """Score interpolation model with mean squared error metric.
+        """Score interpolation model with negative mean squared error metric.
+
+        .. note::
+            The mean squared error is negated to comply with "higher score is better" from
+            scikit-learn.
 
         Parameters
         ----------
-        X : numpy.ndarray of shape (n_samples, n_features)
-            Point cloud to evaluate the model at.
+        X
+            Point cloud of shape `(n_samples, n_features)` to evaluate the model at.
 
-        y : numpy.ndarray (n_samples, n_target_values)
-            True target values to score predicted values against.
+        y
+            True target values of shape `(n_samples, n_target_values)` to score
+            predicted values against.
 
-        sample_weight : array-like of shape (n_samples,), optional
-            Sample weights.
+        sample_weight
+            Sample weights of shape (n_samples,)
 
-        multioutput : string in ['raw_values', 'uniform_average'] or array-like of \
-        shape (n_outputs)
-            Defines aggregating of multiple output values.
-            Array-like value defines weights used to average errors.
+        multioutput
+            String in `['raw_values', 'uniform_average']` to define aggregating of
+            multiple output values, or ``numpy.ndarray`` of shape `(n_outputs,)`
+            defines weights used to average errors.
 
             "raw_values":
                 Returns a full set of errors in case of multioutput input.
@@ -387,7 +390,7 @@ class GeometricHarmonicsInterpolator(
 
         # root mean squared error (NOTE: if upgrading scikit learn > 0.22 , the
         # mean_squared_error supports another input to get the RMSE
-        return np.sqrt(score)
+        return -1 * np.sqrt(score)
 
 
 @warn_experimental_class
@@ -512,12 +515,12 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
 
 
 class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
-    """Laplacian pyramids interpolation of function values on a manifold with
+    """Laplacian pyramids interpolation of function values on a data manifold with
     multi-scale kernels.
 
-    The implementation is generalized to vector valued target functions.
-    The kernel scales are decreased (i.e. a new kernel with lower scale) until each
-    corresponding stopping criteria is reached (based on residual).
+    The implementation is generalized to vector valued targets. The kernel scales are
+    decreased (i.e. a new kernel with lower scale) until each corresponding stopping
+    criteria is reached (based on residual).
 
     Parameters
     ----------
@@ -534,8 +537,8 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         smaller than tolerance. If ``auto_adaptive=False`` a parameter must be provided.
 
     auto_adaptive
-        If True decreasing the kernel scale terminates based on LOOCV (leave
-        one out cross validation) estimation for each iteration.
+        If True, decreasing the kernel scale terminates based on LOOCV (leave
+        one out cross validation) estimation in each iteration.
 
     alpha
         Parameter handled to the diffusion maps kernel used (see
@@ -941,12 +944,12 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         Parameters
         ----------
         X: numpy.ndarray
-            Out-of-sample data with shape `(n_samples, n_features)`.
+            Out-of-sample data of shape `(n_samples, n_features)`.
 
         Returns
         -------
         numpy.ndarray
-            interpolated function values with shape `(n_samples, n_targets_)`
+            interpolated function values of shape `(n_samples, n_targets_)`
         """
 
         X, _ = self._validate(X)

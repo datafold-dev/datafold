@@ -29,14 +29,30 @@ InitialConditionType = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
 
 
 class TSCBaseMixIn:
+    """Class to provide functionality internally required in the MixIn's provided in
+    *datafold*.
+
+    See Also
+    --------
+
+    :class:`.TSCTransformerMixIn`
+
+    :class:`.TSCPredictMixIn`
+    """
+
     def _strictly_pandas_df(self, df):
-        # This returns False for subclasses (TSCDataFrame)
+        """Check if the type is strcitly a pandas.Dataframe (i.e., is False for
+        TSCDataFrame).
+        """
         return type(df) == pd.DataFrame
 
     def _has_feature_names(self, _obj):
+        # True, for pandas.DataFrame or TSCDataFrame
         return isinstance(_obj, pd.DataFrame)
 
     def _X_to_numpy(self, X):
+        """ Returns a numpy array of the data. 
+        """
         if self._has_feature_names(X):
             X = X.to_numpy()
             # a row in a df is always a single sample (which requires to be
@@ -63,8 +79,8 @@ class TSCBaseMixIn:
         validate_array_kwargs=None,
         validate_tsc_kwargs=None,
     ):
-        """Provides a general function to check data -- can be overwritten if an
-        implementation requires different checks."""
+        """Provides a general function to validate data -- can be overwritten if a
+        concrete implementation requires different checks."""
 
         if validate_array_kwargs is None:
             validate_array_kwargs = {}
@@ -80,7 +96,8 @@ class TSCBaseMixIn:
 
         if not isinstance(X, TSCDataFrame):
             # Currently, a pd.DataFrame is treated like numpy data
-            #  -- there is no time required such as in TSCDataFrame
+            #  -- there is no assumption of the content in on the index (for
+            #  TSCDataFrame it is time series ID and time)
 
             validate_tsc_kwargs = {}  # no need to check
 
@@ -152,22 +169,26 @@ class TSCBaseMixIn:
 
 
 class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
-    """Provides infrastructure for (optional) time series transformations.
+    """Mixin to provide functionality for  point clouds and time series transformations.
 
-    Allows to transform data with numpy.ndarray or pandas.DataFrame (including
-    TSCDataFrame). Usually, the input type is the output type.
+    Generally, the following input/output types are supported:
+
+    * :class:`numpy.ndarray`
+    * :class:`pandas.DataFrame` (no restriction on index and columns format)
+    * :class:`TSCDataFrame` as a special case for time series collections
 
     Parameters
     ----------
 
     features_in_: Tuple[int, pandas.Index]
-        Number of features during fit and corresponding feature names (intended to
-        be stored during `fit`). Suitable to validate intput data.
+        Number of features during fit and corresponding feature names. The attribute
+        should be set in during `fit`. Set feature names in `inverse_transform` and
+        validate input in `transform`.
 
     features_out_: Tuple[int, pandas.Index]
-        Number of features after trasnform and corresponding feature names (intended to
-        be stored during `fit`). Suitable to set feature names for transform and
-        validate input for `inverse_transform`.
+        Number of features and corresponding feature names after transformation.
+        The attribute should be set in during `fit`. Set feature names in
+        `transform` and validate input in `inverse_transform`.
 
     """
 
@@ -229,7 +250,7 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
         if not self._has_feature_names(X) or self.features_out_[1] is None:
             # Either
-            # * now X has no feature names, or
+            # * X has no feature names, or
             # * during fit X had no feature names given.
             # --> Only check if shape is correct and trust user with the rest
             if self.features_in_[0] != X.shape[1]:
@@ -239,7 +260,7 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 )
         else:  # self._has_feature_names(X)
             # Now X has features and during fit features were given. So now we can
-            # check if both feature names match:
+            # check if feature names of X match with data during fit:
 
             _check_features: Tuple[int, pd.Index]
 
@@ -260,8 +281,25 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 pdtest.assert_index_equal(right=_check_features[1], left=X.columns)
 
     def _same_type_X(
-        self, X: TransformType, values: np.ndarray, set_columns: pd.Index
+        self, X: TransformType, values: np.ndarray, feature_names: pd.Index
     ) -> TransformType:
+        """Chooses the same type for values than with X.
+
+        Parameters
+        ----------
+        X
+            object from which the type will be inferred
+
+        values
+            data to transform in the same format as X
+
+        feature_names
+            feature names in case X is a :class:`pandas.DataFrame`
+
+        Returns
+        -------
+
+        """
 
         _type = type(X)
 
@@ -270,13 +308,13 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
             # check for the special case, then for the more general case.
 
             return TSCDataFrame.from_same_indices_as(
-                X, values=np.asarray(values), except_columns=set_columns
+                X, values=np.asarray(values), except_columns=feature_names
             )
         elif isinstance(X, pd.DataFrame):
-            return pd.DataFrame(values, index=X.index, columns=set_columns)
+            return pd.DataFrame(values, index=X.index, columns=feature_names)
         else:
             try:
-                # try to view as numpy.array
+                # last resort: try to view as numpy.array
                 values = np.asarray(values)
             except Exception:
                 raise TypeError(f"input type {type(X)} is not supported.")
@@ -285,23 +323,23 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
 
 class TSCPredictMixIn(TSCBaseMixIn):
-    """Methods and functionality to provide time series prediction.
+    """Mixin to provide functionality for time series models.
 
     Parameters
     ----------
 
     features_in_: Tuple[int, pandas.Index]
-        Number of features during fit and corresponding feature names (intended to
-        be stored during `fit`). Suitable to test or create initial conditions.
+        Number of features during fit and corresponding feature names. The attribute
+        should be set during `fit` and used t validate during `predict`.
 
     time_values_in_: Tuple[int, numpy.ndarray]
-        Number of time values and array with all actual time values in at least on time
-        series (intended to be stored during `fit`). This allows to check for
-        time extrapolation.
+        Number of time values and array with all time values during fit. If a time
+        value appears at least in one time series it appears in time values. The
+        attribute should be set during `fit`, can be used for default time values and
+        allows reasonable predictions and time horizons to be validated.
 
     dt_
-        time delta during fit
-
+        Time sampling in the data during fit.
     """
 
     _cls_feature_attrs = ["features_in_", "time_values_in_", "dt_"]
@@ -433,6 +471,12 @@ class TSCPredictMixIn(TSCBaseMixIn):
 
 
 class DmapKernelMethod(BaseEstimator):
+    """Base class for methods that make use of the DmapKernelFixed.
+
+    .. note::
+        This class may be removed soon.
+    """
+
     def __init__(
         self,
         epsilon: float,

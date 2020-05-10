@@ -87,32 +87,40 @@ from datafold.utils.general import is_integer
 
 class EDMD(Pipeline, TSCPredictMixIn):
     """Extended Dynamic Mode Decomposition model (EDMD) to approximate the Koopman
-    operator to learn a dynamical system from time series data (transformed with
-    dictionary of observable functions).
+    operator with a matrix.
+
+    The model is trained on time series collection data to learn a dynamical system.
+    THe implementation allows to set up a dictionary that contains a flexible number
+    and choice of models that transform the available data before it is decomposed with a
+    DMD model (this is where the Koopman matrix is located).
+
+    In the following the *original* data refers to the data available to the user, the
+    time series transformed with the dictionary methods are in the *dictionary space*.
+
     ...
 
     Parameters
     ----------
     dict_steps
-        `(string identifier, model)` of transform models. Defines a transformation
-        pipeline in which the original time series data is executed in same order as in
-        list) are the observable functions. All models in the list must be able to deal
-        with time series collection data.
+        List with `(string_identifier, model)` of models to transform the data. The
+        list defines the transformation pipeline and order of execution. All models in
+        the list must be able to handle :class:`.TSCDataFrame` as input and output.
 
     dmd_model
-        The final estimator, a DMD based model, to predict time series (in the
-        dictionary space). Approximates the Koopman matrix in observable space.
+        The final estimator, a DMD variant, to predict time series (in the
+        dictionary space). Approximates the Koopman matrix in dictionary space.
 
     include_id_state
-        If True the original time series states are added to the dictionary (without
-        any transformations). After the time series are created in the observable
-        space, the mapping back to the original space is easier (at the cost of a
-        larger dictionary dimension) and allows for transformer in the dictionary that
-        do not provide an ``inverse_transform``.
+        If True the original time series samples are added to the dictionary (without
+        any transformations), after the time series are created in the dictionary
+        space. With this option enabled, the mapping back to the original space is
+        easier (at the cost of a larger dictionary dimension) and allows
+        transformer in the dictionary that do not provide an ``inverse_transform`` to
+        be included.
 
         .. note::
-            The final dictionary TSCDataFrame must not contain any feature names of the
-            original features.
+            The final dictionary :class:`TSCDataFrame` must not contain any feature names
+            of the original features.
 
     memory: :class:`Optional[None, str, object]`, :class:`object` with the \
     `joblib.Memory` interface
@@ -303,19 +311,19 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return X
 
     def fit(self, X: TimePredictType, y=None, **fit_params) -> "EDMD":
-        r"""Train EDMD model.
+        r"""Fit the EDMD model.
 
-        Fit all the transforms one after the other and transform the
-        data, then fit the transformed data using the DMD model.
+        Internally calls `fit_transform` of all transform methods in the dictionary (in
+        same order) and then calls `fits` the selected DMD model (estimator).
 
         Parameters
         ----------
         X
-            Training data. Must fulfill input requirements of first step of the
+            Training data. Must fulfill input requirements of first `dict_step` in the
             pipeline.
 
         y : None
-            Ignored parameter.
+            ignored
 
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
@@ -330,7 +338,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Raises
         ------
         TSCException
-            Time series collection restrictions in **X**: (1) time delta must be constant
+            Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all values must be finite (no `NaN` or `inf`)
         """
         self._validate_data(
@@ -360,31 +368,37 @@ class EDMD(Pipeline, TSCPredictMixIn):
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ):
-        """Perform dictionary transformations on initial condition, predict
-        time series with the final estimator (DMD model) for requested time values, and
-        map the time series states' back to original state.
+        """Carry out predictions with initial condition.
+
+        The internal prediction steps:
+
+        1. Perform transformations based ont the dictionary on initial condition input.
+        2. With the initial condition in the dictionary space the DMD model evolves the
+           states into the future for the predicitons.
+        3. Map the predicted dictionary time series states' back to the original state.
 
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            Initial conditions for prediction.
+            Initial conditions for prediction. The input type depends on the number of
+            samples ``n_samples_ic_`` that are required for an initial condition:
 
             * ``n_samples_ic_ = 1`` a :class:`DataFrame` or `ndarray` is sufficient (per \
-            row one initial condition)
+              row one initial condition)
             
             * ``n_samples_ic_ > 1`` a :py:class:`TSCDataFrame` is required with each \
-            initial condition being a time series of ``n_samples_ic_`` identical time \
-            values.
+              initial condition being a time series of ``n_samples_ic_`` identical time \
+              values.
 
-            Must fulfill input requirements of first step of the pipeline.
+            The input must fulfill input requirements of first step of the pipeline.
 
-        time_values: array_like, optional
-            Time values to evaluate the dynamical system, for each initial condition.
-            Defaults to time values contained in training data.
+        time_values
+            Time values to evaluate the model at for each initial condition.
+            Defaults to time values contained in the data available during ``fit``. The
+            values sohould be in order and must be non-negative.
 
         **predict_params: Dict[str, object]
-            Parameters to the ``predict`` called at the end of all
-            transformations in the pipeline.
+            Keyword arguments handled to the ``predict`` method of the DMD model.
 
         Returns
         -------
@@ -394,9 +408,9 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Raises
         ------
         TSCException
-            Time series collection restrictions in **X**: (1) same (constant) time
-            delta as during fit (2) all time series must have identical time values
-            (3) all values must be finite (no `NaN` or `inf`)
+            Time series collection restrictions in `X`: (1) same (constant) time delta as
+            during fit (2) all time series must have identical
+            time values (3) all values must be finite (no `NaN` or `inf`)
         """
 
         check_is_fitted(self)
@@ -435,7 +449,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return X_ts
 
     def reconstruct(self, X: TSCDataFrame) -> TSCDataFrame:
-        """Reconstruct existing time series collection (original space).
+        """Reconstruct existing time series collection.
 
         Extract the same initial states from the time series in the collection and
         predict the other states with the model at the same time values.
@@ -556,7 +570,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def score(
         self, X: TSCDataFrame, y=None, sample_weight: Optional[np.ndarray] = None
     ):
-        """Apply transforms, and score with the final estimator
+        """Reconstruct the time series collection and score the reconstruction with the
+        original data.
 
         Parameters
         ----------
@@ -569,7 +584,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         sample_weight
             If not None, this argument is passed as ``sample_weight`` keyword
-            argument to the ``score`` method set up.
+            argument to the internal ``score`` method.
 
         Returns
         -------
@@ -579,7 +594,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Raises
         ------
         TSCException
-            Time series collection restrictions in **X**: (1) time delta must be constant
+            Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all values must be finite (no `NaN` or `inf`)
         """
 
@@ -733,17 +748,15 @@ def _fit_and_score_edmd(
 
 
 class EDMDCV(GridSearchCV, TSCPredictMixIn):
-    """Exhaustive search over specified parameter values for an :class:`EDMD` model.
-
-    The parameters of the estimator used to apply these methods are optimized
-    by cross-validated grid-search over a parameter grid.
+    """Exhaustive parameter search over specified grid for a :class:`EDMD` model and
+    cross-validation.
 
     ...
 
     Parameters
     ----------
     estimator
-        EDMD to carry out search the parameter space with. Either use the default ``score``
+        Model to be optimized. Either use the default ``score``
         function, or ``scoring`` must be passed.
 
     param_grid
@@ -767,6 +780,9 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
         See :ref:`multimetric_grid_search` for an example.
 
         If None, the estimator's score method is used.
+
+        .. warning::
+            The multimetric optimization is experimental. Please use with care.
 
     n_jobs : int or None, optional (default=None)
         Number of jobs to run in parallel.
@@ -836,8 +852,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
 
     return_train_score : :class:`bool`
         If ``False``, the ``cv_results_`` attribute will not include training
-        scores.
-        Computing training scores is used to get insights on how different
+        scores. Computing training scores is used to get insights on how different
         parameter settings impact the overfitting/underfitting trade-off.
         However computing the scores on the training set can be computationally
         expensive and is not strictly required to select the parameters that
@@ -848,7 +863,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
 
     cv_results_ : dict of numpy (masked) ndarrays
         A dict with keys as column headers and values as columns, that can be
-        imported into a pandas ``DataFrame``.
+        imported into a ``pandas.DataFrame``.
         For instance the below given table
 
         +------------+-----------+------------+-----------------+---+---------+
@@ -950,7 +965,6 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
     this case is to set `pre_dispatch`. Then, the memory is copied only
     `pre_dispatch` many times. A reasonable value for `pre_dispatch` is `2 *
     n_jobs`.
-
 
     """
 
