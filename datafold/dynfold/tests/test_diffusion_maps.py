@@ -368,6 +368,109 @@ class DiffusionMapsTest(unittest.TestCase):
             atol=1e-15,
         )
 
+    def test_cknn_kernel(self):
+        import datafold.pcfold as pfold
+        from time import time
+        import datafold.utils
+
+        k_neighbor = 15
+        delta = 1
+
+        num_samples = 500
+        xmin, ymin = -2, -1
+        width, height = 4, 2
+        random_state = 1
+
+        data = make_strip(xmin, ymin, width, height, num_samples)
+
+        t0 = time()
+        pcm = pfold.PCManifold(data)
+        pcm.optimize_parameters()
+        pcm._dist_params = {"kmin": k_neighbor + 1}
+
+        t1 = time()
+        cknn_kernel = pfold.kernels.ContinuousNNKernel(
+            k_neighbor=k_neighbor, delta=delta
+        )
+        k, distance = cknn_kernel(
+            pcm,
+            dist_cut_off=pcm.cut_off,
+            dist_backend="rdist",
+            dist_backend_kwargs={"kmin": k_neighbor + 1},
+        )
+        t2 = time()
+
+        dmap = DiffusionMaps(n_eigenpairs=10, cut_off=pcm.cut_off)
+        dmap._kernel = cknn_kernel
+        dmap.fit(pcm)
+
+        t3 = time()
+
+        print(f"kernel has {k.nnz/k.shape[0]} neighbors per row, on {k.shape[0]} rows")
+        print(f"pcm: {t1-t0}, cknn kernel: {t2-t1}, dmap: {t3-t2}")
+
+    def test_speed(self):
+        import datafold.pcfold as pfold
+        from time import time
+        import datafold.utils
+
+        num_samples = 15000
+        xmin, ymin = -2, -1
+        width, height = 4, 2
+        random_state = 1
+
+        data = make_strip(xmin, ymin, width, height, num_samples)
+        rng = np.random.default_rng(random_state)
+
+        n_large_points = int(15000)
+        L1, L2 = 4, 3  # width and height of the rectangle
+        data = rng.uniform(
+            low=(-L1 / 2, -L2 / 2), high=(L1 / 2, L2 / 2), size=(n_large_points, 2)
+        )
+
+        pcm = pfold.PCManifold(data)
+        pcm.optimize_parameters()
+
+        setting = {
+            "epsilon": pcm.kernel.epsilon,
+            "cut_off": pcm.cut_off,
+            "n_eigenpairs": 5,
+            "is_stochastic": True,
+            "alpha": 1,
+            "symmetrize_kernel": True,
+            "dist_backend": "scipy.kdtree",
+            "dist_backend_kwargs": {},
+        }
+
+        t0 = time()
+        dmap_embed = DiffusionMaps(**setting)
+
+        t1 = time()
+        dmap_embed.fit(data)
+        t2 = time()
+        (
+            kernel_matrix_,
+            _basis_change_matrix,
+            _row_sums_alpha,
+        ) = dmap_embed.X_.compute_kernel_matrix()
+        t22 = time()
+        solver_kwargs = {
+            "k": setting["n_eigenpairs"],
+            "which": "LM",
+            "v0": np.ones(data.shape[0]),
+            "tol": 1e-14,
+        }
+        evals, evecs = scipy.sparse.linalg.eigsh(
+            dmap_embed.kernel_matrix_, **solver_kwargs
+        )
+        t3 = time()
+
+        print(
+            f"kernel+eigsh: {t22-t2+t3-t2}, fit: {t2-t1}, kernel only: {t22-t2}, eigsh: {t3-t2}"
+        )
+
+        return 1
+
 
 class DiffusionMapsLegacyTest(unittest.TestCase):
     """We want to produce exactly the same results as the forked DMAP repository. These
@@ -716,6 +819,11 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.ERROR, format="%(message)s")
 
     # Comment in to run/debug specific tests
+
+    t = DiffusionMapsTest()
+    t.setUp()
+    t.test_cknn_kernel()
+    exit()
 
     # t = DiffusionMapsLegacyTest()
     # t.setUp()

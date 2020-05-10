@@ -378,7 +378,7 @@ class RDist(DistanceAlgorithm):
         return max_distance
 
     def _get_dist_options(self):
-        return {"strict_distance": True, "max_incr_radius": 0, "kmin": 0}
+        return {"max_incr_radius": 0, "kmin": 0}
 
     def pdist(
         self, X: np.ndarray, cut_off: Optional[float] = None, **backend_options
