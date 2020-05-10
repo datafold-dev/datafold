@@ -446,7 +446,7 @@ class TSCMetric(object):
 
 
 class TSCScoring(object):
-    """Create scoring function from :class:``TSCMetric``.
+    """Create scoring function from :class:`.TSCMetric`.
 
     Parameters
     ----------

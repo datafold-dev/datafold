@@ -215,7 +215,7 @@ class TestContinuousNNKernel(unittest.TestCase):
             cknn = ContinuousNNKernel(k_neighbor=5, delta=1.5)
 
             graph_train, kth_nn_fit = cknn(train_data, dist_cut_off=dist_cut_off)
-            graph_test = cknn(
+            graph_test, _ = cknn(
                 train_data,
                 test_data,
                 dist_cut_off=dist_cut_off,
@@ -248,7 +248,7 @@ class TestContinuousNNKernel(unittest.TestCase):
 
             cknn = ContinuousNNKernel(k_neighbor=5, delta=2.3)
             graph_train, kth_nn_fit = cknn(train_data)
-            graph_test = cknn(
+            graph_test, _ = cknn(
                 train_data,
                 test_data,
                 dist_cut_off=dist_cut_off,
@@ -285,6 +285,48 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             cknn.eval(sparse_distance_matrix, is_pdist=True)
+
+    def test_pdist_0th_nn(self):
+        # sanity test for pdist: k=0 should always be 0
+
+        data = generate_box_data(100, 100, 100, 1)
+
+        dense_dist_mat = compute_distance_matrix(data)
+        sparse_dist_mat = compute_distance_matrix(data, cut_off=1e100)
+
+        actual_dense = ContinuousNNKernel(k_neighbor=1, delta=1)._kth_nn_dist(
+            dense_dist_mat
+        )
+        actual_sparse = ContinuousNNKernel(k_neighbor=1, delta=1)._kth_nn_dist(
+            sparse_dist_mat
+        )
+
+        expected = np.min(dense_dist_mat, axis=1)  # self is always zero
+
+        nptest.assert_array_equal(expected, np.zeros(len(expected)))
+
+        nptest.assert_array_equal(expected, actual_dense)
+        nptest.assert_array_equal(expected, actual_sparse)
+
+    def test_wrong_setups(self):
+
+        with self.assertRaises(ValueError):
+            ContinuousNNKernel(k_neighbor=0, delta=1)
+
+        with self.assertRaises(ValueError):
+            ContinuousNNKernel(k_neighbor=-1, delta=1)
+
+        with self.assertRaises(ValueError):
+            ContinuousNNKernel(k_neighbor=1, delta=0)
+
+        with self.assertRaises(ValueError):
+            ContinuousNNKernel(k_neighbor=1, delta=-1)
+
+        # 20 + 20 = 40 points
+        distance_matrix = compute_distance_matrix(generate_circle_data(20, 20, 1))
+
+        with self.assertRaises(ValueError):
+            ContinuousNNKernel(k_neighbor=41, delta=1).eval(distance_matrix)
 
     def test_sparse_kth_dist01(self):
         data = generate_circle_data(100, 100, 1)

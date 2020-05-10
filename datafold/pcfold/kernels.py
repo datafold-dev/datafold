@@ -782,8 +782,6 @@ class DmapKernelFixed(PCManifoldKernel):
         dist_backend_kwargs
             keyword arguments handled to the distance algorithm
 
-
-
         Returns
         -------
         :class:`numpy.ndarray`, :class:`scipy.sparse.csr_matrix`
@@ -866,12 +864,35 @@ class DmapKernelFixed(PCManifoldKernel):
 
 
 class ContinuousNNKernel(PCManifoldKernel):
+    """Continuous `k` nearest-neighbor graph construction.
+
+    C-kNN constructs an unweighted graph for which the (un-normalized) graph Laplacian
+    converges spectrally to a Laplace-Beltrami operator on the manifold in the large
+    data limit.
+
+    Parameters
+    ----------
+    k_neighbor
+        For each point the distance to the k-th neighbor is computed. The parameter value
+        must be positive. If a sparse matrix is computed (with cut-off distance),
+        then each point must have a minimum of `k` neighbors. (see `kmin` parameter in
+        :meth:`pcfold.distance.compute_distance_matrix`).
+
+    delta
+        Unit-less scale parameter.
+
+    References
+    ----------
+
+    :cite:`berry_consistent_2016`
+    """
 
     # TODO: Currently, in the pdist case, the self-zero is considered as a valid neighbor.
-    #  Is this correct? If the trivial self-distance is not considered, how does this
-    #  affect the cdist case (k+1)?
+    #  It's a bit tricky to not mess up the OOS behaviour...
+    #  What is the correct way to deal with this? If the trivial self-distance is not
+    #  considered, how does this affect the cdist case (k+1)?
 
-    def __init__(self, k_neighbor, delta):
+    def __init__(self, k_neighbor: int, delta: float):
 
         if not is_integer(k_neighbor):
             raise TypeError("n_neighbors must be an integer")
@@ -888,17 +909,55 @@ class ContinuousNNKernel(PCManifoldKernel):
             # make sure to only use Python built-in
             self.delta = float(delta)
 
+        if self.k_neighbor < 1:
+            raise ValueError(
+                f"'parameter 'k_neighbor={self.k_neighbor}' must be a positive integer"
+            )
+
+        if self.delta <= 0.0:
+            raise ValueError(
+                f"'parameter 'delta={self.delta}' must be a positive float"
+            )
+
         super(ContinuousNNKernel, self).__init__()
 
     def __call__(
         self,
-        X,
-        Y=None,
-        dist_cut_off=None,
-        dist_backend="brute",
-        kernel_kwargs=None,
-        dist_backend_kwargs=None,
+        X: np.ndarray,
+        Y: Optional[np.ndarray] = None,
+        dist_cut_off: Optional[float] = None,
+        dist_backend: str = "brute",
+        kernel_kwargs: Optional[Dict] = None,
+        dist_backend_kwargs: Optional[Dict] = None,
     ):
+        """Compute kernel matrix.
+
+        Parameters
+        ----------
+        X
+            Reference point cloud of shape `(n_samples_X, n_features_X)`.
+
+        Y
+            Query point cloud of shape `(n_samples_Y, n_features_Y)`. If not provided,
+            then `Y=X`.
+
+        dist_cut_off
+            Cut-off radius, all point pairs with a larger distance value are not
+            stored to promote sparsity. Note, that each point must have a minimum of
+            `k` neighbors.
+
+        dist_backend
+            name of :py:class:`DistanceAlgorithm`
+
+        kernel_kwargs
+            * ``row_sums_alpha_fit`` - the row sum values for alpha-normalization
+                computed during pairwise computation. This is required for ``Y is not X``
+                and ``alpha>0``
+
+        dist_backend_kwargs
+            keyword arguments handled to the distance algorithm
+        """
+
         distance_matrix = compute_distance_matrix(
             X,
             Y,
@@ -925,11 +984,9 @@ class ContinuousNNKernel(PCManifoldKernel):
 
         if is_pdist:
             if n_samples_Y != n_samples_X:
-                raise ValueError("if is_pdist=True, the distance matrix must be square")
-
-            if not is_symmetric_matrix(distance_matrix):
                 raise ValueError(
-                    "if is_pdist=True, the distance matrix must be symmetric"
+                    "if is_pdist=True, the distance matrix must be square "
+                    "and symmetric"
                 )
 
             if isinstance(distance_matrix, np.ndarray):
@@ -967,7 +1024,19 @@ class ContinuousNNKernel(PCManifoldKernel):
     def _kth_nn_dist(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
     ) -> np.ndarray:
+        """Obtain the distance to the `k`-th nearest neighbor.
 
+        Parameters
+        ----------
+        distance_matrix
+            Matrix to partition to find the `k`-th nearest neighbor. If matrix is
+            sparse each point must have a minimum number of neighbors of `k`
+
+        Returns
+        -------
+        numpy.ndarray
+            distance values
+        """
         if isinstance(distance_matrix, np.ndarray):
             return np.partition(distance_matrix, self.k_neighbor - 1, axis=1)[
                 :, self.k_neighbor - 1
@@ -1002,22 +1071,43 @@ class ContinuousNNKernel(PCManifoldKernel):
         else:
             raise TypeError(f"Not supported type {type(distance_matrix)}")
 
-    def eval(self, distance_matrix, is_pdist=False, reference_dist_knn=None):
+    def eval(
+        self, distance_matrix, is_pdist=False, reference_dist_knn=None
+    ) -> Tuple[scipy.sparse.csr_matrix, np.ndarray]:
+        """Evaluate kernel on pre-computed distance matrix.
 
+        Parameters
+        ----------
+        distance_matrix
+            Pre-computed matrix.
+
+        is_pdist
+            If True, the `distance_matrix` is assumed to be symmetric and with zeros on
+            the diagonal (self distances). Note, that there is no check whether the matrix
+            is actually symmetric.
+        
+        reference_dist_knn
+            An input is required for a component-wise evaluation of the kernel (
+            out-of-sample evaluations). This is the case if the distance matrix is
+            rectangular or non-symmetric (i.e., ``is_pdist=False``). The required
+            values are returned for a pre-evaluation of the pair-wise evaluation.
+            
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+            Sparse adjacency matrix describing the unweighted, undirected continuous
+            nearest neighbor graph.
+
+        numpy.ndarray
+            Distance from each point to it's `k`-th nearest neighbor.
+        """
         self._validate(
             distance_matrix=distance_matrix,
             is_pdist=is_pdist,
             reference_dist_knn=reference_dist_knn,
         )
 
-        # print("dist_knn:")
         dist_knn = self._kth_nn_dist(distance_matrix)
-        # print(dist_knn)
-        #
-        # try:
-        #     print(f"distance_matrix.nnz={distance_matrix.nnz}")
-        # except:
-        #     pass
 
         distance_factors = _symmetric_matrix_division(
             distance_matrix,
@@ -1026,16 +1116,6 @@ class ContinuousNNKernel(PCManifoldKernel):
             if reference_dist_knn is not None
             else None,
         )
-
-        # print("distance_factors:")
-        # try:
-        #     print(distance_factors.toarray())
-        #     print(distance_factors.nnz)
-        #
-        # except:
-        #     print(distance_factors)
-
-        # print("------------------------------------------------------")
 
         if isinstance(distance_factors, np.ndarray):
             kernel_matrix = scipy.sparse.csr_matrix(
@@ -1047,12 +1127,9 @@ class ContinuousNNKernel(PCManifoldKernel):
             distance_factors.eliminate_zeros()
             kernel_matrix = distance_factors
 
-        if is_pdist:
-            # return dist_knn, which is required for cdist_k_nearest_neighbor in
-            # order to do a follow-up cdist request (then as reference_dist_knn as input).
-            return kernel_matrix, dist_knn
-        else:
-            return kernel_matrix
+        # return dist_knn, which is required for cdist_k_nearest_neighbor in
+        # order to do a follow-up cdist request (then as reference_dist_knn as input).
+        return kernel_matrix, dist_knn
 
 
 class DmapKernelVariable(PCManifoldKernel):
