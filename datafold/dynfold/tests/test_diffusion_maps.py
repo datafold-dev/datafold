@@ -15,6 +15,13 @@ from datafold.dynfold.dmap import DiffusionMapsVariable
 from datafold.dynfold.tests.helper import *
 from datafold.utils.general import random_subsample
 
+try:
+    import rdist
+except ImportError:
+    IMPORTED_RDIST = False
+else:
+    IMPORTED_RDIST = True
+
 
 class DiffusionMapsTest(unittest.TestCase):
     def setUp(self):
@@ -409,6 +416,7 @@ class DiffusionMapsTest(unittest.TestCase):
         print(f"kernel has {k.nnz/k.shape[0]} neighbors per row, on {k.shape[0]} rows")
         print(f"pcm: {t1-t0}, cknn kernel: {t2-t1}, dmap: {t3-t2}")
 
+    @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
     def test_speed(self):
         import datafold.pcfold as pfold
         from time import time
