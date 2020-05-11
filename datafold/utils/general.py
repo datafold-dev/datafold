@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import warnings
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -64,20 +65,21 @@ def is_df_same_index(
     return is_index_same and is_columns_same
 
 
-def is_integer(n) -> bool:
-    """Checks if `n` is an integer scalar, with the following considerations:
-    * `n` is a float (built in) -> check if conversion to int is without losses
-    * `n` is
+def is_integer(n: object) -> bool:
+    """Checks if `n` is an integer scalar.
+
+    * `n` is a float (built-in) -> check if conversion to int is without precision loss
+    + `n` is an integer built-in or numpy.integer
 
     Parameters
     ----------
     n
-        Data structure to check.
+        object to check
 
     Returns
     -------
     bool
-        Whether it is an `n` is an integer.
+        True if `n` is an integer or a float without decimal places.
 
     """
     return isinstance(n, (int, np.integer)) or (
@@ -85,18 +87,18 @@ def is_integer(n) -> bool:
     )
 
 
-def is_float(n) -> bool:
+def is_float(n: object) -> bool:
     """Checks if `n` is a floating scalar.
 
     Parameters
     ----------
     n
-        Data structure to check.
+        object to check
 
     Returns
     -------
     bool
-        Whether it is an `n` is a float.
+        True if `n` is a float.
 
     """
 
@@ -164,7 +166,7 @@ def sort_eigenpairs(
 
 
 def mat_dot_diagmat(
-    matrix, diag_elements, out: Optional[np.ndarray] = None
+    matrix: np.ndarray, diag_elements: np.ndarray, out: Optional[np.ndarray] = None
 ) -> np.ndarray:
     """Efficient computation of matrix time diagonal matrix.
 
@@ -191,9 +193,8 @@ def mat_dot_diagmat(
     return np.multiply(diag_elements, matrix, out=out)
 
 
-def diagmat_dot_mat(diag_elements, matrix, out=None):
-    """
-    Efficient computation of diagonal matrix times matrix.
+def diagmat_dot_mat(diag_elements: np.ndarray, matrix: np.ndarray, out=None):
+    """Efficient computation of diagonal matrix times matrix.
 
     This computes
 
@@ -218,8 +219,10 @@ def diagmat_dot_mat(diag_elements, matrix, out=None):
     return np.multiply(matrix, diag_elements[:, np.newaxis], out=out)
 
 
-def is_symmetric_matrix(matrix: np.ndarray, tol: float = 0) -> bool:
-    """Checks if a matrix is symmetric.
+def is_symmetric_matrix(
+    matrix: Union[np.ndarray, scipy.sparse.csr_matrix], tol: float = 0
+) -> bool:
+    """Checks whether a matrix is symmetric.
 
     Parameters
     ----------
@@ -231,7 +234,7 @@ def is_symmetric_matrix(matrix: np.ndarray, tol: float = 0) -> bool:
     Returns
     -------
     bool
-        True if symmetric
+        True if symmetric.
     """
 
     if matrix.ndim != 2:
@@ -248,10 +251,12 @@ def remove_numeric_noise_symmetric_matrix(
 ) -> Union[np.ndarray, scipy.sparse.spmatrix]:
     r"""Remove numerical noise from (almost) symmetric matrix.
 
-    Noise can get sometimes be introduced in symmetric operations,
-    but due to different computation (e.g. due to optimizations) break exact symmetry.
+    Noise can get sometimes be introduced in symmetric operations. The operations are
+    then exectued in a different order (e.g. due to optimizations) and can then break
+    exact symmetry.
 
-    For example, if a matrix should be symmetric but small differences show up:
+    This function is intended for "almost" symmetric matrices to recover symmetry.
+    Like in the following situation:
 
     .. code::
         np.max(np.abs(matrix - matrix.T)) # 1.1102230246251565e-16
@@ -268,18 +273,21 @@ def remove_numeric_noise_symmetric_matrix(
 
     Returns
     -------
-    Union[np.ndarray, scipy.sparse.spmatrix]
+    Union[numpy.ndarray, scipy.sparse.csr_matrix]
         symmetric matrix without noise
     """
 
     # A faster way would be to truncate the floating values of the matrix to a certain
-    # precision, but numpy does not seem to provide anything for it?
+    # precision, but NumPy does not seem to provide anything for this?
 
     if scipy.sparse.issparse(matrix):
-        matrix = (matrix + matrix.T) / 2
+        # need to preserve of explicit stored zeros (-> distance matrix)
+        matrix.data[matrix.data == 0] = np.nan
+        matrix = (matrix + matrix.T) / 2.0
+        matrix.data[np.isnan(matrix.data)] = 0
     else:
         matrix = np.add(matrix, matrix.T, out=matrix)
-        matrix = np.divide(matrix, 2, out=matrix)
+        matrix = np.divide(matrix, 2.0, out=matrix)
 
     return matrix
 
@@ -296,8 +304,11 @@ def random_subsample(data: np.ndarray, n_samples: int) -> Tuple[np.ndarray, np.n
 
     Returns
     -------
-    Tuple[np.ndarray, np.ndarray]
-        subsample and corresponding indices
+    numpy.ndarray
+        subsampled array
+
+    numpy.ndarray
+        indices in the subsample from the original array
     """
 
     data = check_array(data, force_all_finite=False, ensure_min_samples=2,)

@@ -27,7 +27,7 @@ class TestNotebooks(unittest.TestCase):
                 "--to",
                 "notebook",
                 "--execute",
-                "--ExecutePreprocessor.timeout=300",
+                "--ExecutePreprocessor.timeout=400",
                 "--output",
                 fout.name,
                 path,

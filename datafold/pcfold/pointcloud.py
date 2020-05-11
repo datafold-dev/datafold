@@ -249,7 +249,7 @@ class PCManifold(np.ndarray):
         self,
         n_subsample: int = 1000,
         tol: float = 1e-8,
-        kmin: int = 25,
+        k: int = 25,
         random_state: Optional[int] = None,
         result_scaling: float = 1.0,
         inplace: bool = True,
@@ -265,8 +265,8 @@ class PCManifold(np.ndarray):
         tol
             Tolerance below which the Gaussian kernel is assumed to be zero.
 
-        kmin
-            Number of nearest neighbors to use for :py:meth:`estimate_cutoff`.
+        k
+            Compute the `k` nearest neighbors distance for the cut-off.
 
         random_state
             Random state used in for random subsample.
@@ -297,13 +297,13 @@ class PCManifold(np.ndarray):
             )
 
         cut_off = estimate_cutoff(
-            self, n_subsample=n_subsample, kmin=kmin, random_state=random_state
+            self, n_subsample=n_subsample, k=k, random_state=random_state
         )
 
         if result_scaling != 1:
             cut_off *= result_scaling
 
-        epsilon = estimate_scale(self, tol=tol, cut_off=cut_off, kmin=kmin)
+        epsilon = estimate_scale(self, tol=tol, cut_off=cut_off)
 
         if inplace:
             self.cut_off = cut_off
