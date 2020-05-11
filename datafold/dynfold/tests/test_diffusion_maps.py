@@ -490,6 +490,8 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         """Taken from method_examples(/diffusion_maps/diffusion_maps.ipynb) repository."""
         data, epsilon = circle_data()
 
+        epsilon = 0.0001
+
         actual = DiffusionMaps(
             epsilon=epsilon, n_eigenpairs=11, symmetrize_kernel=False
         ).fit(data)
@@ -647,11 +649,11 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
                 actual_sparse = DiffusionMaps(
                     epsilon=eps,
                     n_eigenpairs=n_eigenpairs,
-                    cut_off=1,
+                    cut_off=3,
                     symmetrize_kernel=False,
                 ).fit(data)
                 expected_sparse = legacy_dmap.SparseDiffusionMaps(
-                    points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=1
+                    points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
                 )
 
             except scipy.sparse.linalg.eigen.arpack.ArpackNoConvergence as e:
