@@ -40,7 +40,8 @@ def estimate_cutoff(
         None`.
 
     k
-        Compute the `k`-th nearest neighbor distance to estimate the cut-off distance.
+        Compute the `k`-th nearest neighbor distance to estimate the
+        cut-off distance.
 
     random_state
         sets :code:`np.random.seed(random_state)`
@@ -77,15 +78,15 @@ def estimate_cutoff(
             pcm,
             metric="euclidean",
             backend="brute",
+            kmin=k,
             # for estimation it is okay to be not exact and compute faster
             **dict(exact_numeric=False)
         )
 
-        # TODO: that it is k+1 is now a change, with re-implementation of k-th NN ... Fix?
-        k = np.min([k, distance_matrix.shape[1] - 1])
-        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k + 1)
+        k = np.min([k, distance_matrix.shape[1]])
+        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
     else:
-        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k + 1)
+        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
 
     est_cutoff = np.median(k_smallest_values)
 
