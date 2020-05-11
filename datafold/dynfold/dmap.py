@@ -64,8 +64,8 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
     symmetrize_kernel
         If True a conjugate transformation is performed if the kernel matrix is
         non-symmetric. This improves numerical stability and allows eigensolver
-        algorithms designed for Hermitian matrices to be used. If kernel is symmetric
-        already (`is_stochastic=False`), then the parameter has no effect.
+        algorithms designed for Hermitian matrices to be used. If the kernel matrix is
+        symmetric already (`is_stochastic=False`), then the parameter has no effect.
 
     dist_backend
         Backend of distance matrix computation. Defaults to `guess_optimal`,
