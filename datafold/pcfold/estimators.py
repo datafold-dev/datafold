@@ -27,16 +27,17 @@ def estimate_cutoff(
     random_state: Optional[int] = None,
     distance_matrix=None,
 ) -> float:
-    """Estimates the cut off needed for a Gaussian radial basis kernel, given a certain
+    """Estimates the cut-off needed for a Gaussian radial basis kernel, given a certain
     tolerance below which the kernel values are considered zero.
 
     Parameters
     ----------
     pcm
-        point cloud to compute pair wise kernel matrix with
+        point cloud to compute pair-wise kernel matrix with
 
     n_subsample
-        Maximum subsample used for the estimation. Ignored if distance_matrix not None.
+        Maximum subsample used for the estimation. Ignored if :code:`distance_matrix is not
+        None`.
 
     k
         Compute the `k`-th nearest neighbor distance to estimate the cut-off distance.
@@ -45,7 +46,7 @@ def estimate_cutoff(
         sets :code:`np.random.seed(random_state)`
 
     distance_matrix
-        if set to sparse csr_matrix, used instead of the scipy spatial cdist method
+        pre-computed distance matrix instead of using the internal `cdist` method
 
     See Also
     --------
@@ -100,13 +101,13 @@ def estimate_scale(
     Parameters
     ----------
     pcm
-        point cloud to estimate the kernel scale with
+        Point cloud to estimate the kernel scale with.
 
     tol
         Tolerance where the cut_off should be made.
         
     cut_off
-        The `tol` parameter is ignored and the cut off is used directly
+        The `tol` parameter is ignored and the cut-off is used directly
 
     **estimate_cutoff_params
         parameters to handle to method :py:meth:`estimate_cutoff` if cut_off is None
@@ -121,10 +122,3 @@ def estimate_scale(
     # tol >= exp(-cut_off**2 / epsilon)
     eps0 = cut_off ** 2 / (-np.log(tol))
     return float(eps0)
-
-
-def __estimate_dimension(pcm):
-    """
-    Estimates the intrinsic dimension of the given manifold.
-    """
-    raise NotImplementedError()

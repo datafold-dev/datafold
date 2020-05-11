@@ -45,8 +45,8 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         Time of diffusion process (exponent of eigenvalues).
 
     cut_off
-        Distance cut off, distance values with a larger Euclidean distance
-        are set to zero. Lower cut off values increase the sparsity of
+        Distance cut-off, distance values with a larger Euclidean distance
+        are set to zero. Lower cut-off values increase the sparsity of
         kernel matrices and can result in faster computation of eigenpairs (which can
         be at the cost accuracy).
 

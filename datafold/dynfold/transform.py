@@ -14,6 +14,14 @@ from datafold.decorators import warn_experimental_class
 from datafold.dynfold.base import DataFrameType, TransformType, TSCTransformerMixIn
 from datafold.pcfold import MultiquadricKernel, PCManifold, TSCDataFrame
 from datafold.pcfold.kernels import PCManifoldKernel
+from datafold.pcfold.timeseries.collection import TSCException
+
+try:
+    from findiff import FinDiff
+except ImportError:
+    IMPORTED_FINDIFF = False
+else:
+    IMPORTED_FINDIFF = True
 
 
 class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixIn):
@@ -248,10 +256,10 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
     """Compute principal components from data, including time series collection data.
 
     This is a subclass of ``PCA`` from scikit-learn to generalize the
-    input and output of :class:`pandas.DataFrames` and :class:`.TSCDataFrame`). All input
+    input and output of :class:`pandas.DataFrames` and :class:`.TSCDataFrame`. All input
     parameters remain the same. For documentation please visit:
 
-    * `PCA docu <https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html>`_ # noqa
+    * `PCA docu <https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html>`_
     * `PCA user guide <https://scikit-learn.org/stable/modules/decomposition.html#pca>`_
     """
 
@@ -851,92 +859,187 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
 
 
 class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixIn):
+    """Compute principal components from data, including time series collection data.
+
+    This is a subclass of ``PolynomialFeatures`` from scikit-learn to generalize the
+    input and output of :class:`pandas.DataFrames` and :class:`.TSCDataFrame`.
+
+    This class adds the parameter `include_first_order` to choose whether to include the
+    identity states. For all other parameters please visit the super class
+    documentation of
+    `PolynomialFeatures <https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html>`_.
+    """
+
     def __init__(
         self,
         degree: int = 2,
         interaction_only: bool = False,
         include_bias: bool = False,
-        order: str = "C",
+        include_first_order=False,
     ):
+        self.include_first_order = include_first_order
+
         super(TSCPolynomialFeatures, self).__init__(
             degree=degree,
             interaction_only=interaction_only,
             include_bias=include_bias,
-            order=order,
+            order="C",
         )
 
-    def fit(self, X: TransformType, y=None, **fit_params):
+    @property
+    def powers_(self):
+        powers = super(TSCPolynomialFeatures, self).powers_
+        if self.include_first_order:
+            return powers
+        else:
+            return powers[powers.sum(axis=1) != 1, :]
+
+    def _get_poly_feature_names(self, X, input_features=None):
+        # Note: get_feature_names function is already provided by super class
+        if self._has_feature_names(X):
+            feature_names = self.get_feature_names(input_features=X.columns)
+        else:
+            feature_names = self.get_feature_names()
+        return feature_names
+
+    def _non_id_state_mask(self):
+        powers = super(TSCPolynomialFeatures, self).powers_
+        return powers.sum(axis=1) != 1
+
+    def fit(self, X: TransformType, y=None, **fit_params) -> "TSCPolynomialFeatures":
+        """
+        Compute number of output features.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Data of shape `(n_samples, n_features)`.
+
+        Returns
+        -------
+        """
         X = self._validate_data(X)
-        # TODO: need to remove the ID state powers_ otherwise they are in twice... (or
-        #  make as option...)
 
-        super(TSCPolynomialFeatures, self).fit(self._X_to_numpy(X), y=y)
+        super(TSCPolynomialFeatures, self).fit(X, y=y)
 
-        # Note1: the n_output_features_ is quite similar to TSCTransformerMixIn,
-        # but actually is set inside PolynomialFeatures
-        # Note3: the n_output_features_ are corrected by X.shape[1] because we can skip
         self._setup_features_fit(
-            X, features_out=[f"poly{i}" for i in range(self.n_output_features_)],
+            X, features_out=self._get_poly_feature_names(X),
         )
+
         return self
 
-    def transform(self, X: TransformType):
+    def transform(self, X: TransformType) -> TransformType:
+        """Transform data to polynomial features.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            The data of shape `(n_samples, n_features)` to transform.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Transformed data of shape `(n_samples, n_polynomials)` and with same type
+            as `X`.
+        """
         check_is_fitted(self)
         X = self._validate_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        poly_data = super(TSCPolynomialFeatures, self).transform(self._X_to_numpy(X))
-        return self._same_type_X(
-            X, values=poly_data, feature_names=self.features_out_[1]
+        poly_data = super(TSCPolynomialFeatures, self).transform(X)
+
+        if not self.include_first_order:
+            poly_data = poly_data[:, self._non_id_state_mask()]
+
+        poly_data = self._same_type_X(
+            X, values=poly_data, feature_names=self._get_poly_feature_names(X)
         )
 
-    def fit_transform(self, X, y=None, **fit_params):
-        X = self._validate_data(X)
-
-        pca_values = super(TSCPolynomialFeatures, self).fit_transform(
-            self._X_to_numpy(X), y=y
-        )
-
-        self._setup_features_fit(
-            X, features_out=[f"poly{i}" for i in range(self.n_output_features_)]
-        )
-
-        return self._same_type_X(
-            X, values=pca_values, feature_names=self.features_out_[1]
-        )
+        return poly_data
 
 
 class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
-    def __init__(self, lambda_list):
-        self.lambda_list = lambda_list
+    """Transform data in an element-by-element fashion with lambda functions.
 
-    def fit(self, X: TransformType, y=None):
+    Each function is called on every column in a data frame and transforms the elements
+    (i.e. the number of samples remains the same).
 
+    Example of a Python lambda expression and NumPy's
+    `ufunc <https://numpy.org/devdocs/reference/ufuncs.html>`_:
+
+    .. code-block:: python
+
+        TSCApplyLambdas(lambdas=[lambda x: x**3])
+        TSCApplyLambdas(lambdas=[np.sin, np.cos])
+
+    Parameters
+    ----------
+    lambdas
+        List of lambda functions. Each column `X_col` is passed to the function,
+        The returned `X_transformed` data must be of the same shape as `X_col`. 
+        :code:`X_transformed = func(X_col)`
+    """
+
+    def __init__(self, lambdas):
+        self.lambdas = lambdas
+
+    def _not_implemented_numpy_arrays(self, X):
         if isinstance(X, np.ndarray):
             raise NotImplementedError(
-                "Currently not implemented for numpy.ndraay. If required please open "
-                "a Gitlab issue."
+                "Currently not implemented for numpy.ndarray. If this is required please "
+                "open an issue on Gitlab."
             )
 
+    def fit(self, X: TransformType, y=None, **fit_params) -> "TSCApplyLambdas":
+        """Set internal feature information.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data.
+        y: None
+            ignored
+
+        Returns
+        -------
+        TSCApplyLambdas
+            self
+        """
+        self._not_implemented_numpy_arrays(X)
         X = self._validate_data(X, ensure_feature_name_type=True)
 
         features_out = [
             f"{feature_name}_lambda{i}"
             for feature_name in X.columns
-            for i in range(len(self.lambda_list))
+            for i in range(len(self.lambdas))
         ]
 
         self._setup_features_fit(X, features_out=features_out)
         return self
 
-    def transform(self, X: TransformType):
+    def transform(self, X: TransformType) -> TransformType:
+        """Transform data with specified lambda functions.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Data of shape `(n_samples, n_features)` to transform.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            The transformed of same type as `X` and of shape
+            `(n_samples, n_lambdas * n_features)`
+        """
+        self._not_implemented_numpy_arrays(X)
+
         check_is_fitted(self)
         X = self._validate_data(X, ensure_feature_name_type=True)
         self._validate_feature_input(X, direction="transform")
 
         lambdas_applied = list()
 
-        for i, _lambda in enumerate(self.lambda_list):
+        for i, _lambda in enumerate(self.lambdas):
 
             lambda_result = X.apply(func=_lambda, axis=0, raw=True)
             lambda_result.columns = pd.Index(
@@ -954,35 +1057,104 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
             return X_transformed
 
 
-@warn_experimental_class
 class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
-    def __init__(self, spacing: Union[str, float] = "dt", diff_order=1, accuracy=2):
+    """Compute time derivative with finite difference scheme.
+
+    Parameters
+    ----------
+
+    spacing: Union[str, float]
+        The difference between samples along the dimension where the derivative is
+        computed. If `dt` then the time sampling frequency of a :class:`.TSCDataFrame`
+        is used during fit.
+
+    diff_order
+        The order of derivative.
+
+    accuracy
+        Convergence order of the finite difference scheme.
+
+    Attributes
+    ----------
+
+    spacing_
+        The resolved time difference between samples. Equals the parameter
+        input if it was of type :class`float`.
+
+    See Also
+    --------
+
+    `findiff documentation <https://findiff.readthedocs.io/en/latest/>`_
+    """
+
+    def __init__(
+        self, spacing: Union[str, float] = "dt", diff_order: int = 1, accuracy: int = 2
+    ):
+
+        if not IMPORTED_FINDIFF:
+            # TODO: Currently, findiff is an optional package and listed in the
+            #  dev-requirements. If the class is more used internally of datafold,
+            #  make it a proper dependency.
+            raise ImportError(
+                "TSCFiniteDifference requires the Python package "
+                "'findiff' installed."
+            )
+
         self.spacing = spacing
         self.diff_order = diff_order
         self.accuracy = accuracy
 
-    def fit(self, X: TransformType, y=None, **fit_params):
+    def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFiniteDifference":
+        """Set and validate time spacing between samples.
 
-        X = self._validate_data(X, ensure_feature_name_type=False)
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Data of shape `(n_samples, n_features)`.
+            
+        y: None
+            ignored
+
+        Returns
+        -------
+        TSCFiniteDifference
+            self
+
+        Raises
+        ------
+        TSCException
+            If time series data has not a constant time delta or the input `X` has not
+            the same value as specified in `spacing` during initialization.
+
+        """
+        X = self._validate_data(
+            X,
+            ensure_feature_name_type=False,
+            validate_tsc_kwargs=dict(
+                ensure_delta_time=self.spacing
+                if isinstance(self.spacing, float)
+                else None
+            ),
+        )
 
         if self._has_feature_names(X):
-            features_out = [f"{col}_dt" for col in X.columns]
+            features_out = [f"{col}_dot" for col in X.columns]
         else:
-            features_out = [f"dt{i}" for i in np.arange(X.shape[1])]
+            features_out = [f"dot{i}" for i in np.arange(X.shape[1])]
 
         self._setup_features_fit(X=X, features_out=features_out)
 
         if self.spacing == "dt":
 
             if not isinstance(X, TSCDataFrame):
-                raise TypeError("'spacing=dt' only works for time series collections")
+                raise TypeError(
+                    "For input 'spacing=dt' a time series " "collections is required."
+                )
 
             self.spacing_ = X.delta_time
 
             if isinstance(self.spacing_, pd.Series) or np.isnan(self.spacing_):
-                raise ValueError(
-                    "delta time (=spacing) of TSCDataFrame must be constant"
-                )
+                raise TSCException.not_const_delta_time(actual_delta_time=self.spacing_)
         else:
             self.spacing_ = self.spacing
 
@@ -1014,11 +1186,27 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         return self
 
     def transform(self, X: TransformType) -> TransformType:
+        """Compute the finite difference values.
 
-        from findiff import FinDiff
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Data of shape `(n_samples, n_features)`.
 
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Transformed data of same shape and type as `X`.
+
+        Raises
+        ------
+        TSCException
+            If input `X` has a different time delta than data during `fit`.
+        """
         check_is_fitted(self)
-        X = self._validate_data(X)
+        X = self._validate_data(
+            X, validate_tsc_kwargs=dict(ensure_delta_time=self.spacing_)
+        )
         self._validate_feature_input(X=X, direction="transform")
 
         # first parameter is the axis along which to take the derivative

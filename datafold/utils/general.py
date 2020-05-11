@@ -11,7 +11,7 @@ from sklearn.utils.validation import check_array, check_scalar
 
 
 def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
-    """Turns a DataFrame with only one column into a Series."""
+    """Turns a DataFrame with only one column into a :class:`pandas.Series`."""
     import datafold.pcfold
 
     if isinstance(ds, pd.Series):
@@ -26,7 +26,7 @@ def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
             # column slice is a Series in Pandas
             ds = ds.iloc[:, 0]
     else:
-        raise TypeError(f"ds.type={type(ds)} not supported")
+        raise TypeError(f"type={type(ds)} not supported")
 
     return ds
 

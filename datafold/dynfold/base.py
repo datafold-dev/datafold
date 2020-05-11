@@ -174,8 +174,8 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
     Generally, the following input/output types are supported:
 
     * :class:`numpy.ndarray`
-    * :class:`pandas.DataFrame` (no restriction on index and columns format)
-    * :class:`TSCDataFrame` as a special case for time series collections
+    * :class:`pandas.DataFrame` no restriction on the frame's index and column format
+    * :class:`.TSCDataFrame` as a special data frame for time series collections
 
     Parameters
     ----------
@@ -189,7 +189,6 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
         Number of features and corresponding feature names after transformation.
         The attribute should be set in during `fit`. Set feature names in
         `transform` and validate input in `inverse_transform`.
-
     """
 
     _feature_attrs = ["features_in_", "features_out_"]
@@ -321,6 +320,32 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
             else:
                 return values
 
+    def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
+        """Fit to data, then transform it.
+
+        Fits transformer to `X` and `y` (only if applicable) with optional parameters
+        `fit_params` and returns a transformed version of `X`.
+
+        Parameters
+        ----------
+        X
+            Training data to transform of shape `(n_samples, n_features)`.
+
+        y : None
+            ignored
+
+        **fit_params : dict
+            Additional fit parameters.
+
+        Returns
+        -------
+        numpy.ndarray, pandas.DataFrame, TSCDataFrame
+            Transformed array of shape `(n_samples, n_transformed_features)` and of same
+            type as input `X`.
+        """
+        # This is only to overwrite the documentation in datafold
+        return super(TSCTransformerMixIn, self).fit_transform(X=X, y=y, **fit_params)
+
 
 class TSCPredictMixIn(TSCBaseMixIn):
     """Mixin to provide functionality for time series models.
@@ -432,7 +457,9 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self._check_attributes_set_up(check_attributes=["features_in_"])
 
         try:
-            pdtest.assert_index_equal(right=self.features_in_[1], left=X.columns)
+            pdtest.assert_index_equal(
+                right=self.features_in_[1], left=X.columns, check_names=False
+            )
         except AssertionError as e:
             raise ValueError(e.args[0])
 

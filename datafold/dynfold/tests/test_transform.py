@@ -160,12 +160,62 @@ class TestTSCTransform(unittest.TestCase):
             # check inverse transform is equal the original TSCDataFrame:
             pdtest.assert_frame_equal(tsc_df, scale.inverse_transform(tsc_transformed))
 
+    def test_polynomial_feature_transform01(self):
+        from sklearn.preprocessing import PolynomialFeatures
+
+        tsc = TSCDataFrame(self.simple_df)
+
+        for degree in [2, 3, 4]:
+            for include_bias in [True, False]:
+                actual = TSCPolynomialFeatures(
+                    degree=degree, include_bias=include_bias, include_first_order=True
+                ).fit_transform(tsc)
+
+                expected = PolynomialFeatures(
+                    degree=degree, include_bias=include_bias
+                ).fit_transform(tsc.to_numpy())
+                nptest.assert_array_equal(actual.to_numpy(), expected)
+
+    def test_polynomial_feature_transform02(self):
+        tsc = TSCDataFrame(self.simple_df)
+
+        for include_first_order in [True, False]:
+            poly = TSCPolynomialFeatures(
+                degree=2, include_bias=True, include_first_order=include_first_order
+            ).fit(tsc)
+            actual = poly.transform(tsc)
+
+            expected = TSCPolynomialFeatures(
+                degree=2, include_bias=True, include_first_order=False
+            ).fit_transform(tsc)
+
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_polynomial_feature_transform03(self):
+        tsc = TSCDataFrame(self.simple_df)
+
+        actual = TSCPolynomialFeatures(
+            degree=2, include_bias=True, include_first_order=False
+        ).fit_transform(tsc)
+
+        pdtest.assert_index_equal(
+            actual.columns, pd.Index(["1", "A^2", "A B", "B^2"], name="feature"),
+        )
+
+        actual = TSCPolynomialFeatures(
+            degree=2, include_bias=False, include_first_order=False
+        ).fit_transform(tsc)
+
+        pdtest.assert_index_equal(
+            actual.columns, pd.Index(["A^2", "A B", "B^2"], name="feature"),
+        )
+
     def test_apply_lambda_transform01(self):
         # use lambda identity function
 
         tsc = TSCDataFrame(self.simple_df)
 
-        lambda_transform = TSCApplyLambdas(lambda_list=[lambda x: x]).fit(tsc)
+        lambda_transform = TSCApplyLambdas(lambdas=[lambda x: x]).fit(tsc)
 
         actual = lambda_transform.transform(tsc)
         expected = tsc
@@ -180,7 +230,7 @@ class TestTSCTransform(unittest.TestCase):
 
         tsc = TSCDataFrame(self.simple_df)
 
-        lambda_transform = TSCApplyLambdas(lambda_list=[np.square]).fit(tsc)
+        lambda_transform = TSCApplyLambdas(lambdas=[np.square]).fit(tsc)
 
         actual = lambda_transform.transform(tsc)
         expected = tsc.apply(np.square, axis=0, raw=True)
@@ -195,9 +245,7 @@ class TestTSCTransform(unittest.TestCase):
 
         tsc = TSCDataFrame(self.simple_df)
 
-        lambda_transform = TSCApplyLambdas(lambda_list=[lambda x: x, np.square]).fit(
-            tsc
-        )
+        lambda_transform = TSCApplyLambdas(lambdas=[lambda x: x, np.square]).fit(tsc)
 
         actual = lambda_transform.transform(tsc)
 
@@ -384,7 +432,9 @@ class TestTSCTransform(unittest.TestCase):
         expected = np.column_stack([d2_dx2(f), d2_dx2(g)])
 
         expected = TSCDataFrame.from_single_timeseries(
-            pd.DataFrame(data=expected, index=time_values, columns=["sin_dt", "cos_dt"])
+            pd.DataFrame(
+                data=expected, index=time_values, columns=["sin_dot", "cos_dot"]
+            )
         )
 
         pdtest.assert_frame_equal(actual, expected)

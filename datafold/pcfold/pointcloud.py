@@ -18,23 +18,33 @@ from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 
 
 class PCManifold(np.ndarray):
-    """Subclasses numpy.ndarray to represent point clouds on manifolds.
+    """Represent a point cloud lying near a manifold with a kernel.
 
-    The array is extended by a kernel and a backend to compute the distance matrix.
-    Points are row-wise.
+    ``PCManifold```subclasses a NumPy array and attaches a kernel that is associated with
+    the data. Furthermore, a backend for the distance matrix, which must support the
+    metric of the kernel, can be set.
+
+    The array must be two-dimensional, where the points are row-wise.
 
     ...
 
     Attributes
     ----------
     kernel
-        Kernel defined on manifold.
+        Kernel to describe local proximity between data points.
 
     cut_off
-        Cut-off distance. Larger distance values are set to zeros in the kernel.
+        Cut-off distance, larger distance values are not stored in a sparse kernel matrix.
 
     dist_backend : Union[str, DistanceAlgorithm]
-        Algorithm to compute the distance matrix (must support the metric in the kernel).
+        Backend algorithm to compute the distance matrix (must
+        support the metric in the kernel).
+
+    See Also
+    --------
+
+    :class:`numpy.ndarray`
+    :class:`numpy.array`
     """
 
     def __new__(
@@ -178,7 +188,23 @@ class PCManifold(np.ndarray):
 
     def compute_kernel_matrix(
         self, Y=None, **kernel_kwargs
-    ) -> Union[np.ndarray, scipy.sparse.spmatrix]:
+    ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
+        """Compute the kernel matrix on the point cloud.
+
+        Parameters
+        ----------
+        Y
+            Query point cloud of shape (n_samples_Y, n_features). If provided, compute
+            the kernel matrix component-wise, else `Y=self` (pair-wise).
+
+        kernel_kwargs
+            Keyword arguments to pass to kernel. 
+            
+        Returns
+        -------
+        Union[np.ndarray, scipy.sparse.csr_matrix]
+            kernel matrix of shape `(n_samples_Y, n_samples_self)`
+        """
         return self.kernel(
             X=self,
             Y=Y,
@@ -191,18 +217,19 @@ class PCManifold(np.ndarray):
     def compute_distance_matrix(
         self, Y: Optional[np.ndarray] = None, metric="euclidean"
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-        """Compute distance matrix.
+        """Compute distance matrix on points cloud.
 
-        Calls :py:meth:`datafold.pcfold.distance.compute_distance_matrix` with set
-        `cut_off` and `backend`.
+        Calls :py:meth:`datafold.pcfold.distance.compute_distance_matrix`.
 
         Parameters
         ----------
         Y
-            Reference dataset.
+            Query point cloud of shape (n_samples_Y, n_features). If provided, compute
+            the distance matrix component-wise, else `Y=self` (pair-wise). See
+            :class:`.DistanceAlgorithm`.
 
         metric
-            distance metric (must be supported by backend)
+            Distance metric. The backend algoorithm must supported the metric.
             
         Returns
         -------
@@ -236,7 +263,7 @@ class PCManifold(np.ndarray):
             Number of samples to use for cut-off estimation.
 
         tol
-            Tolerance below which the Gaussian kernel is assumed to be zero. Default: 1e-8
+            Tolerance below which the Gaussian kernel is assumed to be zero.
 
         kmin
             Number of nearest neighbors to use for :py:meth:`estimate_cutoff`.
@@ -249,13 +276,15 @@ class PCManifold(np.ndarray):
             epsilon) will be computed accordingly.
 
         inplace
-            If True, will set the `cut_off` and `kernel.epsilon` parameters of this
+            If True, the `cut_off` and `kernel.epsilon` parameters are set for this
             instance.
             
         Returns
         -------
-        Tuple[float, float]
-            estimated cut off and epsilon
+        float
+            cut-off
+        float
+            epsilon
         """
 
         if not isinstance(self._kernel, GaussianKernel):
@@ -289,23 +318,23 @@ def pcm_subsample(
     min_distance: Optional[float] = None,
     min_added_per_iteration=1,
 ):
-    """Subsamples a manifold point cloud with converged subsampling.
+    """Subsample a manifold point cloud uniformly.
 
     Parameters
     ----------
 
     pcm
-        point cloud to subsample
+        Point cloud to subsample.
 
     n_samples
-        block size for iteration
+        Block size for iteration.
 
     min_distance
-        cut off for distance matrix, should be lower than the kernel cut off
+        Cut-off for distance matrix, should be lower than the `pcm` cut-off.
 
     min_added_per_iteration
-         Loop terminates if less points points are added in current iteration. Setting
-         it to zero searches the entire point cloud.
+         Loop terminates if less subsample points are added in a iteration.
+         Setting it to zero iterates the entire point cloud.
 
     Returns
     -------
@@ -375,19 +404,21 @@ def pcm_subsample(
 
 
 def pcm_remove_outlier(pcm: PCManifold, kmin: int, cut_off: float):
-    """Remove all points that have not a minimum number of neighbors in cut-off range.
+    """Remove all points that have not a minimum number of neighbors insinde the
+    distance range.
 
     Parameters
     ----------
 
     pcm
-        point cloud
+        Point cloud.
 
     kmin
-        minimum number of minimum neighbors
+        The minimum number of a point to be not treated as an outlier.
 
     cut_off
-        range in which to count the neighbors
+        The distance range (Euclidean) in which to count the neighbours for
+        each point.
     """
 
     if kmin <= 0 or not isinstance(kmin, int):

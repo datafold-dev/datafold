@@ -347,7 +347,7 @@ def _kth_nearest_neighbor_dist(
 
 
 class PCManifoldKernel(Kernel):
-    """Abstract base class for kernels used in datafold.
+    """Abstract base class for kernels used in *datafold*.
 
     See Also
     --------
@@ -379,7 +379,7 @@ class PCManifoldKernel(Kernel):
             reference data of shape `(n_samples_y, n_features_y)`
 
         dist_cut_off
-            cut off distance
+            cut-off distance
 
         dist_backend
             backend of distance algorithm
@@ -406,17 +406,17 @@ class PCManifoldKernel(Kernel):
         """Evaluate kernel on pre-computed distance matrix.
 
         .. note::
+
             There are no checks whether the correct kernel metric was used.
 
         Parameters
         ----------
 
         distance_matrix
-            distance matrix of shape `(n_samples_X, n_samples_Y)`. For the sparse case note
-            that the kernel acts on all stored data, i.e. usually point
-            pairs that have distance zero (duplicates or self points) must be stored
-            in the matrix and only very large distance values (resulting
-            in small kernel values) should not be stored.
+            Matrix of shape `(n_samples, n_samples)`. For the sparse case note
+            that the kernel acts on all stored data, i.e. usually distance zeros
+            must be stored in the matrix and only distance values exceeding the cut of
+            are zeros not sored.
         
         Returns
         -------
@@ -455,8 +455,8 @@ class RadialBasisKernel(PCManifoldKernel):
     """Abstract base class for radial basis kernels.
 
     "A radial basis function (RBF) is a real-valued function whose value depends \
-    only on the distance between the input and some fixed point." from `Wikipedia <https://en.wikipedia.org/wiki/Radial_basis_function>`_
-
+    only on the distance between the input and some fixed point." from
+    `Wikipedia <https://en.wikipedia.org/wiki/Radial_basis_function>`_
 
     Parameters
     ----------
@@ -642,14 +642,13 @@ class ThinPlateKernel(RadialBasisKernel):
 
 
 class DmapKernelFixed(PCManifoldKernel):
-    """Diffusion maps kernel with fixed kernel-bandwidth of the internal Gaussian radial
-    basis kernel.
+    """Diffusion maps kernel with fixed kernel bandwidth.
 
     Parameters
     ----------
 
     epsilon
-        Gaussian kernel scale
+        Gaussian kernel scale.
 
     is_stochastic
         If True, the kernel matrix is row-normalized.
@@ -787,12 +786,12 @@ class DmapKernelFixed(PCManifoldKernel):
         return rbf_kernel, basis_change_matrix, row_sums_alpha
 
     def is_symmetric_transform(self, is_pdist: bool) -> bool:
-        """Indicates whether a symmetric kernel matrix transform is applied.
+        """Indicates whether a symmetric conjugate matrix is computed.
 
         Parameters
         ----------
         is_pdist
-            True if the kernel evaluation is pairwise
+            If True, the kernel matrix is computed with pair-wise.
 
         Returns
         -------
@@ -906,15 +905,25 @@ class DmapKernelFixed(PCManifoldKernel):
         ----------
 
         distance_matrix
-            distance matrix of shape `(n_samples, n_samples)`. For the sparse case note
-            that the kernel acts on all stored data, i.e. usually real distance zeros
-            must be stored in the matrix and only very large distance values (resulting
-            in small kernel values) should not be stored.
+            Matrix of shape `(n_samples, n_samples)`. For the sparse case note
+            that the kernel acts on all stored data, i.e. usually distance zeros
+            must be stored in the matrix and only distance values exceeding the cut of
+            are zeros not sored.
 
         Returns
         -------
+        numpy.ndarray, scipy.sparse.csr_matrix
+            kernel matrix (or conjugate transformation) with same type and shape as
+            `distance_matrix`
 
-        see :meth:`__call__`
+        Optional[:class:`scipy.sparse.dia_matrix`]
+            basis change matrix if `is_symmetrize=True` and the original kernel is
+            non-symmetric
+
+        Optional[:class:`numpy.ndarray`]
+            Row sums from re-normalization, only returned for the `Y is None`. The values
+            are required for follow up out-of-sample kernel evaluations when
+            `Y is not None`.
         """
 
         row_sums_alpha_fit = self._read_kernel_kwargs(kernel_kwargs, is_pdist)
@@ -1102,13 +1111,13 @@ class ContinuousNNKernel(PCManifoldKernel):
             If True, the `distance_matrix` is assumed to be symmetric and with zeros on
             the diagonal (self distances). Note, that there is no check whether the matrix
             is actually symmetric.
-        
+
         reference_dist_knn
             An input is required for a component-wise evaluation of the kernel (
             out-of-sample evaluations). This is the case if the distance matrix is
             rectangular or non-symmetric (i.e., ``is_pdist=False``). The required
             values are returned for a pre-evaluation of the pair-wise evaluation.
-            
+
         Returns
         -------
         scipy.sparse.csr_matrix
@@ -1150,8 +1159,7 @@ class ContinuousNNKernel(PCManifoldKernel):
 
 
 class DmapKernelVariable(PCManifoldKernel):
-    """Diffusion maps kernel with variable bandwidth of internal Gaussian radial basis
-    kernel.
+    """Diffusion maps kernel with variable kernel bandwidth.
 
     .. warning::
         This class is not documented. Contributions are welcome
@@ -1248,7 +1256,7 @@ class DmapKernelVariable(PCManifoldKernel):
             # paper: in var-bw paper (ref2) pdfp. 7
             # it is mentioned to IGNORE non-zero entries -- this is not detailed more.
             # a consequence is that the NN and kernel looses symmetry, so do (K+K^T) / 2
-            # This is with a cut off rate:
+            # This is with a cut-off rate:
             # val = 1E-2
             # distance_matrix[distance_matrix < val] = np.nan
             # experimental END -----------------------------------------------------------

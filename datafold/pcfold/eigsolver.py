@@ -22,19 +22,20 @@ def scipy_eigsolver(
     is_symmetric: bool,
     is_stochastic: bool,
 ):
-    """Compute eigenpairs of kernel matrix with scipy.
+    """Compute eigenpairs of kernel matrix with scipy backend.
 
     The scipy solver is selected based on the number of eigenpairs to compute. Note
     that also for dense matrix cases a sparse solver is selected. There are two reasons
     for this decsision:
 
-    1. General dense matrix eigensolver only allow to compute *all* eigenpairs. This
-       is computaional more costly than to put a dense matrix in a sparse solver.
-    2. The hermitian (symmetric) eigh solver allows a partial computation of
+    1. General dense matrix eigensolver only allow *all* eigenpairs to be computed. This
+       is computational more costly than handling a dense matrix to a sparse solver
+       which can also solve for `k` eigenvectors.
+    2. The hermitian (symmetric) `eigh` solver would also allow a partial computation of
        eigenpairs, but it showed to be slower in microbenchmark tests than the sparse
        solvers for dense matrices.
 
-    Internal selection:
+    Internal selection of backend:
 
     * If :code:`n_eigenpairs == n_samples` (for dense / sparse):
       * symmetric `eigh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html#scipy.linalg.eigh>`_
@@ -58,8 +59,8 @@ def scipy_eigsolver(
         noise that breaks the symmetry can lead to instabilities.
 
      is_stochastic
-        True if the matrix is row-stochastic. This enables setting a `sigma` close to 1
-        to accelerate convergence.
+        If True, the kernel matrix is assumed to be row-stochastic. This enables
+        setting a `sigma` close to 1 to accelerate convergence.
 
     Returns
     -------
@@ -120,8 +121,8 @@ def compute_kernel_eigenpairs(
     is_stochastic: bool = False,
     backend: str = "scipy",
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Compute eigenpairs (eigenvalues and -vectors) of a kernel matrix by exploiting
-    kernel properties if applicable.
+    """Compute eigenvalues and -vectors of kernel matrix under consideration of kernel
+    properties.
 
     Parameters
     ----------
@@ -132,12 +133,12 @@ def compute_kernel_eigenpairs(
         Number of eigenpairs to compute.
 
     is_symmetric
-        If True, this allows for specialized algorithms exploiting symmetry and enables
-        an additional numerical sanity check that all eigenvalues are real valued.
+        If True, this allows for specialized algorithms exploiting symmetry and enables an
+        additional numerical sanity check that all eigenvalues are real-valued.
 
     is_stochastic
-        If True, this allows to improve convergence because the trivial first eigenvalue
-        is known and all following eigenvalues are smaller.
+        If True, this allows convergence to be improved because the trivial first
+        eigenvalue is known and all following eigenvalues are smaller.
 
     backend
         * Valid backends: "scipy"
@@ -145,10 +146,10 @@ def compute_kernel_eigenpairs(
     Returns
     -------
     numpy.ndarray
-        Eigenvalues in ascending order (magnitude for complex values)
+        Eigenvalues in ascending order (absolute value).
 
     numpy.ndarray
-        Eigenvectors (not necessarily normalized) in same eigenvalue order.
+        Eigenvectors (not necessarily normalized) in the same order to eigenvalues.
     """
 
     if kernel_matrix.ndim != 2 or kernel_matrix.shape[0] != kernel_matrix.shape[1]:
