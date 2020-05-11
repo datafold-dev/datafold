@@ -376,6 +376,7 @@ class DiffusionMapsTest(unittest.TestCase):
             atol=1e-15,
         )
 
+    @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
     def test_cknn_kernel(self):
         import datafold.pcfold as pfold
         from time import time
@@ -394,7 +395,7 @@ class DiffusionMapsTest(unittest.TestCase):
         t0 = time()
         pcm = pfold.PCManifold(data)
         pcm.optimize_parameters()
-        pcm._dist_params = {"kmin": k_neighbor + 1}
+        # pcm._dist_params = {"kmin": k_neighbor + 1}
 
         t1 = time()
         cknn_kernel = pfold.kernels.ContinuousNNKernel(
@@ -404,7 +405,7 @@ class DiffusionMapsTest(unittest.TestCase):
             pcm,
             dist_cut_off=pcm.cut_off,
             dist_backend="rdist",
-            dist_backend_kwargs={"kmin": k_neighbor + 1},
+            # dist_backend_kwargs={"kmin": k_neighbor + 1},
         )
         t2 = time()
 
@@ -417,7 +418,6 @@ class DiffusionMapsTest(unittest.TestCase):
         print(f"kernel has {k.nnz/k.shape[0]} neighbors per row, on {k.shape[0]} rows")
         print(f"pcm: {t1-t0}, cknn kernel: {t2-t1}, dmap: {t3-t2}")
 
-    @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
     def test_speed(self):
         import datafold.pcfold as pfold
         from time import time
