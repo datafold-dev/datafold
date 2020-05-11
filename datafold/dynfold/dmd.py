@@ -54,7 +54,7 @@ class LinearDynamicalSystem(object):
     ----------
 
     mode
-        type of linear system
+        Type of linear system:
 
         * "continuous"
         * "discrete" (restricts time values to integer values)
@@ -129,7 +129,7 @@ class LinearDynamicalSystem(object):
         feature_columns: Optional[Union[pd.Index, list]] = None,
     ):
         r"""Evolve the dynamical system with spectral components of the dynamical
-        matrix in the linear system.
+        matrix.
 
         Using the eigenvalues :math:`\Lambda` and eigenvectors :math:`\Psi` of the
         constant matrix :math:`A`
@@ -155,11 +155,11 @@ class LinearDynamicalSystem(object):
             Initial condition states :math:`x` of the original system need to be
             aligned to the right eigenvectors beforehand:
 
-            * By using the right eigenvetors and solve in a least square sense, or
+            * By using the right eigenvectors and solving in a least square sense
                 .. math::
                     \Psi_r x_0 = b_0
 
-            * by using the left eigenvectors and computing the matrix-vector product
+            * ot by using the left eigenvectors and computing the matrix-vector product
                 .. math::
                     \Psi_l x_0 = b_0
 
@@ -560,8 +560,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
 
 class DMDFull(DMDBase):
-    r"""Dynamic Mode Decomposition of time series data without any prior dimensionality
-    reduction.
+    r"""Dynamic Mode Decomposition of time series data without any pre-processing.
 
     The Koopman matrix is approximated with
 

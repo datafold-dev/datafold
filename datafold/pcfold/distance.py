@@ -29,7 +29,18 @@ logger = logging.getLogger(__name__)
 
 
 class DistanceAlgorithm(metaclass=abc.ABCMeta):
-    """Abstract class to warp or implement distance matrix algorithms (dense or sparse).
+    """Abstract base class for distance matrix algorithms (dense or sparse).
+
+    Important aspects and conventions for the distance algorithms:
+
+    * The terms "pair-wise" (pdist) and "component-wise" (cdist) are
+      adapted from the scipy's distance matrix computations
+      :class:`scipy.sparse.spatial.pdist` and :class:`scipy.sparse.spatial.cdist`
+    * A sparse distance matrix with a distance cut-off value does not distance
+      values *above* this cut-off. Importantly, this means that the sparse matrix
+      **must** store real distance zeros (duplicates or self-distances in case of
+      pdist) and treat the zeros not stored in the sparse matrix as "large distance
+      values".
 
     Parameters
     ----------
@@ -113,12 +124,13 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     def pdist(
         self, X: np.ndarray, cut_off: Optional[float] = None, **backend_options
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-        """Abstract method: Computes the distance matrix pair-wise from the dataset.
+        """Abstract method to compute the distance matrix pair-wise from the dataset.
 
-        From a pairwise computation follow the matrix properties:
+        In a pair-wise computation the query and reference data are the same. From this
+        the following distance matrix properties follow:
 
         * square
-        * diagonal contains distance to itself and is therefore zero
+        * diagonal contains distance to itself and are therefore zero
         * symmetric
         """
 
@@ -130,13 +142,15 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         cut_off: Optional[float] = None,
         **backend_options,
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-        """Abstract method: Computes the distance matrix component-wise between two
-        data sets.
+        """Abstract method to compute the distance matrix component-wise.
 
-        From a component-wise distance computation follow the general matrix properties:
+        The dataset `X` refers to the reference dataset, and the distances are
+        computed component-wise for the query dataset `Y`. From this the general
+        matrix properties follow:
 
-        * rectangular matrix of shape (n_samples_Y, n_samples_X)
-        * outlier points can lead to zero columns / rows
+        * rectangular matrix of shape `(n_samples_Y, n_samples_X)`
+        * outlier points can lead to empty columns / rows
+        * only duplicated between `X` and `Y` have zero entries
         """
 
 
@@ -220,16 +234,19 @@ class BruteForceNumexpr(DistanceAlgorithm):
 
 
 class BruteForceDist(DistanceAlgorithm):
-    """Computes the full distance matrix.
+    """Computes all distance pairs in the distance matrix.
 
     Chooses either
 
-        * `scipy.pdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html>_` \
+        * `scipy.pdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html>`_ \
            and
            `scipy.cdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html>`_
         * `sklearn.pairwise_distances <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html>`_
 
-        Depending on the parameter `exact_numeric`.
+        Depending on the parameter `metric` and argument `exact_numeric`.
+
+        For an explanation of how `exact_numeric = False` is beneficial, see the
+        `scikit-learn` `documentation <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise.euclidean_distances.html>`_
 
     Parameters
     ----------
@@ -261,14 +278,14 @@ class BruteForceDist(DistanceAlgorithm):
             distances larger than `cut_off` are set to zero
 
             .. note::
-                Distances with larger distance are removed after they memory was
-                allocated and distances computed. It is recommended to use other
-                distance algorithms that directly integrates cut off sparsity .
+                Distances with larger distance are removed after a full memory
+                allocation of the distance matrix. It is recommended to use
+                distance algorithms that directly integrate a cut-off sparsity.
 
         exact_numeric
-            If False, computes (also depending from metric) distances more efficiently
-            at the cost of introducing numerical noise. (empirically: `~1e-14` for
-            "sqeuclidean" and `~1e-7` for "euclidean" metric).
+            If False, computes Euclidean distances more efficiently
+            at the cost of introducing numerical noise. Empirically `~1e-14` for
+            "sqeuclidean" and `~1e-7` for "euclidean" metric.
             
         **backend_options
             Keyword arguments handled to the executing backend.
@@ -301,7 +318,7 @@ class BruteForceDist(DistanceAlgorithm):
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Component-wise distance matrix computation.
 
-        For not documented parameters look in ``pdist``
+        For undocumented parameters look at :meth:`.pdist`.
 
         Parameters
         ----------
@@ -332,10 +349,9 @@ class BruteForceDist(DistanceAlgorithm):
 
 
 class RDist(DistanceAlgorithm):
-    """Sparse distance matrix algorithm rdist, targeting point clouds with
-    manifold assumption.
+    """Sparse distance matrix algorithm rdist, for point clouds with manifold assumption.
 
-    The dependency on Python package "rdist" is optional.
+    The dependency on the Python package "rdist" is optional.
 
     Parameters
     ----------
@@ -430,7 +446,7 @@ class RDist(DistanceAlgorithm):
     ) -> scipy.sparse.csr_matrix:
         """Component-wise distance matrix computation.
 
-        For not documented parameters look in ``pdist``.
+        For undocumented parameters look at :meth:`.pdist`.
 
         Parameters
         ----------
@@ -461,7 +477,7 @@ class RDist(DistanceAlgorithm):
 
 
 class ScipyKdTreeDist(DistanceAlgorithm):
-    """Sparse distance matrix computation using scipy's KD-tree implementation.
+    """Sparse distance matrix computation using scipy's kd-tree implementation.
 
     Parameters
     ----------
@@ -472,8 +488,8 @@ class ScipyKdTreeDist(DistanceAlgorithm):
     ----------
 
     :class:`scipy.spatial.cKDTree`
-    
     :meth:`scipy.spatial.KDTree.sparse_distance_matrix`
+
     """
 
     backend_name = "scipy.kdtree"
@@ -540,8 +556,6 @@ class ScipyKdTreeDist(DistanceAlgorithm):
     ) -> scipy.sparse.csr_matrix:
         """Component-wise distance matrix computation.
 
-        For not documented parameters look in ``pdist``.
-
         Parameters
         ----------
         X
@@ -549,6 +563,12 @@ class ScipyKdTreeDist(DistanceAlgorithm):
 
         Y
             point cloud of shape `(n_samples_Y, n_features_Y)`
+
+        cut_off
+            larger distances (in Euclidean metric) are set to zero
+
+        **backend_options
+            key word arguments handled to `cKDTree`
 
         Returns
         -------
@@ -572,7 +592,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
 
 
 class SklearnBalltreeDist(DistanceAlgorithm):
-    """Ball tree implementation from scikit-learn.
+    """Distance matrix using ball tree implementation from scikit-learn.
 
     Parameters
     ----------
@@ -647,7 +667,7 @@ class SklearnBalltreeDist(DistanceAlgorithm):
     ) -> scipy.sparse.csr_matrix:
         """Component-wise distance matrix computation.
 
-        For not documented parameters look in ``pdist``.
+        For undocumented parameters look at :meth:`.pdist`.
 
         Parameters
         ----------
@@ -745,7 +765,7 @@ class GuessOptimalDist(DistanceAlgorithm):
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Component-wise distance matrix computation.
 
-        For not documented parameters look in ``pdist``.
+        For undocumented parameters look at :meth:`.pdist`.
 
         Parameters
         ----------
@@ -888,7 +908,7 @@ def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):
 
 
 def get_backend_distance_algorithm(backend):
-    """Selects and validates the backend class to compute a distance matrix.
+    """Selects and validates the backend class for distance matrix computation.
 
     Parameters
     ----------
@@ -950,7 +970,7 @@ def compute_distance_matrix(
 
         .. note::
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
-            cut off must be stated in in Eucledian distance (not squared cut off).
+            cut-off must be stated in in Eucledian distance (not squared cut-off).
 
     kmin
         input for continuous nearest neighbor
@@ -962,7 +982,7 @@ def compute_distance_matrix(
         backend to compute distance matrix
 
     **backend_kwargs
-        keyword agruments handled to selected backend
+        keyword arguments handled to selected backend
 
     Returns
     -------
@@ -1001,7 +1021,7 @@ def compute_distance_matrix(
         if cut_off is not None:
             # NOTE: this is a special case. Usually the cut_off is represented in the
             # respective metric. However, for the 'sqeuclidean' case we use the
-            # 'euclidean' metric for the cut off.
+            # 'euclidean' metric for the cut-off.
             cut_off = cut_off ** 2
 
     backend_class = get_backend_distance_algorithm(backend)

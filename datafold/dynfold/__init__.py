@@ -43,8 +43,11 @@ from datafold.dynfold.outofsample import (
     LaplacianPyramidsInterpolator,
 )
 from datafold.dynfold.transform import (
+    TSCApplyLambdas,
     TSCFeaturePreprocess,
+    TSCFiniteDifference,
     TSCIdentity,
+    TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCRadialBasis,
     TSCTakensEmbedding,
