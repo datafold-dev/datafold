@@ -763,7 +763,6 @@ class GuessOptimalDist(DistanceAlgorithm):
         )
 
 
-@DeprecationWarning
 def _k_smallest_element_value(
     distance_matrix, k: int, ignore_zeros: bool = True, fill_value: float = 0.0
 ):

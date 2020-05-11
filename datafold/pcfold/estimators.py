@@ -9,6 +9,7 @@ import scipy.spatial
 
 from datafold.pcfold import GaussianKernel
 from datafold.pcfold.distance import _k_smallest_element_value, compute_distance_matrix
+from datafold.pcfold.kernels import _kth_nearest_neighbor_dist
 
 
 def _warn_if_not_gaussian_kernel(kernel):
@@ -22,7 +23,7 @@ def _warn_if_not_gaussian_kernel(kernel):
 def estimate_cutoff(
     pcm,
     n_subsample: int = 1000,
-    kmin: int = 10,
+    k: int = 10,
     random_state: Optional[int] = None,
     distance_matrix=None,
 ) -> float:
@@ -37,8 +38,8 @@ def estimate_cutoff(
     n_subsample
         Maximum subsample used for the estimation. Ignored if distance_matrix not None.
 
-    kmin
-        median of the kmin k-nearest neighbor distance is used
+    k
+        Compute the `k`-th nearest neighbor distance to estimate the cut-off distance.
 
     random_state
         sets :code:`np.random.seed(random_state)`
@@ -52,6 +53,9 @@ def estimate_cutoff(
     :py:class:`datafold.pcfold.kernels.GaussianKernel`
 
     """
+
+    if k <= 1:
+        raise ValueError("")
 
     n_points = pcm.shape[0]
     n_subsample = np.min([n_points, n_subsample])  # undersample the point set
@@ -76,14 +80,11 @@ def estimate_cutoff(
             **dict(exact_numeric=False)
         )
 
-        kmin = np.min([kmin, distance_matrix.shape[1] - 1])
-        k_smallest_values = _k_smallest_element_value(
-            distance_matrix, kmin, ignore_zeros=False
-        )
+        # TODO: that it is k+1 is now a change, with re-implementation of k-th NN ... Fix?
+        k = np.min([k, distance_matrix.shape[1] - 1])
+        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k + 1)
     else:
-        k_smallest_values = _k_smallest_element_value(
-            distance_matrix, kmin, ignore_zeros=False
-        )
+        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k + 1)
 
     est_cutoff = np.median(k_smallest_values)
 

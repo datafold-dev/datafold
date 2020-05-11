@@ -268,7 +268,7 @@ class PCManifold(np.ndarray):
             )
 
         cut_off = estimate_cutoff(
-            self, n_subsample=n_subsample, kmin=kmin, random_state=random_state
+            self, n_subsample=n_subsample, k=kmin, random_state=random_state
         )
 
         if result_scaling != 1:

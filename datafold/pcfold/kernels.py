@@ -279,6 +279,73 @@ def _stochastic_kernel_matrix(kernel_matrix: Union[np.ndarray, scipy.sparse.spma
     return kernel_matrix
 
 
+def _kth_nearest_neighbor_dist(
+    distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix], k
+) -> np.ndarray:
+    """Compute the distance to the `k`-th nearest neighbor.
+
+    Parameters
+    ----------
+    distance_matrix
+        Matrix to partition to find the distance of the `k`-th nearest neighbor. If
+        matrix is sparse each point must have a minimum number of `k` non-zero elements.
+
+    k
+        `k` nearest neighbors to find. The value must be a positive integer.
+
+    Returns
+    -------
+    numpy.ndarray
+        distance values
+    """
+
+    if not is_integer(k):
+        raise ValueError(f"parameter 'k={k}' must be a positive integer")
+    else:
+        # make sure we deal with Python built-in
+        k = int(k)
+
+    if not (0 <= k <= distance_matrix.shape[1]):
+        raise ValueError(
+            "'k' must be an integer between 1 and "
+            f"distance_matrix.shape[1]={distance_matrix.shape[1]}"
+        )
+
+    if isinstance(distance_matrix, np.ndarray):
+        dist_knn = np.partition(distance_matrix, k - 1, axis=1)[:, k - 1]
+    elif isinstance(distance_matrix, scipy.sparse.csr_matrix):
+        # see mircobenchmark_kth_nn.py for a comparison of implementations for the
+        # sparse case
+
+        def _get_kth_largest_elements_sparse(
+            data: np.ndarray, indptr: np.ndarray, row_nnz, k_neighbor: int,
+        ):
+            dist_knn = np.zeros(len(row_nnz))
+            for i in range(len(row_nnz)):
+                start_row = indptr[i]
+                dist_knn[i] = np.partition(
+                    data[start_row : start_row + row_nnz[i]], k_neighbor - 1
+                )[k_neighbor - 1]
+
+            return dist_knn
+
+        row_nnz = distance_matrix.getnnz(axis=1)
+
+        if (row_nnz < k).any():
+            raise ValueError(
+                f"There are {(row_nnz < k).sum()} points that "
+                f"do not have at least k_neighbor={k}."
+            )
+
+        dist_knn = _get_kth_largest_elements_sparse(
+            distance_matrix.data, distance_matrix.indptr, row_nnz, k,
+        )
+    else:
+        raise TypeError(f"type {type(distance_matrix)} not supported")
+
+    return dist_knn
+
+
 class PCManifoldKernel(Kernel):
     """Abstract base class for kernels used in datafold.
 
@@ -1021,56 +1088,6 @@ class ContinuousNNKernel(PCManifoldKernel):
                     "n_neighbors must be in the range 1 to number of samples"
                 )
 
-    def _kth_nn_dist(
-        self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
-    ) -> np.ndarray:
-        """Obtain the distance to the `k`-th nearest neighbor.
-
-        Parameters
-        ----------
-        distance_matrix
-            Matrix to partition to find the `k`-th nearest neighbor. If matrix is
-            sparse each point must have a minimum number of neighbors of `k`
-
-        Returns
-        -------
-        numpy.ndarray
-            distance values
-        """
-        if isinstance(distance_matrix, np.ndarray):
-            return np.partition(distance_matrix, self.k_neighbor - 1, axis=1)[
-                :, self.k_neighbor - 1
-            ]
-        elif isinstance(distance_matrix, scipy.sparse.csr_matrix):
-            # see mircobenchmark_kth_nn.py for a comparison of implementations for the
-            # sparse case
-
-            def _get_kth_largest_elements_sparse(
-                data: np.ndarray, indptr: np.ndarray, row_nnz, k_neighbor: int,
-            ):
-                dist_knn = np.zeros(len(row_nnz))
-                for i in range(len(row_nnz)):
-                    start_row = indptr[i]
-                    dist_knn[i] = np.partition(
-                        data[start_row : start_row + row_nnz[i]], k_neighbor - 1
-                    )[k_neighbor - 1]
-
-                return dist_knn
-
-            row_nnz = distance_matrix.getnnz(axis=1)
-
-            if (row_nnz < self.k_neighbor).any():
-                raise ValueError(
-                    f"There are {(row_nnz < self.k_neighbor).sum()} points that "
-                    f"do not have at least k_neighbor={self.k_neighbor}."
-                )
-
-            return _get_kth_largest_elements_sparse(
-                distance_matrix.data, distance_matrix.indptr, row_nnz, self.k_neighbor,
-            )
-        else:
-            raise TypeError(f"Not supported type {type(distance_matrix)}")
-
     def eval(
         self, distance_matrix, is_pdist=False, reference_dist_knn=None
     ) -> Tuple[scipy.sparse.csr_matrix, np.ndarray]:
@@ -1107,7 +1124,7 @@ class ContinuousNNKernel(PCManifoldKernel):
             reference_dist_knn=reference_dist_knn,
         )
 
-        dist_knn = self._kth_nn_dist(distance_matrix)
+        dist_knn = _kth_nearest_neighbor_dist(distance_matrix, self.k_neighbor)
 
         distance_factors = _symmetric_matrix_division(
             distance_matrix,

@@ -8,7 +8,11 @@ import scipy.sparse
 from scipy.spatial.distance import pdist
 
 from datafold.pcfold.distance import compute_distance_matrix
-from datafold.pcfold.kernels import ContinuousNNKernel, DmapKernelFixed
+from datafold.pcfold.kernels import (
+    ContinuousNNKernel,
+    DmapKernelFixed,
+    _kth_nearest_neighbor_dist,
+)
 
 
 def generate_box_data(n_left, n_middle, n_right, seed):
@@ -112,6 +116,52 @@ class TestKernelUtils(unittest.TestCase):
         )
 
         nptest.assert_array_equal(actual.toarray(), expected)
+
+    def test_sparse_kth_dist01(self):
+        data = generate_circle_data(100, 100, 1)
+        distance_matrix = compute_distance_matrix(data)
+
+        for k in np.linspace(2, 90, 20).astype(np.int):
+            expected = _kth_nearest_neighbor_dist(distance_matrix, k)
+
+            distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
+            distance_matrix.setdiag(0)
+            actual = _kth_nearest_neighbor_dist(distance_matrix, k)
+
+            nptest.assert_array_equal(actual, expected)
+
+    def test_sparse_kth_dist02(self):
+        data_ref = generate_circle_data(100, 100, 0)
+        data_query = generate_circle_data(50, 50, 1)
+
+        distance_matrix = compute_distance_matrix(data_ref, data_query)
+
+        for k in np.linspace(2, 90, 20).astype(np.int):
+
+            actual = _kth_nearest_neighbor_dist(
+                scipy.sparse.csr_matrix(distance_matrix), k
+            )
+            expected = _kth_nearest_neighbor_dist(distance_matrix, k)
+
+            nptest.assert_array_equal(actual, expected)
+
+    def test_pdist_kth_dist(self):
+        # sanity test for pdist: k=0 should always be 0
+
+        data = generate_box_data(100, 100, 100, 1)
+
+        dense_dist_mat = compute_distance_matrix(data)
+        sparse_dist_mat = compute_distance_matrix(data, cut_off=1e100)
+
+        actual_dense = _kth_nearest_neighbor_dist(dense_dist_mat, 1)
+        actual_sparse = _kth_nearest_neighbor_dist(sparse_dist_mat, 1)
+
+        expected = np.min(dense_dist_mat, axis=1)  # self is always zero
+
+        nptest.assert_array_equal(expected, np.zeros(len(expected)))
+
+        nptest.assert_array_equal(expected, actual_dense)
+        nptest.assert_array_equal(expected, actual_sparse)
 
 
 class TestDiffusionMapsKernelTest(unittest.TestCase):
@@ -286,28 +336,6 @@ class TestContinuousNNKernel(unittest.TestCase):
         with self.assertRaises(ValueError):
             cknn.eval(sparse_distance_matrix, is_pdist=True)
 
-    def test_pdist_0th_nn(self):
-        # sanity test for pdist: k=0 should always be 0
-
-        data = generate_box_data(100, 100, 100, 1)
-
-        dense_dist_mat = compute_distance_matrix(data)
-        sparse_dist_mat = compute_distance_matrix(data, cut_off=1e100)
-
-        actual_dense = ContinuousNNKernel(k_neighbor=1, delta=1)._kth_nn_dist(
-            dense_dist_mat
-        )
-        actual_sparse = ContinuousNNKernel(k_neighbor=1, delta=1)._kth_nn_dist(
-            sparse_dist_mat
-        )
-
-        expected = np.min(dense_dist_mat, axis=1)  # self is always zero
-
-        nptest.assert_array_equal(expected, np.zeros(len(expected)))
-
-        nptest.assert_array_equal(expected, actual_dense)
-        nptest.assert_array_equal(expected, actual_sparse)
-
     def test_wrong_setups(self):
 
         with self.assertRaises(ValueError):
@@ -327,35 +355,6 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             ContinuousNNKernel(k_neighbor=41, delta=1).eval(distance_matrix)
-
-    def test_sparse_kth_dist01(self):
-        data = generate_circle_data(100, 100, 1)
-        distance_matrix = compute_distance_matrix(data)
-
-        for k in np.linspace(2, 90, 20).astype(np.int):
-            cknn = ContinuousNNKernel(k_neighbor=k, delta=1)
-
-            expected = cknn._kth_nn_dist(distance_matrix)
-
-            distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
-            distance_matrix.setdiag(0)
-            actual = cknn._kth_nn_dist(distance_matrix)
-
-            nptest.assert_array_equal(actual, expected)
-
-    def test_sparse_kth_dist02(self):
-        data_ref = generate_circle_data(100, 100, 0)
-        data_query = generate_circle_data(50, 50, 1)
-
-        distance_matrix = compute_distance_matrix(data_ref, data_query)
-
-        # for k in np.linspace(2, 90, 20).astype(np.int):
-        for k in [1]:
-            cknn = ContinuousNNKernel(k_neighbor=k, delta=1)
-            actual = cknn._kth_nn_dist(scipy.sparse.csr_matrix(distance_matrix))
-            expected = cknn._kth_nn_dist(distance_matrix)
-
-            nptest.assert_array_equal(actual, expected)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ import datafold.pcfold.tests.allutils
 from datafold.pcfold import *
 
 
-class PCMEstimationUnitTests(unittest.TestCase):
+class TestPCMEstimation(unittest.TestCase):
     def test_optimize_parameters_default(self):
         random_state = 1
         np.random.seed(random_state)
