@@ -1,6 +1,5 @@
 ---
 title: 'data-driven models for point clouds and time series on manifolds'
-
 tags:
   - data-driven models
   - manifold 
@@ -8,7 +7,6 @@ tags:
   - extended dynamic mode decomposition 
   - dynamical systems
   - Python
- 
 authors:
   - name: Daniel Lehmberg
     orcid: 0000-0002-4012-5014
@@ -22,14 +20,12 @@ authors:
   - name: Hans-Joachim Bungartz
     orcid: 0000-0002-4012-5014
     affiliation: 2
-  
 affiliations:
  - name: Munich University of Applied Sciences
    index: 1
  - name: Technical University of Munich
    index: 2
-
-date: 06 May 2020
+date: 12 May 2020
 bibliography: paper.bib
 ---
 
