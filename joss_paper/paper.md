@@ -2,11 +2,12 @@
 title: 'datafold: data-driven models for point clouds and time series on manifolds'
 tags:
   - data-driven models
-  - manifold 
+  - manifold learning
+  - point cloud
   - time series
-  - extended dynamic mode decomposition 
-  - dynamical systems
-  - Python
+  - dynamic mode decomposition
+  - dynamical system
+  - Python 
 authors:
   - name: Daniel Lehmberg
     orcid: 0000-0002-4012-5014
