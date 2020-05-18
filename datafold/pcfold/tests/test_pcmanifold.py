@@ -6,7 +6,6 @@ import unittest
 import numpy as np
 import sklearn.datasets
 
-import datafold.pcfold.tests.allutils
 from datafold.pcfold import *
 
 
@@ -24,9 +23,7 @@ class TestPCManifold(unittest.TestCase):
 
         # Check if after pickling all attributes are recovered:
         self.assertTrue(hasattr(unpickled_estimator, "kernel"))
-        self.assertTrue(hasattr(unpickled_estimator, "_cut_off"))
-        self.assertTrue(hasattr(unpickled_estimator, "_dist_backend"))
-        self.assertTrue(hasattr(unpickled_estimator, "_dist_params"))
+        self.assertTrue(hasattr(unpickled_estimator, "dist_kwargs"))
 
 
 @unittest.skip(reason="Legacy code, requires update.")

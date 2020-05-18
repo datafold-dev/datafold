@@ -28,6 +28,7 @@ measuring error metrics between predicted and true time series.
 
 import datafold.pcfold.timeseries.accessor
 from datafold.pcfold.kernels import (
+    ContinuousNNKernel,
     CubicKernel,
     DmapKernelFixed,
     GaussianKernel,

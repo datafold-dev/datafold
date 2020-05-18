@@ -3,8 +3,8 @@
 import unittest
 
 import numpy as np
+import numpy.testing as nptest
 
-import datafold.pcfold.tests.allutils
 from datafold.pcfold import *
 
 
@@ -29,9 +29,9 @@ class TestPCMEstimation(unittest.TestCase):
             [0.47723065552428895, 0.012363772096040159],
             [0.5868096378271159, 0.01869342158594448],
         ]
-        datafold.pcfold.tests.allutils._assert_eq_matrices_tol(
-            np.array(result_expected), np.array(result), tol=1e-8
-        )
+
+        # reference test:needs update when changing behavior
+        nptest.assert_almost_equal(result_expected, result, decimal=14)
 
     def test_optimize_parameters_scaling(self):
         random_state = 1
@@ -53,9 +53,9 @@ class TestPCMEstimation(unittest.TestCase):
             [0.9544613110485779, 0.049455088384160635],
             [1.1736192756542319, 0.07477368634377791],
         ]
-        datafold.pcfold.tests.allutils._assert_eq_matrices_tol(
-            np.array(result_expected), np.array(result), tol=1e-8
-        )
+
+        # reference test:needs update when changing behavior
+        nptest.assert_almost_equal(result_expected, result, decimal=14)
 
     def test_optimize_parameters_below_tolerance(self):
         random_state = 1
@@ -71,11 +71,32 @@ class TestPCMEstimation(unittest.TestCase):
                 pcm.optimize_parameters(random_state=random_state, tol=tol)
 
                 result.append([np.exp(-pcm.cut_off ** 2 / pcm.kernel.epsilon) - tol])
-            result_expected = np.zeros(4,)
+            result_expected = np.zeros(len(result),)
 
-            datafold.pcfold.tests.allutils._assert_eq_matrices_tol(
-                np.array(result_expected), np.array(result), tol=tol
+            nptest.assert_allclose(
+                result_expected, np.asarray(result).ravel(), rtol=tol, atol=1e-15
             )
+
+    @staticmethod
+    def generate_mushroom(n_points=500):
+
+        NX = int(np.sqrt(n_points))
+        space = np.linspace(0, 1, NX)
+
+        x, y = np.meshgrid(space, 2 * space)
+
+        data = np.vstack([x.flatten(), y.flatten()]).T
+        data = np.random.rand(NX * NX, 2)
+        data[:, 1] = data[:, 1] * 1.0
+
+        def transform(x, y):
+            return x + y ** 3, y - x ** 3
+
+        xt, yt = transform(data[:, 0], data[:, 1])
+        data_mushroom = np.vstack([xt.flatten(), yt.flatten()]).T
+        data_rectangle = data
+
+        return data_mushroom, data_rectangle
 
     @unittest.skip(reason="Legacy, needs refactoring.")
     def test_llr1(self):
@@ -104,7 +125,7 @@ class TestPCMEstimation(unittest.TestCase):
             bandwidth_type="median",
         )
 
-        allutils._assert_eq_matrices_tol(
+        allutils._assert_eq_matrices_tol(  # <- use nptest
             np.array([1, 0, 0, 1, 1, 1]), result["Residuals"], tol=1e-1
         )
 
