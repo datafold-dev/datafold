@@ -7,7 +7,7 @@ dynamical systems on these manifolds. Informally, a manifold is a geometrical st
 on which the available data is sampled. For point clouds a typical use case is to
 parametrize a manifold with intrinsic lower dimension to enable non-linear dimension
 reduction. For time series data the underlying dynamical system is assumed to have a
-phase space being a manifold. *datafold* can therefore process potentially
+phase space that is a manifold. *datafold* can therefore process potentially
 high-dimensional data that lie near an geometry.
 
 The software documentation is available at
@@ -21,14 +21,14 @@ The source code is distributed under the `MIT license <https://gitlab
 .com/datafold-dev/datafold/-/blob/master/LICENSE>`_.
 
 Any contribution (including code/tutorials/documentation improvements) and feedback is
-very welcome. Please go to the section "Contributing" below for further details.
+very welcome. Please see the "Contributing" section below for further details.
 
 .. note::
-    The project is under active development in an research driven environment.
+    The project is under active development in a research-driven environment.
 
     * Code quality varies ranging from "experimental/early stage" to "well-tested". In
       general, well tested classes are listed in the software documentation and are
-      accessible through the package levels `pcfold`, `dynfold` or `appfold` directly
+      directly accessible through the package levels `pcfold`, `dynfold` or `appfold`
       (e.g. :code:`from datafold.dynfold import ...`. Experimental code is only
       accessible via "deep imports"
       (e.g. :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning
@@ -41,8 +41,7 @@ very welcome. Please go to the section "Contributing" below for further details.
          * `minor` - adding functionality in a backwards-compatible manner
          * `patch` - backwards-compatible bug fixes
 
-      There is no intention of indicating a feature complete milestone with
-      version `1.0`.
+      We do not intend to indicate a feature complete milestone with version `1.0`.
 
 Highlights
 ==========
@@ -50,7 +49,7 @@ Highlights
 *datafold* includes:
 
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
-  collections (``TSCDataFrame``). The data structures are both used internally and for
+  collections (``TSCDataFrame``). The data structures are used both internally and for
   model input/outputs (if applicable).
 * An efficient implementation of the ``DiffusionMaps`` model to parametrize a manifold
   from point cloud data or to approximate the Laplace-Beltrami operator eigenfunctions.
@@ -63,61 +62,64 @@ Highlights
   time series in another coordinate system (e.g. Laplace-Beltrami operator) or to
   reconstruct a diffeomorphic copy of the phase space with time delay embedding (cf.
   `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`_).
-* Building up on the last point, ``EDMDCV`` allows the model parameters (including the
+* ``EDMDCV`` allows the model parameters (including the
   transformation model parameters) to be optimized with cross-validation and
   also accounts for time series splitting.
 
 How does it compare to other software?
 ======================================
 
-*This only includes other Python packages, and does not compare the size of the projects.*
+*This section only includes other Python packages, and does not compare the size
+(e.g. active developers) of the projects.*
 
 * `scikit-learn <https://scikit-learn.org/stable/>`_
-   provides algorithms of the entire machine learning pipeline. The main
+   provides algorithms for the entire machine learning pipeline. The main
    class of models in scikit-learn map feature inputs to a fixed number of target
-   outputs for tasks like regression or classification. *datafold* integrates into the
+   outputs for tasks like regression or classification. *datafold* is integrated into the
    scikit-learn API and focuses on the
-   `manifold learning algorithms <https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py>`_,
-   but furthermore, includes a model class that can process time
-   series data coming from dynamical systems. The number of outputs can then vary: a
+   `manifold learning algorithms <https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py>`_.
+   Furthermore, *datafold* includes a model class that can process time
+   series data from dynamical systems. The number of outputs may vary: a
    user provides an initial condition (the input) and an arbitrary sampling frequency
-   and prediciton horizon.
+   and prediction horizon.
 
 * `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`_
    provides many \
    variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia
    .org/wiki/Dynamic_mode_decomposition>`_. Some of the DMD models are special
-   cases of a dictionary of the `Extended Dynamic Mode Decomposition`, and other DMD
+   cases of a dictionary of the `Extended Dynamic Mode Decomposition`, while other DMD
    variants are currently not covered in *datafold*. ``datafold.dynfold.dmd.py`` includes
-   an (experimental) wrapper for the ``PyDMD`` package to make use of missing DMD models,
-   however, a major limitation of ``PyDMD`` is that it only allows single time series as
+   an (experimental) wrapper for the ``PyDMD`` package to make use of missing DMD models.
+   However, a major limitation of ``PyDMD`` is that it only allows single time series as
    input (``numpy.ndarray``), see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`_.
    *datafold* addresses this issue with the data structure ``TSCDataFrame``.
 
 * `PySINDy <https://pysindy.readthedocs.io/en/latest/>`_
    specializes on a *sparse* identification of dynamical systems to infer governing
-   equations. `SINDy` is basically a DMD variant and not in the scope of *datafold*, but
-   not yet included. `PySINDy` also provides time series transformations, which
-   are referred to as `library`. This matches the defintion of
+   equations. `SINDy` is basically a DMD variant and not in the scope of *datafold* and
+   note yet included. `PySINDy` also provides time series transformations, which
+   are referred to as `library`. This matches the definition of
    `dictionary` in  the `Extended Dynamic Mode Decomposition`). `PySINDy` also supports
-   multiple time series but managed in lists and not in a single data structure.
+   multiple time series but these are managed in lists and not in a single data
+   structure.
 
-* `tensorflow <https://www.tensorflow.org/>`_
+* `TensorFlow <https://www.tensorflow.org/>`_
    allows data-driven regression/prediction with the main model type
    (deep) neural networks. For manifold learning (Variational) Auto-Encoders are
-   suitable and for time series predictions recurrent networks such as
+   suitable and for time series predictions there are recurrent networks such as
    the `Long Short-Term Memory` (LSTM) are a good choice. In general neural networks
-   lack of mathematical background theory and are black-box models with a
-   non-deterministic learning process and require medium to large sized datasets.
-   Nonetheless, the models are in many application cases very successful. The models in
-   *datafold*, in contrast, have a strong mathematical background, a deterministic
-   result, are interpretable and can handle smaller data sets.
+   lack a mathematical background theory and are black-box models with a
+   non-deterministic learning process that require medium to large sized datasets.
+   Nonetheless, for many applications the models are very successful. The models in
+   *datafold*, in contrast, have a strong mathematical background, can often be used as
+   part of the analysis, have deterministic results and are capable to handle smaller data
+   sets.
 
 
 How to get it?
 ==============
 
-Installation of *datafold* requires ``Python>=3.6``,
+Installation of *datafold* requires `Python>=3.6 <https://www.python.org/>`_ with
 `pip <https://pip.pypa.io/en/stable/>`_ and
 `setuptools <https://setuptools.readthedocs.io/en/latest/>`_ installed (the two
 packages usually ship with Python). Package dependencies are listed in the
@@ -161,8 +163,8 @@ Dependencies
 ============
 
 The package dependencies are managed in `setup.py <https://gitlab
-.com/datafold-dev/datafold/-/blob/master/setup.py>`_ and install
-(if not already installed) with the package manager ``pip``.
+.com/datafold-dev/datafold/-/blob/master/setup.py>`_ and install with the package
+manager ``pip`` (if not already installed).
 
 *datafold* integrates with common packages from the
 `Python scientific computing stack <https://www.scipy.org/about.html>`_. Specifically,
@@ -170,18 +172,19 @@ this is:
 
 * `NumPy <https://numpy.org/>`_
     The data structure ``PCManifold`` in *datafold* subclasses from NumPy's ``ndarray``
-    to model a point cloud sampled on a manifold. A ``PCManifold`` point cloud is
-    associated with a kernel that describes the data locality and hence the geometry.
-    NumPy is used throughout *datafold* and is the default for numerical data and
-    algorithms.
+    to model a point cloud sampled on a manifold. A ``PCManifold`` is
+    associated with a ``PCManifoldKernel`` that describes the data locality and hence
+    the geometry. NumPy is used throughout *datafold* and is the default for numerical
+    data and algorithms.
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`_
    *datafold* addresses time series data in the data structure ``TSCDataFrame``
    which subclasses from Pandas' rich data structure
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
-   Internally, this is again a NumPy array, but the data frame indexes time, time series
-   and features. The entire available time series data can then be captured in a single
-   object with easy data slicing and dedicated time series functionality.
+   Internally, this is again a NumPy array, but the data frame can index time values,
+   multiple time series and multiple features. The entire available time series data can
+   then be captured in a single object with easy data slicing and dedicated time series
+   functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`_
    All *datafold* algorithms that are part of the "machine learning pipeline" align
@@ -189,7 +192,7 @@ this is:
    This is done by subclassing from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`_.
    or appropriate "MixIns". *datafold* also defines own base classes
-   that align with scikit-learn (in a duck-typing way) to allow passing
+   that align with ``scikit-learn`` (in a duck-typing fashion) to allow passing
    time series data in a ``TSCDataFrame`` object.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`_
@@ -245,20 +248,18 @@ Install git pre-commit hooks
 
 The *datafold* source code is automatically formatted with
 
-
-* `black <https://black.readthedocs.io/en/stable/>`_ for Python soruce code auto
-  formatting
+* `black <https://black.readthedocs.io/en/stable/>`_ for general formatting
 * `isort <https://timothycrosley.github.io/isort/>`_ for sorting :code:`import` statements
   in the source code alphabetically and in sections.
-* `nbstripout <https://github.com/kynan/nbstripout>`_ for removing potentially large (in
-  mega bytes) binary formatted output cells of Jupyter notebooks before they get
-  into the git history.
+* `nbstripout <https://github.com/kynan/nbstripout>`_ for removing potentially large
+   binary formatted output cells of Jupyter notebooks before they get into the git
+   history.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
 commited to the git history. The tools alter the source code in an deterministic
-way (i.e. they should only format the code once, which is indicated with "failed") and
-should not break the code (at least promised). To set up the tools, the most convenient
-way is to install the git commit-hooks via the tool
+way. That is each tool should only format the code once to obtain the desired source
+code format. Also no tool should break the code. To set up the tools, the most
+convenient way is to install the git commit-hooks via the tool
 `pre-commit <https://pre-commit.com/>`_ (it installs with the development dependencies).
 To install the hooks run from root directory:
 
@@ -266,8 +267,8 @@ To install the hooks run from root directory:
 
    pre-commit install
 
-The installed hooks run before each commit. To also execute the hooks without a commit or
-for testing purposes) run from root directory:
+The installed hooks run then automatically before each ``git commit``. To also execute
+the hooks without a commit or for testing purposes run from root directory:
 
 .. code-block:: bash
 
@@ -285,8 +286,8 @@ To execute all *datafold* unit tests locally run from the root directory:
 
    nosetests datafold/ -v
 
-To execute the tutorials (only if an error occurs in the tutorial) run from the root
-directory:
+To execute the tutorials (tests check only if an error occurs in the tutorial) run from
+the root directory:
 
 .. code-block:: bash
 
@@ -300,27 +301,28 @@ Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The documentation uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ and multiple \
-extensions (all install with the development dependencies).
+extensions (all install with the development dependencies). The source code is documented
+with `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`_ style.
 
-Additional dependencies (not contained in ``requirements-dev.txt``):
+Additional dependencies for building the documentation (**not** contained in
+``requirements-dev.txt``):
 
 * `LaTex <https://www.latex-project.org/>`_ to render maths equations,
-* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in browser (for
+* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in the browser (for
    Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
 * `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
 * `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
-  `nbsphinx` extension that includes the tutorials into the webpage documentation).
+  `nbsphinx` extension that includes the tutorials into the web page documentation).
 
 Note that the documentation also builds remotely in the CI pipeline, either as a
 test (all branches except `master`) or to update the web page (only for `master`).
 
-The *datafold* source code is documented with
-`numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`_ style. To
-build the documentation run from root directory
+To build the documentation run from root directory
 
 .. code-block:: bash
 
    sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
    sphinx-build -b html ./doc/source/ ./public/
 
-The html entry is then located at ``./public/index.html``.
+The html entry is then located at ``./public/index.html``. Please make sure that the
+installation of Sphinx is in the path so the Sphinx tools are accessible.

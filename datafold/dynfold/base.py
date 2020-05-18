@@ -176,10 +176,11 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
     * :class:`numpy.ndarray`
     * :class:`pandas.DataFrame` no restriction on the frame's index and column format
     * :class:`.TSCDataFrame` as a special data frame for time series collections
-    Generally, the following input/output types are supported:
+
+    In general the following input/output types are supported:
 
     * :class:`numpy.ndarray`
-    * :class:`pandas.DataFrame` (no restriction on index and columns format)
+    * :class:`pandas.DataFrame` (e.g. as initial condition)
     * :class:`TSCDataFrame` as a special case for time series collections
 
     Parameters

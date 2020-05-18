@@ -1,22 +1,29 @@
-"""The highest datafold level accomodate models that capture complex processing
-pipelines. The models are essentially "meta model" because they provide a
-single point of access to usually multiple sub-models included in a model. The models
-on this layer are therefore end of the Machine Learning process and are intended to
-solve complex data-driven usecases or analysis tasks.
+"""The highest level of *datafold* accommodates models that capture complex processing
+pipelines. Essentially, the models are "meta-models" because they provide a single point
+of access to multiple sub-models captured in the class. The models at this layer are
+at the end of the machine learning process and are intended to solve complex
+data-driven use-cases or analysis tasks.
 
-The high degree of modularization in *datafold*'s software of the first and
-second layer become profitable for the meta-models: The data process pipeline can be
-combined with a high degree of flexibility, which makes it easier to test model
+The modularization in *datafold's* software of the first and
+the second layer becomes profitable for the meta-models: the data process pipeline can be
+combined with greater flexibility, which makes it easier to test model
 configurations and model accuracies in a parameter space.
 
-*datafold* provides an model implementation of the "Extended Dynamic Mode Decomposition".
-Creating an instance of :class:`.EDMD` allows a flexible choice of dictionary (a number
-of transform functions) to be set together with a final DMD based model (
-:class:`DMDBase`) to approximate the Koopman operator in the functional representation
-of the dictionary. Following up on the meta-model approach `EDMD` can be integrated in
-a cross-validation pipeline. :class:`EDMDCV` (subclassing
-:class:`sklearn.model_selection.GridSearchCV`) provides an exhaustive search over a
-user specified parameter space, including cross-validation splitting of time series data.
+**Base classes and important implementations:**
+
+* :class:`sklearn.pipeline.Pipeline`
+  The pipeline (meta-estimator) is a base class of :class:`.EDMD` (Extended Dynamic Mode
+  Decomposition). The EDMD dictionary corresponds to the transform functions and the
+  final estimator is a DMD algorithm (see :class:`DMDBase`) which approximates the Koopman
+  operator with a matrix. A fitted EDMD model, which also derives
+  from :class:`TSCPredictMixIn`, can then perform time series predictions.
+
+* :class:`sklearn.model_selection.GridSearchCV`
+  Building upon the meta-model approach, an :class:`EDMD` instance can be integrated
+  into a cross-validation pipeline :class:`EDMDCV`
+  with base class :class:`sklearn.model_selection.GridSearchCV`. The cross-validation
+  provides an exhaustive search over a user-specified parameter space that can include
+  parameters from all sub-models and includes data-splitting schemes of time series data.
 """
 
 from datafold.appfold.edmd import EDMD, EDMDCV

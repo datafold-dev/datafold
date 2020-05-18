@@ -15,7 +15,6 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   intro
    api
    devapi
    tutorial_index
@@ -44,10 +43,10 @@ Affiliations
 Contributors
 ------------
 
-* **Daniel Lehmberg** (1,2) is supported by the German Research Foundation (DFG), grant no
-  KO5257/3-1. DL thanks the research office (FORWIN) of Munich University of Applied
-  Sciences and CeDoSIA of TUM Graduate School at the Technical University of Munich for
-  their support.
+* **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
+  grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
+  Applied Sciences and CeDoSIA of TUM Graduate School at the Technical
+  University of Munich for their support.
   
 * **Felix Dietrich** (2). FD thanks the Technical University of Munich for their support.
 
