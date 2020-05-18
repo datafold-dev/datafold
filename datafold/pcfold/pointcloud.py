@@ -10,7 +10,6 @@ import scipy.sparse
 
 from datafold.pcfold import GaussianKernel, PCManifoldKernel
 from datafold.pcfold.distance import (
-    DistanceAlgorithm,
     compute_distance_matrix,
     get_backend_distance_algorithm,
 )
@@ -20,11 +19,12 @@ from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 class PCManifold(np.ndarray):
     """Represent a point cloud lying near a manifold with a kernel.
 
-    ``PCManifold```subclasses a NumPy array and attaches a kernel that is associated with
-    the data. Furthermore, a backend for the distance matrix, which must support the
-    metric of the kernel, can be set.
+    ``PCManifold`` subclasses a NumPy array and attaches a kernel that is associated with
+    the data. Furthermore, distance parameter can be set to select the a distance
+    matrix algorithms, which supports the kernel metric and/or promotes sparsity by
+    defining a cut-off distance.
 
-    The array must be two-dimensional, where the points are row-wise.
+    The data must be two-dimensional with the points ordered row-wise.
 
     ...
 
@@ -33,12 +33,9 @@ class PCManifold(np.ndarray):
     kernel
         Kernel to describe local proximity between data points.
 
-    cut_off
-        Cut-off distance, larger distance values are not stored in a sparse kernel matrix.
-
-    dist_backend : Union[str, DistanceAlgorithm]
-        Backend algorithm to compute the distance matrix (must
-        support the metric in the kernel).
+    dist_kwargs
+        Keyword arguments passed to the internal distance matrix computation. See
+        :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
 
     See Also
     --------
@@ -51,9 +48,7 @@ class PCManifold(np.ndarray):
         cls,
         data: Union[np.ndarray, pd.DataFrame],
         kernel: Optional[PCManifoldKernel] = None,
-        cut_off: Optional[float] = None,
-        dist_backend: Union[str, DistanceAlgorithm] = "guess_optimal",
-        **dist_params,
+        dist_kwargs: Optional[dict] = None,
     ):
         # See https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
         # to learn about subclassing numpy.ndarray
@@ -78,11 +73,8 @@ class PCManifold(np.ndarray):
             raise ValueError("Point cloud must be finite (no 'nan' or 'inf' values).")
 
         # Set the kernel according to user input
-        obj._kernel = kernel
-
-        obj._cut_off = cut_off
-        obj._dist_backend = get_backend_distance_algorithm(dist_backend)
-        obj._dist_params = dist_params
+        obj.kernel = kernel
+        obj.dist_kwargs = dist_kwargs or {}
 
         return obj
 
@@ -111,19 +103,15 @@ class PCManifold(np.ndarray):
         # default parameters:
         self.kernel = getattr(obj, "kernel", GaussianKernel())
 
-        self._cut_off = getattr(obj, "_cut_off", None)
-        self._dist_backend = getattr(obj, "_dist_backend", "brute")
-        self._dist_params = getattr(obj, "_dist_params", None)
+        self.dist_kwargs = getattr(obj, "dist_kwargs", {})
+        self.dist_kwargs.setdefault("cut_off", np.inf)
+        self.dist_kwargs.setdefault("kmin", 0)
+        self.dist_kwargs.setdefault("backend", "guess_optimal")
 
     def __repr__(self):
         # att information about PCManifold kernels
         attributes_line = " | ".join(
-            [
-                f"kernel={self.kernel}",
-                f"cut_off={str(self.cut_off)}",
-                f"dist_backend={str(self.dist_backend.backend_name)}",
-                f"dist_params={str(self._dist_params)}",
-            ]
+            [f"kernel={self.kernel}", f"dist_kwargs={str(self.dist_kwargs)}",]
         )
 
         repr = "\n".join([attributes_line, super(PCManifold, self).__repr__()])
@@ -139,62 +127,38 @@ class PCManifold(np.ndarray):
         pickled_state = super(PCManifold, self).__reduce__()
 
         # Create own tuple to pass to __setstate__ (see below)
-        new_state = pickled_state[2] + (
-            self._kernel,  # -4
-            self._cut_off,  # -3
-            self._dist_backend,  # -2
-            self._dist_params,  # -1
-        )
+        new_state = pickled_state[2] + (self.kernel, self.dist_kwargs,)  # -2  # -1
 
         # Return a tuple that replaces the parent's __setstate__ tuple with own
         return (pickled_state[0], pickled_state[1], new_state)
 
     def __setstate__(self, state, *args, **kwargs):
         # Set own attributes attached to every np.ndarray
-        self.kernel = state[-4]
-        self._cut_off = state[-3]
-        self._dist_backend = state[-2]
-        self._dist_params = state[-1]
+        self.kernel = state[-2]
+        self.dist_kwargs = state[-1]
 
         # Call the parent's __setstate__ with the other tuple elements.
-        super(PCManifold, self).__setstate__(state[0:-4])
+        super(PCManifold, self).__setstate__(state[0:-2])
 
     @property
-    def kernel(self) -> PCManifoldKernel:
-        return self._kernel
-
-    @kernel.setter
-    def kernel(self, new_kernel: PCManifoldKernel):
-        self._kernel = new_kernel
-
-    @property
-    def cut_off(self) -> Optional[float]:
-        return self._cut_off
+    def cut_off(self):
+        return self.dist_kwargs.get("cut_off", np.inf)
 
     @cut_off.setter
-    def cut_off(self, new_cut_off):
-        self._cut_off = new_cut_off
+    def cut_off(self, cut_off: float):
 
-    @property
-    def dist_backend(self) -> str:
-        if isinstance(self._dist_backend, str):
-            self.dist_backend = self._dist_backend
+        if cut_off <= 0:
+            raise ValueError("cut_off (={}) must be a positive float")
 
-        return self._dist_backend
+        self.dist_kwargs["cut_off"] = cut_off
 
-    @dist_backend.setter
-    def dist_backend(self, backend):
-        self._dist_backend = get_backend_distance_algorithm(backend)
-
-    def compute_kernel_matrix(
-        self, Y=None, **kernel_kwargs
-    ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
+    def compute_kernel_matrix(self, Y=None, **kernel_kwargs):
         """Compute the kernel matrix on the point cloud.
 
         Parameters
         ----------
         Y
-            Query point cloud of shape (n_samples_Y, n_features). If provided, compute
+            Query point cloud of shape `(n_samples_Y, n_features)`. If provided, compute
             the kernel matrix component-wise, else `Y=self` (pair-wise).
 
         kernel_kwargs
@@ -204,15 +168,11 @@ class PCManifold(np.ndarray):
         -------
         Union[np.ndarray, scipy.sparse.csr_matrix]
             kernel matrix of shape `(n_samples_Y, n_samples_self)`
+
+        Optional
+            For further possible return values see :meth:`PCManifoldKernel.__call__`.
         """
-        return self.kernel(
-            X=self,
-            Y=Y,
-            dist_cut_off=self.cut_off,
-            dist_backend=self.dist_backend,
-            kernel_kwargs=kernel_kwargs,
-            dist_backend_kwargs=self._dist_params,
-        )
+        return self.kernel(X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs)
 
     def compute_distance_matrix(
         self, Y: Optional[np.ndarray] = None, metric="euclidean"
@@ -236,14 +196,7 @@ class PCManifold(np.ndarray):
         Union[np.ndarray, scipy.sparse.csr_matrix]
             distance matrix
         """
-        return compute_distance_matrix(
-            X=self,
-            Y=Y,
-            metric=metric,
-            cut_off=self.cut_off,
-            backend=self.dist_backend,
-            **self._dist_params,
-        )
+        return compute_distance_matrix(X=self, Y=Y, metric=metric, **self.dist_kwargs,)
 
     def optimize_parameters(
         self,
@@ -287,13 +240,13 @@ class PCManifold(np.ndarray):
             epsilon
         """
 
-        if not isinstance(self._kernel, GaussianKernel):
+        if not isinstance(self.kernel, GaussianKernel):
             raise TypeError("kernel must be a Gaussian kernel")
 
-        if not hasattr(self._kernel, "epsilon"):
+        if not hasattr(self.kernel, "epsilon"):
             # fails if kernel has no epsilon parameter
             raise AttributeError(
-                f"Kernel {type(self._kernel)} has no epsilon parameter to optimize."
+                f"Kernel {type(self.kernel)} has no epsilon parameter to optimize."
             )
 
         cut_off = estimate_cutoff(

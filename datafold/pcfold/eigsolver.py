@@ -1,5 +1,5 @@
 import sys
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
 import scipy.sparse
@@ -80,7 +80,10 @@ def scipy_eigsolver(
             scipy_eigvec_solver = scipy.linalg.eigh
         else:
             scipy_eigvec_solver = scipy.linalg.eig
-        solver_kwargs = {"check_finite": False}  # should be already checked
+
+        solver_kwargs: Dict[str, object] = {
+            "check_finite": False
+        }  # should be already checked
 
     else:  # n_eigenpairs < matrix.shape[1]
         if is_symmetric:
@@ -119,6 +122,7 @@ def compute_kernel_eigenpairs(
     n_eigenpairs: int,
     is_symmetric: bool = False,
     is_stochastic: bool = False,
+    normalize_eigenvectors: bool = False,
     backend: str = "scipy",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Compute eigenvalues and -vectors of kernel matrix under consideration of kernel
@@ -139,6 +143,9 @@ def compute_kernel_eigenpairs(
     is_stochastic
         If True, this allows convergence to be improved because the trivial first
         eigenvalue is known and all following eigenvalues are smaller.
+
+    normalize_eigenvectors
+        If True, all eigenvectors are normalized to Eucledian norm 1.
 
     backend
         * Valid backends: "scipy"
@@ -172,17 +179,17 @@ def compute_kernel_eigenpairs(
         raise ValueError("matrix is not symmetric")
 
     # BEGIN experimental code
-    test_sparsify_experimental = False
-    if test_sparsify_experimental:
-
-        SPARSIFY_CUTOFF = 1e-14
-
-        if scipy.sparse.issparse(kernel_matrix):
-            kernel_matrix.data[np.abs(kernel_matrix.data) < SPARSIFY_CUTOFF] = 0
-            kernel_matrix.eliminate_zeros()
-        else:
-            kernel_matrix[np.abs(kernel_matrix) < SPARSIFY_CUTOFF] = 0
-            kernel_matrix = scipy.sparse.csr_matrix(kernel_matrix)
+    # test_sparsify_experimental = False
+    # if test_sparsify_experimental:
+    #
+    #     SPARSIFY_CUTOFF = 1e-14
+    #
+    #     if scipy.sparse.issparse(kernel_matrix):
+    #         kernel_matrix.data[np.abs(kernel_matrix.data) < SPARSIFY_CUTOFF] = 0
+    #         kernel_matrix.eliminate_zeros()
+    #     else:
+    #         kernel_matrix[np.abs(kernel_matrix) < SPARSIFY_CUTOFF] = 0
+    #         kernel_matrix = scipy.sparse.csr_matrix(kernel_matrix)
     # END experimental
 
     if backend == "scipy":
@@ -207,8 +214,11 @@ def compute_kernel_eigenpairs(
                 f"{1e2 * sys.float_info.epsilon})."
             )
 
-        # can include zero or numerical noise imaginary part
+        # algorithm can include numerical noise in imaginary part
         eigvals = np.real(eigvals)
         eigvects = np.real(eigvects)
+
+    if normalize_eigenvectors:
+        eigvects /= np.linalg.norm(eigvects, axis=0)[np.newaxis, :]
 
     return sort_eigenpairs(eigvals, eigvects)

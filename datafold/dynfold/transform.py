@@ -333,7 +333,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
             X, values=pca_data, feature_names=self.features_out_[1]
         )
 
-    def fit_transform(self, X: TransformType, y=None) -> TransformType:
+    def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
         """Compute principal components from data and reduce dimension on same data.
 
         Parameters
@@ -760,8 +760,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
         self.centers_ = PCManifold(
             self.centers_,
             kernel=self.kernel,
-            dist_backend="brute",
-            **dict(exact_numeric=self.exact_distance),
+            dist_kwargs=dict(backend="brute", exact_numeric=self.exact_distance),
         )
 
         n_centers = self.centers_.shape[0]
@@ -794,7 +793,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
         )
 
     def fit_transform(self, X, y=None, **fit_params):
-        """Simultaneuously set the data to transform also to the point centers .
+        """Simultaneously set the data to transform also to the point centers .
 
         Parameters
         ----------

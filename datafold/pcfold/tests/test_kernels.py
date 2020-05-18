@@ -11,6 +11,7 @@ from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import (
     ContinuousNNKernel,
     DmapKernelFixed,
+    GaussianKernel,
     _kth_nearest_neighbor_dist,
 )
 
@@ -163,6 +164,27 @@ class TestKernelUtils(unittest.TestCase):
         nptest.assert_array_equal(expected, actual_dense)
         nptest.assert_array_equal(expected, actual_sparse)
 
+    def test_cdist_kth_dist(self):
+        # sanity test for pdist: k=0 should always be 0
+
+        data_X = generate_box_data(100, 100, 100, 1)
+        data_Y = generate_box_data(100, 100, 100, 1)
+
+        dense_dist_mat = compute_distance_matrix(data_X, data_Y)
+        sparse_dist_mat = compute_distance_matrix(data_X, data_Y, cut_off=1e100)
+
+        actual_dense = _kth_nearest_neighbor_dist(dense_dist_mat, 1)
+        actual_sparse = _kth_nearest_neighbor_dist(sparse_dist_mat, 1)
+
+        # because data_X and data_Y are duplicates, on the diagonal must be duplicates
+        # like in the pdist case
+        expected = np.min(dense_dist_mat, axis=1)
+
+        nptest.assert_array_equal(expected, np.zeros(len(expected)))
+
+        nptest.assert_array_equal(expected, actual_dense)
+        nptest.assert_array_equal(expected, actual_sparse)
+
 
 class TestDiffusionMapsKernelTest(unittest.TestCase):
     def test_is_symmetric01(self):
@@ -215,17 +237,19 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         data_Y = np.random.rand(5, 5)
 
         kernel = DmapKernelFixed(
-            epsilon=1, is_stochastic=True, alpha=1, symmetrize_kernel=False
+            GaussianKernel(epsilon=1),
+            is_stochastic=True,
+            alpha=1,
+            symmetrize_kernel=False,
         )
 
-        _, _, row_sums_alpha = kernel(X=data_X)
+        _, cdist_kwargs, _ = kernel(X=data_X)
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             kernel(X=data_X, Y=data_Y)
 
         # No error:
-        kernel_kwargs = {"row_sums_alpha_fit": row_sums_alpha}
-        kernel(X=data_X, Y=data_Y, kernel_kwargs=kernel_kwargs)
+        kernel(X=data_X, Y=data_Y, **cdist_kwargs)
 
 
 class TestContinuousNNKernel(unittest.TestCase):
@@ -264,12 +288,14 @@ class TestContinuousNNKernel(unittest.TestCase):
             # test if a sparse distance matrix gets the same result
             cknn = ContinuousNNKernel(k_neighbor=5, delta=1.5)
 
-            graph_train, kth_nn_fit = cknn(train_data, dist_cut_off=dist_cut_off)
+            graph_train, cdist_kwargs = cknn(
+                train_data, dist_kwargs=dict(cut_off=dist_cut_off)
+            )
             graph_test, _ = cknn(
                 train_data,
                 test_data,
-                dist_cut_off=dist_cut_off,
-                kernel_kwargs=dict(reference_dist_knn=kth_nn_fit),
+                dist_kwargs=dict(cut_off=dist_cut_off),
+                **cdist_kwargs,
             )
 
             self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
@@ -297,12 +323,12 @@ class TestContinuousNNKernel(unittest.TestCase):
         for dist_cut_off in [None, 1e100]:
 
             cknn = ContinuousNNKernel(k_neighbor=5, delta=2.3)
-            graph_train, kth_nn_fit = cknn(train_data)
+            graph_train, cdist_kwargs = cknn(train_data)
             graph_test, _ = cknn(
                 train_data,
                 test_data,
-                dist_cut_off=dist_cut_off,
-                kernel_kwargs=dict(reference_dist_knn=kth_nn_fit),
+                dist_kwargs=dict(cut_off=dist_cut_off),
+                **cdist_kwargs,
             )
 
             self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
