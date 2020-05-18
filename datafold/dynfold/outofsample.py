@@ -10,60 +10,50 @@ from sklearn.utils import check_array, check_consistent_length, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.decorators import warn_experimental_class, warn_known_bug
-from datafold.dynfold.base import DmapKernelMethod
+from datafold.dynfold.dmap import _DmapKernelAlgorithms
 from datafold.pcfold import PCManifold
 from datafold.pcfold.distance import compute_distance_matrix
-from datafold.pcfold.kernels import DmapKernelFixed
+from datafold.pcfold.kernels import DmapKernelFixed, GaussianKernel, PCManifoldKernel
 from datafold.utils.general import mat_dot_diagmat
 
 
-class GeometricHarmonicsInterpolator(
-    DmapKernelMethod, RegressorMixin, MultiOutputMixin
-):
-    """Out-of-sample interpolation of function values defined on manifold data.
+class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
+    """Interpolation of function values on high dimensional data with manifold assumption.
 
     Parameters
     ----------
-    epsilon
-        Bandwidth (scale) of internal kernel :class:`.DmapKernelFixed`.
+    kernel
+        Internal kernel to describe proximity between points. The kernel is passed
+        as an `internal_kernel` to the :class:`.DmapKernelFixed` kernel, which describes
+        the diffusion process.
 
     n_eigenpairs
-        Number of eigenpairs (geometric harmonics) to compute from computed diffusion
-        kernel matrix.
-
-    cut_off
-        Distance cut-off, distance values with a larger Euclidean distance
-        are set to zero. Lower cut-off values increase the sparsity of
-        kernel matrices and can result in faster computation of eigenpairs (which can
-        be at the cost accuracy).
+        Number of eigenpairs to compute from kernel matrix.
 
     is_stochastic
-        If True the diffusion kernel matrix is normalized (stochastic rows).
+        If True, the diffusion kernel matrix is normalized (row stochastic).
 
     alpha
         Re-normalization parameter. ``alpha=1`` corrects the sampling density in the
-        data.
+        data as an artifact of the collection process.
 
     symmetrize_kernel
-        If True a conjugate transformation is performed if the kernel matrix is
-        non-symmetric. This improves numerical stability and allows eigensolver
-        algorithms designed for Hermitian matrices to be used. If kernel is symmetric
+        If True, a conjugate transformation is performed if the current settings would
+        lead to a non-symmetric kernel matrix. This improves numerical stability when
+        solving the eigenvectors of the kernel matrix as it allows algorithms designed
+        for (sparse) Hermitian matrices to be used. If the kernel matrix is symmetric
         already (`is_stochastic=False`), then the parameter has no effect.
 
-    dist_backend
-        Backend of distance matrix computation. Defaults to `guess_optimal`,
-        which selects the backend based on parameter ``cut_off`` and the
-        available distance matrix algorithms. See also :class:`.DistanceAlgorithm`.
-
-    dist_backend_kwargs,
-        Keyword arguments handled to distance matrix backend.
+    dist_kwargs,
+        Keyword arguments passed to the internal distance matrix computation. See
+        :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
 
     Attributes
     ----------
 
     X_: PCManifold
-        Training data during fit. The data is required to perform out-of-sample
-        interpolations. Equipped with kernel :py:class:`DmapKernelFixed`.
+        Training data during fit. The data is required to be stored to perform
+        out-of-sample interpolations. Equipped with kernel :py:class:`DmapKernelFixed`.
 
     y_: numpy.ndarray
         Target function values, can be multi-dimensional.
@@ -75,45 +65,36 @@ class GeometricHarmonicsInterpolator(
         Eigenvectors of the kenrel matrix. Corresponds to geometric harmonics
         evaluations.
 
-    kernel_matrix_: numpy.ndarray
-        Kernel matrix computed during fit.
+    kernel_matrix_ : Union[numpy.ndarray, scipy.sparse.csr_matrix]
+        Computed kernel matrix, stored if `store_kernel_matrix=True` during fit.
 
     References
     ----------
 
     :cite:`coifman_geometric_2006`
+
+    See Also
+    --------
+
+    :class:`.LaplacianPyramidsInterpolator`
     """
 
     def __init__(
         self,
-        epsilon: float = 1.0,
+        kernel: PCManifoldKernel = GaussianKernel(epsilon=1.0),
         n_eigenpairs: int = 10,
-        cut_off: float = np.inf,
         is_stochastic: bool = False,
         alpha: float = 1,
         symmetrize_kernel=True,
-        dist_backend="guess_optimal",
-        dist_backend_kwargs=None,
+        dist_kwargs=None,
     ) -> None:
 
-        super(GeometricHarmonicsInterpolator, self).__init__(
-            epsilon=epsilon,
-            n_eigenpairs=n_eigenpairs,
-            cut_off=cut_off,
-            is_stochastic=is_stochastic,
-            alpha=alpha,
-            symmetrize_kernel=symmetrize_kernel,
-            dist_backend=dist_backend,
-            dist_backend_kwargs=dist_backend_kwargs,
-        )
-
-    def _setup_kernel(self):
-        self._kernel = DmapKernelFixed(
-            epsilon=self.epsilon,
-            is_stochastic=self.is_stochastic,
-            alpha=self.alpha,
-            symmetrize_kernel=self.symmetrize_kernel,
-        )
+        self.kernel = kernel
+        self.n_eigenpairs = n_eigenpairs
+        self.is_stochastic = is_stochastic
+        self.alpha = alpha
+        self.symmetrize_kernel = symmetrize_kernel
+        self.dist_kwargs = dist_kwargs
 
     def _precompute_aux(self) -> None:
         # TODO: [style, minor] "aux" should get a better name
@@ -166,10 +147,17 @@ class GeometricHarmonicsInterpolator(
         return X, y
 
     def _get_tags(self):
-        _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
-        _tags["multioutput"] = True
-        _tags["poor_score"] = True  # the default score is negative (RMSE error)
-        return _tags
+        # _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
+        self._more_tags()["multioutput"] = True
+        return super(GeometricHarmonicsInterpolator, self)._get_tags()
+
+    def _setup_default_dist_kwargs(self):
+        from copy import deepcopy
+
+        self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
+        self.dist_kwargs_.setdefault("cut_off", np.inf)
+        self.dist_kwargs_.setdefault("kmin", 0)
+        self.dist_kwargs_.setdefault("backend", "guess_optimal")
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Evaluate model for out-of-sample points.
@@ -177,49 +165,40 @@ class GeometricHarmonicsInterpolator(
         Parameters
         ----------
         X
-            Out-of-sample of shape `(n_samples, n_features)`.
+            Out-of-sample points of shape `(n_samples, n_features)`.
 
         Returns
         -------
         numpy.ndarray
-            interpolated function values of shape `(n_samples, n_targets)`
+            The interpolated function values of shape `(n_samples, n_targets)`.
         """
 
-        check_is_fitted(
-            self,
-            attributes=[
-                "_kernel",
-                "X_",
-                "_aux",
-                "eigenvalues_",
-                "eigenvectors_",
-                "y_",
-                "_row_sums_alpha",
-            ],
-        )
+        check_is_fitted(self)
 
         X, _ = self._validate(X, ensure_min_samples=1)
-        (
-            kernel_matrix,
-            _sanity_check_basis,
-            _sanity_check_rowsamples,
-        ) = self.X_.compute_kernel_matrix(Y=X, row_sums_alpha_fit=self._row_sums_alpha)
 
-        assert (
-            _sanity_check_basis is None and _sanity_check_rowsamples is None
-        ), "cdist case, the symmetrize_kernel only works for the pdist case"
+        kernel_output = self.X_.compute_kernel_matrix(Y=X, **self._cdist_kwargs)
+        kernel_matrix_, _, _ = PCManifoldKernel.read_kernel_output(
+            kernel_output=kernel_output
+        )
 
-        return np.squeeze(kernel_matrix @ self._aux)
+        return np.squeeze(kernel_matrix_ @ self._aux)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "GeometricHarmonicsInterpolator":
-        """Fit model.
+    def fit(
+        self, X: np.ndarray, y: np.ndarray, store_kernel_matrix: bool = False
+    ) -> "GeometricHarmonicsInterpolator":
+        """Fit model with training data.
 
         Parameters
         ----------
         X
-            Training samples of shape `(n_samples, n_features)`.
+            Training points of shape `(n_samples, n_features)`.
+
         y
             Target function values of shape `(n_samples, n_targets)`
+
+        store_kernel_matrix
+            If True, store the kernel matrix in attribute ``kernel_matrix_``.
 
         Returns
         -------
@@ -227,16 +206,19 @@ class GeometricHarmonicsInterpolator(
             self
         """
         X, y = self._validate(X, y=y, ensure_min_samples=2)
-        self._setup_kernel()
 
-        self.X_ = PCManifold(
-            X,
-            kernel=self.kernel_,
-            cut_off=self.cut_off,
-            dist_backend=self.dist_backend,
-            **(self.dist_backend_kwargs or {}),
+        self._setup_default_dist_kwargs()
+
+        self._dmap_kernel = DmapKernelFixed(
+            internal_kernel=self.kernel,
+            is_stochastic=self.is_stochastic,
+            alpha=self.alpha,
+            symmetrize_kernel=self.symmetrize_kernel,
         )
 
+        self.X_ = PCManifold(
+            X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_,
+        )
         self.y_ = y
 
         check_scalar(
@@ -247,23 +229,36 @@ class GeometricHarmonicsInterpolator(
             max_val=self.X_.shape[0] - 1,
         )
 
+        kernel_output = self.X_.compute_kernel_matrix()
         (
-            self.kernel_matrix_,
-            _basis_change_matrix,
-            self._row_sums_alpha,
-        ) = self.X_.compute_kernel_matrix()
+            kernel_matrix_,
+            self._cdist_kwargs,
+            ret_extra,
+        ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
+        basis_change_matrix = ret_extra["basis_change_matrix"]
 
-        self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
-            self.kernel_matrix_, _basis_change_matrix
+        (
+            self.eigenvalues_,
+            self.eigenvectors_,
+        ) = _DmapKernelAlgorithms.solve_eigenproblem(
+            kernel_matrix=kernel_matrix_,
+            n_eigenpairs=self.n_eigenpairs,
+            is_symmetric=self._dmap_kernel.is_symmetric,
+            is_stochastic=self.is_stochastic,
+            basis_change_matrix=basis_change_matrix,
         )
 
-        if self.kernel_.is_symmetric_transform(is_pdist=True):
-            self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
-                kernel_matrix=self.kernel_matrix_,
-                basis_change_matrix=_basis_change_matrix,
-            )
-
         self._precompute_aux()
+
+        if store_kernel_matrix:
+            if self._dmap_kernel.is_symmetric_transform(is_pdist=True):
+                self.kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
+                    kernel_matrix=kernel_matrix_,
+                    basis_change_matrix=basis_change_matrix,
+                )
+            else:
+                self.kernel_matrix_ = kernel_matrix_
+
         return self
 
     @warn_known_bug(gitlab_issue=16)
@@ -313,8 +308,12 @@ class GeometricHarmonicsInterpolator(
         else:
             values = self.y_[:, 0]
 
-        kernel_matrix, basis_change_matrix, _ = self.X_.compute_kernel_matrix(X)
-        assert basis_change_matrix is None  # TODO: catch this case before computing...
+        kernel_output = self.X_.compute_kernel_matrix(X)
+        kernel_matrix, _, _sanity_check = PCManifoldKernel.read_kernel_output(
+            kernel_output=kernel_output
+        )
+
+        assert _sanity_check == {}
 
         # TODO: see issue #54 the to_ndarray() kills memory, when many points
         #  (xi.shape[0]) are requested
@@ -346,13 +345,13 @@ class GeometricHarmonicsInterpolator(
         """Score interpolation model with negative mean squared error metric.
 
         .. note::
-            The mean squared error is negated to comply with "higher score is better" from
-            scikit-learn.
+            The mean squared error is negated to comply with "higher score is better"
+            from scikit-learn.
 
         Parameters
         ----------
         X
-            Point cloud of shape `(n_samples, n_features)` to evaluate the model at.
+            Data of shape `(n_samples, n_features)` to evaluate the model at.
 
         y
             True target values of shape `(n_samples, n_target_values)` to score
@@ -393,7 +392,7 @@ class GeometricHarmonicsInterpolator(
         return -1 * np.sqrt(score)
 
 
-@warn_experimental_class
+@NotImplementedError
 class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
     """
     .. warning::
@@ -409,12 +408,10 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         n_eigenpairs: int = 11,
         condition=1.0,  # nu
         admissible_error=1.0,  # tau
-        cut_off: float = np.inf,
         is_stochastic: bool = False,
         alpha: float = 1,
         symmetrize_kernel=False,
-        dist_backend="guess_optimal",
-        dist_backend_kwargs=None,
+        dist_kwargs=None,
     ):
         """
         TODO: This is a work in progress algorithm.
@@ -422,14 +419,12 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
               Data-Mining
         """
         super(MultiScaleGeometricHarmonicsInterpolator, self).__init__(
-            epsilon=-1,
+            kernel=GaussianKernel(),
             n_eigenpairs=n_eigenpairs,
-            cut_off=cut_off,
             is_stochastic=is_stochastic,
             alpha=alpha,
             symmetrize_kernel=symmetrize_kernel,
-            dist_backend=dist_backend,
-            dist_backend_kwargs=dist_backend_kwargs,
+            dist_kwargs=dist_kwargs,
         )
 
         self.condition = condition
@@ -495,7 +490,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         return np.squeeze(kernel_matrix @ self._aux)
 
     def fit(
-        self, X: np.ndarray, y=None, **fit_params
+        self, X: np.ndarray, y=None, store_kernel_matrix=False, **fit_params
     ) -> "MultiScaleGeometricHarmonicsInterpolator":
         X, y = self._validate(X, y=y, ensure_min_samples=2)
 
@@ -515,12 +510,12 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
 
 
 class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
-    """Laplacian pyramids interpolation of function values on a data manifold with
-    multi-scale kernels.
+    """Laplacian pyramids interpolation of function values on data manifold using
+    kernels with different scales.
 
-    The implementation is generalized to vector valued targets. The kernel scales are
-    decreased (i.e. a new kernel with lower scale) until each corresponding stopping
-    criteria is reached (based on residual).
+    The implementation is generalized to vector valued targets: The kernel scales are
+    decreased (i.e. a new kernel with lower scale is computed) until for each target
+    function the corresponding stopping criteria is reached (based on residual).
 
     Parameters
     ----------
@@ -557,7 +552,6 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         Number of target functions during fit. (Note: the target values are not hold
         in the model).
 
-
     References
     ----------
 
@@ -565,14 +559,6 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
     :cite:`rabin_heterogeneous_2012`
 
     """
-
-    # TODO: LIST OF THINGS TO IMPROVE; TRY OUT OR TO DO
-    #   1. allow sparse matrix (integrate cut_off etc.) --> problem: For large scales,
-    #       there is almost no memory saving
-    #   2. performance: currently computing the exp from the distance matrix is most
-    #       expensive -- for the pdist, actually only half (upper triangle and
-    #       diagonal) has to be computed -- this is not supported yet by the kernels.
-    #       But before refactor, test the performance impact!
 
     # Internal Enum class to indicate the state of a function in the loop during fit
     class _LoopCond(enum.Enum):
@@ -596,6 +582,10 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         self.residual_tol = residual_tol
         self.auto_adaptive = auto_adaptive
         self.alpha = alpha
+
+    @property
+    def level_(self):
+        return 0 if self._level_tracker == {} else max(self._level_tracker.keys())
 
     def _validate(self, X, y=None, ensure_min_samples=1):
 
@@ -781,24 +771,29 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
 
     def _prepare_kernel_and_matrix(self, distance_matrix, epsilon):
         dmap_kernel = DmapKernelFixed(
-            epsilon=epsilon,
+            internal_kernel=GaussianKernel(epsilon),
             is_stochastic=True,
             alpha=self.alpha,
             symmetrize_kernel=False,
         )
 
-        kernel_matrix, basis_change_matrix, row_sums_fit_alpha = dmap_kernel.eval(
-            distance_matrix=distance_matrix, is_pdist=True
+        kernel_output = dmap_kernel.eval(distance_matrix=distance_matrix, is_pdist=True)
+        kernel_matrix, cdist_kwargs, _check = PCManifoldKernel.read_kernel_output(
+            kernel_output=kernel_output
         )
 
-        assert basis_change_matrix is None, "no symmetrize of kernel supported"
+        row_sums_alpha_fit = cdist_kwargs["row_sums_alpha_fit"]
+
+        assert (
+            _check["basis_change_matrix"] is None
+        ), "no symmetrize of kernel supported"
 
         if self.auto_adaptive:
             # inplace: set diagonal to zero to obtain LOOCV estimation
             # TODO: this requires special handling for a sparse kernel matrix
             np.fill_diagonal(kernel_matrix, 0)
 
-        return dmap_kernel, kernel_matrix, row_sums_fit_alpha
+        return dmap_kernel, kernel_matrix, row_sums_alpha_fit
 
     def _compute_residual(
         self, y, func_approx, active_func_indices, current_residual_norm
@@ -930,10 +925,6 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         self._setup()
 
         self.n_targets_ = y.shape[1]
-        self.level_ = (
-            0 if self._level_tracker == {} else max(self._level_tracker.keys())
-        )
-
         self._laplacian_pyramid(self.X_, y)
 
         return self
@@ -986,7 +977,9 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
             residuals = np.linalg.norm(info["target_values"], axis=0)
             norm_residuals[i, info["active_indices"]] = residuals
 
-        epsilons = [r["kernel"].epsilon for r in self._level_tracker.values()]
+        epsilons = [
+            r["kernel"].internal_kernel.epsilon for r in self._level_tracker.values()
+        ]
 
         plt.figure()
         plt.plot(epsilons, norm_residuals, "-+")

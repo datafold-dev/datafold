@@ -1,4 +1,5 @@
-from typing import Union
+import sys
+from typing import List, Tuple, Union
 
 import numpy as np
 import scipy.linalg
@@ -8,26 +9,111 @@ import scipy.spatial
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.dynfold.base import DmapKernelMethod, TransformType, TSCTransformerMixIn
+from datafold.dynfold.base import TransformType, TSCTransformerMixIn
 from datafold.pcfold import DmapKernelFixed, PCManifold
-from datafold.pcfold.kernels import DmapKernelVariable
+from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
+from datafold.pcfold.kernels import DmapKernelVariable, GaussianKernel, PCManifoldKernel
 from datafold.utils.general import (
     diagmat_dot_mat,
     if1dim_colvec,
-    is_float,
-    is_integer,
     mat_dot_diagmat,
     random_subsample,
 )
 
 
-class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
-    """Manifold parametrization with a diffusion process defined on data.
+class _DmapKernelAlgorithms:
+    """Collection of re-useable algorithms that appear in models that have a diffusion
+    map kernel.
 
-    The Diffusion Maps model can be used to
+    See Also
+    --------
+
+    :class:`.DiffusionMaps`
+    :class:`.DiffusionMapsVariable`
+    :class:`.GeometricHarmonicsInterpolator`
+    """
+
+    @staticmethod
+    def solve_eigenproblem(
+        kernel_matrix, n_eigenpairs, is_symmetric, is_stochastic, basis_change_matrix
+    ) -> Tuple[np.ndarray, np.ndarray]:
+
+        try:
+            eigvals, eigvect = compute_kernel_eigenpairs(
+                kernel_matrix=kernel_matrix,
+                n_eigenpairs=n_eigenpairs,
+                is_symmetric=is_symmetric,
+                is_stochastic=is_stochastic,
+                # only normalize after potential basis change
+                normalize_eigenvectors=False,
+                backend="scipy",
+            )
+
+        except NumericalMathError:
+            # re-raise with more details for DMAP kernel
+            raise_numerical_error = True
+        else:
+            max_imag_eigvect = np.abs(np.imag(eigvect)).max()
+            max_imag_eigval = np.abs(np.imag(eigvals)).max()
+
+            if max(max_imag_eigval, max_imag_eigvect) > 1e2 * sys.float_info.epsilon:
+                raise_numerical_error = True
+            else:
+                raise_numerical_error = False
+
+        if raise_numerical_error:
+            raise NumericalMathError(
+                "Eigenpairs have non-negligible imaginary part (larger than "
+                f"{1e2 * sys.float_info.epsilon}. First try to use "
+                f"parameter 'symmetrize_kernel=True' (improves numerical stability) and "
+                f"only if this is not working adjust kernel scale."
+            )
+        else:
+            eigvals = np.real(eigvals)
+            eigvect = np.real(eigvect)
+
+        if basis_change_matrix is not None:
+            eigvect = basis_change_matrix @ eigvect
+
+        eigvect /= np.linalg.norm(eigvect, axis=0)[np.newaxis, :]
+
+        return eigvals, eigvect
+
+    @staticmethod
+    def unsymmetric_kernel_matrix(
+        kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix], basis_change_matrix,
+    ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
+        """Transform a kernel matrix obtained from a symmetric conjugate
+        transformation to the diffusion kernel matrix.
+
+        Parameters
+        ----------
+        kernel_matrix
+            Symmetric conjugate kernel matrix of shape `(n_samples, n_samples)`
+
+        basis_change_matrix
+            diagonal elements of basis change matrix
+
+        Returns
+        -------
+        numpy.ndarray
+            Generally non-symmetric matrix of same shape and type as `kernel_matrix`.
+        """
+        inv_basis_change_matrix = scipy.sparse.diags(
+            np.reciprocal(basis_change_matrix.data.ravel())
+        )
+
+        return inv_basis_change_matrix @ kernel_matrix @ inv_basis_change_matrix
+
+
+class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
+    """Efficient representations of complex geometric structures with a diffusion
+    process on data.
+
+    The model can be used for
 
     * non-linear dimensionality reduction
-    * approximate operators (see ``alpha`` parameter):
+    * approximating eigenfunctions of operators (see ``alpha`` parameter):
 
         - Laplace-Beltrami
         - Fokker-Plank
@@ -35,45 +121,40 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
     Parameters
     ----------
-    epsilon
-        Bandwidth (scale) of internal kernel :py:class:`DmapKernelFixed`.
+    kernel
+        Internal kernel to describe proximity between points. The kernel is passed
+        as an `internal_kernel` to the :class:`.DmapKernelFixed` kernel, which describes
+        the diffusion process.
 
     n_eigenpairs
         Number of eigenpairs to compute from kernel matrix.
 
     time_exponent
-        Time of diffusion process (exponent of eigenvalues).
-
-    cut_off
-        Distance cut-off, distance values with a larger Euclidean distance
-        are set to zero. Lower cut-off values increase the sparsity of
-        kernel matrices and can result in faster computation of eigenpairs (which can
-        be at the cost accuracy).
+        Time of diffusion process (exponent of eigenvalues in embedding).
 
     is_stochastic
-        If True the diffusion kernel matrix is normalized (stochastic rows).
+        If True, the diffusion kernel matrix is normalized (row stochastic).
 
     alpha
-        Re-normalization parameter between `(0,1)`. Special values are \
-        (`is_stochastic=True` is required in all cases).
+        Re-normalization parameter between `(0,1)`. ``alpha=1`` corrects the sampling
+        density in the data as an artifact of the collection process. Special values are
 
         * `alpha=0` for graph Laplacian,
         * `alpha=0.5` Fokker-Plank operator
         * `alpha=1` for Laplace-Beltrami operator
 
+        Note, that `is_stochastic=True` is required in all cases.
+
     symmetrize_kernel
-        If True a conjugate transformation is performed if the kernel matrix is
-        non-symmetric. This improves numerical stability and allows eigensolver
-        algorithms designed for Hermitian matrices to be used. If kernel is symmetric
+        If True, a conjugate transformation is performed if the current settings would
+        lead to a non-symmetric kernel matrix. This improves numerical stability when
+        solving the eigenvectors of the kernel matrix as it allows algorithms designed
+        for (sparse) Hermitian matrices to be used. If the kernel matrix is symmetric
         already (`is_stochastic=False`), then the parameter has no effect.
 
-    dist_backend
-        Backend of distance matrix computation. Defaults to `guess_optimal`,
-        which selects the backend based on parameter ``cut_off`` and the
-        available distance matrix algorithms. See also :class:`.DistanceAlgorithm`.
-
-    dist_backend_kwargs,
-        Keyword arguments handled to distance matrix backend.
+    dist_kwargs
+        Keyword arguments passed to the internal distance matrix computation. See
+        :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
 
     Attributes
     ----------
@@ -91,15 +172,14 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         Coefficient matrix to map points from embedding space back to original space.\
         Computation is delayed until `inverse_transform` is called for the first time.
 
-    kernel_matrix_ : numpy.ndarray
-        Diffusion kernel matrix computed during fit.
-
+    kernel_matrix_ : Union[numpy.ndarray, scipy.sparse.csr_matrix]
+        Computed kernel matrix, stored only if `store_kernel_matrix=True` is set during
+        fit.
 
     References
     ----------
     :cite:`lafon_diffusion_2004`
     :cite:`coifman_diffusion_2006`
-
     """
 
     _cls_valid_operator_names = (
@@ -111,72 +191,26 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
     def __init__(
         self,
-        epsilon: float = 1.0,
+        kernel: PCManifoldKernel = GaussianKernel(epsilon=1.0),
         n_eigenpairs: int = 10,
         time_exponent: float = 0,
-        cut_off: float = np.inf,
         is_stochastic: bool = True,
         alpha: float = 1,
         symmetrize_kernel: bool = True,
-        dist_backend: str = "guess_optimal",
-        dist_backend_kwargs=None,
+        dist_kwargs=None,
     ) -> None:
 
+        self.kernel = kernel
+        self.n_eigenpairs = n_eigenpairs
         self.time_exponent = time_exponent
-
-        super(DiffusionMaps, self).__init__(
-            epsilon=epsilon,
-            n_eigenpairs=n_eigenpairs,
-            cut_off=cut_off,
-            is_stochastic=is_stochastic,
-            alpha=alpha,
-            symmetrize_kernel=symmetrize_kernel,
-            dist_backend=dist_backend,
-            dist_backend_kwargs=dist_backend_kwargs,
-        )
-
-    @classmethod
-    def from_operator_name(cls, name: str, **kwargs) -> "DiffusionMaps":
-        """Instantiate new model to approximate operator (to be selected by name).
-
-        Parameters
-        ----------
-        name
-            "laplace_beltrami", "fokker_plank", "graph_laplacian" or "rbf".
-
-        **kwargs
-            All parameters in :py:class:`DiffusionMaps` but ``alpha``.
-
-        Returns
-        -------
-        DiffusionMaps
-            self
-        """
-
-        if name == "laplace_beltrami":
-            eigfunc_interp = cls.laplace_beltrami(**kwargs)
-        elif name == "fokker_planck":
-            eigfunc_interp = cls.fokker_planck(**kwargs)
-        elif name == "graph_laplacian":
-            eigfunc_interp = cls.graph_laplacian(**kwargs)
-        elif name == "rbf":
-            eigfunc_interp = cls.rbf_kernel(**kwargs)
-        else:
-            raise ValueError(
-                f"name='{name}' not known. Choose from {cls._cls_valid_operator_names}"
-            )
-
-        if name not in cls._cls_valid_operator_names:
-            raise NotImplementedError(
-                f"This is a bug. name={name} each name has to be "
-                f"listed in _cls_valid_operator_names"
-            )
-
-        return eigfunc_interp
+        self.is_stochastic = is_stochastic
+        self.alpha = alpha
+        self.symmetrize_kernel = symmetrize_kernel
+        self.dist_kwargs = dist_kwargs
 
     @classmethod
     def laplace_beltrami(
-        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
+        cls, kernel=GaussianKernel(epsilon=1.0), n_eigenpairs=10, **kwargs,
     ) -> "DiffusionMaps":
         """Instantiate new model to approximate Laplace-Beltrami operator.
 
@@ -186,7 +220,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             new instance
         """
         return cls(
-            epsilon=epsilon,
+            kernel=kernel,
             n_eigenpairs=n_eigenpairs,
             is_stochastic=True,
             alpha=1.0,
@@ -194,7 +228,9 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         )
 
     @classmethod
-    def fokker_planck(cls, epsilon=1.0, n_eigenpairs=10, **kwargs,) -> "DiffusionMaps":
+    def fokker_planck(
+        cls, kernel=GaussianKernel(epsilon=1.0), n_eigenpairs=10, **kwargs,
+    ) -> "DiffusionMaps":
         """Instantiate new model to approximate Fokker-Planck operator.
 
         Returns
@@ -203,7 +239,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             new instance
         """
         return cls(
-            epsilon=epsilon,
+            kernel=kernel,
             n_eigenpairs=n_eigenpairs,
             is_stochastic=True,
             alpha=0.5,
@@ -212,7 +248,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
     @classmethod
     def graph_laplacian(
-        cls, epsilon=1.0, n_eigenpairs=10, **kwargs,
+        cls, kernel=GaussianKernel(epsilon=1.0), n_eigenpairs=10, **kwargs,
     ) -> "DiffusionMaps":
         """Instantiate new model to approximate graph Laplacian.
 
@@ -222,25 +258,11 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             new instance
         """
         return cls(
-            epsilon=epsilon,
+            kernel=kernel,
             n_eigenpairs=n_eigenpairs,
             is_stochastic=True,
             alpha=0.0,
             **kwargs,
-        )
-
-    @classmethod
-    def rbf_kernel(cls, epsilon=1.0, n_eigenpairs=10, **kwargs,) -> "DiffusionMaps":
-        """Instantiate new model to approximate geometric harmonic functions of
-        radial basis kernel.
-
-        Returns
-        -------
-        DiffusionMaps
-            new instance
-        """
-        return cls(
-            epsilon=epsilon, n_eigenpairs=n_eigenpairs, is_stochastic=False, **kwargs,
         )
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals):
@@ -264,21 +286,21 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
         return dmap_embedding
 
-    def _setup_kernel(self):
-        self._kernel = DmapKernelFixed(
-            epsilon=self.epsilon,
-            is_stochastic=self.is_stochastic,
-            alpha=self.alpha,
-            symmetrize_kernel=self.symmetrize_kernel,
-        )
+    def _setup_default_dist_kwargs(self):
+        from copy import deepcopy
 
-    def set_coords(self, indices: np.ndarray) -> "DiffusionMaps":
+        self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
+        self.dist_kwargs_.setdefault("cut_off", np.inf)
+        self.dist_kwargs_.setdefault("kmin", 0)
+        self.dist_kwargs_.setdefault("backend", "guess_optimal")
+
+    def set_coords(self, indices: Union[np.ndarray, List[int]]) -> "DiffusionMaps":
         """Set eigenvector coordinates for parsimonious mapping.
 
         Parameters
         ----------
         indices
-            Index values (columns) of ``eigenvalues_`` and ``eigenvectors_`` to keep in
+            Index values of ``eigenvalues_`` and respective ``eigenvectors_`` to keep in
             the model.
 
         Returns
@@ -289,15 +311,18 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
 
         check_is_fitted(self, attributes=["eigenvectors_", "eigenvalues_"])
 
+        indices = np.asarray(indices)
+
         # type hints for mypy
         self.eigenvectors_: np.ndarray = if1dim_colvec(self.eigenvectors_[:, indices])
         self.eigenvalues_: np.ndarray = self.eigenvalues_[indices]
 
         return self
 
-    def fit(self, X: TransformType, y=None, **fit_params) -> "DiffusionMaps":
-        """Compute diffusion kernel matrix and its' eigenpairs for manifold
-        parametrization.
+    def fit(
+        self, X: TransformType, y=None, store_kernel_matrix=False
+    ) -> "DiffusionMaps":
+        """Compute diffusion kernel matrix and its' eigenpairs.
 
         Parameters
         ----------
@@ -306,6 +331,9 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         
         y: None
             ignored
+
+        store_kernel_matrix
+            If True, store the kernel matrix in attribute ``kernel_matrix_``.
 
         Returns
         -------
@@ -319,47 +347,63 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
         )
 
-        self._setup_kernel()
+        self._setup_default_dist_kwargs()
 
-        # Need to hold X in class to be able to compute cdist distance matrix during
-        # out-of-sample transforms
-        self.X_ = PCManifold(
-            X,
-            kernel=self.kernel_,
-            cut_off=self.cut_off,
-            dist_backend=self.dist_backend,
-            **(self.dist_backend_kwargs or {}),
+        # Note the DmapKernel is a kernel that wraps another kernel to provides the
+        # DMAP specific functionality.
+        self._dmap_kernel = DmapKernelFixed(
+            internal_kernel=self.kernel,
+            is_stochastic=self.is_stochastic,
+            alpha=self.alpha,
+            symmetrize_kernel=self.symmetrize_kernel,
         )
 
-        # basis_change_matrix is None if not required
-        # save kernel_matrix for now to use it for testing, but it may not be necessary
-        # for larger problems
-        (
-            self.kernel_matrix_,
-            _basis_change_matrix,
-            self._row_sums_alpha,
-        ) = self.X_.compute_kernel_matrix()
+        # Need to hold X in class to be able to compute cdist distance matrix during
+        # out-of-sample transforms.
+        self.X_ = PCManifold(
+            X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_,
+        )
 
-        self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
-            self.kernel_matrix_, _basis_change_matrix
+        kernel_output = self.X_.compute_kernel_matrix()
+        (
+            kernel_matrix_,
+            self._cdist_kwargs,
+            ret_extra,
+        ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
+
+        # if key is not present, this is a bug. The value for the key can also be None.
+        basis_change_matrix = ret_extra["basis_change_matrix"]
+
+        (
+            self.eigenvalues_,
+            self.eigenvectors_,
+        ) = _DmapKernelAlgorithms.solve_eigenproblem(
+            kernel_matrix=kernel_matrix_,
+            n_eigenpairs=self.n_eigenpairs,
+            is_symmetric=self._dmap_kernel.is_symmetric,
+            is_stochastic=self.is_stochastic,
+            basis_change_matrix=basis_change_matrix,
         )
 
         self.eigenvectors_ = self._same_type_X(
             X, values=self.eigenvectors_, feature_names=self.features_out_[1]
         )
 
-        if self.kernel_.is_symmetric_transform(is_pdist=True):
-            self.kernel_matrix_ = self._unsymmetric_kernel_matrix(
-                kernel_matrix=self.kernel_matrix_,
-                basis_change_matrix=_basis_change_matrix,
+        if self._dmap_kernel.is_symmetric_transform(is_pdist=True):
+            kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
+                kernel_matrix=kernel_matrix_, basis_change_matrix=basis_change_matrix,
             )
+
+        if store_kernel_matrix:
+            self.kernel_matrix_ = kernel_matrix_
 
         return self
 
     def transform(self, X: TransformType) -> TransformType:
-        r"""Transform out-of-sample points to embedding space with Nyström extension.
+        r"""Map out-of-sample points into embedding space with Nyström extension.
 
-        From solving the eigenproblem of the kernel diffusion matrix :math:`K`
+        From solving the eigenproblem of the diffusion kernel :math:`K`
+        (:class:`.DmapKernelFixed`)
 
         .. math::
             K(X,X) \Psi = \Psi \Lambda
@@ -370,6 +414,11 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             K(X, Y) \Psi \Lambda^{-1} = \Psi
 
         where :math:`K(X, Y)` is a component-wise evaluation of the kernel.
+
+        Note that this mapping works irrespective of whether the data kernel matrix
+        :math:`K(X,X)` is symmetric. The diffusion map kernel is symmetric but,
+        a computed kernel matrix is only symmetric in the limit of large data. For
+        details see :cite:`fernandez_diffusion_2015` (especially Eq. 5).
 
         Parameters
         ----------
@@ -382,13 +431,14 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
             same type as `X` of shape `(n_samples, n_coords)`
         """
 
-        check_is_fitted(self, ("X_", "eigenvalues_", "eigenvectors_", "kernel_"))
+        check_is_fitted(self, ("X_", "eigenvalues_", "eigenvectors_"))
 
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=1))
         self._validate_feature_input(X, direction="transform")
 
-        kernel_matrix_cdist, _, _ = self.X_.compute_kernel_matrix(
-            X, row_sums_alpha_fit=self._row_sums_alpha
+        kernel_output = self.X_.compute_kernel_matrix(X, **self._cdist_kwargs)
+        kernel_matrix_cdist, _, _ = PCManifoldKernel.read_kernel_output(
+            kernel_output=kernel_output
         )
 
         eigvec_nystroem = self._nystrom(
@@ -429,16 +479,16 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         )
 
     def inverse_transform(self, X: TransformType) -> TransformType:
-        """Map points from embedding space back to original (ambient) space.
+        """Pre-image from embedding space back to original (ambient) space.
 
         .. note::
             Currently, this is only  a linear map in a least squares sense. Overwrite
-            this function for more advanced inverse mappings.
+            this function for more advanced pre-image mappings.
 
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            Out-of-sample points of shape `(n_samples, n_coords)` to
+            Out-of-sample data of shape `(n_samples, n_coords)` to
             map from embedding space to original space.
 
         Returns
@@ -462,7 +512,7 @@ class DiffusionMaps(DmapKernelMethod, TSCTransformerMixIn):
         )
 
 
-class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
+class DiffusionMapsVariable(TSCTransformerMixIn):
     """(experimental, not documented)
     .. warning::
         This class is not documented. Contributions are welcome
@@ -484,34 +534,26 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
         expected_dim=2,
         beta=-0.5,
         symmetrize_kernel=False,
-        dist_backend="brute",
-        dist_backend_kwargs=None,
+        dist_kwargs=None,
     ):
-
+        self.epsilon = epsilon
+        self.n_eigenpairs = n_eigenpairs
         self.expected_dim = expected_dim
         self.beta = beta
         self.nn_bandwidth = nn_bandwidth
 
         # TODO: To implement: cut_off: float = np.inf (allow also sparsity!)
-        super(DiffusionMapsVariable, self).__init__(
-            epsilon=epsilon,
-            n_eigenpairs=n_eigenpairs,
-            cut_off=None,
-            is_stochastic=False,
-            alpha=-1,
-            symmetrize_kernel=symmetrize_kernel,
-            dist_backend=dist_backend,
-            dist_backend_kwargs=dist_backend_kwargs,
-        )
+        # TODO: generalize DmapKernelVariable also to arbitrary kernels
 
-        self._kernel = DmapKernelVariable(
+        self.dmap_kernel_ = DmapKernelVariable(
             epsilon=self.epsilon,
             k=nn_bandwidth,
             expected_dim=expected_dim,
             beta=beta,
             symmetrize_kernel=symmetrize_kernel,
         )
-        self.alpha = self.kernel_.alpha  # is computed (depends on beta) in kernel
+        self.alpha = self.dmap_kernel_.alpha  # is computed (depends on beta) in kernel
+        self.dist_kwargs = dist_kwargs
 
     @property
     def peq_est_(self):
@@ -533,13 +575,12 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
         )
 
-        pcm = PCManifold(
-            X,
-            kernel=self.kernel_,
-            cut_off=self.cut_off,
-            dist_backend=self.dist_backend,
-            **(self.dist_backend_kwargs or {}),
-        )
+        self.dist_kwargs = self.dist_kwargs or {}
+        self.dist_kwargs.setdefault("cut_off", np.inf)
+        self.dist_kwargs.setdefault("kmin", self.nn_bandwidth)
+        self.dist_kwargs.setdefault("backend", "guess_optimal")
+
+        pcm = PCManifold(X, kernel=self.dmap_kernel_, dist_kwargs=self.dist_kwargs,)
 
         # basis_change_matrix is None if not required
         (
@@ -551,16 +592,23 @@ class DiffusionMapsVariable(DmapKernelMethod, TSCTransformerMixIn):
             self.q_eps_s_,
         ) = pcm.compute_kernel_matrix()
 
-        self.eigenvalues_, self.eigenvectors_ = self._solve_eigenproblem(
-            self.operator_matrix_, _basis_change_matrix
+        (
+            self.eigenvalues_,
+            self.eigenvectors_,
+        ) = _DmapKernelAlgorithms.solve_eigenproblem(
+            kernel_matrix=self.operator_matrix_,
+            n_eigenpairs=self.n_eigenpairs,
+            is_symmetric=self.dmap_kernel_.is_symmetric,
+            is_stochastic=True,
+            basis_change_matrix=_basis_change_matrix,
         )
 
         # TODO: note here the kernel is actually NOT the kernel but the operator matrix
         #  ("L") -> see "Variable bandwidth diffusion maps" by Berry et al.
         #  Maybe think about a way to transform this?
 
-        if self.kernel_.is_symmetric_transform(is_pdist=True):
-            self.operator_matrix_ = self._unsymmetric_kernel_matrix(
+        if self.dmap_kernel_.is_symmetric_transform(is_pdist=True):
+            self.operator_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
                 kernel_matrix=self.operator_matrix_,
                 basis_change_matrix=_basis_change_matrix,
             )

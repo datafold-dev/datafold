@@ -45,7 +45,7 @@ Modules
     :skip: BaseEstimator,DmapKernelFixed,List,NotFittedError,NumericalMathError,TSCDataFrame,TSCMetric,TSCScoring,TimePredictType,TransformerMixin,Tuple,DataFrameType
 
 .. automodapi:: datafold.pcfold.distance
-    :skip: NearestNeighbors,apply_continuous_nearest_neighbor,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,warn_experimental_function,warn_experimental_function,Sequence,Type
+    :skip: NearestNeighbors,apply_continuous_nearest_neighbor,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,warn_experimental_function,warn_experimental_function,Sequence,Type,BallTree,is_symmetric_matrix,if1dim_rowvec
 
 .. automodapi:: datafold.pcfold.eigsolver
-    :skip: Callable,sort_eigenpairs,is_symmetric_matrix, Tuple
+    :skip: Callable,sort_eigenpairs,is_symmetric_matrix,Tuple,Dict
