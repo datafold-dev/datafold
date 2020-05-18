@@ -65,7 +65,7 @@ of how to handle the underlying manifold structure is part of a
 modelling decision and can be selected according to the problem.
 
 datafold
-========
+--------
 
 *datafold* is a Python package providing **data**-driven models with an
 explicit mani-\ **fold** parametrization. The software provides a set of
@@ -92,7 +92,7 @@ practitioners from different fields for dataset analysis.
        the ``z``-axis \label{fig:manifold}`
 
 1. Point cloud data
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 The first type of data are unordered samples in high-dimensional point
 clouds. These dataset are often directly connected to the "manifold
@@ -129,7 +129,7 @@ Harmonics" interpolation with multi-scale extension
 :cite:`fernandez_auto-adaptative_2014`, :cite:`rabin_heterogeneous_2012`.
 
 2. Time series data
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 *datafold* can also address data with temporal context sampled from a
 dynamical system. In this case a data-driven model aims to fit and

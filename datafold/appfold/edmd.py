@@ -450,7 +450,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return X_ts
 
     def reconstruct(self, X: TSCDataFrame) -> TSCDataFrame:
-        """Reconstruct existing time series collection from the original space.
+        """Reconstruct existing time series collection.
 
         Internal steps to reconstruct a time series collection:
 

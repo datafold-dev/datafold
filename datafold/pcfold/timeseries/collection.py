@@ -127,20 +127,17 @@ class TSCDataFrame(pd.DataFrame):
     """Data frame to represent collections of time series data.
 
     The class inherits from pandas' data structure :class:`pandas.DataFrame` and provides
-    additional methods to manipulate or analyse the data. The following main restrictions
-    are on the format:
+    additional methods to manipulate or analyse the time series collection. The following
+    main restrictions are on the frame format:
 
     * two-dimensional index, where the first index indicates the time series ID (
       integer), and the second the time (non-negative numerical values)
-    * one dimensional columns for feature names
-    * neither in index nor in column names are duplicates allowed
-
-    Further restrictions are index and column names, however, they are internally
-    during initialization.
+    * one-dimensional columns for feature names
+    * neither the index nor in column allows duplicates
 
     Please view the full Pandas `documentation
-    <https://pandas.pydata.org/pandas-docs/stable/index.html>`_ of inherited attributes
-    and methods and further algorithms that act on data frames.
+    <https://pandas.pydata.org/pandas-docs/stable/index.html>`_ of inherited
+    attributes, methods and further algorithms that can act on data frames.
 
     .. note::
         Because Pandas provides a large variety of functionality of its data
@@ -149,8 +146,8 @@ class TSCDataFrame(pd.DataFrame):
         `<opening an issue <https://gitlab.com/datafold-dev/datafold/-/issues>`_.
 
     .. warning::
-        Currently, there is no `TSCSeries`, which results in some inconsistencies when
-        using `iloc`. Even if the result is still be a valid `TSCDataFrame` the type
+        Currently, there is no `TSCSeries`, which results in inconsistencies when
+        using `iloc`. Even if the result is still a valid `TSCDataFrame` the type
         changes to `pandas.DataFrame` or `pandas.Series`.
 
     Examples
@@ -185,19 +182,19 @@ class TSCDataFrame(pd.DataFrame):
 
     Parameters
     ----------
-    *args,**kwargs
-        all parameters are handled to superclass `pandas.DataFrame`
+    *args, **kwargs
+        all `*args` and `**kwargs` are handled to superclass `pandas.DataFrame`
 
     Attributes
     ----------
     tsc_id_idx_name
-        index name of first index to identify the time series
+        index name of first index to select a time series
 
     tsc_time_idx_name
         index name of second index to select time
     
     tsc_feature_col_name
-        column name to identify the feature
+        column name of features
     """
 
     tsc_id_idx_name = "ID"  # name used in index of (unique) time series
@@ -220,7 +217,7 @@ class TSCDataFrame(pd.DataFrame):
     def from_tensor(
         cls,
         tensor: np.ndarray,
-        time_series_ids=None,
+        time_series_ids: Optional[np.ndarray] = None,
         columns: Optional[Union[pd.Index, list]] = None,
         time_values: Optional[np.ndarray] = None,
     ) -> "TSCDataFrame":
@@ -233,14 +230,15 @@ class TSCDataFrame(pd.DataFrame):
 
         time_series_ids
             ids of shape `(n_timeseries,)` to assign to respective time series.
+            Defaults to `(0,1,2,..., n_timeseries)`
 
         columns
-            Feature names of with `(n_feature,)` elements. Defaults to `feature#`,
-            where `#` numbers the features consecutively.
+            Feature names of shape `(n_feature,)`. Defaults to
+            `feature[0,1,2,..., n_feature]`.
 
         time_values
             Time values of the time series in the tensor. Defaults to
-            `numpy.arange(n_timesteps)`.
+            `0,1,2, ..., n_timesteps`.
 
         Returns
         -------
@@ -302,18 +300,18 @@ class TSCDataFrame(pd.DataFrame):
         Parameters
         ----------
         left_matrix
-            time series values at time "now"
+            Time series values at time "now".
 
         right_matrix
-            time series values at time "next"
+            Time series values at time "next".
 
         snapshot_orientation
-            Indicate whether the snapshots (states) are in rows ("row") or columns (
-            "col").
+            Indicate whether the snapshots (states) are in rows ("row") or columns
+            ("col").
             
         columns
-            Feature names of with `(n_feature,)` elements. Defaults to `feature#`,
-            where `#` numbers the features consecutively.
+            Feature names of shape `(n_feature,)`. Defaults to
+            `feature[0,1,2,..., n_feature]`.
 
         Returns
         -------
@@ -370,18 +368,18 @@ class TSCDataFrame(pd.DataFrame):
         Parameters
         ----------
         indices_from
-            Existing object to copy index and/or columns.
+            Existing object to copy index and/or columns from.
 
         values
-            values for new time series collection
+            Values for new time series collection.
 
         except_index
             Index for new time series collection (only copy columns). Should not be
-            given together with `except_columns`.
+            set together with `except_columns`.
 
         except_columns
             Columns for this time series collection (only copy index). Should not be
-            given together with `except_index`.
+            set together with `except_index`.
 
         Returns
         -------
@@ -427,7 +425,7 @@ class TSCDataFrame(pd.DataFrame):
             Time series data with time values in index and features in columns.
 
         ts_id
-            ID of time series
+            ID of initial time series.
 
         Returns
         -------
@@ -454,13 +452,12 @@ class TSCDataFrame(pd.DataFrame):
 
     @classmethod
     def from_frame_list(cls, frame_list: List[pd.DataFrame]) -> "TSCDataFrame":
-        """Initialize a time series collection from a list of `pandas.DataFrames`
-        representing time series.
+        """Initialize a time series collection from a list of time series.
 
         Parameters
         ----------
         frame_list
-            data frames with `index=time_values` and `columns=feature_names`
+            Data frames with :code:`index=time_values` and :code:`columns=feature_names`
 
         Returns
         -------
@@ -495,8 +492,8 @@ class TSCDataFrame(pd.DataFrame):
             file path
 
         **kwargs
-            key word arguments handled to
-            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`_ # noqa
+            keyword arguments handled to
+            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`_
 
         Returns
         -------
@@ -632,10 +629,10 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def delta_time(self) -> Union[pd.Series, float]:
-        """Time value frequency.
+        """Time sampling frequency.
 
-        Collects for each time series the time delta, irregular frequencies are marked
-        with `nan`. If all time series are consistent (all have same time delta,
+        Collects for each time series the time delta. Irregular frequencies are marked
+        with `nan`. If all time series are consistent (i.e., all have same time delta,
         including `nan`), then a single float is returned.
 
         Returns
@@ -699,10 +696,11 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def n_timesteps(self) -> Union[int, pd.Series]:
-        """Number of time values
+        """Number of time steps per time series.
 
         Collects for each time series the number of time steps. If all time series are
         consistent (all have same time steps), then a single float is returned.
+
 
         Returns
         -------
@@ -726,13 +724,13 @@ class TSCDataFrame(pd.DataFrame):
         
         The following types are returned:
 
-        * `TSCDataFrame` if the slice is still valid
-        * `pandas.DataFrame` fallback if slice is not a valid TSCDataFrame anymore and
+        * ``TSCDataFrame`` if the slice is still valid
+        * ``pandas.DataFrame`` fallback if slice is not a valid ``TSCDataFrame`` anymore and
            contains multiple features
-        * `pandas.Series` if slice is not a valid TSCDataFrame anymore and contains a
+        * ``pandas.Series`` if slice is not a valid ``TSCDataFrame`` anymore and contains a
            single feature
 
-        All other rules of `.loc` slicing rules apply.
+        All other rules of `.loc` slicing apply.
 
         Returns
         -------
@@ -747,7 +745,7 @@ class TSCDataFrame(pd.DataFrame):
     def xs(
         self, key, axis=0, level=None, drop_level: bool = True
     ) -> Union[pd.DataFrame, pd.Series]:
-        """Overwrites cross section to provide fall back type in case the result
+        """Overwrites cross section to provide fall back solution in case the result
         is not a valid ``TSCDataFrame`` anymore.
 
         Parameters
@@ -759,7 +757,7 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         Union[TSCDataFrame, pd.DataFrame, pd.Series]
-            cross section, `TSCDataFrame` if still valid, else the direct pandas type
+            cross section, `TSCDataFrame` if still valid, else a corresponding pandas type
         """
 
         _internal_df = pd.DataFrame(self)
@@ -797,7 +795,7 @@ class TSCDataFrame(pd.DataFrame):
         Yields
         ------
         Tuple[int, pandas.DataFrame]
-            time series id and corresponding time series
+            Time series ID and corresponding time series.
         """
         for i, ts in self.groupby(level=self.tsc_id_idx_name):
             # cast single time series back to DataFrame
@@ -810,7 +808,7 @@ class TSCDataFrame(pd.DataFrame):
         return len(np.unique(self.n_timesteps)) == 1
 
     def is_const_delta_time(self) -> bool:
-        """Indicates if all time series in the collection have the same delta time.
+        """Indicates if all time series in the collection have the same time delta.
         """
 
         # If dt is a Series it means it shows "dt per ID" (because it is not constant).
@@ -849,6 +847,7 @@ class TSCDataFrame(pd.DataFrame):
         """Indicates if the time values are normalized.
 
         A normalized time has the following properties:
+
             * the first time record is zero (not necessarily for all time series), and
             * `delta_time` is constant 1 for all time series
         """
@@ -961,7 +960,7 @@ class TSCDataFrame(pd.DataFrame):
         )
 
     def feature_to_array(self, feature: str) -> np.ndarray:
-        """Turns a single feature column into data array.
+        """Turns a single feature column into a matrix.
 
         Parameters
         ----------
@@ -976,7 +975,7 @@ class TSCDataFrame(pd.DataFrame):
         Raises
         ------
         TSCException
-            if time series have not identical time values
+            If time series have not identical time values.
 
         """
 
@@ -990,7 +989,7 @@ class TSCDataFrame(pd.DataFrame):
     def select_time_values(
         self, time_values: Union[int, float, np.ndarray]
     ) -> Union[pd.DataFrame, "TSCDataFrame"]:
-        """Select time values each time series (if available).
+        """Select time values of all time series with a matching time value.
 
         Parameters
         ----------
@@ -1008,24 +1007,24 @@ class TSCDataFrame(pd.DataFrame):
         return self.loc[idx[:, time_values], :]
 
     def initial_states(self, n_samples: int = 1) -> Union[pd.DataFrame, "TSCDataFrame"]:
-        """Get initial states of each time series in the collection.
+        """Get initial state of each time series in the collection.
 
         Parameters
         ----------
 
         n_samples
-            number of samples required for initial state
+            Number of samples required for an initial state.
 
         Returns
         -------
         Union[pd.DataFrame, TSCDataFrame]
-            initial states of shape `(n_samples, n_features)`
+            Initial states of shape `(n_samples * n_timeseries, n_features)`.
 
         Raises
         ------
         TSCException
-            if there is a time series with less than the required number of samples
-
+            If there is a time series in the collection that has less time values
+            than than the required number of samples.
         """
 
         if not is_integer(n_samples) or n_samples < 1:
@@ -1054,12 +1053,12 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         Union[pd.DataFrame, TSCDataFrame]
-            final states of shape `(n_samples, n_features)`
+            The final states of shape `(n_samples, n_features)`.
 
         Raises
         ------
         TSCException
-            if there is a time series with less than the required number of samples
+            If there is a time series with less than the required number of samples.
 
         """
         if not is_integer(n_samples) or n_samples < 1:
@@ -1088,9 +1087,11 @@ class TSCDataFrame(pd.DataFrame):
             Key word arguments handled to each time series
             `pandas.DataFrame.plot() <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.plot.html?highlight=plot#pandas.DataFrame.plot>`_
             call.
+
         Returns
         -------
-
+        matplotlib object
+            axes handle
         """
         ax = kwargs.pop("ax", None)
         legend = kwargs.pop("legend", True)
@@ -1117,11 +1118,14 @@ class InitialCondition(object):
     """Collection of helper functions to create and validate initial conditions for
     time series predictions.
 
-    Initial conditions are required models that allow time series predictions,
-    for example in :py:meth:`EDMD.predict`. An initial condition can be either single
-    states (e.g. a vector at time zero), or a time series itself. This is the case,
-    if the model transforms the time series internally and requires multiple time
-    values for an embedding (e.g. ``TSCTakensEmbedding``).
+    Initial conditions are described with ``pandas.DataFrame`` objects
+    (including :class:`.TSCDataFrame`). However, the user can also insert a
+    ``numpy.ndarray``, but there are less checks possible.
+
+    Initial conditions are required in models that allow time series predictions,
+    for example in :py:meth:`EDMD.predict`. An initial condition can consist of
+    single states (e.g. a vector at time zero), or a time series itself. This is the case
+    if model transformations require multiple time values to define the transformed state.
     """
 
     @classmethod
@@ -1133,11 +1137,11 @@ class InitialCondition(object):
         Parameters
         ----------
         X
-            initial conditions of shape `(n_ic, n_features)`
+            Initial condition of shape `(n_ic, n_features)`.
 
         columns
-            feature names in model during fit (they can be accessed with
-            :code:`model_obj.features_in_[1]`
+            Feature names in model during fit (they can be accessed with
+            :code:`model_obj.features_in_[1]`.
 
         Returns
         -------
@@ -1169,18 +1173,18 @@ class InitialCondition(object):
         """Collects all initial states from a `TSCDataFrame`.
         
         .. note::
+
             The time values of the time series' initial states are ignored for single
             states. For time series with multiple timesteps, the initial condition is
             invalid if the time values are not identical between initial states.
 
-        
         Parameters
         ----------
         X
-            extract initial states from
+            Object to xtract initial states from.
 
         n_samples_ic
-            number of time steps per initial condition
+            Number of time steps per initial condition.
 
         Returns
         -------
@@ -1207,15 +1211,15 @@ class InitialCondition(object):
         """Extract and iterates over initial conditions and respective time values of
         time series grouping series with identical time values.
 
-        This iterator is especially useful to reconstruct sets of time series.
+        This iterator is useful to reconstruct time series.
         
         Parameters
         ----------
         X
-            extract initial states from
+            Object to extract initial states from.
 
         n_samples_ic
-            number of time steps per initial condition
+            Number of time steps per initial condition.
 
         Returns
         -------
@@ -1345,10 +1349,10 @@ class InitialCondition(object):
 
 
 def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
-    """Allocate time series tensor that complies with
-    :py:meth:`TSCDataFrame.from_tensor()`
+    """Allocate a time series tensor that complies with
+    :py:meth:`TSCDataFrame.from_tensor()`.
 
-    Allocated three-dimensional numpy.ndarray is C-aligned and can be accessed with
+    Allocated three-dimensional ``numpy.ndarray`` is C-aligned and can be accessed with
 
     .. code::
 

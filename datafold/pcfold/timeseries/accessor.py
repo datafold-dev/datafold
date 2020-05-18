@@ -49,36 +49,37 @@ class TSCAccessor(object):
         ensure_n_timeseries: Optional[int] = None,
         ensure_min_timesteps: Optional[int] = None,
     ) -> TSCDataFrame:
-        """Check and validate properties.
+        """Validate properties time series properties.
 
-        This summarises the single check functions also contained in the accessor. Use
-        this function to validate many properties.
+        This summarises the single check functions that are also contained in the
+        accessor. Use this function to validate many properties.
 
         Parameters
         ----------
         ensure_all_finite
-            If True check if all values are finite (no 'nan' or 'inf' values).
+            If True, check if all values are finite (no 'nan' or 'inf' values).
 
         ensure_same_length
-            If True check if all time series have the same length.
+            If True, check if all time series have the same length.
 
         ensure_const_delta_time
-            If True check that all time series have the same time delta.
+            If True, check that all time series have the same time-delta.
 
         ensure_delta_time
-            If given check that time series have required time delta.
+            If provided, check that time series have required time-delta.
 
         ensure_same_time_values
-            If True check that all time series have the same time values.
+            If True, check that all time series share the same time values.
 
         ensure_normalized_time
-            If True check if the time values are normalized.
+            If True, check if the time values are normalized.
 
         ensure_n_timeseries
-            If given check if the required number time series are present.
+            If provided, check if the required number time series are present.
             
         ensure_min_timesteps
-            If given check if every time series has the required minimum of time steps.
+            If provided, check if every time series has the required minimum of time
+            steps.
 
         Returns
         -------
@@ -121,7 +122,7 @@ class TSCAccessor(object):
             raise TSCException.not_finite()
 
     def check_timeseries_same_length(self) -> None:
-        """Check if time series in the collectino have the same length.
+        """Check if time series in the collection have the same length.
         """
         if not self._tsc_df.is_equal_length():
             raise TSCException.not_same_length(
@@ -129,13 +130,13 @@ class TSCAccessor(object):
             )
 
     def check_const_time_delta(self) -> None:
-        """Check if all time series have the same time delta.
+        """Check if all time series have the same time-delta.
         """
         if not self._tsc_df.is_const_delta_time():
             raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
 
     def check_timeseries_same_timevalues(self) -> None:
-        """Check if all time series in the collection have the same time values.
+        """Check if all time series in the collection share the same time values.
         """
         if not self._tsc_df.is_same_time_values():
             raise TSCException.not_same_time_values()
@@ -155,7 +156,7 @@ class TSCAccessor(object):
     def check_required_time_delta(
         self, required_time_delta: Union[pd.Series, float, int]
     ) -> None:
-        """Check if time series collection has required time delta.
+        """Check if time series collection has required time-delta.
 
         Parameters
         ----------
@@ -177,7 +178,7 @@ class TSCAccessor(object):
             )
 
     def check_required_n_timeseries(self, required_n_timeseries: int) -> None:
-        """Check if there is exactly a number of time series in the collection.
+        """Check if in the collection are exactly the required number of time series.
 
         Parameters
         ----------
@@ -234,11 +235,11 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def normalize_time(self):
-        """Normalize time for time series.
+        """Normalize time for time series in the collection.
 
         Normalized time has the following properties:
 
-        * time starts at zero (in any time series)
+        * global time starts at zero (not all time series have to)
         * time delta is constant 1
 
         Returns
@@ -249,7 +250,7 @@ class TSCAccessor(object):
         Raises
         ------
         TSCException
-            if TSCDataFrame has not constant time delta between all time series
+            If time delta between all time series is not constant.
 
         """
 
@@ -293,7 +294,7 @@ class TSCAccessor(object):
         Parameters
         ----------
         snapshot_orientation
-            Orientate snapshots (state at time) either in rows ("row") or
+            Orientation of snapshots (system states at time) either in rows ("row") or
             column-wise ("col")
 
         Returns
@@ -301,7 +302,7 @@ class TSCAccessor(object):
         Both returned matrices have same shape with `(n_features, n_snapshots-1)` \
         `(n_snapshots-1, n_features)` (depending on `snapshot_orientation`).
 
-        :class:`numpy.ndarray`
+        :class:ww`numpy.ndarray`
             matrix for time steps (0,1,2,...,N-1)
 
         :class:`numpy.ndarray`
@@ -310,7 +311,7 @@ class TSCAccessor(object):
         Raises
         ------
         TSCException
-            if time series have no constant time delta
+            If time series have no constant time delta.
 
         See Also
         --------
@@ -318,8 +319,7 @@ class TSCAccessor(object):
 
         """
 
-        if not self._tsc_df.is_const_delta_time():
-            raise TSCException.not_const_delta_time()
+        self.check_const_time_delta()
 
         ts_counts = self._tsc_df.n_timesteps
 
@@ -372,10 +372,10 @@ class TSCAccessor(object):
         return shift_left, shift_right
 
     def time_values_overview(self) -> pd.DataFrame:
-        """Generate table with time values overview.
+        """Generate table with overview of time values.
 
         Example of how the table looks:
-        .. generated with https://truben.no/table/
+        .. Comment: generated with https://truben.no/table/
 
         +----------------+------------+----------+----+
         | Time series ID | start time | end time | dt |
@@ -414,7 +414,7 @@ class TSCAccessor(object):
         For this:
 
           * Take the first two columns of the underlying data frame and interpret them as
-            x and y coordinates.
+            `x` and `y` coordinates.
           * Place Gaussian bells onto these coordinates and sum up the values of the
             corresponding probability density functions (PDF).
           * The PDF must be evaluated on a fine-granular grid.

@@ -67,7 +67,11 @@ def setup_tutorials():
         filename_tutorial = os.path.basename(filepath).replace(".ipynb", "")
         filename_nblink = f"{prefix}{filename_tutorial}"
         with open(f"{filename_nblink}.nblink", "w") as nblinkfile:
-            nblinkfile.write(nblink_content.replace("??INSERT??", filepath))
+            nblinkfile.write(
+                nblink_content.replace(
+                    "??INSERT??", os.path.normpath(filepath).replace("\\", "/")
+                )
+            )
 
         tutorial_index_content += f"{ws}{filename_nblink}\n"
 

@@ -8,7 +8,7 @@ import datafold.pcfold.tests.allutils
 from datafold.pcfold import *
 
 
-class PCMEstimationUnitTests(unittest.TestCase):
+class TestPCMEstimation(unittest.TestCase):
     def test_optimize_parameters_default(self):
         random_state = 1
         np.random.seed(random_state)
@@ -22,11 +22,12 @@ class PCMEstimationUnitTests(unittest.TestCase):
             pcm.optimize_parameters(random_state=random_state)
 
             result.append([pcm.cut_off, pcm.kernel.epsilon])
+
         result_expected = [
-            [0.13242882262406347, 0.0009520491292024215],
-            [0.3348229248212359, 0.006085898373905224],
-            [0.4876941887863767, 0.012911880135270698],
-            [0.5963298590812559, 0.01930489463309435],
+            [0.12918152452162973, 0.0009059310298948187],
+            [0.3227426384084372, 0.005654666735431946],
+            [0.47723065552428895, 0.012363772096040159],
+            [0.5868096378271159, 0.01869342158594448],
         ]
         datafold.pcfold.tests.allutils._assert_eq_matrices_tol(
             np.array(result_expected), np.array(result), tol=1e-8
@@ -44,12 +45,13 @@ class PCMEstimationUnitTests(unittest.TestCase):
             pcm = PCManifold(rdata)
             pcm.optimize_parameters(random_state=random_state, result_scaling=2)
 
+            print([pcm.cut_off, pcm.kernel.epsilon])
             result.append([pcm.cut_off, pcm.kernel.epsilon])
         result_expected = [
-            [0.26485764524812694, 0.003808196516809686],
-            [0.6696458496424718, 0.024343593495620895],
-            [0.9753883775727534, 0.05164752054108279],
-            [1.1926597181625118, 0.0772195785323774],
+            [0.25836304904325946, 0.003623724119579275],
+            [0.6454852768168744, 0.022618666941727785],
+            [0.9544613110485779, 0.049455088384160635],
+            [1.1736192756542319, 0.07477368634377791],
         ]
         datafold.pcfold.tests.allutils._assert_eq_matrices_tol(
             np.array(result_expected), np.array(result), tol=1e-8

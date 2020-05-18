@@ -3,7 +3,7 @@ class Version:
 
     major_version: int = 0  # making incompatible API changes,
     minor_version: int = 1  # adding functionality in a backwards-compatible manner
-    patch: int = 1  # for backwards-compatible bug fixes
+    patch: int = 2  # for backwards-compatible bug fixes
 
     # NOTE: for the moment, there are no release cycles (such as alpha, beta, release
     #  candidates,...)

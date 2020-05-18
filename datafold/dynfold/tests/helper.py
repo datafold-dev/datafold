@@ -71,45 +71,15 @@ def print_problem(a1, a2, cmp_str=""):
 
 
 def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
-    def diagnosis():
-        if isinstance(dmap1.kernel_matrix_, np.ndarray):
-            assert isinstance(
-                dmap2, legacy_dmap.DenseDiffusionMaps
-            ), f"got instance {type(dmap2)}"
-            logging.debug("DenseDiffusionMaps")
-            kernel_matrix1 = dmap1.kernel_matrix_
-            kernel_matrix2 = dmap2.kernel_matrix
-        elif isinstance(dmap1.kernel_matrix_, csr_matrix):
-            assert isinstance(
-                dmap2, legacy_dmap.SparseDiffusionMaps
-            ), f"got instance {type(dmap2)}"
-            logging.debug("SparseDiffusionMaps")
-            kernel_matrix1 = dmap1.kernel_matrix_.todense()
-            kernel_matrix2 = dmap2.kernel_matrix.todense()
-        else:
-            raise RuntimeError("Shouldnt get here")
 
-        if np.array_equal(kernel_matrix1, kernel_matrix2):
-            logging.debug("Kernel matrices are equal.")
-        else:
-            logging.error(
-                f"Kernel matrices are NOT equal. \n "
-                f"{print_problem(kernel_matrix1, kernel_matrix2), 'kernel matrix'}"
-            )
-
-        logging.debug(
-            f"Condition number of kernel matrix is {np.linalg.cond(kernel_matrix1)}"
-        )
+    nptest.assert_allclose(
+        dmap1.eigenvalues_, dmap2.eigenvalues, rtol=1e-10, atol=1e-15, equal_nan=False,
+    )
 
     try:
-        nptest.assert_allclose(
-            dmap1.eigenvalues_,
-            dmap2.eigenvalues,
-            rtol=1e-13,
-            atol=1e-15,
-            equal_nan=False,
-        )
+        assert_equal_eigenvectors(dmap1.eigenvectors_, dmap2.eigenvectors.T, tol=1e-8)
     except Exception as e:
+        # if all eigenvalues are 1, then the eigenvectors are not uniqe
         if not (dmap1.eigenvalues_ - 1 < 1e-14).all():
             raise e
         else:
@@ -204,5 +174,5 @@ def circle_data(nsamples=100):
     )
     return (
         np.hstack([np.real(data), np.imag(data)]),
-        1e-3,
-    )  # epsilon used in jupyter notebook in method_examples
+        0.0001,
+    )

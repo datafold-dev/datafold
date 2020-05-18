@@ -11,9 +11,17 @@ from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 from sklearn.metrics import mean_squared_error
 
+from datafold.dynfold import LocalRegressionSelection
 from datafold.dynfold.dmap import DiffusionMapsVariable
 from datafold.dynfold.tests.helper import *
 from datafold.utils.general import random_subsample
+
+try:
+    import rdist
+except ImportError:
+    IMPORTED_RDIST = False
+else:
+    IMPORTED_RDIST = True
 
 
 class DiffusionMapsTest(unittest.TestCase):
@@ -368,6 +376,110 @@ class DiffusionMapsTest(unittest.TestCase):
             atol=1e-15,
         )
 
+    @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
+    def test_cknn_kernel(self):
+        import datafold.pcfold as pfold
+        from time import time
+        import datafold.utils
+
+        k_neighbor = 15
+        delta = 1
+
+        num_samples = 500
+        xmin, ymin = -2, -1
+        width, height = 4, 2
+        random_state = 1
+
+        data = make_strip(xmin, ymin, width, height, num_samples)
+
+        t0 = time()
+        pcm = pfold.PCManifold(data)
+        pcm.optimize_parameters()
+        # pcm._dist_params = {"kmin": k_neighbor + 1}
+
+        t1 = time()
+        cknn_kernel = pfold.kernels.ContinuousNNKernel(
+            k_neighbor=k_neighbor, delta=delta
+        )
+        k, distance = cknn_kernel(
+            pcm,
+            dist_cut_off=pcm.cut_off,
+            dist_backend="rdist",
+            # dist_backend_kwargs={"kmin": k_neighbor + 1},
+        )
+        t2 = time()
+
+        dmap = DiffusionMaps(n_eigenpairs=10, cut_off=pcm.cut_off)
+        dmap._kernel = cknn_kernel
+        dmap.fit(pcm)
+
+        t3 = time()
+
+        print(f"kernel has {k.nnz/k.shape[0]} neighbors per row, on {k.shape[0]} rows")
+        print(f"pcm: {t1-t0}, cknn kernel: {t2-t1}, dmap: {t3-t2}")
+
+    def test_speed(self):
+        import datafold.pcfold as pfold
+        from time import time
+        import datafold.utils
+
+        num_samples = 15000
+        xmin, ymin = -2, -1
+        width, height = 4, 2
+        random_state = 1
+
+        data = make_strip(xmin, ymin, width, height, num_samples)
+        rng = np.random.default_rng(random_state)
+
+        n_large_points = int(15000)
+        L1, L2 = 4, 3  # width and height of the rectangle
+        data = rng.uniform(
+            low=(-L1 / 2, -L2 / 2), high=(L1 / 2, L2 / 2), size=(n_large_points, 2)
+        )
+
+        pcm = pfold.PCManifold(data)
+        pcm.optimize_parameters()
+
+        setting = {
+            "epsilon": pcm.kernel.epsilon,
+            "cut_off": pcm.cut_off,
+            "n_eigenpairs": 5,
+            "is_stochastic": True,
+            "alpha": 1,
+            "symmetrize_kernel": True,
+            "dist_backend": "scipy.kdtree",
+            "dist_backend_kwargs": {},
+        }
+
+        t0 = time()
+        dmap_embed = DiffusionMaps(**setting)
+
+        t1 = time()
+        dmap_embed.fit(data)
+        t2 = time()
+        (
+            kernel_matrix_,
+            _basis_change_matrix,
+            _row_sums_alpha,
+        ) = dmap_embed.X_.compute_kernel_matrix()
+        t22 = time()
+        solver_kwargs = {
+            "k": setting["n_eigenpairs"],
+            "which": "LM",
+            "v0": np.ones(data.shape[0]),
+            "tol": 1e-14,
+        }
+        evals, evecs = scipy.sparse.linalg.eigsh(
+            dmap_embed.kernel_matrix_, **solver_kwargs
+        )
+        t3 = time()
+
+        print(
+            f"kernel+eigsh: {t22-t2+t3-t2}, fit: {t2-t1}, kernel only: {t22-t2}, eigsh: {t3-t2}"
+        )
+
+        return 1
+
 
 class DiffusionMapsLegacyTest(unittest.TestCase):
     """We want to produce exactly the same results as the forked DMAP repository. These
@@ -377,6 +489,8 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
     def test_simple_dataset(self):
         """Taken from method_examples(/diffusion_maps/diffusion_maps.ipynb) repository."""
         data, epsilon = circle_data()
+
+        epsilon = 0.0001
 
         actual = DiffusionMaps(
             epsilon=epsilon, n_eigenpairs=11, symmetrize_kernel=False
@@ -535,11 +649,11 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
                 actual_sparse = DiffusionMaps(
                     epsilon=eps,
                     n_eigenpairs=n_eigenpairs,
-                    cut_off=1,
+                    cut_off=3,
                     symmetrize_kernel=False,
                 ).fit(data)
                 expected_sparse = legacy_dmap.SparseDiffusionMaps(
-                    points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=1
+                    points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
                 )
 
             except scipy.sparse.linalg.eigen.arpack.ArpackNoConvergence as e:
@@ -579,6 +693,107 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             )
 
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
+
+
+class LocalRegressionSelectionTest(unittest.TestCase):
+    def test_automatic_eigendirection_selection_swiss_roll(self):
+        points, color = make_swiss_roll(n_samples=5000, noise=0.01, random_state=1)
+        dm = DiffusionMaps(epsilon=2.1, n_eigenpairs=6).fit(points)
+
+        loc_regress = LocalRegressionSelection(n_subsample=1000)
+        loc_regress = loc_regress.fit(dm.eigenvectors_)
+
+        self.assertTrue(np.isnan(loc_regress.residuals_[0]))
+        self.assertTrue(loc_regress.residuals_[1] == 1.0)
+
+        # only starting from 2 because the first two values are trivial
+        self.assertTrue(np.argmax(loc_regress.residuals_[2:]) == 3)
+
+    def test_automatic_eigendirection_selection_rectangle(self):
+        """
+        from
+        Paper: Parsimonious Representation of Nonlinear Dynamical Systems Through
+        Manifold Learning: A Chemotaxis Case Study, Dsila et al., page 7
+        https://arxiv.org/abs/1505.06118v1
+        """
+
+        n_samples = 5000
+        n_subsample = 500
+
+        # lengths 2, 4, 8 are from paper, added .3 to have it more clear on which index
+        # the next independent eigenfunction should appear
+        x_length_values = [1, 2.3, 4.3, 8.3]
+
+        for xlen in x_length_values:
+            x_direction = np.random.uniform(0, xlen, size=(n_samples, 1))
+            y_direction = np.random.uniform(0, 1, size=(n_samples, 1))
+            data = np.hstack([x_direction, y_direction])
+
+            dmap = DiffusionMaps(0.1, n_eigenpairs=10).fit(data)
+
+            loc_regress = LocalRegressionSelection(n_subsample=n_subsample)
+            loc_regress.fit(dmap.eigenvectors_)
+
+            # Trivial first two values:
+            self.assertTrue(np.isnan(loc_regress.residuals_[0]))
+            self.assertTrue(loc_regress.residuals_[1] == 1.0)  # always first directions
+
+            loc_regress.residuals_[0:2] = 0  # setting to zero for easier checking
+
+            # Ignoring the first two trivial cases:
+            # From the paper-example we know the position of the next independent
+            # eigendirection
+            self.assertEqual(int(xlen + 1), np.argmax(loc_regress.residuals_))
+
+    def test_api_automatic_parametrization(self):
+        # Same test as test_choose_automatic_parametrization, just using the proper
+        # sklean-like API
+        n_samples = 5000
+        n_subssample = 500
+
+        x_length_values = [2.3, 4.3, 8.3]
+
+        np.random.seed(1)
+
+        for xlen in x_length_values:
+            x_direction = np.random.uniform(0, xlen, size=(n_samples, 1))
+            y_direction = np.random.uniform(0, 1, size=(n_samples, 1))
+
+            data = np.hstack([x_direction, y_direction])
+            dmap = DiffusionMaps(0.1, n_eigenpairs=10).fit(data)
+
+            # -----------------------------------
+            # Streategy 1: choose by dimension
+
+            loc_regress_dim = LocalRegressionSelection(
+                n_subsample=n_subssample, strategy="dim", intrinsic_dim=2
+            )
+            actual = loc_regress_dim.fit_transform(dmap.eigenvectors_)
+
+            actual_indices = loc_regress_dim.evec_indices_
+            expected_indices = np.array([1, int(xlen + 1)])
+
+            nptest.assert_equal(actual_indices, expected_indices)
+
+            expected = dmap.eigenvectors_[:, actual_indices]
+            nptest.assert_array_equal(actual, expected)
+
+            # -----------------------------------
+            # Streategy 2: choose by threshold
+
+            loc_regress_thresh = LocalRegressionSelection(
+                n_subsample=n_subssample, strategy="threshold", regress_threshold=0.9
+            )
+
+            actual = loc_regress_thresh.fit_transform(dmap.eigenvectors_)
+
+            actual_indices = loc_regress_thresh.evec_indices_
+            expected_indices = np.array([1, int(xlen + 1)])
+
+            nptest.assert_equal(actual_indices, expected_indices)
+
+            expected = dmap.eigenvectors_[:, expected_indices]
+            nptest.assert_array_equal(actual, expected)
 
 
 class DiffusionMapsVariableTest(unittest.TestCase):
@@ -716,6 +931,11 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.ERROR, format="%(message)s")
 
     # Comment in to run/debug specific tests
+
+    t = DiffusionMapsTest()
+    t.setUp()
+    t.test_cknn_kernel()
+    exit()
 
     # t = DiffusionMapsLegacyTest()
     # t.setUp()

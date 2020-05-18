@@ -32,8 +32,8 @@ class GeometricHarmonicsInterpolator(
         kernel matrix.
 
     cut_off
-        Distance cut off, distance values with a larger Euclidean distance
-        are set to zero. Lower cut off values increase the sparsity of
+        Distance cut-off, distance values with a larger Euclidean distance
+        are set to zero. Lower cut-off values increase the sparsity of
         kernel matrices and can result in faster computation of eigenpairs (which can
         be at the cost accuracy).
 
@@ -168,6 +168,7 @@ class GeometricHarmonicsInterpolator(
     def _get_tags(self):
         _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
         _tags["multioutput"] = True
+        _tags["poor_score"] = True  # the default score is negative (RMSE error)
         return _tags
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -342,7 +343,11 @@ class GeometricHarmonicsInterpolator(
         sample_weight: Optional[np.ndarray] = None,
         multioutput: str = "raw_values",
     ) -> float:
-        """Score interpolation model with mean squared error metric.
+        """Score interpolation model with negative mean squared error metric.
+
+        .. note::
+            The mean squared error is negated to comply with "higher score is better" from
+            scikit-learn.
 
         Parameters
         ----------
@@ -385,7 +390,7 @@ class GeometricHarmonicsInterpolator(
 
         # root mean squared error (NOTE: if upgrading scikit learn > 0.22 , the
         # mean_squared_error supports another input to get the RMSE
-        return np.sqrt(score)
+        return -1 * np.sqrt(score)
 
 
 @warn_experimental_class
