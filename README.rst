@@ -1,13 +1,14 @@
 What is *datafold*?
 =====================
 
-*datafold* is a Python package providing **data**-driven models with an explicit
-mani-**fold** parametrization. This means that *datafold* aims to
-process potentially high-dimensional data that lie near an (unknown) geometry (manifold).
-The data can be unordered point clouds or ordered time series from a dynamical system.
-For point clouds a typical use case is to parametrize a manifold with intrinsic lower
-dimension to enable (non-linear) dimension reduction. For time series data
-the underlying dynamical system is assumed to have a phase space being a manifold.
+*datafold* is a Python package that provides **data**-driven models for point clouds to
+find an *explicit* mani-**fold** parametrization and to identify non-linear
+dynamical systems on these manifolds. Informally, a manifold is a geometrical structure
+on which the available data is sampled. For point clouds a typical use case is to
+parametrize a manifold with intrinsic lower dimension to enable non-linear dimension
+reduction. For time series data the underlying dynamical system is assumed to have a
+phase space being a manifold. *datafold* can therefore process potentially
+high-dimensional data that lie near an geometry.
 
 The software documentation is available at
 `https://datafold-dev.gitlab.io/datafold <https://datafold-dev.gitlab.io/datafold>`_,
@@ -23,7 +24,7 @@ Any contribution (including code/tutorials/documentation improvements) and feedb
 very welcome. Please go to the section "Contributing" below for further details.
 
 .. note::
-    The project is under active development in an early stage.
+    The project is under active development in an research driven environment.
 
     * Code quality varies ranging from "experimental/early stage" to "well-tested". In
       general, well tested classes are listed in the software documentation and are
@@ -40,8 +41,8 @@ very welcome. Please go to the section "Contributing" below for further details.
          * `minor` - adding functionality in a backwards-compatible manner
          * `patch` - backwards-compatible bug fixes
 
-       Because *datafold* is a research-driven project there is no intention of
-       indicating a feature complete milestone with version `1.0`.
+      There is no intention of indicating a feature complete milestone with
+      version `1.0`.
 
 Highlights
 ==========
@@ -59,60 +60,58 @@ Highlights
   are data-driven dynamical models built from time series data. To improve the
   model's accuracy, the available data can be transformed with a variety of functions.
   This includes scaling of heterogenous time series features, representing the
-  time series in another coordinate system (e.g. Laplace-Beltrami operator) ot to
+  time series in another coordinate system (e.g. Laplace-Beltrami operator) or to
   reconstruct a diffeomorphic copy of the phase space with time delay embedding (cf.
   `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`_).
 * Building up on the last point, ``EDMDCV`` allows the model parameters (including the
   transformation model parameters) to be optimized with cross-validation and
-  also accounting for time series splitting.
+  also accounts for time series splitting.
 
 How does it compare to other software?
 ======================================
 
-*We only consider other Python packages.*
+*This only includes other Python packages, and does not compare the size of the projects.*
 
 * `scikit-learn <https://scikit-learn.org/stable/>`_
-   provides "classical" algorithms of the entire machine learning pipeline. The main
-   class of models map feature inputs to a fixed number of target output(s), such as in
-   regression or classification. *datafold* also includes models
-   of this class (Note the scikit-learn part in section "Dependencies") but also
-   include models that generalize to data-driven models aiming
-   dynamical systems (and therefore time series data). The number of outputs from a
-   single input (i.e. initial condition) then vary depending on the user of what time
-   interval and what sampling rate to sample. scikit-learn also provides a variety of
-   manifold learning models (see
-   `here <https://scikit-learn.org/stable/modules/manifold.html>`_
+   provides algorithms of the entire machine learning pipeline. The main
+   class of models in scikit-learn map feature inputs to a fixed number of target
+   outputs for tasks like regression or classification. *datafold* integrates into the
+   scikit-learn API and focuses on the
+   `manifold learning algorithms <https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py>`_,
+   but furthermore, includes a model class that can process time
+   series data coming from dynamical systems. The number of outputs can then vary: a
+   user provides an initial condition (the input) and an arbitrary sampling frequency
+   and prediciton horizon.
 
 * `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`_
-   provides many available \
+   provides many \
    variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia
    .org/wiki/Dynamic_mode_decomposition>`_. Some of the DMD models are special
-   cases of a dictionary of the `Extended Dynamic Mode Decomposition`, other DMD
-   variants are currently not covered in *datafold*. In ``datafold.dynfold.dmd.py`` is
-   an (experimental) wrapper for the ``PyDMD`` package. A major limitation of ``PyDMD``,
-   however, is that it only allows single time series as input (``numpy.ndarray``),
-   see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`_. *datafold*
-   solves this issue with the data structure ``TSCDataFrame``.
+   cases of a dictionary of the `Extended Dynamic Mode Decomposition`, and other DMD
+   variants are currently not covered in *datafold*. ``datafold.dynfold.dmd.py`` includes
+   an (experimental) wrapper for the ``PyDMD`` package to make use of missing DMD models,
+   however, a major limitation of ``PyDMD`` is that it only allows single time series as
+   input (``numpy.ndarray``), see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`_.
+   *datafold* addresses this issue with the data structure ``TSCDataFrame``.
 
 * `PySINDy <https://pysindy.readthedocs.io/en/latest/>`_
-   specializes on a `sparse` identification of dynamical systems to infer governing
-   equations. `SINDy` is basically a DMD variant and not yet implemented in
-   *datafold*. `PySINDy` also provides time series transformations, which
-   in `PySINDy` are referred to as `library` (which matches the defintion of
+   specializes on a *sparse* identification of dynamical systems to infer governing
+   equations. `SINDy` is basically a DMD variant and not in the scope of *datafold*, but
+   not yet included. `PySINDy` also provides time series transformations, which
+   are referred to as `library`. This matches the defintion of
    `dictionary` in  the `Extended Dynamic Mode Decomposition`). `PySINDy` also supports
-   multiple time series (lists of time series and correspinding time values).
+   multiple time series but managed in lists and not in a single data structure.
 
 * `tensorflow <https://www.tensorflow.org/>`_
-   allows data-driven time series regression/prediction. The main model type are (deep)
-   neural networks. For manifold learning (Variational) Auto-Encoders can be used, for
-   time series predictions recurrent networks such as
-   the `Long Short-Term Memory` (LSTM) are suitable. Neural networks lack of
-   mathematical background theory and the learning process is not deterministic. The
-   models are basically a black-box but nonetheless in often cases very successful. There
-   are also scientific works that combine neural networks with models within the scope of
-   *datafold* (currently not included). The models in *datafold* can also deal with
-   smaller data sets that are not suitable for neural networks, which usually need a
-   medium to large sized datasets (all relative to the actual problem).
+   allows data-driven regression/prediction with the main model type
+   (deep) neural networks. For manifold learning (Variational) Auto-Encoders are
+   suitable and for time series predictions recurrent networks such as
+   the `Long Short-Term Memory` (LSTM) are a good choice. In general neural networks
+   lack of mathematical background theory and are black-box models with a
+   non-deterministic learning process and require medium to large sized datasets.
+   Nonetheless, the models are in many application cases very successful. The models in
+   *datafold*, in contrast, have a strong mathematical background, a deterministic
+   result, are interpretable and can handle smaller data sets.
 
 
 How to get it?
@@ -161,9 +160,9 @@ a :code:`--user` flag to install datafold only for the current user.
 Dependencies
 ============
 
-The dependencies are managed in `setup.py <https://gitlab
+The package dependencies are managed in `setup.py <https://gitlab
 .com/datafold-dev/datafold/-/blob/master/setup.py>`_ and install
-(if not available) with the package manager ``pip``.
+(if not already installed) with the package manager ``pip``.
 
 *datafold* integrates with common packages from the
 `Python scientific computing stack <https://www.scipy.org/about.html>`_. Specifically,
@@ -171,32 +170,33 @@ this is:
 
 * `NumPy <https://numpy.org/>`_
     The data structure ``PCManifold`` in *datafold* subclasses from NumPy's ``ndarray``
-    to represent a point cloud on a manifold. A ``PCManifold`` point cloud is associated
-    with a kernel that describes the data locality and hence the geometry. NumPy is
-    used throughout *datafold* and is the default for all numerical data (data
-    structures and algorithms).
+    to model a point cloud sampled on a manifold. A ``PCManifold`` point cloud is
+    associated with a kernel that describes the data locality and hence the geometry.
+    NumPy is used throughout *datafold* and is the default for numerical data and
+    algorithms.
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`_
    *datafold* addresses time series data in the data structure ``TSCDataFrame``
    which subclasses from Pandas' rich data structure
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
-   Internally, this is again a NumPy array. However, a data frame allows extended
-   indexing (time, time series and features). The entire available time series data can
-   be captured in a single object with easy data slicing and time series functionality.
+   Internally, this is again a NumPy array, but the data frame indexes time, time series
+   and features. The entire available time series data can then be captured in a single
+   object with easy data slicing and dedicated time series functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`_
    All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`_.
    This is done by subclassing from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`_.
-   or appropriate "MixIns". *datafold* also provides own base classes
-   that align with scikit-learn (in a duck-typing way) for the required
-   generalizations with respect to ``TSCDataFrame`` as input and output.
+   or appropriate "MixIns". *datafold* also defines own base classes
+   that align with scikit-learn (in a duck-typing way) to allow passing
+   time series data in a ``TSCDataFrame`` object.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`_
-    Used for elementary numerical algorithms and data structures. Examples in
-    *datafold* include the (sparse) linear least square regression, (sparse) solving
-    for eigenpairs and sparse matrices as data structure for kernel matrices.
+    The package is used for elementary numerical algorithms and data structures in
+    conjunction with NumPy. Examples in *datafold* include the (sparse) linear least
+    square regression, (sparse) solving for eigenpairs and sparse matrices as optional
+    data structure for kernel matrices.
 
 Additional developer dependencies are in the next section.
 
@@ -219,16 +219,16 @@ Setting up development environment
 Install developer dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In the file ``requirements-dev.txt`` all developing dependencies are listed. Install the
-dependencies with ``pip`` (/ ``pip3``):
+The file ``requirements-dev.txt`` lists all developing dependencies and is readable
+with ``pip`` (/ ``pip3``) to install the packages:
 
 .. code-block:: bash
 
    pip install -r requirements-dev.txt
 
-The recommended (but optional) way is to install all packages into a
+The recommended (but optional) setup is to install all packages into a
 `virtual environment <https://virtualenv.pypa.io/en/stable/>`_. This avoids conflicts
-with other dependencies on system packages level. In order to set up a virtual
+with other dependencies on system package level. In order to set up a virtual
 environment run from the root directory:
 
 .. code-block:: bash
@@ -238,7 +238,7 @@ environment run from the root directory:
     pip install --upgrade pip
     pip install -r requirements-dev.txt
 
-Alternatively, use `python3` and `pip3`.
+Alternatively, use ``python3``.
 
 Install git pre-commit hooks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
