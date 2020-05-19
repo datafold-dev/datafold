@@ -513,7 +513,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
     """Laplacian pyramids interpolation of function values on data manifold using
     kernels with different scales.
 
-    The implementation is generalized to vector valued targets: The kernel scales are
+    The implementation is generalized to vector valued targets: the kernel scales are
     decreased (i.e. a new kernel with lower scale is computed) until for each target
     function the corresponding stopping criteria is reached (based on residual).
 
@@ -546,10 +546,10 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         Point cloud during fit.
 
     level_: int
-        Number of kernels.
+        The number of levels and kernels used in the model.
 
     n_targets_: int
-        Number of target functions during fit. (Note: the target values are not hold
+        The number of target functions during fit. (Note: the target values are not hold
         in the model).
 
     References

@@ -107,8 +107,8 @@ class _DmapKernelAlgorithms:
 
 
 class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
-    """Efficient representations of complex geometric structures with a diffusion
-    process on data.
+    """Define diffusion processes on point clouds to find meaningful geometric
+    descriptions.
 
     The model can be used for
 
@@ -146,7 +146,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         Note, that `is_stochastic=True` is required in all cases.
 
     symmetrize_kernel
-        If True, a conjugate transformation is performed if the current settings would
+        If True, a conjugate transformation is performed if the settings
         lead to a non-symmetric kernel matrix. This improves numerical stability when
         solving the eigenvectors of the kernel matrix as it allows algorithms designed
         for (sparse) Hermitian matrices to be used. If the kernel matrix is symmetric
@@ -400,6 +400,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         return self
 
     def transform(self, X: TransformType) -> TransformType:
+
         r"""Map out-of-sample points into embedding space with Nyström extension.
 
         From solving the eigenproblem of the diffusion kernel :math:`K`
@@ -415,10 +416,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
 
         where :math:`K(X, Y)` is a component-wise evaluation of the kernel.
 
-        Note that this mapping works irrespective of whether the data kernel matrix
-        :math:`K(X,X)` is symmetric. The diffusion map kernel is symmetric but,
-        a computed kernel matrix is only symmetric in the limit of large data. For
-        details see :cite:`fernandez_diffusion_2015` (especially Eq. 5).
+        Note, that the Nyström mapping can be used for image mappings irrespective of
+        whether the computed kernel matrix :math:`K(X,X)` is symmetric.
+        For details on this see :cite:`fernandez_diffusion_2015` (especially equation 5).
 
         Parameters
         ----------
@@ -430,7 +430,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_coords)`
         """
-
         check_is_fitted(self, ("X_", "eigenvalues_", "eigenvectors_"))
 
         X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=1))

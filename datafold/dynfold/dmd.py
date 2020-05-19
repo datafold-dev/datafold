@@ -257,19 +257,27 @@ class LinearDynamicalSystem(object):
 class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
 
-    The Koopman matrix :math:`K` defines a linear dynamical system
+    A DMD model decomposes time series data linearly into spatio-temporal components.
+    Due to it's strong connection to non-linear dynamical systems with Koopman spectral
+    theory, the DMD variats are framed in this context.
 
-    .. math:: K^n x_0 &= x_k
+    A DMD model approximates the Koopman operator with a matrix :math:`K`,
+    which defines a linear dynamical system
 
-    with :math:`x_k` being the (column) state vector of the system at time :math:`k`.
+    .. math:: K^n x_0 &= x_n
 
-    The the spectrum of the Koopman matrix \
-    (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` eigenvalues on diagonal):
+    with :math:`x_n` being the (column) state vectors of the system at time :math:`n`.
+    Note, that the state vectors :math:`x` are usually not the original observations of a
+    system but already staetes from a coordinate basis that seeks to linearize the
+    dynamics (see reference for details).
+
+    The spectrum of the Koopman matrix \
+    (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` eigenvalues on diagonal)
 
     .. math:: K \Psi_r = \Psi_r \Lambda
 
-    enable further analysis about the systems and inexpensive evaluation of the above
-    linear dynamical system (matrix power of diagonal matrix :math:`\Lambda` instead of
+    enables further analysis about the system and inexpensive evaluation of the
+    Koopman system (matrix power of diagonal matrix :math:`\Lambda` instead of
     :math:`K`):
 
     .. math::
@@ -277,8 +285,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         &= K^n \Psi_r b  \\
         &= \Psi_r \Lambda^n b
 
-    With the initial condition :math:`b`, which is aligned to the linear system using the
-    eigenvectors of the Koopman matrix:
+    The vector :math:`b` indicates the initial condition, which is aligned to the
+    linear system using the eigenvectors of the Koopman matrix:
 
     1. in a least squares sense with the right eigenvectors already computed in a least \
        square sense
@@ -293,11 +301,15 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
            \Psi_l x_0 = b
 
 
-    All subclasses must provide the (right) eigenpairs
+    All subclasses of ``DMDBase`` must provide the (right) eigenpairs
     :math:`\left(\Lambda, \Psi_r\right)`, in respective attributes
     :code:`eigenvalues_` and :code:`eigenvectors_right_`. If the left eigenvectors
-    (attribute :code:`eigenvectors_left_`) are available the initial condition always
-    solves with the second case for :math:`b` (as it is more efficient).
+    (in attribute :code:`eigenvectors_left_`) are available the initial condition always
+    solves with the second case for :math:`b`, because this is more efficient.
+
+    References
+    ----------
+    :cite:`kutz_dynamic_2016`
 
     See Also
     --------
@@ -560,9 +572,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
 
 class DMDFull(DMDBase):
-    r"""Dynamic Mode Decomposition of time series data without any pre-processing.
+    r"""Full Dynamic Mode Decomposition of time series data.
 
-    The Koopman matrix is approximated with
+    The model approximates the Koopman matrix with
 
     .. math::
         K X &= X' \\
@@ -577,13 +589,13 @@ class DMDFull(DMDBase):
     ----------
 
     is_diagonalize
-        If True also the left eigenvectors are computed. This is more efficient to
+        If True, also the left eigenvectors are computed. This is more efficient to
         solve for initial conditions, because there there is no least
-        squares solution required for evaluating the linear dynamical
+        squares computation required for evaluating the linear dynamical
         system (see :class:`LinearDynamicalSystem`)
 
     rcond: Optional[float]
-        Parameter handled to :class:`numpy.linalg.lstsq`
+        Parameter handled to :class:`numpy.linalg.lstsq`.
 
     Attributes
     ----------
@@ -598,7 +610,8 @@ class DMDFull(DMDBase):
         All left eigenvectors of Koopman matrix if ``is_diagonalize=True``.
 
     koopman_matrix_: numpy.ndarray
-        Koopman matrix obtained from least squares.
+        Koopman matrix obtained from least squares. Only stored if
+        `store_koopman_matrix=True` during fit.
 
     References
     ----------
@@ -695,8 +708,10 @@ class DMDFull(DMDBase):
         koopman_matrix = koopman_matrix.T
         return koopman_matrix
 
-    def fit(self, X: TimePredictType, y=None, **fit_params) -> "DMDFull":
-        """Build Koopman matrix from time series data.
+    def fit(
+        self, X: TimePredictType, y=None, store_koopman_matrix=False, **fit_params
+    ) -> "DMDFull":
+        """Build Koopman matrix and its spectral components from time series data.
 
         Parameters
         ----------
@@ -705,6 +720,10 @@ class DMDFull(DMDBase):
 
         y: None
             ignored
+
+        store_koopman_matrix
+            If True, the model stores the Koopman matrix in attribute
+            ``koopman_matrix_``, otherwise only the spectral components are stored.
 
         Returns
         -------
@@ -719,13 +738,16 @@ class DMDFull(DMDBase):
         )
         self._setup_features_and_time_fit(X=X)
 
-        self.koopman_matrix_ = self._compute_koopman_matrix(X)
+        koopman_matrix_ = self._compute_koopman_matrix(X)
         self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
-            *np.linalg.eig(self.koopman_matrix_)
+            *np.linalg.eig(koopman_matrix_)
         )
 
         if self.is_diagonalize:
             self._diagonalize_left_eigenvectors()
+
+        if store_koopman_matrix:
+            self.koopman_matrix_ = koopman_matrix_
 
         return self
 
@@ -736,8 +758,8 @@ class DMDEco(DMDBase):
 
     The singular value decomposition (SVD) reduces the data and the Koopman operator is
     computed in this reduced space. This DMD model is particularly interesting for high
-    dimensional data (large number of features), for example solutions of partial
-    differential equations (PDE) with many evaluated grid points.
+    dimensional data (large number of features), for example, solutions of partial
+    differential equations (PDE) with fine grids.
 
     The procedure of ``DMDEco`` is as follows:
 
