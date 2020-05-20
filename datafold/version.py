@@ -1,12 +1,8 @@
+import datetime
+
+
 class Version:
-    """Current version."""
-
-    major_version: int = 0  # making incompatible API changes,
-    minor_version: int = 1  # adding functionality in a backwards-compatible manner
-    patch: int = 2  # for backwards-compatible bug fixes
-
-    # NOTE: for the moment, there are no release cycles (such as alpha, beta, release
-    #  candidates,...)
+    """Current datafold version."""
 
     # Semantic versioning policy
     # preferred by Python
@@ -14,33 +10,24 @@ class Version:
 
     # See also https://semver.org/
 
+    major_version: int = 1  # making incompatible API changes,
+    minor_version: int = 0  # adding functionality in a backwards-compatible manner
+    patch: int = 0  # for backwards-compatible bug fixes
+
+    assert major_version >= 0 and isinstance(major_version, int)
+    assert minor_version >= 0 and isinstance(minor_version, int)
+    assert patch >= 0 and isinstance(patch, int)
+
     v_short = f"{major_version}.{minor_version}.{patch}"
 
-    # make date of release for longer version numbers
+    # Make date of release for longer version numbers.
     year: int = 2020
-    month: int = 2
-    day: int = 19
-    v_nr: int = 1
+    month: int = 5
+    day: int = 20
 
-    assert 1 <= day <= 31
-    assert v_nr >= 1
-
-    months_english = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ]
-
-    date_string = f"{year}-{months_english[month-1]}-{day}"
+    date_string = datetime.datetime(year=year, month=month, day=day).strftime(
+        "%Y-%m-%d"
+    )
 
     v_long = f"{v_short} ({date_string})"
     v_gnu = f"datafold {v_long}"

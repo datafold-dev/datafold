@@ -25,7 +25,7 @@ specifications that align to the scikit-learn API in a duck-typing fashion
   The mixin for transformer is aligned to `scikit-learn`'s
   `TransformerMixIn <https://scikit-learn.org/stable/modules/generated/sklearn.base.TransformerMixin.html>`_
   but also allows passing time series data as input.
-* :class:`.TSCPredictMixin`
+* :class:`.TSCPredictMixIn`
   The mixin is intended for models that fit time series data and are capable to
   model dynamical systems (cf. system identification). For model evaluation, a fitted
   model requires an initial condition and time specifications.

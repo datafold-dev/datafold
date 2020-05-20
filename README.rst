@@ -3,12 +3,13 @@ What is *datafold*?
 
 *datafold* is a Python package that provides **data**-driven models for point clouds to
 find an *explicit* mani-**fold** parametrization and to identify non-linear
-dynamical systems on these manifolds. Informally, a manifold is a geometrical structure
-on which the available data is sampled. For point clouds a typical use case is to
-parametrize a manifold with intrinsic lower dimension to enable non-linear dimension
-reduction. For time series data the underlying dynamical system is assumed to have a
-phase space that is a manifold. *datafold* can therefore process potentially
-high-dimensional data that lie near an geometry.
+dynamical systems on these manifolds. Informally, a manifold is an usually unknown
+geometrical structure on which data is sampled. For point clouds a typical
+use case is to parametrize the manifold with an intrinsic lower dimension to enable
+non-linear dimension reduction. For time series data the underlying dynamical system is
+assumed to have a phase space that is a manifold. The models contained in *datafold* can
+process potentially high-dimensional data that lie close to manifolds. For more, please
+visit this `introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`_ page.
 
 The software documentation is available at
 `https://datafold-dev.gitlab.io/datafold <https://datafold-dev.gitlab.io/datafold>`_,
@@ -20,7 +21,7 @@ downloaded as
 The source code is distributed under the `MIT license <https://gitlab
 .com/datafold-dev/datafold/-/blob/master/LICENSE>`_.
 
-Any contribution (including code/tutorials/documentation improvements) and feedback is
+Any contribution (code/tutorials/documentation improvements) and feedback is
 very welcome. Please see the "Contributing" section below for further details.
 
 .. note::
@@ -171,37 +172,37 @@ manager ``pip`` (if not already installed).
 this is:
 
 * `NumPy <https://numpy.org/>`_
-    The data structure ``PCManifold`` in *datafold* subclasses from NumPy's ``ndarray``
-    to model a point cloud sampled on a manifold. A ``PCManifold`` is
-    associated with a ``PCManifoldKernel`` that describes the data locality and hence
-    the geometry. NumPy is used throughout *datafold* and is the default for numerical
-    data and algorithms.
+   The data structure ``PCManifold`` in *datafold* subclasses from NumPy's ``ndarray``
+   to model a point cloud sampled on a manifold. A ``PCManifold`` is
+   associated with a ``PCManifoldKernel`` that describes the data locality and hence
+   the geometry. NumPy is used throughout *datafold* and is the default for numerical
+   data and algorithms.
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`_
    *datafold* addresses time series data in the data structure ``TSCDataFrame``
    which subclasses from Pandas' rich data structure
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
-   Internally, this is again a NumPy array, but the data frame can index time values,
-   multiple time series and multiple features. The entire available time series data can
+   Internally, this is again a NumPy array, but a data frame can index time values,
+   multiple time series and multiple features. The available time series data can
    then be captured in a single object with easy data slicing and dedicated time series
    functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`_
    All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`_.
-   This is done by subclassing from
+   This is done by deriving the models from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`_.
-   or appropriate "MixIns". *datafold* also defines own base classes
-   that align with ``scikit-learn`` (in a duck-typing fashion) to allow passing
+   or appropriate MixIns. *datafold* also defines own base classes
+   that align with ``scikit-learn`` in a duck-typing fashion to allow processing
    time series data in a ``TSCDataFrame`` object.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`_
-    The package is used for elementary numerical algorithms and data structures in
-    conjunction with NumPy. Examples in *datafold* include the (sparse) linear least
-    square regression, (sparse) solving for eigenpairs and sparse matrices as optional
-    data structure for kernel matrices.
+   The package is used for elementary numerical algorithms and data structures in
+   conjunction with NumPy. Examples in *datafold* include the (sparse) linear least
+   square regression, (sparse) solving for eigenpairs and sparse matrices as optional
+   data structure for kernel matrices.
 
-Additional developer dependencies are in the next section.
+Additional developer dependencies are discussed in the next section.
 
 Contributing
 ============
@@ -209,7 +210,7 @@ Contributing
 Bug reports, feature requests and user questions
 ------------------------------------------------
 
-Any contribution (code/tutorials/documentation improvements) and feedback is very
+Any contribution (code/tutorials/documentation changes) and feedback is very
 welcome. For all correspondence regarding the software please open a new issue in the
 *datafold* `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
 
@@ -229,10 +230,10 @@ with ``pip`` (/ ``pip3``) to install the packages:
 
    pip install -r requirements-dev.txt
 
-The recommended (but optional) setup is to install all packages into a
+The recommended (but optional) setup is to install all package dependencies into a
 `virtual environment <https://virtualenv.pypa.io/en/stable/>`_. This avoids conflicts
-with other dependencies on system package level. In order to set up a virtual
-environment run from the root directory:
+with other packages on system level. In order to set up a virtual environment run from
+the root directory:
 
 .. code-block:: bash
 
@@ -241,7 +242,7 @@ environment run from the root directory:
     pip install --upgrade pip
     pip install -r requirements-dev.txt
 
-Alternatively, use ``python3``.
+Alternatively, use ``python3`` if ``python`` is reserved for :code:`Python<3`.
 
 Install git pre-commit hooks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -256,7 +257,7 @@ The *datafold* source code is automatically formatted with
   history.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
-commited to the git history. The tools alter the source code in an deterministic
+committed to the git history. The tools alter the source code in an deterministic
 way. That is each tool should only format the code once to obtain the desired source
 code format. Also no tool should break the code. To set up the tools, the most
 convenient way is to install the git commit-hooks via the tool
@@ -312,7 +313,8 @@ Additional dependencies for building the documentation (**not** contained in
   Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
 * `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
 * `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
- `nbsphinx` extension that includes the tutorials into the web page documentation).
+  `nbsphinx` extension that includes the tutorials into the web page documentation).
+
 
 Note that the documentation also builds remotely in the CI pipeline, either as a
 test (all branches except `master`) or to update the web page (only for `master`).

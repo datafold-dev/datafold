@@ -33,7 +33,7 @@ Classes
    .. automethod:: check_tsc
    .. automethod:: normalize_time
    .. automethod:: plot_density2d
-   .. automethod:: shift_matrices
+   .. automethod:: compute_shift_matrices
    .. automethod:: shift_time
    .. automethod:: time_values_overview
 

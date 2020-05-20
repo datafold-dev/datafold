@@ -99,6 +99,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
       the model)
     * *dictionary* data refers to the data after it was transformed by the dictionary
       and before it is processed by the DMD model
+
     ...
 
     Parameters
