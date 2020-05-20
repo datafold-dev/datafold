@@ -25,11 +25,11 @@ else:
 
 
 class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixIn):
-    """Wrapper of a scikit-learn preprocess algorithms to generalize to time series
-    collections.
+    """Wrapper of a scikit-learn preprocess algorithms to allow time series
+    collections as input and output.
 
     Often scikit-learn performs "pandas.DataFrame in -> numpy.ndarray out". This wrapper
-    generalizes this to "pandas.DataFrame in -> pandas.DataFrame out".
+    makes sure to have "pandas.DataFrame in -> pandas.DataFrame out".
 
     Parameters
     ----------
@@ -154,7 +154,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixIn):
         )
 
     def inverse_transform(self, X: TransformType):
-        """Calls inverse_transform of internal transform ``sklearn`` object.
+        """Calls `inverse_transform` of internal transform ``sklearn`` object.
 
         Parameters
         ----------
@@ -253,9 +253,9 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
 
 
 class TSCPrincipalComponent(PCA, TSCTransformerMixIn):
-    """Compute principal components from data, including time series collection data.
+    """Compute principal components from data.
 
-    This is a subclass of ``PCA`` from scikit-learn to generalize the
+    This is a subclass of scikit-learn's ``PCA``  to generalize the
     input and output of :class:`pandas.DataFrames` and :class:`.TSCDataFrame`. All input
     parameters remain the same. For documentation please visit:
 
@@ -394,13 +394,14 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
     ----------
 
     lag
-        Number of time steps to lag before embedding past data.
+        Number of time steps to lag before embedding starts.
 
     delays
-        Number for delays to embed.
+        Number for time delays to embed.
 
     frequency
-        Time step frequency (every time step, every second, ...)
+        Time step frequency to emebd (e.g. to embed every sample or only every second
+        or third).
 
     Attributes
     ----------
@@ -413,7 +414,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         vector.
 
     delta_time_fit_
-        Time delta during measured during fit. This is primarily used to check that
+        Time delta measured during model fit. This is primarily used to check that
         `transform` or `inverse_transform` data still have the same time delta for
         consistency.
 
@@ -422,8 +423,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
     * Original paper from Takens :cite:`rand_detecting_1981`
     * Takens delay embedding in the context of time series data
-      :cite:`champion_discovery_2019` (the time delay embedding can is
-      then part of the :py:class:`.EDMD` dictionary).
+      :cite:`champion_discovery_2019` (the time delay embedding is then a transform
+      function of :py:class:`.EDMD` dictionary).
     """
 
     def __init__(
@@ -499,8 +500,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         )
 
     def fit(self, X: DataFrameType, y=None, **fit_params) -> "TSCTakensEmbedding":
-        """Compute delay indices based on settings and check time series would not
-        vanish.
+        """Compute delay indices based on settings and validate input with setting.
 
         Parameters
         ----------
@@ -518,7 +518,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         Raises
         ------
         TSCException
-            Time series collection restrictions in `X`: (1) time delta must be constant
+            Time series collection requirements in `X`: (1) time delta must be constant
             (2) all time series must have the minimum number of time samples to obtain
             one sample in the time delay embedding.
 
@@ -569,7 +569,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         Raises
         ------
         TSCException
-            Time series collection restrictions in `X`: (1) time delta must be constant
+            Time series collection requirements in `X`: (1) time delta must be constant
             (2) all time series must have the minimum number of time samples to obtain
             one sample in the time delay embedding.
         """
@@ -650,17 +650,18 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         return X
 
     def inverse_transform(self, X: TransformType) -> TransformType:
-        """Remove time delayed features of time delay embedded time series collection.
+        """Remove time delayed feature columns of time delay embedded time series
+        collection.
 
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame
-            time delayed data
+            Time delayed data of shape `(n_samples, n_features_embedded)`
 
         Returns
         -------
         TSCDataFrame, pandas.DataFrame
-            same type and shape as `X`
+            same type as `X` of shape `(n_samples, n_features_original)`
         """
         check_is_fitted(self)
 
@@ -688,9 +689,10 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
     center_type
         Selection of what to take as centers during fit. 
 
-        * `all_data` - all data are centers
-        * `initial_condition` - take initial conditions as centers. Note for this
-           selection the data `X` during fit must be :class:`.TSCDataFrame`.
+        * `all_data` - all data points during fit are used as centers
+        * `initial_condition` - take the initial condition states as centers.
+           Note for this option the data `X` during fit must be of
+           type :class:`.TSCDataFrame`.
 
     exact_distance
         An inexact distance computation increases the performance at the cost of
@@ -704,8 +706,8 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
         The center points of the radial basis functions.
 
     inv_coeff_matrix_: numpy.ndarray
-        Matrix to map RBF coefficients to original space. Computation is delayed
-        until `inverse_transform` is called for the first time.
+        Matrix to map radial basis coefficients to original space. Computation is
+        delayed until `inverse_transform` is called for the first time.
     """
 
     _cls_valid_center_types = ["all_data", "initial_condition"]
@@ -733,8 +735,8 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            Point centers of shape (n_centers, n_features). Must be `TSCDataFrame` if
-            center type is `initial_condition`.
+            Data of shape (n_centers, n_features) to extract point centers from. Must be
+            of type :class:`TSCDataFrame` if center type is `initial_condition`.
 
         y: None
             ignored
@@ -769,7 +771,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
         return self
 
     def transform(self, X: TransformType) -> TransformType:
-        """Transform data to coefficients of the radial basis functions.
+        """Transform data to radial basis functions coefficients.
 
         Parameters
         ----------
@@ -793,7 +795,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
         )
 
     def fit_transform(self, X, y=None, **fit_params):
-        """Simultaneously set the data to transform also to the point centers .
+        """Set the data as centers and transform to radial basis coefficients.
 
         Parameters
         ----------
@@ -858,7 +860,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
 
 
 class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixIn):
-    """Compute principal components from data, including time series collection data.
+    """Compute polynomial features from data.
 
     This is a subclass of ``PolynomialFeatures`` from scikit-learn to generalize the
     input and output of :class:`pandas.DataFrames` and :class:`.TSCDataFrame`.
@@ -906,8 +908,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixIn):
         return powers.sum(axis=1) != 1
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCPolynomialFeatures":
-        """
-        Compute number of output features.
+        """Compute number of output features.
 
         Parameters
         ----------
@@ -916,6 +917,8 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixIn):
 
         Returns
         -------
+        TSCPolynomialFeatures
+            self
         """
         X = self._validate_data(X)
 
@@ -960,10 +963,10 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixIn):
 class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
     """Transform data in an element-by-element fashion with lambda functions.
 
-    Each function is called on every column in a data frame and transforms the elements
-    (i.e. the number of samples remains the same).
+    Each function is called on every column in the data (i.e. the number of samples
+    remains the same).
 
-    Example of a Python lambda expression and NumPy's
+    Two examples using a Python lambda expression and a NumPy's
     `ufunc <https://numpy.org/devdocs/reference/ufuncs.html>`_:
 
     .. code-block:: python
@@ -974,8 +977,9 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
     Parameters
     ----------
     lambdas
-        List of lambda functions. Each column `X_col` is passed to the function,
-        The returned `X_transformed` data must be of the same shape as `X_col`.
+        List of `lambda` or `ufunc` functions (`ufunc` should not be reducing the data).
+        Each column `X_col` is passed to the function and the returned `X_transformed`
+        data must be of the same shape as `X_col`, i.e.
         :code:`X_transformed = func(X_col)`
     """
 
@@ -1027,7 +1031,7 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
         Returns
         -------
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            The transformed of same type as `X` and of shape
+            The transformed data of same type as `X` and of shape
             `(n_samples, n_lambdas * n_features)`
         """
         self._not_implemented_numpy_arrays(X)
@@ -1059,19 +1063,23 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
 class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
     """Compute time derivative with finite difference scheme.
 
+    .. note::
+        The class internally uses the Python package findiff, which currently is
+        optional in *datafold*. The class raises an `ImportError` if findiff is not
+        installed.
+
     Parameters
     ----------
 
     spacing: Union[str, float]
-        The difference between samples along the dimension where the derivative is
-        computed. If `dt` then the time sampling frequency of a :class:`.TSCDataFrame`
-        is used during fit.
+        The time difference between samples. If "dt" (str) then the time sampling
+        frequency of a :meth:`.TSCDataFrame.delta_time` is used during fit.
 
     diff_order
-        The order of derivative.
+        The derivative order.
 
     accuracy
-        Convergence order of the finite difference scheme.
+        The convergence order of the finite difference scheme.
 
     Attributes
     ----------
@@ -1082,7 +1090,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
 
     See Also
     --------
-
     `findiff documentation <https://findiff.readthedocs.io/en/latest/>`_
     """
 
@@ -1147,7 +1154,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
 
             if not isinstance(X, TSCDataFrame):
                 raise TypeError(
-                    "For input 'spacing=dt' a time series " "collections is required."
+                    "For input 'spacing=dt' a time series collections is required."
                 )
 
             self.spacing_ = X.delta_time
@@ -1156,6 +1163,12 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
                 raise TSCException.not_const_delta_time(actual_delta_time=self.spacing_)
         else:
             self.spacing_ = self.spacing
+
+            if isinstance(X, TSCDataFrame) and (self.spacing_ != X.delta_time).all():
+                raise ValueError(
+                    f"A spacing of {self.spacing} was specified, but the time series "
+                    f"collection has a time delta of {X.delta_time}"
+                )
 
         check_scalar(
             self.spacing_,

@@ -63,7 +63,7 @@ class TestTscAccessor(unittest.TestCase):
         #  this is a quite important functionality!)
 
         tc = TSCDataFrame(self.simple_df)
-        actual_left, actual_right = tc.tsc.shift_matrices()
+        actual_left, actual_right = tc.tsc.compute_shift_matrices()
 
         original_values = self.simple_df.to_numpy()
 
@@ -84,7 +84,9 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_equal(actual_left, expected_left)
         nptest.assert_equal(actual_right, expected_right)
 
-        actual_left, actual_right = tc.tsc.shift_matrices(snapshot_orientation="row")
+        actual_left, actual_right = tc.tsc.compute_shift_matrices(
+            snapshot_orientation="row"
+        )
 
         nptest.assert_equal(actual_left, expected_left.T)
         nptest.assert_equal(actual_right, expected_right.T)
@@ -95,7 +97,7 @@ class TestTscAccessor(unittest.TestCase):
 
         tc = TSCDataFrame(simple_df)
 
-        actual_left, actual_right = tc.tsc.shift_matrices()
+        actual_left, actual_right = tc.tsc.compute_shift_matrices()
 
         original_values = simple_df.to_numpy()
 

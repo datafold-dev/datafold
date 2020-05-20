@@ -1,38 +1,37 @@
 Software documentation
 ======================
 
-**datafold** 's software architecture consists of three package layers
+*datafold's* software architecture consists of three package layers
 
-* high level for meta models: :py:class:`datafold.appfold`
-* medium level for models for manifold learning and data trasnformation
-  :py:class:`datafold.dynfold`
-* low level for data structures and associated algorithms :py:class:`datafold.pcfold`
+* :py:class:`datafold.appfold` (high) - for meta-models
+* :py:class:`datafold.dynfold` (medium) - for manifold learning, data transformations and
+  time series decompositions
+* :py:class:`datafold.pcfold` (low) - for data structures and associated objects and
+  algorithms
 
-The three layers encapsulate a workflow hierarchy intending to maintain a high degree of
-modularity in *datafold* that allows ongoing contribution in the active research of
-data-driven models with an explicit manifold context. The models or data structures on
-each layer can, therefore, also be used on their own and be part of new model
-implementations. Dependencies between the layers are unidirectional, where models can
-depend on the functionality of lower levels and in some cases also of the same layer.
+The three layers encapsulate a workflow hierarchy to maintain a high degree of modularity
+in *datafold*. Each model is intended to be used on their own or internally in other
+model implementations. Dependencies between the layers are
+unidirectional, where models can depend on the functionality of lower levels and in some
+cases at the same layer.
 
-Each package layer contains model classes with clear scope, which is indicated by its
-base class(es).  All *datafold* models integrate with base classes from scikit-learn's
-API or in the case of time series data generalize the API in a conformant (duck typing)
-fashion.
+Each model has a clear scope, which is indicated by the associated base classes. A base
+class is either directly from scikit-learn or *datafold* provides own
+specifications that align to the scikit-learn API in a duck-typing fashion
 
-* :class:`sklean.BaseEstimator`
-  The application interface was templated from the scikit-learn
-  :cite:`pedregosa_scikit-learn_2011`: project.
-* :class:`TSCTransformerMixIn`
-  MixIn that is aligned to `scikit-learn`'s
+* :class:`sklearn.BaseEstimator`
+   All models inherit from this base class
+* :class:`.TSCTransformerMixIn`
+  The mixin for transformer is aligned to `scikit-learn`'s
   `TransformerMixIn <https://scikit-learn.org/stable/modules/generated/sklearn.base.TransformerMixin.html>`_
-  but generalizes the input and output to time series data.
-* :class:`TSCPredictMixin`
-  MixIn that structures models for system identification. The model is fitted with time
-  series data, requires initial conditions and time specifications for evaluation.
-* :class:`sklean.RegressorMixin` and `sklean.MultiOutputMixin`
-  MixIns for models that interpolate or regress function values on point cloud
-  manifolds.
+  but also allows passing time series data as input.
+* :class:`.TSCPredictMixin`
+  The mixin is intended for models that fit time series data and are capable to
+  model dynamical systems (cf. system identification). For model evaluation, a fitted
+  model requires an initial condition and time specifications.
+* :class:`sklearn.RegressorMixin` and `sklearn.MultiOutputMixin`
+  The scikit-learn mixins are used in *datafold* models that interpolate or regress
+  function values on manifold point cloud.
 
 .. automodapi:: datafold.appfold
 .. automodapi:: datafold.dynfold

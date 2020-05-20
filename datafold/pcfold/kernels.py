@@ -366,8 +366,8 @@ class PCManifoldKernel(Kernel):
         """Abstract method to compute the kernel matrix.
         
         If `Y=None`, then the pairwise-kernel is computed with `Y=X`. If `Y` is given,
-        then the kernel matrix is computed component-wise with X being the reference
-        and `X` the reference point cloud.
+        then the kernel matrix is computed component-wise with `X` being the reference
+        and `Y` the query point cloud.
 
         Because the kernel can return a variable number of return values, this is
         unified with :meth:`PCManifoldKernel.read_kernel_output`.
@@ -380,30 +380,30 @@ class PCManifoldKernel(Kernel):
         Y
             Reference data of shape `(n_samples_y, n_features_y)`
 
-        kernel_kwargs
-            keyword arguments for the kernel algorithm
-
         dist_kwargs
-            keyword arguments for the distance algorithm
+            Keyword arguments for the distance algorithm.
+
+        **kernel_kwargs
+            Keyword arguments for the kernel algorithm.
 
         Returns
         -------
         numpy.ndarray
-            Kernel matrix of shape `(n_samples_X, n_samples_X)` for the pair-wise
-            case or `(n_samples_y, n_samples_X)` for component-wise kernels
+            Kernel matrix of shape `(n_samples_X, n_samples_X)` for the pairwise
+            case or `(n_samples_y, n_samples_X)` for componentwise kernels
 
         Optional[Dict]
             For the pairwise computation, a kernel can return data that is required for a
             follow-up component-wise computation. The dictionary should contain keys
-            that can be included as `**kwargs` to the follow-up ``__call__``. Note that
-            if a kernel has no such values, this is empty (i.e. not even `None` is
+            that can be included as `**kernel_kwargs` to a follow-up ``__call__``. Note
+            that if a kernel has no such values, this is empty (i.e. not even `None` is
             returned).
         
         Optional[Dict]
-            If the kernel can compute quantities of interest, then it can be included
-            in a dictionary that includes this data. If this is provided, then this
-            must be at the third return position (with a possible `None` second return
-            value). Note that if a kernel has no such values, this is empty (i.e. not
+            If the kernel computes quantities of interest, then these quantities can be
+            included in this dictionary. If this is returned, then this
+            must be at the third return position (with a possible `None` return at the
+            second position). If a kernel has no such values, this can be empty (i.e. not
             even `None` is returned).
         """
 
@@ -415,22 +415,25 @@ class PCManifoldKernel(Kernel):
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Evaluate kernel on pre-computed distance matrix.
 
+        For return values see :meth:`.__call__`.
+
         .. note::
 
-            The kernels do no checks whether the correct kernel metric was used,
+            in this function there are no checks whether the correct distance
+            matrix is computed with the kernel metric.
 
         Parameters
         ----------
 
         distance_matrix
             Matrix of shape `(n_samples_Y, n_samples_X)`. For the sparse case note
-            that the kernel acts on all stored data, i.e. usually distance zeros
-            must be stored in the matrix and only distance values exceeding a cut-off (
-            i.e. large distance values) are not stored.
+            that the kernel acts only on stored data, i.e. distance zeros such as
+            duplicates must be stored in the matrix and only distance values exceeding a
+            cut-off (i.e. large distance values) should not be stored.
         
         Returns
         -------
-        see :meth:`.__call__`
+
         """
         raise NotImplementedError("base class")
 
@@ -462,21 +465,20 @@ class PCManifoldKernel(Kernel):
     def read_kernel_output(
         kernel_output: Union[Union[np.ndarray, scipy.sparse.csr_matrix], Tuple]
     ) -> Tuple[Union[np.ndarray, scipy.sparse.csr_matrix], Dict, Dict]:
-        """Unifies kernel output for all cases of possible number of kernel output.
+        """Unifies kernel output for all possible return scenarios of a kernel.
         
         This is required for models that allow generic kernels to be set where the
-        number of outputs of the internal kernel are not known apriori.
+        number of outputs of the internal kernel are not known *apriori*.
 
         A kernel must return a computed kernel matrix in the first position. The two
         other places are optional:
 
-        2. A dictionary containing keys that are required for a component-wise request
-           (such as computed densities)
-        3. A dictionary containing keys of additional information computed with the
-           kernel.
-
-        This means if a kernel sets additional information it must be in the third
-        position and `None` at the second place if there are not return values.
+        2. A dictionary containing keys that are required for a component-wise kernel
+           computation (and set in `**kernel_kwargs`, see also below). Examples are
+           computed density values.
+        3. A dictionary that containes additional information computed during the
+           computation. These extra information must always be at the third return
+           position.
 
         .. code-block:: python
 
@@ -504,7 +506,7 @@ class PCManifoldKernel(Kernel):
 
         Dict
             Data required for follow-up component-wise computation. The dictionary
-            should contain keys that can be included as `**kwargs` to the follow-up
+            should contain keys that can be included as `**kernel_kwargs` to the follow-up
             ``__call__``. Dictionary is empty if no data is contained in kernel output.
 
         Dict
@@ -613,7 +615,7 @@ class GaussianKernel(RadialBasisKernel):
     where :math:`D` is the squared euclidean distance matrix.
 
     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-    for more functionality and explanations.
+    for more functionality and documentation.
 
     Parameters
     ----------
@@ -660,7 +662,7 @@ class MultiquadricKernel(RadialBasisKernel):
     where :math:`D` is the squared euclidean distance matrix.
 
     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-    for more functionality and explanations.
+    for more functionality and documentation.
 
     Parameters
     ----------
@@ -703,7 +705,7 @@ class InverseMultiquadricKernel(RadialBasisKernel):
     where :math:`D` is the squared Euclidean distance matrix.
 
     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-    for more functionality and explanations.
+    for more functionality and documentation.
 
     Parameters
     ----------
@@ -746,7 +748,7 @@ class CubicKernel(RadialBasisKernel):
     where :math:`D` is the Euclidean distance matrix.
 
     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-    for more functionality and explanations.
+    for more functionality and documentation.
     """
 
     def __init__(self):
@@ -780,7 +782,7 @@ class QuinticKernel(RadialBasisKernel):
     where :math:`D` is the Euclidean distance matrix.
 
     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-    for more functionality and explanations.
+    for more functionality and documentation.
     """
 
     def __init__(self):
@@ -816,8 +818,7 @@ class ThinPlateKernel(RadialBasisKernel):
     :class:`scipy.special.xlogy`.
 
     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-    for more functionality and explanations.
-
+    for more functionality and documentation.
     """
 
     def __init__(self):
@@ -840,16 +841,16 @@ class ThinPlateKernel(RadialBasisKernel):
 
 
 class ContinuousNNKernel(PCManifoldKernel):
-    """Kernel to compute the continuous `k` nearest-neighbor adjacency graph.
+    """Compute the continuous `k` nearest-neighbor adjacency graph.
 
-    C-kNN constructs an unweighted graph for which the (un-normalized) graph Laplacian
-    converges spectrally to a Laplace-Beltrami operator on the manifold in the large
-    data limit.
+    The continuous `k` nearest neighbor (C-kNN) graph is an adjacency (i.e. unweighted)
+    graph for which the (un-normalized) graph Laplacian converges spectrally to a
+    Laplace-Beltrami operator on the manifold in the large data limit.
 
     Parameters
     ----------
     k_neighbor
-        For each point the distance to the `k`-th nearest neighbor is computed.
+        For each point the distance to the `k_neighbor` nearest neighbor is computed.
         If a sparse matrix is computed (with cut-off distance), then each point must
         have a minimum of `k` stored neighbors. (see `kmin` parameter in
         :meth:`pcfold.distance.compute_distance_matrix`).
@@ -904,8 +905,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         reference_dist_knn=None,
         **kernel_kwargs,
     ):
-        """Compute sparse kernel matrix to describe unweighted adjacency graph that
-        describes the neighborhood.
+        """Compute (sparse) adjacency graph to describes a point neighborhood.
 
         Parameters
         ----------
@@ -1003,6 +1003,8 @@ class ContinuousNNKernel(PCManifoldKernel):
     ) -> Tuple[scipy.sparse.csr_matrix, Optional[Dict[Any, np.ndarray]]]:
         """Evaluate kernel on pre-computed distance matrix.
 
+        For return values see :meth:`.__call__`.
+
         Parameters
         ----------
         distance_matrix
@@ -1010,18 +1012,14 @@ class ContinuousNNKernel(PCManifoldKernel):
 
         is_pdist
             If True, the `distance_matrix` is assumed to be symmetric and with zeros on
-            the diagonal (self distances). Note, that there is no check whether the matrix
-            is actually symmetric.
+            the diagonal (self distances). Note, that there are no checks to validate
+            the distance matrix.
 
         reference_dist_knn
-            An input is required for a component-wise evaluation of the kernel (
-            out-of-sample evaluations). This is the case if the distance matrix is
-            rectangular or non-symmetric (i.e., ``is_pdist=False``). The required
-            values are returned for a pre-evaluation of the pair-wise evaluation.
-
-        Returns
-        -------
-        see :meth:`.__call__`
+            An input is required for a component-wise evaluation of the kernel. This is
+            the case if the distance matrix is rectangular or non-symmetric (i.e.,
+            ``is_pdist=False``). The required values are returned for a pre-evaluation
+            of the pair-wise evaluation.
         """
 
         self._validate(
@@ -1063,7 +1061,9 @@ class ContinuousNNKernel(PCManifoldKernel):
 
 
 class DmapKernelFixed(PCManifoldKernel):
-    """Diffusion maps kernel with fixed kernel bandwidth.
+    """Diffusion map kernel with fixed kernel bandwidth.
+
+    This kernel wraps an kernel to describe a diffusion process.
 
     Parameters
     ----------
@@ -1234,6 +1234,33 @@ class DmapKernelFixed(PCManifoldKernel):
                 "Please consider to report bug."
             )
 
+    def _eval(self, kernel_output, is_pdist, row_sums_alpha_fit):
+
+        self._validate_row_alpha_fit(
+            is_pdist=is_pdist, row_sums_alpha_fit=row_sums_alpha_fit
+        )
+
+        kernel_matrix, internal_ret_cdist, _ = PCManifoldKernel.read_kernel_output(
+            kernel_output=kernel_output
+        )
+
+        kernel_matrix, basis_change_matrix, row_sums_alpha = self._normalize(
+            kernel_matrix, row_sums_alpha_fit=row_sums_alpha_fit, is_pdist=is_pdist
+        )
+
+        if is_pdist:
+            ret_cdist = dict(
+                row_sums_alpha_fit=row_sums_alpha,
+                internal_kernel_kwargs=internal_ret_cdist,
+            )
+            ret_extra = dict(basis_change_matrix=basis_change_matrix)
+        else:
+            # no need for row_sums_alpha or the basis change matrix in the cdist case
+            ret_cdist = None
+            ret_extra = None
+
+        return kernel_matrix, ret_cdist, ret_extra
+
     def __call__(
         self,
         X: np.ndarray,
@@ -1245,7 +1272,7 @@ class DmapKernelFixed(PCManifoldKernel):
     ) -> Tuple[
         Union[np.ndarray, scipy.sparse.csr_matrix], Optional[Dict], Optional[Dict]
     ]:
-        """Evaluate the diffusion maps kernel.
+        """Compute the diffusion map kernel.
 
         Parameters
         ----------
@@ -1298,33 +1325,6 @@ class DmapKernelFixed(PCManifoldKernel):
             row_sums_alpha_fit=row_sums_alpha_fit,
         )
 
-    def _eval(self, kernel_output, is_pdist, row_sums_alpha_fit):
-
-        self._validate_row_alpha_fit(
-            is_pdist=is_pdist, row_sums_alpha_fit=row_sums_alpha_fit
-        )
-
-        kernel_matrix, internal_ret_cdist, _ = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
-
-        kernel_matrix, basis_change_matrix, row_sums_alpha = self._normalize(
-            kernel_matrix, row_sums_alpha_fit=row_sums_alpha_fit, is_pdist=is_pdist
-        )
-
-        if is_pdist:
-            ret_cdist = dict(
-                row_sums_alpha_fit=row_sums_alpha,
-                internal_kernel_kwargs=internal_ret_cdist,
-            )
-            ret_extra = dict(basis_change_matrix=basis_change_matrix)
-        else:
-            # no need for row_sums_alpha or the basis change matrix in the cdist case
-            ret_cdist = None
-            ret_extra = None
-
-        return kernel_matrix, ret_cdist, ret_extra
-
     def eval(
         self,
         distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
@@ -1333,7 +1333,7 @@ class DmapKernelFixed(PCManifoldKernel):
     ):
         """Evaluate kernel on pre-computed distance matrix.
 
-        For further infos see also :meth:`.PCManifoldKernel.eval`.
+        For return values see :meth:`.__call__`.
 
         Parameters
         ----------
@@ -1346,8 +1346,6 @@ class DmapKernelFixed(PCManifoldKernel):
 
         Returns
         -------
-        see :meth:`.__call__`
-
         """
 
         kernel_output = self.internal_kernel.eval(distance_matrix)
@@ -1570,6 +1568,7 @@ class DmapKernelVariable(PCManifoldKernel):
             distance_matrix
         )
 
+        # TODO: this is not yet aligned to the kernel_matrix, cdist_dict, extra_dict
         return (
             operator_l_matrix,
             basis_change_matrix,

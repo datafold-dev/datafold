@@ -29,8 +29,7 @@ InitialConditionType = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
 
 
 class TSCBaseMixIn:
-    """Class to provide functionality internally required in the MixIn's provided in
-    *datafold*.
+    """Base class to provide functionality required in the MixIn's provided in *datafold*.
 
     See Also
     --------
@@ -169,19 +168,13 @@ class TSCBaseMixIn:
 
 
 class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
-    """Mixin to provide functionality for  point clouds and time series transformations.
+    """Mixin to provide functionality for point cloud and time series transformations.
 
     Generally, the following input/output types are supported:
 
     * :class:`numpy.ndarray`
     * :class:`pandas.DataFrame` no restriction on the frame's index and column format
     * :class:`.TSCDataFrame` as a special data frame for time series collections
-
-    In general the following input/output types are supported:
-
-    * :class:`numpy.ndarray`
-    * :class:`pandas.DataFrame` (e.g. as initial condition)
-    * :class:`TSCDataFrame` as a special case for time series collections
 
     Parameters
     ----------
@@ -288,18 +281,18 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
     def _same_type_X(
         self, X: TransformType, values: np.ndarray, feature_names: pd.Index
     ) -> TransformType:
-        """Chooses the same type for values than with X.
+        """Chooses the same type for input as type of `X`.
 
         Parameters
         ----------
         X
-            object from which the type will be inferred
+            Object from which the type will be inferred.
 
         values
-            data to transform in the same format as X
+            Data to transform in the same format as `X`.
 
         feature_names
-            feature names in case X is a :class:`pandas.DataFrame`
+            Feature names in case `X` is a :class:`pandas.DataFrame`.
 
         Returns
         -------
@@ -349,25 +342,26 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
             Transformed array of shape `(n_samples, n_transformed_features)` and of same
             type as input `X`.
         """
-        # This is only to overwrite the documentation in datafold
+        # This is only to overwrite the datafold documentation from scikit-learns docs
         return super(TSCTransformerMixIn, self).fit_transform(X=X, y=y, **fit_params)
 
 
 class TSCPredictMixIn(TSCBaseMixIn):
-    """Mixin to provide functionality for time series models.
+    """Mixin to provide functionality for models that train on time series data.
 
     Parameters
     ----------
 
     features_in_: Tuple[int, pandas.Index]
         Number of features during fit and corresponding feature names. The attribute
-        should be set during `fit` and used t validate during `predict`.
+        should be set during `fit` and used to validate during `predict`.
 
     time_values_in_: Tuple[int, numpy.ndarray]
-        Number of time values and array with all time values during fit. If a time
-        value appears at least in one time series it appears in time values. The
-        attribute should be set during `fit`, can be used for default time values and
-        allows reasonable predictions and time horizons to be validated.
+        Number of time values and array with all time values during `fit`. Note
+        because in a time seres collection not all time series share the same time
+        samples, a time value has to appear in at least one time series to be listed in
+        `time_values_in_`. The attribute should be set during `fit`, can be used for
+        default time values and allows reasonable prediction intervals to be validated.
 
     dt_
         Time sampling in the data during fit.

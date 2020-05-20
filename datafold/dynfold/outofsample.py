@@ -24,7 +24,7 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
     ----------
     kernel
         Internal kernel to describe proximity between points. The kernel is passed
-        as an `internal_kernel` to the :class:`.DmapKernelFixed` kernel, which describes
+        as an `internal_kernel` to :class:`.DmapKernelFixed`, which describes
         the diffusion process.
 
     n_eigenpairs
@@ -52,18 +52,18 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
     ----------
 
     X_: PCManifold
-        Training data during fit. The data is required to be stored to perform
-        out-of-sample interpolations. Equipped with kernel :py:class:`DmapKernelFixed`.
+        Training data during fit of shape `(n_samples, n_features)`. The data is required
+        to be stored to perform out-of-sample interpolations. Equipped with kernel
+        :py:class:`DmapKernelFixed`.
 
     y_: numpy.ndarray
-        Target function values, can be multi-dimensional.
+        Target function values of shape `(n_samples, n_targets)`, can be multi-dimensional.
 
     eigenvalues_: numpy.ndarray
         Eigenvalues of diffusion kernel in decreasing order.
 
     eigenvectors_: numpy.ndarray
-        Eigenvectors of the kenrel matrix. Corresponds to geometric harmonics
-        evaluations.
+        Eigenvectors of the kernel matrix. Corresponds to the geometric harmonics.
 
     kernel_matrix_ : Union[numpy.ndarray, scipy.sparse.csr_matrix]
         Computed kernel matrix, stored if `store_kernel_matrix=True` during fit.
@@ -165,7 +165,7 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         Parameters
         ----------
         X
-            Out-of-sample points of shape `(n_samples, n_features)`.
+            Points of shape `(n_samples, n_features)`.
 
         Returns
         -------
@@ -513,8 +513,8 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
     """Laplacian pyramids interpolation of function values on data manifold using
     kernels with different scales.
 
-    The implementation is generalized to vector valued targets: the kernel scales are
-    decreased (i.e. a new kernel with lower scale is computed) until for each target
+    The model implementation is generalized to vector valued targets: the kernel scales
+    are decreased (i.e. a new kernel with lower scale is computed) until for each target
     function the corresponding stopping criteria is reached (based on residual).
 
     Parameters
@@ -930,7 +930,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         return self
 
     def predict(self, X: np.ndarray):
-        """Out-of-sample point interpolation.
+        """Out-of-sample point evaluation.
 
         Parameters
         ----------
@@ -940,7 +940,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         Returns
         -------
         numpy.ndarray
-            interpolated function values of shape `(n_samples, n_targets_)`
+            Predicted function values of shape `(n_samples, n_targets_)`.
         """
 
         X, _ = self._validate(X)

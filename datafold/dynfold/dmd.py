@@ -61,7 +61,7 @@ class LinearDynamicalSystem(object):
 
     time_invariant
         If True, the system internally always starts with `time=0`. \
-        This is irrespective of the time given in the time values and if the initial
+        This is irrespective of the time given in the time values. If the initial
         time is larger than zero, the internal times are corrected to the requested time.
 
     References
@@ -148,7 +148,7 @@ class LinearDynamicalSystem(object):
             .. math::
                 x_{n+1} = \Psi \cdot \Lambda^n \cdot b_{0}
 
-        Where :math:`b(0)` and :math:`b_{0}` are the initial
+        where :math:`b(0)` and :math:`b_{0}` are the initial
         conditions of the respective system.
 
         .. note::
@@ -159,7 +159,7 @@ class LinearDynamicalSystem(object):
                 .. math::
                     \Psi_r x_0 = b_0
 
-            * ot by using the left eigenvectors and computing the matrix-vector product
+            * or by using the left eigenvectors and computing the matrix-vector product
                 .. math::
                     \Psi_l x_0 = b_0
 
@@ -171,10 +171,10 @@ class LinearDynamicalSystem(object):
 
             * right eigenvectors :math:`\Psi` of matrix :math:`A` (in this case \
               `n_feature=n_feature_states`), or
-            * linear transformation of right eigenvectors :math:`D \cdot \Psi` (this \
-              case allows `n_feature` to be larger or smaller than `n_feature_states`). \
-              The matrix :math:`D` linearly maps the states directly to another \
-              space (e.g., only a selection of states to reduce memory footprint).
+            * linear transformation of right eigenvectors :math:`D \cdot \Psi`. This \
+              allows `n_feature` to be larger or smaller than `n_feature_states`. \
+              The matrix :math:`D` maps the states directly to another \
+              space, e.g., only a selection of states for reduce memory footprint.
 
         eigenvalues
             eigenvalues of matrix :math:`A`
@@ -187,25 +187,24 @@ class LinearDynamicalSystem(object):
             `(n_features, n_initial_conditions)`.
 
         time_values
-           Values to evaluate the linear system at
+           Time values to evaluate the linear system at
 
            * `mode="continuous"` - :math:`t \in \mathbb{R}^{+}`
            * `mode="discrete"` - :math:`n \in \mathbb{N}_0`
 
         time_series_ids
            Unique integer time series IDs of shape `(n_initial_conditions,)` for each \
-           respective initial condition in the resulting time series collection. \
-           Defaults to `(0, 1, 2, ...)`.
+           respective initial condition. Defaults to `(0, 1, 2, ...)`.
 
         feature_columns
-            Unique feature columns names of shape `(n_feature,)` in the result time \
-            series collection. Defaults to `(0, 1, 2, ...)`.
+            Unique feature columns names of shape `(n_feature,)`.
+            Defaults to `(0, 1, 2, ...)`.
 
         Returns
         -------
         TSCDataFrame
-            collection with a time series for each initial condition with \
-            shape `(n_time_values, n_features)`
+            Collection with a time series for each initial condition with \
+            shape `(n_time_values, n_features)`.
         """
 
         n_feature, state_length = dynmatrix.shape
@@ -259,7 +258,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
     A DMD model decomposes time series data linearly into spatio-temporal components.
     Due to it's strong connection to non-linear dynamical systems with Koopman spectral
-    theory, the DMD variats are framed in this context.
+    theory, the DMD variants (subclasses) are framed in the context of this theory.
 
     A DMD model approximates the Koopman operator with a matrix :math:`K`,
     which defines a linear dynamical system
@@ -267,8 +266,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     .. math:: K^n x_0 &= x_n
 
     with :math:`x_n` being the (column) state vectors of the system at time :math:`n`.
-    Note, that the state vectors :math:`x` are usually not the original observations of a
-    system but already staetes from a coordinate basis that seeks to linearize the
+    Note, that the state vectors :math:`x` are often not the original observations of a
+    system but states from a functional coordinate basis that seeks to linearize the
     dynamics (see reference for details).
 
     The spectrum of the Koopman matrix \
@@ -453,7 +452,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             :code:`post_map @ eigenvectors_right_`.
 
         feature_columns: pandas.Index
-            If post_map is given with a changed state length, then new feature names
+            If `post_map` is given with a changed state length, then new feature names
             must be provided.
 
         Returns
@@ -542,7 +541,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         return self.fit(X, **fit_params).reconstruct(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None) -> float:
-        """Score DMD model by reconstructing time series data with same initial condition.
+        """Score model by reconstructing time series data.
 
         The default metric (see :class:`.TSCMetric` used is mode="feature", "metric=rmse"
         and "min-max" scaling.
@@ -550,13 +549,13 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         Parameters
         ----------
         X
-            time series data to reconstruct with `(n_samples, n_features)`
+            Time series data to reconstruct with `(n_samples, n_features)`.
 
         y: None
             ignored
 
         sample_weight
-            handled to :py:meth:`TSCScoring.__call__`
+            passed to :py:meth:`TSCScoring.__call__`.
 
         Returns
         -------
@@ -590,9 +589,9 @@ class DMDFull(DMDBase):
 
     is_diagonalize
         If True, also the left eigenvectors are computed. This is more efficient to
-        solve for initial conditions, because there there is no least
+        solve for initial conditions, because there is no least
         squares computation required for evaluating the linear dynamical
-        system (see :class:`LinearDynamicalSystem`)
+        system (see :class:`LinearDynamicalSystem`).
 
     rcond: Optional[float]
         Parameter handled to :class:`numpy.linalg.lstsq`.
@@ -641,7 +640,7 @@ class DMDFull(DMDBase):
 
         # It is more suitable to get the shift_start and end in row orientation as this
         # is closer to the normal least squares parameter definition
-        shift_start_transposed, shift_end_transposed = X.tsc.shift_matrices(
+        shift_start_transposed, shift_end_transposed = X.tsc.compute_shift_matrices(
             snapshot_orientation="row"
         )
 
@@ -716,7 +715,7 @@ class DMDFull(DMDBase):
         Parameters
         ----------
         X
-            Training data.
+            Training time series data.
 
         y: None
             ignored
@@ -759,34 +758,34 @@ class DMDEco(DMDBase):
     The singular value decomposition (SVD) reduces the data and the Koopman operator is
     computed in this reduced space. This DMD model is particularly interesting for high
     dimensional data (large number of features), for example, solutions of partial
-    differential equations (PDE) with fine grids.
+    differential equations (PDE) with a fine grid.
 
     The procedure of ``DMDEco`` is as follows:
 
     1. Compute the singular value decomposition of the data and use the leading `k`
     singular values and corresponding vectors in :math:`U` and :math:`V`.
 
-    .. math::
-        X \approx U \Sigma V^*
+      .. math::
+          X \approx U \Sigma V^*
 
     2. Compute the Koopman matrix in the SVD coordinates:
 
-    .. math::
-        K = U^T X' V \Sigma^{-1}
+      .. math::
+          K = U^T X' V \Sigma^{-1}
 
     3. Compute all eigenpairs of Koopman matrix:
 
-    .. math::
-        K W_r = W_r \Omega
+      .. math::
+          K W_r = W_r \Omega
 
     4. Reconstruct the (exact) eigendecomposition of :math:`K`
 
-    .. math::
-        \Psi_r = X' V \Sigma^{-1} W
+      .. math::
+          \Psi_r = X' V \Sigma^{-1} W
 
-    .. note::
-        The eigenvectors in step 4 can also be computed with :math:`\Psi_r = U W`, which
-        is then referred to the projected reconstruction.
+      .. note::
+          The eigenvectors in step 4 can also be computed with :math:`\Psi_r = U W`, which
+          is then referred to the projected reconstruction.
 
     ...
 
@@ -794,7 +793,6 @@ class DMDEco(DMDBase):
     ----------
     svd_rank: int
         Number of eigenpairs (with largest eigenvalues, in magnitude) to keep.
-
 
     Attributes
     ----------
@@ -824,7 +822,9 @@ class DMDEco(DMDBase):
         #  2 more quantities than snapshots
         #  Currently it is optimized for the case 2.
 
-        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="col")
+        shift_start, shift_end = X.tsc.compute_shift_matrices(
+            snapshot_orientation="col"
+        )
         U, S, Vh = np.linalg.svd(shift_start, full_matrices=False)  # (1.18)
 
         U = U[:, : self.svd_rank]

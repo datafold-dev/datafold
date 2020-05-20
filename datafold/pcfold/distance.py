@@ -34,11 +34,11 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     * The terms "pair-wise" (pdist) and "component-wise" (cdist) are
       adapted from the scipy's distance matrix computations
       :class:`scipy.sparse.spatial.pdist` and :class:`scipy.sparse.spatial.cdist`
-    * A sparse distance matrix with a distance cut-off value does not distance
-      values *above* this cut-off. Importantly, this means that the sparse matrix
+    * A sparse distance matrix with a distance cut-off value does not store distance
+      values *above* the cut-off. Importantly, this means that the sparse matrix
       **must** store real distance zeros (duplicates or self-distances in case of
-      pdist) and treat the zeros not stored in the sparse matrix as "large distance
-      values".
+      `pdist`) and treat the zeros not stored in the sparse matrix as "distance
+      values out of range".
 
     Parameters
     ----------
@@ -152,85 +152,6 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         """
 
 
-class BruteForceNumexpr(DistanceAlgorithm):
-    """
-    Source of algorithm:
-    https://stackoverflow.com/questions/47271662/what-is-the-fastest-way-to-compute-an-rbf-kernel-in-python
-    """
-
-    backend_name = None  #  TODO: algorithm not used at the moment
-
-    def __init__(self, metric):
-        if metric not in ["euclidean", "sqeuclidean"]:
-            raise ValueError
-
-        super(BruteForceNumexpr, self).__init__(metric=metric)
-
-    def _eval_numexpr_dist(self, A, B, C):
-
-        distance_matrix = ne.evaluate(
-            f"A + B - 2. * C",
-            {"A": A, "B": B, "C": C,},
-            optimization="aggressive",
-            order="C",
-        )
-
-        # For some reason actual zero values can be slightly negative (in range of
-        # numerical noise ~1e-14) --> this then results into nan values when applying
-        # the sqrt() function for the euclidean
-        distance_matrix[distance_matrix < 0] = 0
-        return distance_matrix
-
-    def pdist(
-        self, X: np.ndarray, cut_off: Optional[float] = None, **backend_options
-    ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-
-        X_norm = ne.evaluate("sum(X ** 2, axis=1)", {"X": X})
-        # X_norm = np.linalg.norm(X, axis=1)
-        # X_norm = np.square(X_norm, X_norm)
-
-        distance_matrix = self._eval_numexpr_dist(
-            A=X_norm[np.newaxis, :], B=X_norm[:, np.newaxis], C=np.dot(X, X.T),
-        )
-
-        if self.metric == "euclidean":
-            distance_matrix = np.sqrt(distance_matrix, out=distance_matrix)
-
-        # Somehow, zero valuess are often imprecise,
-        # For these zero values are easy to set:
-        np.fill_diagonal(distance_matrix, 0)
-
-        # Brute force algorithms can only sparsify the distance matrix, after everything
-        # is computed:
-        if cut_off is not None:
-            distance_matrix = self._dense2csr_matrix(distance_matrix, cut_off)
-
-        return distance_matrix
-
-    def cdist(
-        self,
-        X: np.ndarray,
-        Y: np.ndarray,
-        cut_off: Optional[float] = None,
-        **backend_options,
-    ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-
-        X_norm = ne.evaluate("sum(X ** 2, axis=1)", {"X": X})
-        Y_norm = ne.evaluate("sum(Y ** 2, axis=1)", {"Y": Y})
-
-        distance_matrix = self._eval_numexpr_dist(
-            A=Y_norm[:, np.newaxis], B=X_norm[np.newaxis, :], C=np.dot(Y, X.T)
-        )
-
-        if self.metric == "euclidean":
-            distance_matrix = np.sqrt(distance_matrix, out=distance_matrix)
-
-        if cut_off is not None:
-            distance_matrix = self._dense2csr_matrix(distance_matrix, cut_off)
-
-        return distance_matrix
-
-
 class BruteForceDist(DistanceAlgorithm):
     """Computes all distance pairs in the distance matrix.
 
@@ -270,7 +191,7 @@ class BruteForceDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples, n_features)`
+            Point cloud of shape `(n_samples, n_features)`.
 
         cut_off
             distances larger than `cut_off` are set to zero
@@ -321,10 +242,10 @@ class BruteForceDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples_X, n_features_X)`
+            Point cloud of shape `(n_samples_X, n_features_X)`.
 
         Y
-            point cloud of shape `(n_samples_Y, n_features_Y)`
+            Point cloud of shape `(n_samples_Y, n_features_Y)`.
 
         Returns
         -------
@@ -349,7 +270,9 @@ class BruteForceDist(DistanceAlgorithm):
 class RDist(DistanceAlgorithm):
     """Sparse distance matrix algorithm rdist, for point clouds with manifold assumption.
 
-    The dependency on the Python package "rdist" is optional.
+    .. note::
+        The dependency on the Python package is optional. The package is currentl not
+        published.
 
     Parameters
     ----------
@@ -404,10 +327,11 @@ class RDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples, n_features)`
+            Point cloud of shape `(n_samples, n_features)`.
 
         cut_off
-            distances (always Euclidean) larger than `cut_off` are set to zero
+            Distance values (always Euclidean metric) that are larger are not stored in
+            distance matrix.
 
         **backend_options
             keywords handled to build
@@ -449,10 +373,10 @@ class RDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples_X, n_features_X)`
+            Point cloud of shape `(n_samples_X, n_features_X)`.
 
         Y
-            point cloud of shape `(n_samples_Y, n_features_Y)`
+            Point cloud of shape `(n_samples_Y, n_features_Y)`.
 
         Returns
         -------
@@ -516,10 +440,11 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples, n_features)`
+            Point cloud of shape `(n_samples, n_features)`.
 
         cut_off
-            larger distances (in Euclidean metric) are set to zero
+            Distance values (always Euclidean metric) that are larger are not stored in
+            distance matrix.
 
         **backend_options
             key word arguments handled to `cKDTree`
@@ -557,10 +482,10 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples_X, n_features_X)`
+            Point cloud of shape `(n_samples_X, n_features_X)`.
 
         Y
-            point cloud of shape `(n_samples_Y, n_features_Y)`
+            Point cloud of shape `(n_samples_Y, n_features_Y)`.
 
         Returns
         -------
@@ -618,11 +543,12 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples, n_features)`
+            Point cloud of shape `(n_samples, n_features)`.
 
         cut_off
-            larger distances are set to zero (see
-            :class:`sklearn.neighbors.NearestNeighbors` documentation)
+            Distance values (always Euclidean metric) that are larger are not stored in
+            distance matrix. (see also :class:`sklearn.neighbors.NearestNeighbors`
+            documentation)
 
         **backend_options
             handled to `NearestNeighbor`
@@ -664,10 +590,10 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples_X, n_features_X)`
+            Point cloud of shape `(n_samples_X, n_features_X)`.
 
         Y
-            point cloud of shape `(n_samples_Y, n_features_Y)`
+            Point cloud of shape `(n_samples_Y, n_features_Y)`.
 
         Returns
         -------
@@ -733,13 +659,14 @@ class GuessOptimalDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples, n_features)`
+            Point cloud of shape `(n_samples, n_features)`.
 
         cut_off
-            larger distances are set to zero
+            Distance values (always Euclidean metric) that are larger are not stored in
+            distance matrix.
 
         **backend_options
-            keyword arguments handled to guessed optimal :meth:`DistanceAlgorithm.pdist`
+            Keyword arguments passed to :meth:`DistanceAlgorithm.pdist`
         
         Returns
         -------
@@ -762,10 +689,10 @@ class GuessOptimalDist(DistanceAlgorithm):
         Parameters
         ----------
         X
-            point cloud of shape `(n_samples_X, n_features_X)`
+            Point cloud of shape `(n_samples_X, n_features_X)`.
 
         Y
-            point cloud of shape `(n_samples_Y, n_features_Y)`
+            Point cloud of shape `(n_samples_Y, n_features_Y)`.
 
         Returns
         -------
@@ -781,7 +708,8 @@ def _k_smallest_element_value(
     distance_matrix, k: int, ignore_zeros: bool = True, fill_value: float = 0.0
 ):
     """Compute the k-th smallest element of distance matrix, i.e. the element where only
-    k-1 elements are smaller. If ignore_zeros=True only positive distances are considered.
+    k-1 elements are smaller. If `ignore_zeros=True` only positive distances are
+    considered.
     """
 
     if k > distance_matrix.shape[1] or k < 0:
@@ -840,10 +768,10 @@ def _ensure_kmin_nearest_neighbor(
     """Computes `kmin` nearest neighbors for all points that in the current distance
     matrix have not at least `kmin` neighbors, yet.
 
-    This function is especially for outlier in a range-neighbor search (i.e., where the
-    number of neighbors vary). If outlier have no (or only self neighbor), then this can
-    have unwanted side effects because the nearest neighbor graph is then not fully
-    connected.
+    This function is especially useful to make sure that a neighborhood graph (
+    described by a distance matrix) is fully connected. If outlier have no
+    (or only self neighbor), then this can have unwanted side effects in some
+    applications.
 
     Internally, the k-NN query is carried out using :class:`sklearn.neighbors.BallTree`.
 
@@ -853,7 +781,7 @@ def _ensure_kmin_nearest_neighbor(
         Point cloud of shape `(n_samples_X, n_features_X)`.
 
     Y
-        Query point cloud of shape `(n_samples_Y, n_features_Y)`. If not given,
+        Query Point cloud of shape `(n_samples_Y, n_features_Y)`. If not given,
         then `Y=X` (pdist case).
 
     metric
@@ -864,7 +792,7 @@ def _ensure_kmin_nearest_neighbor(
         fulfilled by the diagonal line (self-distances).
 
     distance_matrix
-        Current distance matrix. The values are inserted.
+        Current distance matrix to which the missin distance pairs are inserted.
 
     Returns
     -------
@@ -1057,20 +985,20 @@ def compute_distance_matrix(
     backend: Union[str, Type[DistanceAlgorithm]] = "brute",
     **backend_kwargs,
 ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-    """Function to compute distance matrix with different settings and backends.
+    """Compute distance matrix with different settings and backends.
 
     Parameters
     ----------
 
     X
-        point cloud of shape `(n_samples_X, n_features_X)`
+        Point cloud of shape `(n_samples_X, n_features_X)`.
 
     Y
-        reference point cloud for component-wise computation of shape \
-        `(n_samples_Y, n_features_Y)`
+        Reference point cloud for component-wise computation of shape \
+        `(n_samples_Y, n_features_Y)`. If not given, then `Y=X` (pairwise computation)
     
     metric
-        distance metric (needs to be supported by backend)
+        Distance metric. Needs to be supported by backend.
 
     cut_off
         Distances larger than `cut_off` are set to zero and controls the degree of
@@ -1081,13 +1009,14 @@ def compute_distance_matrix(
             cut-off must be stated in in Eucledian distance (not squared cut-off).
 
     kmin
-        Minimum number of neighbors. Ignored if `cut_off=np.inf` (i.e. dense case).
+        Minimum number of neighbors. Ignored if `cut_off=np.inf` to indicate a dense
+        distance matrix, where all distance pairs are computed.
 
     backend
-        backend to compute distance matrix
+        Backend to compute distance matrix.
 
     **backend_kwargs
-        keyword arguments handled to selected backend
+        Keyword arguments handled to selected backend.
 
     Returns
     -------

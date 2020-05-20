@@ -13,12 +13,12 @@ from datafold.utils.general import is_df_same_index, series_if_applicable
 
 
 class TSCMetric(object):
-    """Compute error metrics for time series collection data.
+    """Compute metrics for time series collection data.
 
     Parameters
     ----------
 
-    metric
+    metrics
 
         * "rmse" - root mean squared error,
         * "rrmse" - relative root mean squared error
@@ -360,7 +360,7 @@ class TSCMetric(object):
             Gives samples individual weights depending on the `mode`.
 
             * `mode=timeseries` array of shape `(n_timesteps,)`. Each time step has a \
-               different weight (Note the time values can be different).
+               different weight (note that time values can be different).
             * `mode=feature` array of shape `(n_samples,)`. Each feature sample has a \
                different weight.
             * `mode=timestep` array of shape `(n_timeseries,)`. Each time series has \
@@ -387,7 +387,6 @@ class TSCMetric(object):
         TSCException
             If not all values are finite in `y_true` or `y_pred` or if \
             :class:`TSCDataFrame` properties do not allow for a `sample_weight` argument.
-
         """
 
         if sample_weight is not None:

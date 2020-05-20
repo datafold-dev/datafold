@@ -27,8 +27,8 @@ def estimate_cutoff(
     random_state: Optional[int] = None,
     distance_matrix=None,
 ) -> float:
-    """Estimates the cut-off needed for a Gaussian radial basis kernel, given a certain
-    tolerance below which the kernel values are considered zero.
+    """Estimates a good choice of cut-off for a Gaussian radial basis kernel, given a
+    certain tolerance below which the kernel values are considered zero.
 
     Parameters
     ----------
@@ -111,7 +111,7 @@ def estimate_scale(
         The `tol` parameter is ignored and the cut-off is used directly
 
     **estimate_cutoff_params
-        parameters to handle to method :py:meth:`estimate_cutoff` if cut_off is None
+        Parameters to handle to method :py:meth:`estimate_cutoff` if ``cut_off is None``.
     """
 
     _warn_if_not_gaussian_kernel(pcm.kernel)

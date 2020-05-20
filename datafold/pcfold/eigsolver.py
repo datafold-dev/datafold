@@ -125,7 +125,7 @@ def compute_kernel_eigenpairs(
     normalize_eigenvectors: bool = False,
     backend: str = "scipy",
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Compute eigenvalues and -vectors of kernel matrix under consideration of kernel
+    """Compute eigenvalues and -vectors from kernel matrix with consideration of matrix
     properties.
 
     Parameters
@@ -137,8 +137,8 @@ def compute_kernel_eigenpairs(
         Number of eigenpairs to compute.
 
     is_symmetric
-        If True, this allows for specialized algorithms exploiting symmetry and enables an
-        additional numerical sanity check that all eigenvalues are real-valued.
+        If True, this allows using specialized algorithms for symmetric matrices and
+        enables an additional numerical sanity check that all eigenvalues are real-valued.
 
     is_stochastic
         If True, this allows convergence to be improved because the trivial first
@@ -148,7 +148,8 @@ def compute_kernel_eigenpairs(
         If True, all eigenvectors are normalized to Eucledian norm 1.
 
     backend
-        * Valid backends: "scipy"
+        Valid backends:
+            * "scipy"
 
     Returns
     -------

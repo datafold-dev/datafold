@@ -49,10 +49,9 @@ class TSCAccessor(object):
         ensure_n_timeseries: Optional[int] = None,
         ensure_min_timesteps: Optional[int] = None,
     ) -> TSCDataFrame:
-        """Validate properties time series properties.
+        """Validate time series properties.
 
-        This summarises the single check functions that are also contained in the
-        accessor. Use this function to validate many properties.
+        This summarises the single check functions also contained in `TSCAccessor`.
 
         Parameters
         ----------
@@ -239,7 +238,7 @@ class TSCAccessor(object):
 
         Normalized time has the following properties:
 
-        * global time starts at zero (not all time series have to)
+        * global time starts at zero (at least one time series has time value 0)
         * time delta is constant 1
 
         Returns
@@ -286,10 +285,13 @@ class TSCAccessor(object):
 
         return self._tsc_df
 
-    def shift_matrices(
+    def compute_shift_matrices(
         self, snapshot_orientation: str = "col"
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Computes shift matrices from time series. 
+        """Computes shift matrices from time series data.
+
+        Both shift matrices have same shape with `(n_features, n_snapshots-1)` or
+        `(n_snapshots-1, n_features)`, depending on `snapshot_orientation`.
 
         Parameters
         ----------
@@ -299,14 +301,12 @@ class TSCAccessor(object):
 
         Returns
         -------
-        Both returned matrices have same shape with `(n_features, n_snapshots-1)` \
-        `(n_snapshots-1, n_features)` (depending on `snapshot_orientation`).
-
-        :class:ww`numpy.ndarray`
-            matrix for time steps (0,1,2,...,N-1)
 
         :class:`numpy.ndarray`
-            matrix for time steps (1,2,...,N)
+            shift matrix for time steps `(0,1,2,...,N-1)`
+
+        :class:`numpy.ndarray`
+            shift matrix for time steps `(1,2,...,N)`
 
         Raises
         ------

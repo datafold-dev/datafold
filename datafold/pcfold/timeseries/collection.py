@@ -128,16 +128,16 @@ class TSCDataFrame(pd.DataFrame):
 
     The class inherits from pandas' data structure :class:`pandas.DataFrame` and provides
     additional methods to manipulate or analyse the time series collection. The following
-    main restrictions are on the frame format:
+    main restrictions are made on a `pandas.DataFrame`:
 
     * two-dimensional index, where the first index indicates the time series ID (
       integer), and the second the time (non-negative numerical values)
     * one-dimensional columns for feature names
     * neither the index nor in column allows duplicates
 
-    Please view the full Pandas
-    `documentation <https://pandas.pydata.org/pandas-docs/stable/index.html>`_ of
-    inherited attributes, methods and further algorithms that can act on data frames.
+    Please visist the Pandas
+    `documentation <https://pandas.pydata.org/pandas-docs/stable/index.html>`_ for
+    inherited attributes, methods and other algorithms that act on data frames.
 
     .. note::
         Because Pandas provides a large variety of functionality of its data
@@ -1117,17 +1117,18 @@ class TSCDataFrame(pd.DataFrame):
 
 
 class InitialCondition(object):
-    """Collection of helper functions to create and validate initial conditions for
-    time series predictions.
+    """Helper functions to create and validate initial conditions for time series
+    predictions.
 
     Initial conditions are described with ``pandas.DataFrame`` objects
-    (including :class:`.TSCDataFrame`). However, the user can also insert a
-    :class:`numpy.ndarray`, but there are less checks for input validation.
+    (including :class:`.TSCDataFrame`). However, a user can also provide a
+    :class:`numpy.ndarray`, but there are less checks for input validation possible.
 
-    Initial conditions are required in models that allow time series predictions,
-    for example in :py:meth:`EDMD.predict`. An initial condition can consist of
-    single states (e.g. a vector at time zero), or a time series itself. This is the case
-    if model transformations require multiple time values to define the transformed state.
+    In general, initial conditions are required in models that train on time series
+    data, see for example in :py:meth:`EDMD.predict`. An initial condition can consist of
+    single states (e.g. a vector at time zero), or a time series itself. The latter is
+    the case if model transformations require multiple time values to define the
+    transformed state.
     """
 
     @classmethod
@@ -1210,8 +1211,8 @@ class InitialCondition(object):
     def iter_reconstruct_ic(
         cls, X: TSCDataFrame, n_samples_ic: int = 1
     ) -> Generator[Tuple[pd.DataFrame, np.ndarray], None, None]:
-        """Extract and iterates over initial conditions and respective time values of
-        time series grouping series with identical time values.
+        """Extract and iterate over initial conditions with time series groups of that
+        have identical time values.
 
         This iterator is useful to reconstruct time series.
         

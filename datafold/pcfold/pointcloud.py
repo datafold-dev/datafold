@@ -19,12 +19,12 @@ from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 class PCManifold(np.ndarray):
     """Represent a point cloud lying near a manifold with a kernel.
 
-    ``PCManifold`` subclasses a NumPy array and attaches a kernel that is associated with
-    the data. Furthermore, distance parameter can be set to select the a distance
-    matrix algorithms, which supports the kernel metric and/or promotes sparsity by
-    defining a cut-off distance.
+    ``PCManifold`` is derived from NumPy's ``ndarray``. It attaches a kernel that is
+    associated with the data. Furthermore, distance parameter are attached to the data to
+    select a suitable distance matrix algorithms, which supports the kernel metric
+    and/or promotes sparsity by defining a cut-off distance.
 
-    The data must be two-dimensional with the points ordered row-wise.
+    The data must be two-dimensional with the points in the rows of the matrix.
 
     ...
 
@@ -141,16 +141,31 @@ class PCManifold(np.ndarray):
         super(PCManifold, self).__setstate__(state[0:-2])
 
     @property
-    def cut_off(self):
+    def cut_off(self) -> float:
+        """Larger distance values are not set in a distance matrix computation. The
+        corresponding kernel value is then treated as zero.
+
+        The cut-off value is part of the dist_kwargs.
+
+        Returns
+        -------
+        """
         return self.dist_kwargs.get("cut_off", np.inf)
 
     @cut_off.setter
-    def cut_off(self, cut_off: float):
+    def cut_off(self, cut_off: float) -> None:
+        """Set new cut-off value.
 
+        Parameters
+        ----------
+        cut_off
+            Non-negative value.
+
+        """
         if cut_off <= 0:
             raise ValueError("cut_off (={}) must be a positive float")
 
-        self.dist_kwargs["cut_off"] = cut_off
+        self.dist_kwargs["cut_off"] = float(cut_off)
 
     def compute_kernel_matrix(self, Y=None, **kernel_kwargs):
         """Compute the kernel matrix on the point cloud.
@@ -161,8 +176,8 @@ class PCManifold(np.ndarray):
             Query point cloud of shape `(n_samples_Y, n_features)`. If provided, compute
             the kernel matrix component-wise, else `Y=self` (pair-wise).
 
-        kernel_kwargs
-            Keyword arguments to pass to kernel. 
+        **kernel_kwargs
+            Keyword arguments passed passed to the kernel.
             
         Returns
         -------
@@ -170,7 +185,8 @@ class PCManifold(np.ndarray):
             kernel matrix of shape `(n_samples_Y, n_samples_self)`
 
         Optional
-            For further possible return values see :meth:`PCManifoldKernel.__call__`.
+            A kernel can return further values see :meth:`PCManifoldKernel.__call__`
+            for details.
         """
         return self.kernel(X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs)
 
@@ -179,17 +195,17 @@ class PCManifold(np.ndarray):
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Compute distance matrix on points cloud.
 
-        Calls :py:meth:`datafold.pcfold.distance.compute_distance_matrix`.
+        Internally calls :py:meth:`datafold.pcfold.distance.compute_distance_matrix`.
 
         Parameters
         ----------
         Y
             Query point cloud of shape (n_samples_Y, n_features). If provided, compute
-            the distance matrix component-wise, else `Y=self` (pair-wise). See
-            :class:`.DistanceAlgorithm`.
+            the distance matrix component-wise, else `Y=self` (pair-wise). For further
+            details see also :class:`.DistanceAlgorithm`.
 
         metric
-            Distance metric. The backend algoorithm must supported the metric.
+            Distance metric. The backend algorithm must supported the metric.
             
         Returns
         -------
@@ -207,7 +223,7 @@ class PCManifold(np.ndarray):
         result_scaling: float = 1.0,
         inplace: bool = True,
     ) -> Tuple[float, float]:
-        """Estimates ``cut_off`` and kernel bandwidth ``epsilon`` of a Gaussian kernel.
+        """Estimates ``cut_off`` and kernel bandwidth ``epsilon`` for a Gaussian kernel.
         
         Parameters
         ----------
@@ -241,7 +257,7 @@ class PCManifold(np.ndarray):
         """
 
         if not isinstance(self.kernel, GaussianKernel):
-            raise TypeError("kernel must be a Gaussian kernel")
+            raise TypeError("kernel must be of type GaussianKernel")
 
         if not hasattr(self.kernel, "epsilon"):
             # fails if kernel has no epsilon parameter
@@ -271,7 +287,7 @@ def pcm_subsample(
     min_distance: Optional[float] = None,
     min_added_per_iteration=1,
 ):
-    """Subsample a manifold point cloud uniformly.
+    """Subsample a manifold point cloud with a uniform sample density.
 
     Parameters
     ----------

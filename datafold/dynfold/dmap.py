@@ -123,7 +123,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
     ----------
     kernel
         Internal kernel to describe proximity between points. The kernel is passed
-        as an `internal_kernel` to the :class:`.DmapKernelFixed` kernel, which describes
+        as an `internal_kernel` to :class:`.DmapKernelFixed`, which describes
         the diffusion process.
 
     n_eigenpairs
@@ -139,11 +139,11 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         Re-normalization parameter between `(0,1)`. ``alpha=1`` corrects the sampling
         density in the data as an artifact of the collection process. Special values are
 
-        * `alpha=0` for graph Laplacian,
-        * `alpha=0.5` Fokker-Plank operator
-        * `alpha=1` for Laplace-Beltrami operator
+        * `alpha=0` graph Laplacian,
+        * `alpha=0.5` Fokker-Plank operator,
+        * `alpha=1` Laplace-Beltrami operator
 
-        Note, that `is_stochastic=True` is required in all cases.
+        Note, that `is_stochastic=True` is required in all three cases.
 
     symmetrize_kernel
         If True, a conjugate transformation is performed if the settings
@@ -401,7 +401,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
 
     def transform(self, X: TransformType) -> TransformType:
 
-        r"""Map out-of-sample points into embedding space with Nyström extension.
+        r"""Embed out-of-sample points with Nyström extension.
 
         From solving the eigenproblem of the diffusion kernel :math:`K`
         (:class:`.DmapKernelFixed`)
@@ -423,7 +423,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            Out-of-sample points of shape `(n_samples, n_features)` to be embedded.
+            Data points of shape `(n_samples, n_features)` to be embedded.
 
         Returns
         -------
@@ -481,7 +481,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         """Pre-image from embedding space back to original (ambient) space.
 
         .. note::
-            Currently, this is only  a linear map in a least squares sense. Overwrite
+            Currently, this is only a linear map in a least squares sense. Overwrite
             this function for more advanced pre-image mappings.
 
         Parameters
@@ -644,7 +644,7 @@ class DiffusionMapsVariable(TSCTransformerMixIn):
 
 class LocalRegressionSelection(BaseEstimator, TSCTransformerMixIn):
     """Automatic selection of functional independent geometric harmonic vectors for
-    parsinoneous data manifold embedding.
+    parsimonious data manifold embedding.
 
     To measure the functional dependency a local regression regression is performed: The
     larger the residuals between eigenvetor sets the more information they add and are
