@@ -252,8 +252,8 @@ The *datafold* source code is automatically formatted with
 * `isort <https://timothycrosley.github.io/isort/>`_ for sorting :code:`import` statements
   in the source code alphabetically and in sections.
 * `nbstripout <https://github.com/kynan/nbstripout>`_ for removing potentially large
-   binary formatted output cells of Jupyter notebooks before they get into the git
-   history.
+  binary formatted output cells in a Jupyter notebook before the content gets into the git
+  history.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
 commited to the git history. The tools alter the source code in an deterministic
@@ -309,10 +309,10 @@ Additional dependencies for building the documentation (**not** contained in
 
 * `LaTex <https://www.latex-project.org/>`_ to render maths equations,
 * `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in the browser (for
-   Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
+  Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
 * `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
 * `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
-  `nbsphinx` extension that includes the tutorials into the web page documentation).
+ `nbsphinx` extension that includes the tutorials into the web page documentation).
 
 Note that the documentation also builds remotely in the CI pipeline, either as a
 test (all branches except `master`) or to update the web page (only for `master`).
