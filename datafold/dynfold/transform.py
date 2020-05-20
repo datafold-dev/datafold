@@ -1164,7 +1164,10 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         else:
             self.spacing_ = self.spacing
 
-            if isinstance(X, TSCDataFrame) and (self.spacing_ != X.delta_time).all():
+            if (
+                isinstance(X, TSCDataFrame)
+                and np.asarray(self.spacing_ != X.delta_time).all()
+            ):
                 raise ValueError(
                     f"A spacing of {self.spacing} was specified, but the time series "
                     f"collection has a time delta of {X.delta_time}"
