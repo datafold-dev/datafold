@@ -176,8 +176,7 @@ def compute_kernel_eigenpairs(
             "kernel_matrix must only contain finite values (no np.nan or np.inf)"
         )
 
-    if is_symmetric and not is_symmetric_matrix(kernel_matrix):
-        raise ValueError("matrix is not symmetric")
+    assert not is_symmetric or (is_symmetric and is_symmetric_matrix(kernel_matrix))
 
     # BEGIN experimental code
     # test_sparsify_experimental = False
