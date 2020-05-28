@@ -186,6 +186,12 @@ class TestKernelUtils(unittest.TestCase):
         nptest.assert_array_equal(expected, actual_sparse)
 
 
+class TestPCManifoldKernel(unittest.TestCase):
+    def test_gaussian_kernel_print(self):
+        kernel = GaussianKernel(epsilon=1)
+        self.assertEqual(kernel.__repr__(), "GaussianKernel(epsilon=1)")
+
+
 class TestDiffusionMapsKernelTest(unittest.TestCase):
     def test_is_symmetric01(self):
         # stochastic False
