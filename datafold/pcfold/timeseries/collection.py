@@ -453,13 +453,18 @@ class TSCDataFrame(pd.DataFrame):
         return cls(df)
 
     @classmethod
-    def from_frame_list(cls, frame_list: List[pd.DataFrame]) -> "TSCDataFrame":
+    def from_frame_list(
+        cls, frame_list: List[pd.DataFrame], ts_ids: Optional[np.ndarray] = None
+    ) -> "TSCDataFrame":
         """Initialize a time series collection from a list of time series.
 
         Parameters
         ----------
         frame_list
             Data frames with :code:`index=time_values` and :code:`columns=feature_names`.
+
+        ts_ids
+            Time series IDs for each corresponding time series in the ``frame_list``.
 
         Returns
         -------
@@ -469,14 +474,27 @@ class TSCDataFrame(pd.DataFrame):
 
         ref_df = frame_list[0]
         for _df in frame_list[1:]:
-
             is_df_same_index(
                 ref_df, _df, check_index=False, check_column=True, handle="raise"
             )
 
+        if ts_ids is None:
+            ts_ids = np.arange(len(frame_list)).astype(np.int)
+        else:
+            ts_ids = np.asarray(ts_ids)
+
+        if (
+            ts_ids.ndim != 1
+            or ts_ids.shape[0] != len(frame_list)
+            or len(np.unique(ts_ids)) != len(frame_list)
+        ):
+            raise ValueError(
+                "ts_ids must be unique time series IDs of same length as " "frame_list"
+            )
+
         tsc_list = list()
 
-        for _id, df in enumerate(frame_list):
+        for _id, df in zip(ts_ids, frame_list):
             df.index = pd.MultiIndex.from_product([[_id], df.index.to_numpy()])
             tsc_list.append(TSCDataFrame(df))
 

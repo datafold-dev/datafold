@@ -108,7 +108,7 @@ class TestTSCDataFrame(unittest.TestCase):
                 tc, matrix, except_columns=pd.Index(["A", "B"]), except_index=new_index
             )
 
-    def test_from_frame_list(self):
+    def test_from_frame_list0(self):
 
         frame_list = [self.simple_df.loc[i, :] for i in self.simple_df.index.levels[0]]
 
@@ -117,6 +117,22 @@ class TestTSCDataFrame(unittest.TestCase):
         expected.index = pd.MultiIndex.from_arrays(
             [
                 [0, 0, 1, 1, 2, 2, 3, 3, 3],
+                expected.index.get_level_values(TSCDataFrame.tsc_time_idx_name),
+            ],
+            names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
+        )
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_from_frame_list1(self):
+        # include ts_ids
+
+        frame_list = [self.simple_df.loc[i, :] for i in self.simple_df.index.levels[0]]
+
+        actual = TSCDataFrame.from_frame_list(frame_list, ts_ids=[1, 3, 99, 101])
+        expected = TSCDataFrame(self.simple_df)
+        expected.index = pd.MultiIndex.from_arrays(
+            [
+                [1, 1, 3, 3, 99, 99, 101, 101, 101],
                 expected.index.get_level_values(TSCDataFrame.tsc_time_idx_name),
             ],
             names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
