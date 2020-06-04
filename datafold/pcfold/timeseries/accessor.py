@@ -201,7 +201,8 @@ class TSCAccessor(object):
         _n_timesteps = self._tsc_df.n_timesteps
         if (np.asarray(_n_timesteps) < required_min_timesteps).any():
             raise TSCException.not_min_timesteps(
-                _n_timesteps, actual_n_timesteps=_n_timesteps
+                required_n_timesteps=required_min_timesteps,
+                actual_n_timesteps=_n_timesteps,
             )
 
     def iter_timevalue_window(self, blocksize, offset):

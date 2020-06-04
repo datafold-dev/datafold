@@ -454,7 +454,9 @@ class TSCDataFrame(pd.DataFrame):
 
     @classmethod
     def from_frame_list(
-        cls, frame_list: List[pd.DataFrame], ts_ids: Optional[np.ndarray] = None
+        cls,
+        frame_list: List[pd.DataFrame],
+        ts_ids: Optional[np.ndarray, List[int]] = None,
     ) -> "TSCDataFrame":
         """Initialize a time series collection from a list of time series.
 
