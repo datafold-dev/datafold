@@ -205,7 +205,7 @@ def compute_kernel_eigenpairs(
 
     if not np.isfinite(eigvals).all() or not np.isfinite(eigvects).all():
         raise NumericalMathError(
-            "eigenvalues or eigenvector contain 'NaN' or 'inf' values."
+            "eigenvalues or eigenvectors contain 'NaN' or 'inf' values."
         )
 
     if is_symmetric:
