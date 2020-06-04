@@ -33,15 +33,15 @@ that lie on an (unknown) manifold with intrinsic lower-dimension.""",
     package_data={"": ["LICENSE"]},
     python_requires=">=3.6",  # uses f-strings
     install_requires=[
-        "numpy",
-        "scikit-learn",
-        "scipy",
-        "pandas",
-        "numexpr",
-        "matplotlib",
+        "numpy>=0.18.0",
+        "scikit-learn>=0.22.1,<0.23.0",
+        "scipy>=1.4.0",
+        "pandas>=1.0.0",
+        "numexpr>=2.7.1,<3.0.0",
+        "matplotlib>=3.2.0",
     ],
     test_suite="nose.collector",
-    tests_require=["nose"],
+    tests_require=["nose>=1.3.7,<1.4"],
     extras_require={"pydmd": ["pydmd"],},
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[

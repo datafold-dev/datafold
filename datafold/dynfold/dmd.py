@@ -916,7 +916,8 @@ class PyDMDWrapper(DMDBase):
         elif method == "dmdc":
             # self.dmd_ = pydmd.DMDc(**init_params)
             raise NotImplementedError(
-                "Currently not implemented as it requires " "additional input"
+                "Currently not implemented because DMD with control requires "
+                "additional input."
             )
         else:
             raise ValueError(f"method={method} not known")
