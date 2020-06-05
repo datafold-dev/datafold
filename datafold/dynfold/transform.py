@@ -180,14 +180,19 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixIn):
 class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
     """Dummy transformer for testing or as a "passthrough" placeholder.
 
+    Parameters
+    ----------
+    include_const
+        If True, a constant (all ones) column is attached to the data.
+
     Attributes
     ----------
     is_fit_ : bool
         True if fit has been called.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, include_const: bool = False):
+        self.include_const = include_const
 
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
@@ -206,7 +211,13 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
             self
         """
         X = self._validate_data(X)
-        self._setup_features_fit(X, features_out="like_features_in")
+
+        if self.include_const and self._has_feature_names(X):
+            features_out = np.append(X.columns, ["const"])
+        else:
+            features_out = "like_features_in"
+
+        self._setup_features_fit(X, features_out=features_out)
 
         # Dummy attribute to indicate that fit was called
         self.is_fit_ = True
@@ -231,6 +242,12 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         X = self._validate_data(X)
         self._validate_feature_input(X, direction="transform")
 
+        if self.include_const:
+            if self._has_feature_names(X):
+                X["const"] = 1
+            else:
+                X = np.column_stack([X, np.ones(X.shape[0])])
+
         return X
 
     def inverse_transform(self, X: TransformType):
@@ -249,6 +266,13 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         check_is_fitted(self, "is_fit_")
         X = self._validate_data(X)
         self._validate_feature_input(X, direction="inverse_transform")
+
+        if self.include_const:
+            if self._has_feature_names(X):
+                X = X.drop("const", axis=1)
+            else:
+                X = X[:, :-1]
+
         return X
 
 
