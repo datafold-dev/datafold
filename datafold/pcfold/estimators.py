@@ -44,7 +44,7 @@ def estimate_cutoff(
         cut-off distance.
 
     random_state
-        sets :code:`np.random.seed(random_state)`
+        sets :code:`np.random.default_rng(random_state)`
 
     distance_matrix
         pre-computed distance matrix instead of using the internal `cdist` method
@@ -68,11 +68,9 @@ def estimate_cutoff(
         #  "dense case")
         return np.max(d)
 
-    if random_state is not None:
-        np.random.seed(random_state)
-
     if distance_matrix is None:
-        perm_indices_all = np.random.permutation(np.arange(n_points))
+        perm_indices_all = np.random.default_rng(random_state).permutation(n_points)
+
         distance_matrix = compute_distance_matrix(
             pcm[perm_indices_all[:n_subsample], :],
             pcm,

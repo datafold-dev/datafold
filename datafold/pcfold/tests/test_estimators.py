@@ -10,24 +10,25 @@ from datafold.pcfold import *
 
 class TestPCMEstimation(unittest.TestCase):
     def test_optimize_parameters_default(self):
-        random_state = 1
-        np.random.seed(random_state)
+        random_state = 2
+        gen = np.random.default_rng(random_state)
         n_data = 100
 
         result = []
         for n_dim in [1, 2, 3, 4]:
-            rdata = np.random.rand(n_data, n_dim)
+            rdata = gen.random(size=(n_data, n_dim))
 
             pcm = PCManifold(rdata)
             pcm.optimize_parameters(random_state=random_state)
 
             result.append([pcm.cut_off, pcm.kernel.epsilon])
 
+        # print(result)
         result_expected = [
-            [0.12918152452162973, 0.0009059310298948187],
-            [0.3227426384084372, 0.005654666735431946],
-            [0.47723065552428895, 0.012363772096040159],
-            [0.5868096378271159, 0.01869342158594448],
+            [0.12610897125265086, 0.0008633488008103683],
+            [0.31424866149403663, 0.005360943095613588],
+            [0.49445482177635525, 0.013272341786725417],
+            [0.5855076721372056, 0.018610562709202767],
         ]
 
         # reference test:needs update when changing behavior
@@ -35,23 +36,25 @@ class TestPCMEstimation(unittest.TestCase):
 
     def test_optimize_parameters_scaling(self):
         random_state = 1
-        np.random.seed(random_state)
+        gen = np.random.default_rng(random_state)
         n_data = 100
 
         result = []
         for n_dim in [1, 2, 3, 4]:
-            rdata = np.random.rand(n_data, n_dim)
+            rdata = gen.random(size=(n_data, n_dim))
 
             pcm = PCManifold(rdata)
             pcm.optimize_parameters(random_state=random_state, result_scaling=2)
 
-            print([pcm.cut_off, pcm.kernel.epsilon])
+            # print([pcm.cut_off, pcm.kernel.epsilon])
             result.append([pcm.cut_off, pcm.kernel.epsilon])
+
+        # print(result)
         result_expected = [
-            [0.25836304904325946, 0.003623724119579275],
-            [0.6454852768168744, 0.022618666941727785],
-            [0.9544613110485779, 0.049455088384160635],
-            [1.1736192756542319, 0.07477368634377791],
+            [0.25263361232467707, 0.003464787374764583],
+            [0.6251912756694166, 0.02121876691780111],
+            [0.88057031318024, 0.042094213956176206],
+            [1.2497638171770942, 0.08479108999475204],
         ]
 
         # reference test:needs update when changing behavior

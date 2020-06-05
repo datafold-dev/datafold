@@ -292,15 +292,22 @@ def remove_numeric_noise_symmetric_matrix(
     return matrix
 
 
-def random_subsample(data: np.ndarray, n_samples: int) -> Tuple[np.ndarray, np.ndarray]:
+def random_subsample(
+    data: np.ndarray, n_samples: int, random_state: Optional[int] = None
+) -> Tuple[np.ndarray, np.ndarray]:
     """Random uniform subsample without replacement of data.
 
     Parameters
     ----------
     data
         point cloud
+
     n_samples
         Number of points to sample.
+
+    random_state
+        Seed for random permutation of sample indices.
+        :code:`np.random.default_rng(random_state)`
 
     Returns
     -------
@@ -324,5 +331,7 @@ def random_subsample(data: np.ndarray, n_samples: int) -> Tuple[np.ndarray, np.n
         max_val=n_samples_data - 1,
     )
 
-    indices = np.random.permutation(n_samples_data)[:n_samples]
+    indices = np.random.default_rng(seed=random_state).permutation(n_samples_data)[
+        :n_samples
+    ]
     return data[indices, :], indices
