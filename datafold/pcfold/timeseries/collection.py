@@ -485,6 +485,8 @@ class TSCDataFrame(pd.DataFrame):
         else:
             ts_ids = np.asarray(ts_ids)
 
+        assert isinstance(ts_ids, np.ndarray)  # mypy check
+
         if (
             ts_ids.ndim != 1
             or ts_ids.shape[0] != len(frame_list)
