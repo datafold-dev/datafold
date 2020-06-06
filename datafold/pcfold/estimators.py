@@ -84,8 +84,7 @@ def estimate_cutoff(
         )
 
         k = np.min([k, distance_matrix.shape[1]])
-        # need to transpose the matrix here to correctly work with _kth_nearest_neighbor_dist
-        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix.T, k)
+        k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
     else:
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
 

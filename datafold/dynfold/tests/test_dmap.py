@@ -426,7 +426,7 @@ class DiffusionMapsTest(unittest.TestCase):
         )
         k, distance = cknn_kernel(
             pcm,
-            dist_kwargs=dict(cut_off=pcm.cut_off, backend="rdist")
+            dist_kwargs=dict(cut_off=pcm.kwargs, backend="rdist")
             # dist_backend_kwargs={"kmin": k_neighbor + 1},
         )
         t2 = time()
