@@ -520,9 +520,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         def expand():
             delayed_columns = list()
             for delay_idx in self.delay_indices_:
-                _cur_delay_columns = list(
-                    map(lambda q: ":d".join([q, str(delay_idx)]), cols.astype(str))
-                )
+                # rename columns: [column_name]:d[delay_index]
+                _cur_delay_columns = [f"{col}:d{delay_idx}" for col in cols.astype(str)]
                 delayed_columns.append(_cur_delay_columns)
             return delayed_columns
 

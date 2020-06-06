@@ -345,6 +345,8 @@ class RDist(DistanceAlgorithm):
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)
 
+        assert rdist is not None
+
         # build tree, currently not stored, backend options are handled to here.
         _rdist = rdist.Rdist(X, **backend_options)
 
@@ -383,6 +385,8 @@ class RDist(DistanceAlgorithm):
         scipy.sparse.csr_matrix
             distance matrix of shape `(n_samples_Y, n_samples_X)`
         """
+
+        assert rdist is not None
 
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)

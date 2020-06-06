@@ -881,9 +881,9 @@ class PyDMDWrapper(DMDBase):
             raise ImportError(
                 "Python package pydmd could not be imported. Check installation."
             )
+        assert pydmd is not None
 
         self._setup_default_tsc_metric_and_score()
-
         self.method_ = method.lower()
 
         standard_params = {
