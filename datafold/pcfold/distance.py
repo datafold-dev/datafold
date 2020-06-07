@@ -1115,6 +1115,9 @@ def compute_distance_matrix(
             + len(distance_matrix.indices)
         )
 
+        # There are also other reasons than memory savings for sparse matrices --
+        # therfore the warning is comment out for now.
+
         # if n_elements_stored > np.product(distance_matrix.shape):
         #     warnings.warn(
         #         f"cut_off={cut_off} value does not lead to reduced memory requirements "
