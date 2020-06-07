@@ -1114,13 +1114,14 @@ def compute_distance_matrix(
             + len(distance_matrix.indptr)
             + len(distance_matrix.indices)
         )
-        if n_elements_stored > np.product(distance_matrix.shape):
-            warnings.warn(
-                f"cut_off={cut_off} value does not lead to reduced memory requirements "
-                f"with sparse matrix. The sparse matrix stores {n_elements_stored} "
-                f"which exceeds a dense matrix by "
-                f"{n_elements_stored - np.product(distance_matrix.shape)} elements."
-            )
+
+        # if n_elements_stored > np.product(distance_matrix.shape):
+        #     warnings.warn(
+        #         f"cut_off={cut_off} value does not lead to reduced memory requirements "
+        #         f"with sparse matrix. The sparse matrix stores {n_elements_stored} "
+        #         f"which exceeds a dense matrix by "
+        #         f"{n_elements_stored - np.product(distance_matrix.shape)} elements."
+        #     )
 
     return distance_matrix
 
