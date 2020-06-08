@@ -456,13 +456,20 @@ class TSCPredictMixIn(TSCBaseMixIn):
                 f"delta_time during fit was {self.dt_}, now it is {delta_time}"
             )
 
-    def _validate_feature_names(self, X: TransformType):
+    def _validate_feature_names(self, X: TransformType, require_all=True):
         self._check_attributes_set_up(check_attributes=["features_in_"])
 
         try:
-            pdtest.assert_index_equal(
-                right=self.features_in_[1], left=X.columns, check_names=False
-            )
+            if require_all:
+                pdtest.assert_index_equal(
+                    right=self.features_in_[1], left=X.columns, check_names=False
+                )
+            else:
+                if not np.isin(X.columns, self.features_in_[1]).all():
+                    raise AssertionError(
+                        f"feature names in X are invalid "
+                        f"{X.columns[np.isin(self.features_in_[1],X.columns)]}"
+                    )
         except AssertionError as e:
             raise ValueError(e.args[0])
 
@@ -496,5 +503,11 @@ class TSCPredictMixIn(TSCBaseMixIn):
     def reconstruct(self, X: TSCDataFrame):
         raise NotImplementedError("method not implemented")
 
-    def predict(self, X: InitialConditionType, time_values=None, **predict_params):
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        **predict_params,
+    ):
         raise NotImplementedError("method not implemented")

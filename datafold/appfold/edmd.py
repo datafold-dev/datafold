@@ -224,6 +224,31 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         return X_dict
 
+    def _inverse_transform(self, X, qois=None):
+
+        if self.include_id_state:
+            if qois is None:
+                # simply select columns from attached id state:
+                X_ts = X.loc[:, self.features_in_[1]]
+            else:
+                # errors if qois are not present
+                X_ts = X.loc[:, qois]
+        else:
+            # it is required to inverse_transform, because the initial states are not
+            # available:
+            X_ts = X
+            reverse_iter = reversed(list(self._iter(with_final=False)))
+            for _, _, tsc_transform in reverse_iter:
+                X_ts = tsc_transform.inverse_transform(X_ts)
+
+            # at this stage X_ts.columns = self.features_in_[1]
+
+            if qois is not None:
+                # select (or sort) specifics according to qois input
+                X_ts = X_ts.loc[:, qois]
+
+        return X_ts
+
     def inverse_transform(self, X: TransformType) -> TransformType:
         """Perform inverse dictionary transformations on time series data (dictionary
         space).
@@ -246,19 +271,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         TSCDataFrame, pandas.DataFrame
             same type and shape as `X`
         """
-
-        if self.include_id_state:
-            # simply select columns from attached id state:
-            X_ts = X.loc[:, self.features_in_[1]]
-        else:
-            # it is required to inverse_transform, because the initial states are not
-            # available:
-            X_ts = X
-            reverse_iter = reversed(list(self._iter(with_final=False)))
-            for _, _, tsc_transform in reverse_iter:
-                X_ts = tsc_transform.inverse_transform(X_ts)
-
-        return X_ts
+        return self._inverse_transform(X=X, qois=self.features_in_[1])
 
     def _compute_n_samples_ic(self, X, X_dict):
         diff = X.n_timesteps - X_dict.n_timesteps
@@ -370,6 +383,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
+        qois: Optional[Union[pd.Index, List[str]]] = None,
         **predict_params,
     ):
         """Time series predictions for one or many initial conditions.
@@ -401,6 +415,12 @@ class EDMD(Pipeline, TSCPredictMixIn):
             Time values to evaluate the model for each initial condition.
             Defaults to time values contained in the data available during ``fit``. The
             values should be ascending and must be non-negative numeric values.
+
+        qois
+            Feature names to return. If ``include_id_state=True``, the time series are
+            only computed for the selected features in the dictionary space,
+            which decreases the memory requirements. Otherwise, the features are
+            selected afterwards.
 
         **predict_params: Dict[str, object]
             Keyword arguments handled to the ``predict`` method of the DMD model.
@@ -443,13 +463,27 @@ class EDMD(Pipeline, TSCPredictMixIn):
         #  correct
         assert isinstance(X_dict, pd.DataFrame)
 
+        if self.include_id_state:
+            if qois is None:
+                # we only evolve the id_states in the dictionary space
+                qois_dmd = qois_post = self.features_in_[1]
+            else:  # qoi is not None
+                # we evolve a pre-selection of features
+                qois_dmd = qois_post = qois
+        else:
+            # if id_states are not included in the dictionary we need to evolve *all*
+            # states in the dictionary space and can only select the qois *after* the
+            # inverse transformation
+            qois_dmd = None
+            qois_post = qois
+
         # now we compute the time series in "dictionary space":
         X_latent_ts = self._dmd_model.predict(
-            X_dict, time_values=time_values, **predict_params
+            X_dict, time_values=time_values, qois=qois_dmd, **predict_params
         )
 
         # transform from "dictionary space" to "user space"
-        X_ts = self.inverse_transform(X_latent_ts)
+        X_ts = self._inverse_transform(X_latent_ts, qois=qois_post)
 
         return X_ts
 
@@ -497,7 +531,9 @@ class EDMD(Pipeline, TSCPredictMixIn):
             X_dict_ic = self.transform(X_ic)
 
             # evolve state with dmd model
-            X_dict_ts = self._dmd_model.predict(X=X_dict_ic, time_values=time_values)
+            X_dict_ts = self._dmd_model.predict(
+                X=X_dict_ic, time_values=time_values, qois=None,
+            )
 
             # transform back to user space
             X_est_ts = self.inverse_transform(X_dict_ts)
@@ -1174,9 +1210,19 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
             raise AttributeError(f"attribute {name} now known")
 
     def reconstruct(self, X: TSCDataFrame):
+        """Delegated to :py:meth:`.EDMD.reconstruct` of ``best_estimator_``.
+        """
         return self.__getattr__(name="reconstruct", X=X)
 
-    def predict(self, X: InitialConditionType, time_values=None, **predict_params):
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        **predict_params,
+    ):
+        """Delegated to :py:meth:`.EDMD.predict` of ``best_estimator_``.
+        """
         return self.__getattr__(
-            name="predict", X=X, time_values=time_values, **predict_params
+            name="predict", X=X, time_values=time_values, qois=qois, **predict_params
         )

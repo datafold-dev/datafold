@@ -179,12 +179,15 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixIn):
 
 
 class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
-    """Dummy transformer for testing or as a "passthrough" placeholder.
+    """Transformer as a "passthrough" placeholder and/or attaching a constant feature.
 
     Parameters
     ----------
     include_const
         If True, a constant (all ones) column is attached to the data.
+
+    rename_features
+        If True, to each feature name the suffix "_id" is attached after `transform`.
 
     Attributes
     ----------
@@ -192,8 +195,9 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         True if fit has been called.
     """
 
-    def __init__(self, include_const: bool = False):
+    def __init__(self, include_const: bool = False, rename_features: bool = False):
         self.include_const = include_const
+        self.rename_features = rename_features
 
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
@@ -213,8 +217,14 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         """
         X = self._validate_data(X)
 
-        if self.include_const and self._has_feature_names(X):
-            features_out = np.append(X.columns, ["const"])
+        if self._has_feature_names(X):
+            if self.rename_features:
+                features_out = np.asarray([f"{col}_id" for col in X.columns])
+            else:
+                features_out = X.columns
+
+            if self.include_const:
+                features_out = np.append(features_out, ["const"])
         else:
             features_out = "like_features_in"
 
@@ -243,10 +253,14 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         X = self._validate_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        if self.include_const:
-            if self._has_feature_names(X):
+        if self._has_feature_names(X):
+            if self.rename_features:
+                X = X.add_suffix("_id")
+
+            if self.include_const:
                 X["const"] = 1
-            else:
+        else:
+            if self.include_const:
                 X = np.column_stack([X, np.ones(X.shape[0])])
 
         return X
