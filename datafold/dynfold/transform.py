@@ -17,7 +17,8 @@ from datafold.pcfold.kernels import PCManifoldKernel
 from datafold.pcfold.timeseries.collection import TSCException
 
 try:
-    from findiff import FinDiff
+    import findiff
+    import findiff.diff
 except ImportError:
     IMPORTED_FINDIFF = False
 else:
@@ -1195,12 +1196,11 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         if self._has_feature_names(X):
             features_out = [f"{col}_dot" for col in X.columns]
         else:
-            features_out = [f"dot{i}" for i in np.arange(X.shape[1])]
+            features_out = X.shape[1]
 
         self._setup_features_fit(X=X, features_out=features_out)
 
         if self.spacing == "dt":
-
             if not isinstance(X, TSCDataFrame):
                 raise TypeError(
                     "For input 'spacing=dt' a time series collections is required."
@@ -1273,20 +1273,80 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         )
         self._validate_feature_input(X=X, direction="transform")
 
-        # first parameter is the axis along which to take the derivative
-        # second parameter is the grid spacing
-        # third parameter the derivative order
-        # acc = order of accuracy (defaults to 2)
-        dt_func = FinDiff(0, self.spacing_, self.diff_order, acc=self.accuracy)
+        class DatafoldDiff(findiff.diff.Diff):
+            # As long findiff is not a mandatory package requirement the subclass is
+            # included in here.
+            def diff(self, data, spacing, accuracy):
+                n_samples = data.shape[self.axis]
+                coeff_dict = findiff.coefficients(self.order, accuracy)
+
+                weights = coeff_dict["center"]["coefficients"]
+                offsets = coeff_dict["center"]["offsets"]
+
+                start_sample = np.abs(offsets.min())
+                end_sample = n_samples - np.abs(offsets.max())
+
+                ref_slice = slice(start_sample, end_sample, 1)
+                off_slices = [
+                    self._shift_slice(ref_slice, offsets[k], n_samples)
+                    for k in range(len(offsets))
+                ]
+
+                data_dt = np.zeros_like(data)
+
+                if isinstance(data, pd.DataFrame):
+                    data_numpy = data.to_numpy()
+                else:
+                    data_numpy = data.view()
+
+                self._apply_to_array(
+                    data_dt, data_numpy, weights, off_slices, ref_slice, self.axis
+                )
+
+                data_dt = data_dt[start_sample:end_sample, :]
+
+                h_inv = 1.0 / spacing ** self.order
+                data_dt *= h_inv
+
+                if isinstance(data, pd.DataFrame):
+                    # NOTE: The time to a computed difference
+                    lost_samples = data.shape[0] - data_dt.shape[0]
+                    return pd.DataFrame(
+                        data_dt, data.index[lost_samples:], columns=data.columns
+                    )
+                else:
+                    return data_dt
+
+        dt_func = DatafoldDiff(axis=0, order=self.diff_order, acc=self.accuracy)
 
         if isinstance(X, TSCDataFrame):
-            time_derivative = X
-            for tsid, time_series in X.itertimeseries():
-                time_series_dt = dt_func(time_series.to_numpy())
-                time_derivative.loc[tsid, :] = time_series_dt
-        else:
-            time_derivative = dt_func(np.asarray(X))
+            min_samples = np.inf
+            time_derivative = list()
+            for ts_id, time_series in X.itertimeseries():
 
-        return self._same_type_X(
-            X=X, values=time_derivative, feature_names=self.features_out_[1]
-        )
+                time_series_dt = dt_func.diff(
+                    data=time_series, spacing=self.spacing_, accuracy=self.accuracy,
+                )
+                min_samples = min(min_samples, time_series_dt.shape[0])
+
+                time_derivative.append(time_series_dt)
+
+            if min_samples > 1:
+                time_derivative = TSCDataFrame.from_frame_list(
+                    time_derivative, ts_ids=X.ids
+                )
+            else:
+                time_derivative = pd.concat(time_derivative, axis=0)
+                assert isinstance(time_derivative, pd.DataFrame)  # mypy check
+
+                time_derivative = time_derivative.set_index(
+                    pd.MultiIndex.from_arrays([X.ids, time_derivative.index]), drop=True
+                )
+            assert isinstance(time_derivative, pd.DataFrame)  # mypy check
+            time_derivative = time_derivative.add_suffix("_dot")
+        else:
+            time_derivative = dt_func.diff(
+                np.asarray(X), spacing=self.spacing, accuracy=self.accuracy
+            )
+
+        return time_derivative
