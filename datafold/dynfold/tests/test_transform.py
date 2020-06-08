@@ -111,6 +111,23 @@ class TestTSCTransform(unittest.TestCase):
         nptest.assert_equal(data, data_wo_const)
         nptest.assert_equal(data_plus_const, np.column_stack([data, np.ones(5)]))
 
+    def test_identity3(self):
+        data = TSCDataFrame(self.simple_df)
+
+        data_wo_const = TSCIdentity(
+            include_const=False, rename_features=True
+        ).fit_transform(data)
+
+        data_with_const = TSCIdentity(
+            include_const=True, rename_features=True
+        ).fit_transform(data)
+
+        data = data.add_suffix("_id")
+        pdtest.assert_index_equal(data.columns, data_wo_const.columns)
+
+        data["const"] = 1
+        pdtest.assert_index_equal(data.columns, data_with_const.columns)
+
     def test_scale_min_max(self):
         tsc_df = TSCDataFrame(self.simple_df)
 
