@@ -474,9 +474,19 @@ class TestTSCTransform(unittest.TestCase):
 
         expected = TSCDataFrame.from_single_timeseries(
             pd.DataFrame(
-                data=expected, index=time_values, columns=["sin_dot", "cos_dot"]
+                data=expected[1:-1, :],  # takes the center
+                index=time_values[
+                    2:
+                ],  # move time to most actual time value required *)
+                columns=["sin_dot", "cos_dot"],
             )
         )
+
+        # *) e.g. the centered finite difference scheme
+        #  weights [-0.5, 0, 0,5]
+        #  time    [-1, 0, 1]
+        # is computed and set for time offset 1.
+        # This is because we cannot use future samples
 
         pdtest.assert_frame_equal(actual, expected)
 
@@ -500,5 +510,5 @@ class TestTSCTransform(unittest.TestCase):
 
         d2_dx2 = FinDiff(0, dt, 2)
         expected = np.column_stack([d2_dx2(f), d2_dx2(g)])
-
+        expected = expected[1:-1]  # boundaries are excluded
         nptest.assert_array_equal(actual, expected)

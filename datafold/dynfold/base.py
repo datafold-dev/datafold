@@ -232,8 +232,11 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 features_in=X.columns, features_out=features_out
             )
         else:
-            if features_out == "like_features_in":
+
+            if isinstance(features_out, str) and features_out == "like_features_in":
                 features_out = X.shape[1]
+            elif isinstance(features_out, int):
+                assert features_out > 0
             else:
                 # if list or pd.Index use the number of features out
                 features_out = len(features_out)
