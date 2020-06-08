@@ -201,8 +201,35 @@ class TSCAccessor(object):
         _n_timesteps = self._tsc_df.n_timesteps
         if (np.asarray(_n_timesteps) < required_min_timesteps).any():
             raise TSCException.not_min_timesteps(
-                _n_timesteps, actual_n_timesteps=_n_timesteps
+                required_n_timesteps=required_min_timesteps,
+                actual_n_timesteps=_n_timesteps,
             )
+
+    def iter_timevalue_window(self, blocksize, offset):
+
+        if not is_integer(blocksize):
+            raise TypeError("'blocksize must be of type integer'")
+
+        if not is_integer(offset):
+            raise TypeError("'offset must be of type integer'")
+
+        if blocksize <= 0:
+            raise ValueError("'blocksize must be positive")
+
+        if offset <= 0:
+            raise ValueError("'offset must be positive")
+
+        time_values = self._tsc_df.time_values()
+        start = 0
+        end = start + blocksize
+
+        while end <= time_values.shape[0]:
+            selected_time_values = time_values[start:end]
+
+            start = start + offset
+            end = start + blocksize
+
+            yield self._tsc_df.select_time_values(selected_time_values)
 
     def shift_time(self, shift_t: float):
         """Shift all time values from the time series by a constant value.

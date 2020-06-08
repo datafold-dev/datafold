@@ -10,13 +10,13 @@ from datafold.pcfold import *
 
 class TestPCMEstimation(unittest.TestCase):
     def test_optimize_parameters_default(self):
-        random_state = 1
-        rng = np.random.default_rng(random_state)
-        n_data = 1000
+        random_state = 2
+        gen = np.random.default_rng(random_state)
+        n_data = 100
 
         result = []
         for n_dim in [1, 2, 3, 4]:
-            rdata = rng.uniform(size=(n_data, n_dim))
+            rdata = gen.uniform(size=(n_data, n_dim))
 
             pcm = PCManifold(rdata)
             pcm.optimize_parameters(random_state=random_state)
@@ -24,10 +24,10 @@ class TestPCMEstimation(unittest.TestCase):
             result.append([pcm.cut_off, pcm.kernel.epsilon])
 
         result_expected = [
-            [2.636690777e-02, 3.774094100e-05],
-            [1.709200023e-01, 1.585915721e-03],
-            [3.255267369e-01, 5.752646057e-03],
-            [4.964528362e-01, 1.337982141e-02],
+            [0.288124501, 0.004506659],
+            [0.591118486, 0.018968955],
+            [0.703665523, 0.026879852],
+            [0.815311632, 0.036086237],
         ]
 
         # reference test:needs update when changing behavior
@@ -53,7 +53,6 @@ class TestPCMEstimation(unittest.TestCase):
 
             result.append([pcm.cut_off, pcm.kernel.epsilon])
 
-        print(result)
         # test if the approximated values for epsilon and the cutoff are within a good bound from the best value
         _zero = np.zeros((len(result),))
         nptest.assert_almost_equal(
@@ -65,36 +64,37 @@ class TestPCMEstimation(unittest.TestCase):
 
     def test_optimize_parameters_scaling(self):
         random_state = 1
-        np.random.seed(random_state)
+        gen = np.random.default_rng(random_state)
         n_data = 100
 
         result = []
         for n_dim in [1, 2, 3, 4]:
-            rdata = np.random.rand(n_data, n_dim)
+            rdata = gen.uniform(size=(n_data, n_dim))
 
             pcm = PCManifold(rdata)
             pcm.optimize_parameters(random_state=random_state, result_scaling=2)
 
             result.append([pcm.cut_off, pcm.kernel.epsilon])
+
         result_expected = [
-            [0.52572620711209, 0.0150042253425],
-            [1.09958764411063, 0.06563780154964],
-            [1.48815074872415, 0.1202231709952],
-            [1.68179057196603, 0.15354587418722],
+            [0.51297749066774, 0.0142853518602],
+            [1.07758224784906, 0.06303694836363],
+            [1.37926934745955, 0.10327435556181],
+            [1.67525618948012, 0.1523550263642],
         ]
 
         # reference test:needs update when changing behavior
-        nptest.assert_almost_equal(result_expected, result, decimal=14)
+        nptest.assert_almost_equal(result_expected, result, decimal=8)
 
     def test_optimize_parameters_below_tolerance(self):
         random_state = 1
-        np.random.seed(random_state)
+        gen = np.random.default_rng(random_state)
         n_data = 100
 
         result = []
         for tol in [1e-6, 1e-8, 1e-10]:
             for n_dim in [1, 2, 3, 4]:
-                rdata = np.random.rand(n_data, n_dim)
+                rdata = gen.uniform(size=(n_data, n_dim))
 
                 pcm = PCManifold(rdata)
                 pcm.optimize_parameters(random_state=random_state, tol=tol)

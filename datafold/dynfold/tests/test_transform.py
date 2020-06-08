@@ -84,12 +84,32 @@ class TestTSCTransform(unittest.TestCase):
                     print(check)
                     raise e
 
-    def test_identity(self):
+    def test_identity0(self):
         tsc = TSCDataFrame(self.simple_df)
 
         _id = TSCIdentity()
         pdtest.assert_frame_equal(_id.fit_transform(tsc), tsc)
         pdtest.assert_frame_equal(_id.inverse_transform(tsc), tsc)
+
+    def test_identity1(self):
+        tsc = TSCDataFrame(self.simple_df)
+
+        _id = TSCIdentity(include_const=True)
+
+        tsc_plus_const = tsc.copy(deep=True)
+        tsc_plus_const["const"] = 1
+
+        pdtest.assert_frame_equal(_id.fit_transform(tsc.copy()), tsc_plus_const)
+        pdtest.assert_frame_equal(_id.inverse_transform(tsc_plus_const), tsc)
+
+    def test_identity2(self):
+        data = np.random.rand(5, 5)
+
+        data_wo_const = TSCIdentity(include_const=False).fit_transform(data)
+        data_plus_const = TSCIdentity(include_const=True).fit_transform(data)
+
+        nptest.assert_equal(data, data_wo_const)
+        nptest.assert_equal(data_plus_const, np.column_stack([data, np.ones(5)]))
 
     def test_scale_min_max(self):
         tsc_df = TSCDataFrame(self.simple_df)
@@ -281,19 +301,40 @@ class TestTSCTransform(unittest.TestCase):
             pca_sklearn.inverse_transform(data_sklearn),
         )
 
-    def test_takens_embedding(self):
+    def test_takens_embedding0(self):
         simple_df = self.takens_df_short.drop("B", axis=1)
         tsc_df = TSCDataFrame(simple_df)
 
-        # using class
         actual = TSCTakensEmbedding(lag=0, delays=1, frequency=1,).fit_transform(tsc_df)
 
         self.assertIsInstance(actual, pd.DataFrame)
 
-        actual = actual.values  # only compare the numeric values now
+        actual = actual.to_numpy()  # only compare the numeric values
 
         expected = np.array(
             [[2.0, 0.0], [6.0, 4.0], [10.0, 8.0], [14.0, 12.0], [16.0, 14.0],]
+        )
+
+        nptest.assert_equal(actual, expected)
+
+    def test_takens_embedding1(self):
+        # test kappa = 1
+
+        tsc_df = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame([0, 1, 2, 3, 4, 5], columns=["A"])
+        )
+
+        # embedd to a single instance
+        actual = TSCTakensEmbedding(
+            lag=0, delays=5, frequency=1, kappa=1
+        ).fit_transform(tsc_df)
+
+        self.assertIsInstance(actual, pd.DataFrame)
+
+        actual = actual.to_numpy()  # only compare the numeric values
+
+        expected = np.array([[5, 4, 3, 2, 1, 0]], dtype=float) * np.exp(
+            -1 * np.array([0, 1, 2, 3, 4, 5])
         )
 
         nptest.assert_equal(actual, expected)
