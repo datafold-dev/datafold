@@ -89,7 +89,7 @@ def estimate_cutoff(
     else:
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
 
-    est_cutoff = np.median(k_smallest_values)
+    est_cutoff = np.max(k_smallest_values)
 
     return float(est_cutoff)
 
