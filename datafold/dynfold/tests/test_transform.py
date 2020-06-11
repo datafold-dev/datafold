@@ -489,43 +489,19 @@ class TestTSCTransform(unittest.TestCase):
         d2_dx2 = FinDiff(0, dt, 2)
         expected = np.column_stack([d2_dx2(f), d2_dx2(g)])
 
-        expected = TSCDataFrame.from_single_timeseries(
-            pd.DataFrame(
-                data=expected[1:-1, :],  # takes the center
-                index=time_values[
-                    2:
-                ],  # move time to most actual time value required *)
-                columns=["sin_dot", "cos_dot"],
-            )
-        )
-
-        # *) e.g. the centered finite difference scheme
+        # move the time information to the time value that lies furthest in the future
+        # e.g. the centered finite difference scheme
         #  weights [-0.5, 0, 0,5]
         #  time    [-1, 0, 1]
         # is computed and set for time offset 1.
         # This is because we cannot use future samples
 
+        expected = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(
+                data=expected[1:-1, :],  # takes the center
+                index=time_values[2:],
+                columns=["sin_dot2", "cos_dot2"],
+            )
+        )
+
         pdtest.assert_frame_equal(actual, expected)
-
-    def test_time_difference02(self):
-
-        from findiff import FinDiff
-
-        # same test as test_time_difference02, just with numpy input
-        # from example https://maroba.github.io/findiff-docs/source/examples-basic.html
-
-        time_values = np.linspace(0, 10, 100)
-        dt = time_values[1] - time_values[0]
-        f = np.sin(time_values)
-        g = np.cos(time_values)
-
-        numpy_data = np.column_stack([f, g])
-
-        # Note, the "dt" string does not work here, because the numpy array does not
-        # contain spacing information
-        actual = TSCFiniteDifference(spacing=dt, diff_order=2).fit_transform(numpy_data)
-
-        d2_dx2 = FinDiff(0, dt, 2)
-        expected = np.column_stack([d2_dx2(f), d2_dx2(g)])
-        expected = expected[1:-1]  # boundaries are excluded
-        nptest.assert_array_equal(actual, expected)
