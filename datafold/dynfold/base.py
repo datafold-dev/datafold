@@ -87,11 +87,17 @@ class TSCBaseMixIn:
         if validate_tsc_kwargs is None:
             validate_tsc_kwargs = {}
 
-        if ensure_feature_name_type and not self._has_feature_names(X):
-            raise TypeError(
-                f"X is of type {type(X)} but frame types ("
-                f"pd.DataFrame of TSCDataFrame) are required."
-            )
+        if ensure_feature_name_type:
+            if not self._has_feature_names(X):
+                raise TypeError(
+                    f"X is of type {type(X)} but frame types ("
+                    f"pd.DataFrame of TSCDataFrame) are required."
+                )
+
+            if ensure_feature_name_type == "tsc" and not isinstance(X, TSCDataFrame):
+                raise TypeError(
+                    f"X is of type {type(X)} but a TSCDataFrame is required."
+                )
 
         if not isinstance(X, TSCDataFrame):
             # Currently, a pd.DataFrame is treated like numpy data
@@ -500,7 +506,11 @@ class TSCPredictMixIn(TSCBaseMixIn):
     def fit(self, X: TimePredictType, **fit_params):
         raise NotImplementedError("method not implemented")
 
-    def reconstruct(self, X: TSCDataFrame):
+    def reconstruct(
+        self,
+        X: TSCDataFrame,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+    ):
         raise NotImplementedError("method not implemented")
 
     def predict(

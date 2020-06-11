@@ -489,13 +489,17 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             Time values to evaluate the model at.
 
         qois
-            Selection of features to evolve. Internally, this sets the ``post_map`` and
-            ``feature_columns`` arguments and must therefore not given at the same
-            time. The input can be:
+            List of feature names of interest to be include in the return object.
+            Selecting a small number of features relative to all features reduces the
+            memory footprint and required computations to evolve the system.
+            Internally, this sets the ``post_map`` and ``feature_columns`` arguments,
+            also accessible as keyword arguments (which cannot be provided at the same
+            time). Note that the input ``X`` must still contain all features used
+            during fit. The input can be:
 
             * ``numpy.ndarray`` of length `(n_features,)` and dtype `bool` indicating
               which features to compute
-            * selection of feature names
+            * selection of feature names in a list or ``pandas.Index``
 
         Keyword Args
         ------------
@@ -540,7 +544,11 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             feature_columns=feature_columns,
         )
 
-    def reconstruct(self, X: TSCDataFrame):
+    def reconstruct(
+        self,
+        X: TSCDataFrame,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+    ):
         """Reconstruct time series collection.
 
         Extract the same initial states from the time series in the collection and
@@ -548,8 +556,12 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         Parameters
         ----------
-        X: TSCDataFrame
+        X
             Time series to reconstruct.
+
+        qois
+            List of feature names of interest to be include in the return object.
+            Passed to :py:meth:`.predict`.
 
         Returns
         -------
@@ -570,7 +582,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=1
         ):
-            X_ts = self.predict(X=X_ic, time_values=time_values)
+            X_ts = self.predict(X=X_ic, time_values=time_values, qois=qois)
             X_reconstruct_ts.append(X_ts)
 
         X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)

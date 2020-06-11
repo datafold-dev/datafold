@@ -89,6 +89,16 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values.columns)
         pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values.columns)
 
+        cos_values_reconstruct = edmd.reconstruct(tsc, qois=["cos"])
+        sin_values_reconstruct = edmd.reconstruct(tsc, qois=["sin"])
+
+        pdtest.assert_index_equal(
+            tsc.loc[:, "cos"].columns, cos_values_reconstruct.columns
+        )
+        pdtest.assert_index_equal(
+            tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
+        )
+
     def test_qoi_selection2(self):
         tsc = self.multi_waves
 
@@ -98,13 +108,21 @@ class EDMDTest(unittest.TestCase):
             include_id_state=True,
         ).fit(tsc)
 
-        # all_values = edmd.predict(tsc.initial_states())
-        cos_values = edmd.predict(tsc.initial_states(), qois=["cos"])
-        sin_values = edmd.predict(tsc.initial_states(), qois=["sin"])
+        cos_values_predict = edmd.predict(tsc.initial_states(), qois=["cos"])
+        sin_values_predict = edmd.predict(tsc.initial_states(), qois=["sin"])
 
-        # pdtest.assert_index_equal(tsc.columns, all_values.columns)
-        pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values.columns)
-        pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values.columns)
+        pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values_predict.columns)
+        pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values_predict.columns)
+
+        cos_values_reconstruct = edmd.reconstruct(tsc, qois=["cos"])
+        sin_values_reconstruct = edmd.reconstruct(tsc, qois=["sin"])
+
+        pdtest.assert_index_equal(
+            tsc.loc[:, "cos"].columns, cos_values_reconstruct.columns
+        )
+        pdtest.assert_index_equal(
+            tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
+        )
 
     def test_qoi_selection3(self):
         tsc = self.multi_waves
