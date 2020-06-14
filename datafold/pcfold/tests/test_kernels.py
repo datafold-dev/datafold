@@ -130,6 +130,8 @@ class TestKernelUtils(unittest.TestCase):
             actual = _kth_nearest_neighbor_dist(distance_matrix, k)
 
             nptest.assert_array_equal(actual, expected)
+            self.assertEqual(len(actual), data.shape[0])
+            self.assertEqual(actual.ndim, 1)
 
     def test_sparse_kth_dist02(self):
         data_ref = generate_circle_data(100, 100, 0)
@@ -145,6 +147,8 @@ class TestKernelUtils(unittest.TestCase):
             expected = _kth_nearest_neighbor_dist(distance_matrix, k)
 
             nptest.assert_array_equal(actual, expected)
+            self.assertEqual(len(actual), data_query.shape[0])
+            self.assertEqual(actual.ndim, 1)
 
     def test_pdist_kth_dist(self):
         # sanity test for pdist: k=0 should always be 0
@@ -170,13 +174,13 @@ class TestKernelUtils(unittest.TestCase):
         data_X = generate_box_data(100, 100, 100, 1)
         data_Y = generate_box_data(100, 100, 100, 1)
 
-        dense_dist_mat = compute_distance_matrix(data_X, data_Y)
-        sparse_dist_mat = compute_distance_matrix(data_X, data_Y, cut_off=1e100)
+        dense_dist_mat = compute_distance_matrix(data_Y, data_X)
+        sparse_dist_mat = compute_distance_matrix(data_Y, data_X, cut_off=1e100)
 
         actual_dense = _kth_nearest_neighbor_dist(dense_dist_mat, 1)
         actual_sparse = _kth_nearest_neighbor_dist(sparse_dist_mat, 1)
 
-        # because data_X and data_Y are duplicates, on the diagonal must be duplicates
+        # because data_X and data_Y are duplicates, on the diagonal must be zeros
         # like in the pdist case
         expected = np.min(dense_dist_mat, axis=1)
 
