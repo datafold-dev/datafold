@@ -983,14 +983,21 @@ class TSCDataFrame(pd.DataFrame):
             start, np.nextafter(end, np.finfo(np.float64).max), self.delta_time
         )
 
-    def feature_to_array(self, feature: str) -> np.ndarray:
+    def feature_to_array(
+        self, feature: Optional[str] = None, as_frame: bool = False
+    ) -> np.ndarray:
         """Turns a single feature column into a matrix.
 
         Parameters
         ----------
         feature
-            name of feature
-
+            Name of feature to turn into array. The feature name must be provided if
+            multiple features are present.
+        
+        as_frame
+            If True, return pandas with time series IDs as index and time values as
+            column indices.
+        
         Returns
         -------
         numpy.ndarray
@@ -1003,12 +1010,24 @@ class TSCDataFrame(pd.DataFrame):
 
         """
 
+        if feature is None and self.shape[1] > 1:
+            raise ValueError(
+                "parameter 'feature' must be provided if there are " "multiple features"
+            )
+        elif feature is None:
+            feature = self.columns[0]
+
         if not self.is_same_time_values():
             raise TSCException.not_same_time_values()
 
-        return np.reshape(
+        array = np.reshape(
             self.loc[:, feature].to_numpy(), (self.n_timeseries, self.n_timesteps)
         )
+
+        if as_frame:
+            array = pd.DataFrame(array, index=self.ids, columns=self.time_values())
+
+        return array
 
     def select_time_values(
         self, time_values: Union[int, float, np.ndarray]

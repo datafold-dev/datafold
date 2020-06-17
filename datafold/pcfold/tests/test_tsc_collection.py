@@ -139,7 +139,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         pdtest.assert_frame_equal(actual, expected)
 
-    def test_feature_to_datamatrix(self):
+    def test_feature_to_array1(self):
 
         with self.assertRaises(TSCException):
             TSCDataFrame(self.simple_df).feature_to_array(feature="A")
@@ -156,6 +156,29 @@ class TestTSCDataFrame(unittest.TestCase):
             expected = np.reshape(simple_df.loc[:, feature].to_numpy(), expected_shape)
 
             nptest.assert_equal(actual, expected)
+
+    def test_feature_to_array2(self):
+        simple_df = TSCDataFrame(self.simple_df.copy())
+        simple_df = simple_df.drop(labels=[45])
+
+        with self.assertRaises(ValueError):
+            # feature must be given if multiple features are present
+            simple_df.feature_to_array(feature=None)
+
+        # numpy array
+        simple_df = simple_df.drop(labels=["A"], axis=1)
+        actual = simple_df.feature_to_array(feature=None)
+
+        expected = simple_df.to_numpy().reshape(3, 2)
+        nptest.assert_equal(actual, expected)
+
+        # pandas frame
+        actual = simple_df.feature_to_array(feature=None, as_frame=True)
+
+        expected = pd.DataFrame(
+            simple_df.to_numpy().reshape(3, 2), index=simple_df.ids, columns=[0, 1]
+        )
+        pdtest.assert_frame_equal(actual, expected)
 
     def test_from_timeseries_tensor(self):
         matrix = np.zeros([3, 2, 2])  # 1st: time series ID, 2nd: time, 3rd: feature
