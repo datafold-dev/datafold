@@ -1290,7 +1290,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
 
         self._validate_feature_input(X=X, direction="transform")
 
-        time_derivative = X.tsc.finite_difference(
+        time_derivative = X.tsc.time_derivative(
             diff_order=self.diff_order, accuracy=self.accuracy
         )
         time_derivative = time_derivative.add_suffix(f"_dot{self.diff_order}")

@@ -312,7 +312,7 @@ class TSCAccessor(object):
 
         return self._tsc_df
 
-    def finite_difference(
+    def time_derivative(
         self, diff_order: int = 1, accuracy: int = 2
     ) -> Union[pd.DataFrame, TSCDataFrame]:
         """Compute finite differences in time for each time series.
