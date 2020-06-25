@@ -1136,7 +1136,7 @@ class MahalanobisKernel(PCManifoldKernel):
         if Y is not None:
             Y = np.atleast_2d(Y)
 
-        self.__log(f"dist_kwargs: {dist_kwargs}")
+        self.__log(f"MahalanobisKernel dist_kwargs: {dist_kwargs}")
 
         distance_matrix = compute_distance_matrix(
             X, Y, metric=self.distance_metric, **dist_kwargs or {},
