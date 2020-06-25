@@ -61,6 +61,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import scipy.linalg
+import scipy.sparse
 from joblib import Parallel, delayed
 from sklearn.base import clone
 from sklearn.exceptions import FitFailedWarning
@@ -82,7 +84,7 @@ from datafold.dynfold.base import (
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
 from datafold.pcfold.timeseries.metric import kfold_cv_reassign_ids
-from datafold.utils.general import is_integer
+from datafold.utils.general import is_integer, projection_matrix_from_features
 
 
 class EDMD(Pipeline, TSCPredictMixIn):
@@ -156,7 +158,6 @@ class EDMD(Pipeline, TSCPredictMixIn):
     ----------
 
     :cite:`williams_datadriven_2015`
-
     """
 
     def __init__(
@@ -164,12 +165,21 @@ class EDMD(Pipeline, TSCPredictMixIn):
         dict_steps: List[Tuple[str, object]],
         dmd_model: DMDBase = DMDFull(),
         include_id_state: bool = True,
+        compute_inverse_map: bool = True,
         memory: Optional[Union[str, object]] = None,
         verbose: bool = False,
     ):
+
+        # TODO: include inverse_mapping
+        #  -> linear --> compute matrix B
+        #  -> include_id_state --> set B as projection matrix
+        #  -> dictionary --> not compute B
+        #  -> no_inverse --> not compute B
+
         self.dict_steps = dict_steps
         self.dmd_model = dmd_model
         self.include_id_state = include_id_state
+        self.compute_inverse_map = compute_inverse_map
 
         # TODO: if necessary provide option to give user defined metric
         self._setup_default_tsc_metric_and_score()
@@ -226,13 +236,16 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
     def _inverse_transform(self, X, qois=None):
 
-        if self.include_id_state:
-            if qois is None:
-                # simply select columns from attached id state:
-                X_ts = X.loc[:, self.features_in_[1]]
+        if self.inverse_matrix_ is not None:
+
+            if qois is not None:
+                feature_selection = qois
+                # TODO: check that qois are in self.features_in_[1]?
             else:
-                # errors if qois are not present
-                X_ts = X.loc[:, qois]
+                feature_selection = self.features_in_[1]
+
+            X_ts = X.loc[:, feature_selection]
+
         else:
             # it is required to inverse_transform, because the initial states are not
             # available:
@@ -240,8 +253,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             reverse_iter = reversed(list(self._iter(with_final=False)))
             for _, _, tsc_transform in reverse_iter:
                 X_ts = tsc_transform.inverse_transform(X_ts)
-
-            # at this stage X_ts.columns = self.features_in_[1]
+            # from here on X_ts.columns = self.features_in_[1]
 
             if qois is not None:
                 # select (or sort) specifics according to qois input
@@ -310,6 +322,38 @@ class EDMD(Pipeline, TSCPredictMixIn):
                     f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
                 )
 
+    def _compute_inverse_map(self, X_dict, X):
+        """ TODO
+        
+        Parameters
+        ----------
+        X_dict
+        X
+
+        Returns
+        -------
+
+        """
+
+        if self.include_id_state:
+            # easy case: we just need a projection matrix to select the full-states
+            # from the dictionary functions
+            inverse_map = projection_matrix_from_features(
+                X_dict.columns, self.features_in_[1]
+            )
+
+        elif self.compute_inverse_map:
+            # Compute a matrix that linearly maps back to the full-state space.
+            # inverse_map = "B" in Williams et al., Eq. 16
+            inverse_map = scipy.linalg.lstsq(
+                X_dict.to_numpy(), X.loc[X_dict.index, :].to_numpy(), cond=None
+            )[0]
+        else:
+            # use inverse_transform of dictionary
+            inverse_map = None
+
+        return inverse_map
+
     def _attach_id_state(self, X, X_dict):
         # remove states from X (the id-states) that are also removed during dictionary
         # transformations
@@ -374,38 +418,62 @@ class EDMD(Pipeline, TSCPredictMixIn):
         if self.include_id_state:
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
+        self.inverse_matrix_ = self._compute_inverse_map(X_dict, X)
+
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             self._dmd_model.fit(X=X_dict, y=y, **fit_params)
 
         return self
 
-    def _predict_ic(self, X_dict, time_values, qois, **predict_params):
+    def _predict_ic(self, X_dict, time_values, qois) -> TSCDataFrame:
+        """Prediction with initial condition.
+
+        Parameters
+        ----------
+        X_dict
+            The initial condition in dictionary space.
+
+        time_values
+            The future time values to evaluate the system at.
+
+        qois
+            A subselection of quantities of interest (must be part of  
+
+        Returns
+        -------
+
+        """
 
         # this needs to always hold if the checks _validate_type_and_n_samples_ic are
         #  correct
         assert isinstance(X_dict, pd.DataFrame)
 
-        if self.include_id_state:
+        predict_params = {}
+
+        if self.inverse_matrix_ is not None:
             if qois is None:
-                # we only evolve the id_states in the dictionary space
-                qois_dmd = qois_post = self.features_in_[1]
-            else:  # qoi is not None
-                # we evolve a pre-selection of features
-                qois_dmd = qois_post = qois
-        else:
-            # if id_states are not included in the dictionary we need to evolve *all*
-            # states in the dictionary space and can only select the qois *after* the
-            # inverse transformation
-            qois_dmd = None
-            qois_post = qois
+                post_map = self.inverse_matrix_.T
+                feature_columns = self.features_in_[1]
+            else:
+                project_matrix = projection_matrix_from_features(
+                    self.features_in_[1], qois
+                )
+
+                post_map = (self.inverse_matrix_ @ project_matrix).T
+                feature_columns = qois
+
+            predict_params = {
+                "post_map": post_map,
+                "feature_columns": feature_columns,
+            }
 
         # now we compute the time series in "dictionary space":
         X_latent_ts = self._dmd_model.predict(
-            X_dict, time_values=time_values, qois=qois_dmd, **predict_params
+            X_dict, time_values=time_values, **predict_params
         )
 
         # transform from "dictionary space" to "user space"
-        X_ts = self._inverse_transform(X_latent_ts, qois=qois_post)
+        X_ts = self._inverse_transform(X_latent_ts, qois=qois)
 
         return X_ts
 
@@ -490,9 +558,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         X_dict = self.transform(X)
 
-        X_ts = self._predict_ic(
-            X_dict=X_dict, time_values=time_values, qois=qois, **predict_params
-        )
+        X_ts = self._predict_ic(X_dict=X_dict, time_values=time_values, qois=qois)
 
         return X_ts
 

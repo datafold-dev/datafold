@@ -18,6 +18,7 @@ from datafold.utils.general import (
     diagmat_dot_mat,
     if1dim_colvec,
     mat_dot_diagmat,
+    projection_matrix_from_features,
     sort_eigenpairs,
 )
 
@@ -258,7 +259,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
     A DMD model decomposes time series data linearly into spatio-temporal components.
     Due to it's strong connection to non-linear dynamical systems with Koopman spectral
-    theory, the DMD variants (subclasses) are framed in the context of this theory.
+    theory (see e.g. introduction in Tu 2014), the DMD variants (subclasses) are
+    framed in the context of this theory.
 
     A DMD model approximates the Koopman operator with a matrix :math:`K`,
     which defines a linear dynamical system
@@ -361,17 +363,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             ic = np.linalg.lstsq(self.eigenvectors_right_, ic, rcond=None)[0]
 
         if post_map is not None:
-            # transform eigenvectors with post_map
-            if post_map.dtype == np.bool:
-                assert (
-                    post_map.ndim == 1
-                    and len(post_map) == self.eigenvectors_right_.shape[0]
-                )
-                dynmatrix = self.eigenvectors_right_[post_map, :]
-            else:
-                post_map = np.asarray(post_map, np.float64)
-                assert post_map.ndim == 2
-                dynmatrix = post_map @ self.eigenvectors_right_
+            post_map = post_map.astype(np.float64)
+            dynmatrix = post_map @ self.eigenvectors_right_
         else:
             dynmatrix = self.eigenvectors_right_
 
@@ -422,37 +415,26 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         return tsc_df
 
     def _set_post_map(self, X, qois, predict_params):
+
+        # user defined post_map
+        post_map = predict_params.pop("post_map", None)
+        feature_columns = predict_params.pop("feature_columns", None)
+
         if qois is not None:
-            if isinstance(qois, np.ndarray):
-                if qois.dtype != np.bool:
-                    raise TypeError(
-                        "If argument 'qois' is of type 'np.ndarray', "
-                        "then the dtype must be bool."
-                    )
 
-                if qois.ndim != 1 or len(qois) == X.shape[1]:
-                    raise ValueError(
-                        "The argument 'qois' must be a 1-dim. array with "
-                        "number of features."
-                    )
-                post_map = qois
-            elif isinstance(qois, (pd.Index, list)):
-                post_map = np.isin(X.columns.to_numpy(), qois)
+            if post_map is not None or feature_columns is not None:
+                raise ValueError(
+                    "Cannot provide user defined 'post_map' or 'feaure_columns' together "
+                    "with argument 'qois'."
+                )
 
-                if np.sum(post_map) != len(qois):
-                    raise ValueError(
-                        "The argument 'qois' contains invalid feature "
-                        f"names. \n {qois}"
-                    )
-            else:
+            # create subsection according to qois
+            if not isinstance(qois, (pd.Index, list)):
                 raise TypeError(f"Type of 'qois={type(qois)}' not understood.")
 
+            post_map = projection_matrix_from_features(X.columns, qois).T
             feature_columns = X.columns[post_map]
         else:
-            # user defined post_map
-            post_map = predict_params.pop("post_map", None)
-            feature_columns = predict_params.pop("feature_columns", None)
-
             if len(predict_params.keys()) > 0:
                 raise KeyError(
                     f"predict_params keys are invalid: {predict_params.keys()}"
@@ -504,7 +486,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         Keyword Args
         ------------
 
-        post_map: numpy.ndarray
+        post_map: Union[numpy.ndarray, scipy.sparse.spmatrix]
             A matrix that is combined with the right eigenvectors. \
             :code:`post_map @ eigenvectors_right_`.
 
@@ -515,8 +497,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         Returns
         -------
         TSCDataFrame
-            time series predictions of shape `(n_time_values, n_features)` for each
-            initial condition
+            Computed time series predictions of shape `(n_time_values, n_features)` for
+            each initial condition.
         """
 
         check_is_fitted(self)
@@ -602,6 +584,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             same shape as input `X`
         """
         return self.fit(X, **fit_params).reconstruct(X)
+
+    def koopman_modes(self, qois=None):
+        pass
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None) -> float:
         """Score model by reconstructing time series data.
@@ -701,8 +686,8 @@ class DMDFull(DMDBase):
 
     def _compute_koopman_matrix(self, X: TSCDataFrame):
 
-        # It is more suitable to get the shift_start and end in row orientation as this
-        # is closer to the normal least squares parameter definition
+        # It is more suitable to get the shift_start and shift_end in row orientation as
+        # this is closer to the normal least squares parameter definition
         shift_start_transposed, shift_end_transposed = X.tsc.compute_shift_matrices(
             snapshot_orientation="row"
         )
@@ -720,7 +705,6 @@ class DMDFull(DMDBase):
         # Kutz et al. (book page 168).
 
         if shift_start_transposed.shape[1] > shift_start_transposed.shape[0]:
-
             warnings.warn(
                 "There are more observables than snapshots. The current implementation "
                 "favors more snapshots than obserables. This may result in a bad "

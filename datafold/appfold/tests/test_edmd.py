@@ -64,9 +64,26 @@ class EDMDTest(unittest.TestCase):
         self.multi_sine_wave_tsc = self._setup_multi_sine_wave_data()
         self.multi_waves = self._setup_multi_sine_wave_data2()
 
-    def test_id_dict(self):
+    def test_id_dict1(self):
         _edmd_dict = EDMD(
-            dict_steps=[("id", TSCIdentity())], include_id_state=False
+            dict_steps=[("id", TSCIdentity())],
+            include_id_state=False,
+            compute_inverse_map=True,
+        ).fit(self.sine_wave_tsc)
+
+        pdtest.assert_frame_equal(
+            _edmd_dict.transform(self.sine_wave_tsc), self.sine_wave_tsc
+        )
+
+        pdtest.assert_frame_equal(
+            _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
+        )
+
+    def test_id_dict2(self):
+        _edmd_dict = EDMD(
+            dict_steps=[("id", TSCIdentity())],
+            include_id_state=False,
+            compute_inverse_map=False,  # different to test_id_dict1
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
