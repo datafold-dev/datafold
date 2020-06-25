@@ -180,14 +180,19 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixIn):
 class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
     """Dummy transformer for testing or as a "passthrough" placeholder.
 
+    Parameters
+    ----------
+    include_const
+        If True, a constant (all ones) column is attached to the data.
+
     Attributes
     ----------
     is_fit_ : bool
         True if fit has been called.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, include_const: bool = False):
+        self.include_const = include_const
 
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
@@ -206,7 +211,13 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
             self
         """
         X = self._validate_data(X)
-        self._setup_features_fit(X, features_out="like_features_in")
+
+        if self.include_const and self._has_feature_names(X):
+            features_out = np.append(X.columns, ["const"])
+        else:
+            features_out = "like_features_in"
+
+        self._setup_features_fit(X, features_out=features_out)
 
         # Dummy attribute to indicate that fit was called
         self.is_fit_ = True
@@ -231,6 +242,12 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         X = self._validate_data(X)
         self._validate_feature_input(X, direction="transform")
 
+        if self.include_const:
+            if self._has_feature_names(X):
+                X["const"] = 1
+            else:
+                X = np.column_stack([X, np.ones(X.shape[0])])
+
         return X
 
     def inverse_transform(self, X: TransformType):
@@ -249,6 +266,13 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         check_is_fitted(self, "is_fit_")
         X = self._validate_data(X)
         self._validate_feature_input(X, direction="inverse_transform")
+
+        if self.include_const:
+            if self._has_feature_names(X):
+                X = X.drop("const", axis=1)
+            else:
+                X = X[:, :-1]
+
         return X
 
 
@@ -403,6 +427,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         Time step frequency to emebd (e.g. to embed every sample or only every second
         or third).
 
+    kappa
+        Weight of exponential factor in delayed coordinates
+        :math:`e^{-d \cdot \kappa}(x_{-d})` with :math:`d = 0, \ldots delays` being the
+        delay index. Adapted from :cite:`berry_time-scale_2013`, Eq. 2.1).
+
     Attributes
     ----------
 
@@ -428,11 +457,12 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
     """
 
     def __init__(
-        self, lag: int = 0, delays: int = 10, frequency: int = 1,
+        self, lag: int = 0, delays: int = 10, frequency: int = 1, kappa: float = 0
     ):
         self.lag = lag
         self.delays = delays
         self.frequency = frequency
+        self.kappa = kappa
 
     def _validate_parameter(self):
 
@@ -453,6 +483,14 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
             name="delays",
             target_type=(np.integer, int),
             min_val=1,
+            max_val=None,
+        )
+
+        check_scalar(
+            self.kappa,
+            name="kappa",
+            target_type=(np.integer, int, np.floating, float),
+            min_val=0.0,
             max_val=None,
         )
 
@@ -482,9 +520,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         def expand():
             delayed_columns = list()
             for delay_idx in self.delay_indices_:
-                _cur_delay_columns = list(
-                    map(lambda q: ":d".join([q, str(delay_idx)]), cols.astype(str))
-                )
+                # rename columns: [column_name]:d[delay_index]
+                _cur_delay_columns = [f"{col}:d{delay_idx}" for col in cols.astype(str)]
                 delayed_columns.append(_cur_delay_columns)
             return delayed_columns
 
@@ -588,9 +625,10 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         self._validate_feature_input(X, direction="transform")
 
         #################################
-        ### Implementation staying in pandas using shift()
-        ### This implementation is for many cases similarly fast as the numpy version
-        ### below, but has a performance drop for high-dimensions (dim>500)
+        ### Implementation using pandas by using shift()
+        ### This implementation is better readable, and is for many cases similarly
+        # fast to the numpy version (below), but has a performance drop for
+        # high-dimensions (dim>500)
         # id_groupby = X.groupby(TSCDataFrame.IDX_ID_NAME)
         # concat_dfs = [X]
         #
@@ -613,6 +651,12 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
         max_delay = max(self.delay_indices_)
 
+        if self.kappa > 0:
+            # only the delayed coordinates are multiplied with the exp factor
+            kappa_vec = np.exp(-self.kappa * np.arange(1, self.delays + 1))
+        else:
+            kappa_vec = None
+
         for idx, (_, df) in enumerate(X.groupby(TSCDataFrame.tsc_id_idx_name)):
 
             # use time series numpy block
@@ -623,12 +667,17 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
             # select the data (row_wise) for each delay block
             # in last iteration "max_delay - delay == 0"
+
             delayed_data = np.hstack(
                 [
                     time_series_numpy[max_delay - delay : -delay, :]
                     for delay in self.delay_indices_
                 ]
             )
+
+            if self.kappa > 0:
+                delayed_data = delayed_data.astype(np.float)
+                delayed_data *= kappa_vec
 
             # go back to DataFrame, and adapt the index be excluding removed indices
             df = pd.DataFrame(

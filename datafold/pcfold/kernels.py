@@ -289,11 +289,13 @@ def _kth_nearest_neighbor_dist(
     Parameters
     ----------
     distance_matrix
-        Matrix to partition to find the distance of the `k`-th nearest neighbor. If
-        matrix is sparse each point must have a minimum number of `k` non-zero elements.
+        Matrix of shape `(n_samples_Y, n_samples_X)` to partition to find the distance of
+        the `k`-th nearest neighbor. If the matrix is sparse each point must have a
+        minimum number of `k` non-zero elements.
 
     k
-        `k` nearest neighbors to find. The value must be a positive integer.
+        The distance of the `k`-th nearest neighbor is returned. The value must be a
+        positive integer.
 
     Returns
     -------
@@ -463,6 +465,13 @@ class PCManifoldKernel(Kernel):
         # be implemented
         raise NotImplementedError("base class")
 
+    def __repr__(self):
+
+        param_str = ", ".join(
+            [f"{name}={val}" for name, val in self.get_params().items()]
+        )
+        return f"{self.__class__.__name__}({param_str})"
+
     @staticmethod
     def read_kernel_output(
         kernel_output: Union[Union[np.ndarray, scipy.sparse.csr_matrix], Tuple]
@@ -562,6 +571,7 @@ class RadialBasisKernel(PCManifoldKernel):
 
     def __init__(self, distance_metric):
         self.distance_metric = distance_metric
+        super(RadialBasisKernel, self).__init__()
 
     def __call__(
         self, X, Y=None, dist_kwargs=None, **kernel_kwargs

@@ -218,10 +218,10 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
 
         if self._has_feature_names(X):
 
-            if features_out == "like_features_in":
+            if isinstance(features_out, str) and features_out == "like_features_in":
                 features_out = X.columns
 
-            if isinstance(features_out, list):
+            if isinstance(features_out, (list, np.ndarray)):
                 # For convenience features_out can be given as a list
                 # (better code readability than pd.Index)
                 features_out = pd.Index(

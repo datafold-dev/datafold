@@ -345,6 +345,8 @@ class RDist(DistanceAlgorithm):
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)
 
+        assert rdist is not None
+
         # build tree, currently not stored, backend options are handled to here.
         _rdist = rdist.Rdist(X, **backend_options)
 
@@ -383,6 +385,8 @@ class RDist(DistanceAlgorithm):
         scipy.sparse.csr_matrix
             distance matrix of shape `(n_samples_Y, n_samples_X)`
         """
+
+        assert rdist is not None
 
         max_distance = self._numeric_cut_off(cut_off)
         max_distance = self._adapt_correct_metric_max_distance(max_distance)
@@ -1110,13 +1114,17 @@ def compute_distance_matrix(
             + len(distance_matrix.indptr)
             + len(distance_matrix.indices)
         )
-        if n_elements_stored > np.product(distance_matrix.shape):
-            warnings.warn(
-                f"cut_off={cut_off} value does not lead to reduced memory requirements "
-                f"with sparse matrix. The sparse matrix stores {n_elements_stored} "
-                f"which exceeds a dense matrix by "
-                f"{n_elements_stored - np.product(distance_matrix.shape)} elements."
-            )
+
+        # There are also other reasons than memory savings for sparse matrices --
+        # therfore the warning is comment out for now.
+
+        # if n_elements_stored > np.product(distance_matrix.shape):
+        #     warnings.warn(
+        #         f"cut_off={cut_off} value does not lead to reduced memory requirements "
+        #         f"with sparse matrix. The sparse matrix stores {n_elements_stored} "
+        #         f"which exceeds a dense matrix by "
+        #         f"{n_elements_stored - np.product(distance_matrix.shape)} elements."
+        #     )
 
     return distance_matrix
 

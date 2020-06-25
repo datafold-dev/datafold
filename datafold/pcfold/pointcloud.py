@@ -299,7 +299,7 @@ def pcm_subsample(
         Block size for iteration.
 
     min_distance
-        Cut-off for distance matrix, should be lower than the `pcm` cut-off.
+        Cut-off for distance matrix, should be larger than the `pcm` cut-off.
 
     min_added_per_iteration
          Loop terminates if less subsample points are added in a iteration.
@@ -319,11 +319,11 @@ def pcm_subsample(
     """
 
     if min_distance is None and pcm.cut_off is not None:
-        min_distance = pcm.cut_off / 2
+        min_distance = pcm.cut_off * 2
 
     if min_distance is None:
         raise ValueError(
-            "'cut_off' cannot be None. Either provide in 'min_diatnce' or 'pcm.cut_off'."
+            "'cut_off' cannot be None. Either provide in 'min_distance' or 'pcm.cut_off'."
         )
 
     n_samples_pcm = pcm.shape[0]

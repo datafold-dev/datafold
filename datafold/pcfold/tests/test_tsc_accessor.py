@@ -58,6 +58,37 @@ class TestTscAccessor(unittest.TestCase):
 
         pdtest.assert_frame_equal(actual, expected)
 
+    def test_iter_timevalue_window(self):
+        tsc_df = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(np.random.rand(10, 2), columns=["A", "B"])
+        )
+
+        tsc_df2 = tsc_df.insert_ts(
+            pd.DataFrame(np.random.rand(10, 2), columns=["A", "B"])
+        )
+
+        # tests for one time series
+        self.assertEqual(
+            len(list(tsc_df.tsc.iter_timevalue_window(blocksize=2, offset=2))), 5
+        )
+        self.assertEqual(
+            len(list(tsc_df.tsc.iter_timevalue_window(blocksize=5, offset=5))), 2
+        )
+        self.assertEqual(
+            len(list(tsc_df.tsc.iter_timevalue_window(blocksize=5, offset=1))), 6
+        )
+
+        # the same must be true if there are two time series present
+        self.assertEqual(
+            len(list(tsc_df2.tsc.iter_timevalue_window(blocksize=2, offset=2))), 5
+        )
+        self.assertEqual(
+            len(list(tsc_df2.tsc.iter_timevalue_window(blocksize=5, offset=5))), 2
+        )
+        self.assertEqual(
+            len(list(tsc_df2.tsc.iter_timevalue_window(blocksize=5, offset=1))), 6
+        )
+
     def test_shift_matrices(self):
         # TODO: potentially do more tests (esp. with uneven number of time series,
         #  this is a quite important functionality!)
