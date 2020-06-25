@@ -517,7 +517,6 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
         **predict_params,
     ):
         raise NotImplementedError("method not implemented")

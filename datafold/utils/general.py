@@ -122,16 +122,27 @@ def if1dim_rowvec(vec: np.ndarray):
 def projection_matrix_from_features(
     features_all: pd.Index, features_select: pd.Index
 ) -> scipy.sparse.csr_matrix:
-    """
-    # TODO  --  mention that the matrix is intended to be multiplied from right!
+    """Compute a sparse projection matrix that maps that selects columns from a matrix.
+
+    .. math::
+        A \cdot P = A^*
+
+    If matrix :math:`A` has a set of features (column-oriented), then the projection
+    matrix :math:`P` selects the requested sub-selection of features in matrix
+    :math:`A^*` (by performing the matrix multiplication).
+
     Parameters
     ----------
     features_all
+        All features in the original matrix.
+
     features_select
+        The features to include in the final matrix after the projection.
 
     Returns
     -------
-
+    scipy.sparse.csr_matrix
+        The projection matrix.
     """
     project_indices = np.where(np.isin(features_all, features_select))[0]
 

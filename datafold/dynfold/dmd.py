@@ -259,8 +259,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
     A DMD model decomposes time series data linearly into spatio-temporal components.
     Due to it's strong connection to non-linear dynamical systems with Koopman spectral
-    theory (see e.g. introduction in Tu 2014), the DMD variants (subclasses) are
-    framed in the context of this theory.
+    theory (see e.g. introduction in :cite:`tu_dynamic_2014`), the DMD variants
+    (subclasses) are framed in the context of this theory.
 
     A DMD model approximates the Koopman operator with a matrix :math:`K`,
     which defines a linear dynamical system
@@ -268,9 +268,10 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     .. math:: K^n x_0 &= x_n
 
     with :math:`x_n` being the (column) state vectors of the system at time :math:`n`.
-    Note, that the state vectors :math:`x` are often not the original observations of a
-    system but states from a functional coordinate basis that seeks to linearize the
-    dynamics (see reference for details).
+    Note, that the state vectors :math:`x` when used in conjuction with the
+    :py:meth:`EDMD` model are not the original observations of a system but states from a
+    functional coordinate basis that seeks to linearize the dynamics (see reference for
+    details).
 
     The spectrum of the Koopman matrix \
     (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` eigenvalues on diagonal)
@@ -310,20 +311,63 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
     References
     ----------
+    :cite:`tu_dynamic_2014`
+    :cite:`williams_datadriven_2015`
     :cite:`kutz_dynamic_2016`
 
     See Also
     --------
 
-    ``LinearDynamicalSystem``
+    :py:class:`.LinearDynamicalSystem`
     """
+
+    def _initial_states(self, initial_states):
+        """Compute the initial states for a prediction.
+
+        If the DMD model acts on original data, then the initial state is also often
+        referred to as initial amplitudes. See :cite:`kutz_dynamic_2016`, page 8.
+
+
+        If the DMD model acts on a dictionary space of an EDMD model, then the initial
+        states are the evaluation of the Koopman eigenfunctions at `t=0`. See
+        :cite:`williams_datadriven_2015` Eq. 3 or Eq. 6.
+
+        Parameters
+        ----------
+        initial_states
+            The initial states in original data space in column-orientation.
+
+        Returns
+        -------
+        """
+
+        # Choose alternative of how to evolve the linear system:
+        if hasattr(self, "eigenvectors_left_") and (
+            self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
+        ):
+            # uses both eigenvectors (left and right). Used if is_diagonalize=True in
+            # DMDFull
+            initial_states = self.eigenvectors_left_ @ initial_states
+        elif (
+            hasattr(self, "eigenvectors_right_")
+            and self.eigenvectors_right_ is not None
+        ):
+            # represent the initial condition in terms of right eigenvectors (by solving a
+            # least-squares problem) -- only the right eigenvectors are required
+            initial_states = np.linalg.lstsq(
+                self.eigenvectors_right_, initial_states, rcond=None
+            )[0]
+        else:
+            raise ValueError(f"eigenvectors_right is None. Please report bug.")
+
+        return initial_states
 
     def _evolve_dmd_system(
         self,
         X_ic: pd.DataFrame,
+        modes,
         time_values: np.ndarray,
         time_invariant=True,
-        post_map: Optional[np.ndarray] = None,
         feature_columns=None,
     ):
 
@@ -337,8 +381,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         if feature_columns is None:
             feature_columns = self.features_in_[1]
 
-        # initial condition is numpy-only, from now on
-        ic = X_ic.to_numpy().T
+        # initial condition is numpy-only, from now on, and column-oriented
+        initial_states_origspace = X_ic.to_numpy().T
+
         time_series_ids = X_ic.index.get_level_values(
             TSCDataFrame.tsc_id_idx_name
         ).to_numpy()
@@ -347,26 +392,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             # check if duplicate ids are present
             raise ValueError("time series ids have to be unique")
 
-        # Choose alternative of how to evolve the linear system:
-        if hasattr(self, "eigenvectors_left_") and (
-            self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
-        ):
-            # uses both eigenvectors (left and right). Used if is_diagonalize=True in
-            # DMDFull
-            ic = self.eigenvectors_left_ @ ic
-        elif (
-            hasattr(self, "eigenvectors_right_")
-            and self.eigenvectors_right_ is not None
-        ):
-            # represent the initial condition in terms of right eigenvectors (by solving a
-            # least-squares problem) -- only the right eigenvectors are required
-            ic = np.linalg.lstsq(self.eigenvectors_right_, ic, rcond=None)[0]
-
-        if post_map is not None:
-            post_map = post_map.astype(np.float64)
-            dynmatrix = post_map @ self.eigenvectors_right_
-        else:
-            dynmatrix = self.eigenvectors_right_
+        initial_states_dmd = self._initial_states(
+            initial_states=initial_states_origspace
+        )
 
         if time_invariant:
             shift = np.min(time_values)
@@ -382,10 +410,10 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         tsc_df = LinearDynamicalSystem(
             mode="continuous", time_invariant=True
         ).evolve_system_spectrum(
-            dynmatrix=dynmatrix,
+            dynmatrix=modes,
             eigenvalues=self.eigenvalues_,
             time_delta=self.dt_,
-            initial_conditions=ic,
+            initial_conditions=initial_states_dmd,
             time_values=norm_time_samples,
             time_series_ids=time_series_ids,
             feature_columns=feature_columns,
@@ -414,33 +442,26 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         return tsc_df
 
-    def _set_post_map(self, X, qois, predict_params):
+    def _read_predict_params(self, predict_params):
 
         # user defined post_map
         post_map = predict_params.pop("post_map", None)
+        user_set_modes = predict_params.pop("modes", None)
         feature_columns = predict_params.pop("feature_columns", None)
 
-        if qois is not None:
+        if len(predict_params.keys()) > 0:
+            raise KeyError(f"predict_params keys are invalid: {predict_params.keys()}")
 
-            if post_map is not None or feature_columns is not None:
+        if post_map is not None and user_set_modes is not None:
+            raise ValueError("Can only provide 'post_map' or 'modes' in **kwargs")
+        elif post_map is not None or user_set_modes is not None:
+            if feature_columns is None:
                 raise ValueError(
-                    "Cannot provide user defined 'post_map' or 'feaure_columns' together "
-                    "with argument 'qois'."
+                    "If 'post_map' or 'modes' are provided it is necessary "
+                    "to set 'feature_columns' in **kwargs"
                 )
 
-            # create subsection according to qois
-            if not isinstance(qois, (pd.Index, list)):
-                raise TypeError(f"Type of 'qois={type(qois)}' not understood.")
-
-            post_map = projection_matrix_from_features(X.columns, qois).T
-            feature_columns = X.columns[post_map]
-        else:
-            if len(predict_params.keys()) > 0:
-                raise KeyError(
-                    f"predict_params keys are invalid: {predict_params.keys()}"
-                )
-
-        return post_map, feature_columns
+        return post_map, user_set_modes, feature_columns
 
     @abc.abstractmethod
     def fit(self, X: TimePredictType, **fit_params) -> "DMDBase":
@@ -453,11 +474,28 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("base class")
 
+    def dmd_modes(self):
+        check_is_fitted(self, "eigenvectors_right_")
+        return self.eigenvectors_right_
+
+    def _select_modes(self, post_map, user_set_modes):
+
+        assert not (post_map is not None and user_set_modes is not None)
+
+        if post_map is not None:
+            post_map = post_map.astype(np.float64)
+            modes = post_map @ self.eigenvectors_right_
+        elif user_set_modes is not None:
+            modes = user_set_modes
+        else:
+            modes = self.eigenvectors_right_
+
+        return modes
+
     def predict(
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
         **predict_params,
     ) -> TSCDataFrame:
         """Predict time series data for each initial condition and time values.
@@ -470,25 +508,18 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         time_values
             Time values to evaluate the model at.
 
-        qois
-            List of feature names of interest to be include in the return object.
-            Selecting a small number of features relative to all features reduces the
-            memory footprint and required computations to evolve the system.
-            Internally, this sets the ``post_map`` and ``feature_columns`` arguments,
-            also accessible as keyword arguments (which cannot be provided at the same
-            time). Note that the input ``X`` must still contain all features used
-            during fit. The input can be:
-
-            * ``numpy.ndarray`` of length `(n_features,)` and dtype `bool` indicating
-              which features to compute
-            * selection of feature names in a list or ``pandas.Index``
-
         Keyword Args
         ------------
 
         post_map: Union[numpy.ndarray, scipy.sparse.spmatrix]
             A matrix that is combined with the right eigenvectors. \
-            :code:`post_map @ eigenvectors_right_`.
+            :code:`post_map @ eigenvectors_right_`. It set, then also `feature_columns`
+            is required. It cannot be set with 'modes' at the same time.
+
+        modes: Union[numpy.ndarray]
+            A matrix that sets the DMD modes directly from outside. This must not be
+            given at the same time with `post_map`. It set, then also `feature_columns`
+            is required. It cannot be set with 'modes' at the same time.
 
         feature_columns: pandas.Index
             If `post_map` is given with a changed state length, then new feature names
@@ -515,14 +546,16 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             X=X, time_values=time_values
         )
 
-        post_map, feature_columns = self._set_post_map(
-            X=X, qois=qois, predict_params=predict_params
+        post_map, user_set_modes, feature_columns = self._read_predict_params(
+            predict_params=predict_params
         )
+
+        modes = self._select_modes(post_map=post_map, user_set_modes=user_set_modes)
 
         return self._evolve_dmd_system(
             X_ic=X,
+            modes=modes,
             time_values=time_values,
-            post_map=post_map,
             feature_columns=feature_columns,
         )
 

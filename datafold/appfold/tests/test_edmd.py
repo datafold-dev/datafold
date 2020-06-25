@@ -68,7 +68,7 @@ class EDMDTest(unittest.TestCase):
         _edmd_dict = EDMD(
             dict_steps=[("id", TSCIdentity())],
             include_id_state=False,
-            compute_inverse_map=True,
+            compute_koopman_modes=True,
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
@@ -83,7 +83,7 @@ class EDMDTest(unittest.TestCase):
         _edmd_dict = EDMD(
             dict_steps=[("id", TSCIdentity())],
             include_id_state=False,
-            compute_inverse_map=False,  # different to test_id_dict1
+            compute_koopman_modes=False,  # different to test_id_dict1
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(

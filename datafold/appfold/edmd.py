@@ -119,14 +119,18 @@ class EDMD(Pipeline, TSCPredictMixIn):
     include_id_state
         If True, the original time series samples are added to the dictionary (without
         any transformations), after the dictionary space time series are created. The
-        mapping from the dictionary space time series back to the original space
-        becomes much easier, at the cost of a larger dictionary dimension. If enabled,
-        also the dictionary can include models that do not provide an
-        ``inverse_transform`` function.
+        mapping from the dictionary space back to the full-state original space
+        is then much easier, at the cost of a larger dictionary dimension. With this
+        option enabled also the Koopman modes are computed.
 
         .. note::
             The final dictionary :class:`.TSCDataFrame` must not contain any feature names
             of the original feature names to avoid duplicates.
+
+    compute_koopman_modes
+        If True, this computes the Koopman modes matrix that map from the dictionary
+        space to the full-state original space. If ``include_id_state=True`` already,
+        this parameter has no effect.
 
     memory: :class:`Optional[None, str, object]`, :class:`object` with the \
     `joblib.Memory` interface
@@ -148,6 +152,11 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Read-only attribute to access any step parameter by user given name. Keys are
         step names and values are steps parameters.
 
+    koopman_modes_: OPtional[np.ndarray]
+        A matrix which stores the weights to map from the dictionary states to the
+        original full-state (see Eq. 16 in :cite:`williams_datadriven_2015`). The
+        attribute remains ``None`` if both ``include_id_state`` and
+        ``compute_koopman_modes`` are set to False.
 
     See Also
     --------
@@ -165,21 +174,15 @@ class EDMD(Pipeline, TSCPredictMixIn):
         dict_steps: List[Tuple[str, object]],
         dmd_model: DMDBase = DMDFull(),
         include_id_state: bool = True,
-        compute_inverse_map: bool = True,
+        compute_koopman_modes: bool = True,
         memory: Optional[Union[str, object]] = None,
         verbose: bool = False,
     ):
 
-        # TODO: include inverse_mapping
-        #  -> linear --> compute matrix B
-        #  -> include_id_state --> set B as projection matrix
-        #  -> dictionary --> not compute B
-        #  -> no_inverse --> not compute B
-
         self.dict_steps = dict_steps
         self.dmd_model = dmd_model
         self.include_id_state = include_id_state
-        self.compute_inverse_map = compute_inverse_map
+        self.compute_koopman_modes = compute_koopman_modes
 
         # TODO: if necessary provide option to give user defined metric
         self._setup_default_tsc_metric_and_score()
@@ -236,7 +239,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
     def _inverse_transform(self, X, qois=None):
 
-        if self.inverse_matrix_ is not None:
+        if self.koopman_modes_ is not None:
 
             if qois is not None:
                 feature_selection = qois
@@ -322,7 +325,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
                     f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
                 )
 
-    def _compute_inverse_map(self, X_dict, X):
+    def _compute_koopman_modes(self, X_dict, X):
         """ TODO
         
         Parameters
@@ -336,13 +339,13 @@ class EDMD(Pipeline, TSCPredictMixIn):
         """
 
         if self.include_id_state:
-            # easy case: we just need a projection matrix to select the full-states
+            # trivial case: we just need a projection matrix to select the full-states
             # from the dictionary functions
             inverse_map = projection_matrix_from_features(
                 X_dict.columns, self.features_in_[1]
             )
 
-        elif self.compute_inverse_map:
+        elif self.compute_koopman_modes:
             # Compute a matrix that linearly maps back to the full-state space.
             # inverse_map = "B" in Williams et al., Eq. 16
             inverse_map = scipy.linalg.lstsq(
@@ -352,7 +355,12 @@ class EDMD(Pipeline, TSCPredictMixIn):
             # use inverse_transform of dictionary
             inverse_map = None
 
-        return inverse_map
+        if inverse_map is not None:
+            koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
+        else:
+            koopman_modes = None
+
+        return koopman_modes
 
     def _attach_id_state(self, X, X_dict):
         # remove states from X (the id-states) that are also removed during dictionary
@@ -418,10 +426,10 @@ class EDMD(Pipeline, TSCPredictMixIn):
         if self.include_id_state:
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
-        self.inverse_matrix_ = self._compute_inverse_map(X_dict, X)
-
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             self._dmd_model.fit(X=X_dict, y=y, **fit_params)
+
+        self.koopman_modes_ = self._compute_koopman_modes(X_dict, X)
 
         return self
 
@@ -448,33 +456,28 @@ class EDMD(Pipeline, TSCPredictMixIn):
         #  correct
         assert isinstance(X_dict, pd.DataFrame)
 
-        predict_params = {}
-
-        if self.inverse_matrix_ is not None:
+        if self.koopman_modes_ is not None:
             if qois is None:
-                post_map = self.inverse_matrix_.T
+                modes = self.koopman_modes_
                 feature_columns = self.features_in_[1]
             else:
                 project_matrix = projection_matrix_from_features(
                     self.features_in_[1], qois
                 )
-
-                post_map = (self.inverse_matrix_ @ project_matrix).T
+                modes = project_matrix.T @ self.koopman_modes_
                 feature_columns = qois
-
-            predict_params = {
-                "post_map": post_map,
-                "feature_columns": feature_columns,
-            }
+        else:
+            modes, feature_columns = None, None
 
         # now we compute the time series in "dictionary space":
         X_latent_ts = self._dmd_model.predict(
-            X_dict, time_values=time_values, **predict_params
+            X_dict,
+            time_values=time_values,
+            **{"modes": modes, "feature_columns": feature_columns},
         )
 
         # transform from "dictionary space" to "user space"
         X_ts = self._inverse_transform(X_latent_ts, qois=qois)
-
         return X_ts
 
     def predict(
