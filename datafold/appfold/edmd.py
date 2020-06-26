@@ -209,12 +209,16 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def koopman_modes(self):
         check_is_fitted(self)
 
-        as_df = pd.DataFrame(
-            self._koopman_modes,
-            index=self.features_in_[1],
-            columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
-        )
-        return as_df
+        if self._koopman_modes is None:
+            return None
+        else:
+            # pandas provides more information
+            modes = pd.DataFrame(
+                self._koopman_modes,
+                index=self.features_in_[1],
+                columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
+            )
+            return modes
 
     @property
     def koopman_eigenvalues(self):
@@ -528,13 +532,13 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         if self.koopman_modes is not None:
             if qois is None:
-                modes = self.koopman_modes
+                modes = self.koopman_modes.to_numpy()
                 feature_columns = self.features_in_[1]
             else:
                 project_matrix = projection_matrix_from_features(
                     self.features_in_[1], qois
                 )
-                modes = project_matrix.T @ self.koopman_modes
+                modes = project_matrix.T @ self.koopman_modes.to_numpy()
                 feature_columns = qois
         else:
             modes, feature_columns = None, None
