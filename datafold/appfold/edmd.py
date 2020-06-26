@@ -256,15 +256,13 @@ class EDMD(Pipeline, TSCPredictMixIn):
             eval_eigenfunction = TSCDataFrame.from_same_indices_as(
                 X_dict,
                 eval_eigenfunction.T,
-                except_columns=[
-                    f"evec{i}" for i in range(self._koopman_modes.shape[1])
-                ],
+                except_columns=[f"evec{i}" for i in range(eval_eigenfunction.shape[0])],
             )
         elif isinstance(X_dict, pd.DataFrame):
             eval_eigenfunction = pd.DataFrame(
                 eval_eigenfunction.T,
                 index=X_dict.index,
-                columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
+                columns=[f"evec{i}" for i in range(eval_eigenfunction.shape[0])],
             )
         else:
             raise RuntimeError("")
