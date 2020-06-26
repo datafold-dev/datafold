@@ -212,7 +212,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
         if self._koopman_modes is None:
             return None
         else:
-            # pandas provides more information
+            # return pandas object to properly indicate what modes are corresponding to
+            # which feature
             modes = pd.DataFrame(
                 self._koopman_modes,
                 index=self.features_in_[1],
@@ -314,10 +315,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def _inverse_transform(self, X, qois=None):
 
         if self.koopman_modes is not None:
-
             if qois is not None:
                 feature_selection = qois
-                # TODO: check that qois are in self.features_in_[1]?
             else:
                 feature_selection = self.features_in_[1]
 
@@ -399,16 +398,48 @@ class EDMD(Pipeline, TSCPredictMixIn):
                     f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
                 )
 
-    def _compute_koopman_modes(self, X_dict, X):
-        """ TODO
-        
+    def _compute_koopman_modes(
+        self, X_dict: pd.DataFrame, X: pd.DataFrame
+    ) -> Optional[np.ndarray]:
+        """Compute the Koopman modes based on the user settings.
+
+        The Koopman modes :math;`V` are a computed with
+
+        .. math::
+            V = B \cdot \Psi_{DMD}
+
+        where :math:`B` linearly maps the dictionary states from the dictionary space
+        to the original full-state space. See :cite:`williams_datadriven_2015` Eq. 20.
+
+        There are three possible ways:
+
+        1. The full-state original states are included in the dictionary. The matric
+           :math:`B` is a projection matrix on the corresponding original state
+           features.
+
+        2. The matrix :math:`B` was computed in a least squares sense during `fit` (
+           option `compute_koopman_modes=True`)
+           .. math::
+                B = \Psi^{\dagger} \cdot D
+            where :math:`\Psi` are the dictionary states and `D` the original states.
+
+        3. The matrix :math:`B` was not computed during fit. The the Koopman modes
+           are set to None. Instead the `inverse_transform` of the dictionary pipeline
+           are called.
+
+
         Parameters
         ----------
         X_dict
+            Dictionary states of data, which are the result of a transform.
+
         X
+            original full-state data
 
         Returns
         -------
+        Optional[numpy.ndarray]
+            The computed Koopman modes.
 
         """
 

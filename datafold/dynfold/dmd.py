@@ -319,18 +319,35 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     :py:class:`.LinearDynamicalSystem`
     """
 
+    @property
+    def dmd_modes(self):
+        check_is_fitted(self, "eigenvectors_right_")
+        return self.eigenvectors_right_
+
     def _compute_spectral_system_states(self, states) -> np.ndarray:
-        """Compute the states of the system.
+        """Compute the spectral states of the system.
+        
+        If the linear system is defined as follows:
 
-        This is primarily required for a prediction to transform the initial conditions of
-        the original space.
+        .. math::
+            A^n x_0 = x_n
 
-        If the fitted DMD model acts on original data, then the initial state is also
-        often referred to as initial amplitudes. E.g., see :cite:`kutz_dynamic_2016`,
+        then we can write the system also in with the spectral components
+        :math:`(\Psi, \Lambda)` of :math:`A`
+
+        .. math ..
+            \Psi \Lambda b_0 = x_n
+
+        where `b_0`, is the spectral state, which is computed in this fuction. It does
+        not necessarily need to be an initial condition, but is primarily required for a
+        prediction.
+
+        If the fitted DMD model acts on original data, then the spectral state is also
+        often referred to as "amplitudes". E.g., see :cite:`kutz_dynamic_2016`,
         page 8.
 
         If the fitted DMD model acts on a dictionary space of an EDMD model, then the
-        initial states are the evaluation of the Koopman eigenfunctions` at this point.
+        spectral states are the evaluation of the Koopman eigenfunctions.
         E.g., see :cite:`williams_datadriven_2015` Eq. 3 or 6.
 
         Parameters
@@ -476,10 +493,6 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             Training data
         """
         raise NotImplementedError("base class")
-
-    def dmd_modes(self):
-        check_is_fitted(self, "eigenvectors_right_")
-        return self.eigenvectors_right_
 
     def _select_modes(self, post_map, user_set_modes):
 

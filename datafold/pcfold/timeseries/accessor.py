@@ -343,7 +343,10 @@ class TSCAccessor(object):
             """Overwrite the behaviour of the findiff superclass."""
 
             def diff(
-                self, data: Union[np.ndarray, pd.DataFrame], spacing: int, accuracy: int
+                self,
+                data: Union[np.ndarray, pd.DataFrame],
+                spacing: float,
+                accuracy: int,
             ):
                 n_samples = data.shape[self.axis]
                 coeff_dict = findiff.coefficients(self.order, accuracy)
