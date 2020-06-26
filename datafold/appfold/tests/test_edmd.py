@@ -227,8 +227,8 @@ class EDMDTest(unittest.TestCase):
         ).fit(X=self.multi_waves)
 
         actual_modes = _edmd.koopman_modes
-        actual_eigvals = _edmd.eigenvalues
-        actual_eigfunc = _edmd.eigenfunctions(X=self.multi_waves)
+        actual_eigvals = _edmd.koopman_eigenvalues
+        actual_eigfunc = _edmd.koopman_eigenfunction(X=self.multi_waves)
 
         # 2 original states
         # 4 eigenvectors in dictionary space (2 ID states + 2 PCA states)
@@ -240,6 +240,33 @@ class EDMDTest(unittest.TestCase):
         self.assertIsInstance(actual_modes, pd.DataFrame)
         self.assertIsInstance(actual_eigvals, pd.Series)
         self.assertIsInstance(actual_eigfunc, TSCDataFrame)
+
+    def test_koopman_eigenfunction_eval(self):
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        actual = _edmd.koopman_eigenfunction(
+            self.multi_waves.initial_states(_edmd.n_samples_ic_ + 1)
+        )
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        actual = _edmd.koopman_eigenfunction(
+            self.multi_waves.initial_states(_edmd.n_samples_ic_)
+        )
+
+        self.assertIsInstance(actual, pd.DataFrame)
+
+        with self.assertRaises(TSCException):
+            _edmd.koopman_eigenfunction(
+                self.multi_waves.initial_states(_edmd.n_samples_ic_ - 1)
+            )
 
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd_dict = EDMD(

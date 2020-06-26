@@ -130,7 +130,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
     compute_koopman_modes
         If True, a matrix that contains the Koopman modes is computed. It linearly maps
         from the dictionary space to the full-state original space. The matrix is
-        accessible via the attribute ``koopman_modes_``. If
+        accessible via the attribute ``koopman_modes``. If
         ``include_id_state=True`` at the same time, this parameter has no effect.
 
     memory: :class:`Optional[None, str, object]`, :class:`object` with the \
@@ -159,7 +159,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         16 in :cite:`williams_datadriven_2015`). The attribute remains ``None`` if
         both ``include_id_state`` and ``compute_koopman_modes`` are set to False.
 
-    eigenvalues: pandas.Series
+    koopman_eigenvalues: pandas.Series
         The computed eigenvalues from the Koopman matrix of shape `(n_features_dict,)`.
 
     n_samples_ic_: int
@@ -217,20 +217,26 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return as_df
 
     @property
-    def eigenvalues(self):
+    def koopman_eigenvalues(self):
         check_is_fitted(self)
         return pd.Series(self._dmd_model.eigenvalues_, name="evals")
 
-    def eigenfunctions(self, X):
+    def koopman_eigenfunction(self, X: TransformType) -> TransformType:
         """Evaluate the Koopman eigenfunctions at samples.
 
         Parameters
         ----------
-        X
+        X : TSCDataFrame, pandas.DataFrame
+            The points from the original space at which to evaluate the Koopman
+            eigenfunctions. If `n_samples_ic_ > 1`, then the input must fulfill be a
+            `TSCDataFrame` where each time series must consist at least of the
+            indicated samples. The input must fulfill the first  step in the pipeline.
 
         Returns
         -------
-
+        Union[TSCDataFrame, pandas.DataFrame]
+            The evaluated Koopman eigenfunctions of same type as `X`. The number of
+            samples are reduced accordingly if `n_samples_ic_ > 1`.
         """
         check_is_fitted(self)
 
@@ -241,19 +247,19 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         # TODO: if merge request !51 is merged, there is a utils functions that handles
         #  the following much easier:
-        if isinstance(X, pd.DataFrame):
-            eval_eigenfunction = pd.DataFrame(
-                eval_eigenfunction.T,
-                index=X_dict.index,
-                columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
-            )
-        elif isinstance(X, TSCDataFrame):
+        if isinstance(X_dict, TSCDataFrame):
             eval_eigenfunction = TSCDataFrame.from_same_indices_as(
                 X_dict,
                 eval_eigenfunction.T,
                 except_columns=[
                     f"evec{i}" for i in range(self._koopman_modes.shape[1])
                 ],
+            )
+        elif isinstance(X_dict, pd.DataFrame):
+            eval_eigenfunction = pd.DataFrame(
+                eval_eigenfunction.T,
+                index=X_dict.index,
+                columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
             )
         else:
             raise RuntimeError("")
@@ -283,7 +289,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Returns
         -------
         TSCDataFrame, pandas.DataFrame
-            `same type as `X`, if `n_samples_ic_ > 1` the number of samples for each
+            Same type as `X`, if `n_samples_ic_ > 1` the number of samples for each
             time series decreases accordingly
         """
         if self.include_id_state:
@@ -303,7 +309,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
     def _inverse_transform(self, X, qois=None):
 
-        if self.koopman_modes_ is not None:
+        if self.koopman_modes is not None:
 
             if qois is not None:
                 feature_selection = qois
@@ -520,15 +526,15 @@ class EDMD(Pipeline, TSCPredictMixIn):
         #  correct
         assert isinstance(X_dict, pd.DataFrame)
 
-        if self.koopman_modes_ is not None:
+        if self.koopman_modes is not None:
             if qois is None:
-                modes = self.koopman_modes_
+                modes = self.koopman_modes
                 feature_columns = self.features_in_[1]
             else:
                 project_matrix = projection_matrix_from_features(
                     self.features_in_[1], qois
                 )
-                modes = project_matrix.T @ self.koopman_modes_
+                modes = project_matrix.T @ self.koopman_modes
                 feature_columns = qois
         else:
             modes, feature_columns = None, None
