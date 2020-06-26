@@ -5,9 +5,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import scipy.linalg
-import scipy.sparse
 from sklearn.base import BaseEstimator
-from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
@@ -321,51 +319,56 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     :py:class:`.LinearDynamicalSystem`
     """
 
-    def _initial_states(self, initial_states):
-        """Compute the initial states for a prediction.
+    def _compute_spectral_system_states(self, states) -> np.ndarray:
+        """Compute the states of the system.
 
-        If the DMD model acts on original data, then the initial state is also often
-        referred to as initial amplitudes. See :cite:`kutz_dynamic_2016`, page 8.
+        This is primarily required for a prediction to transform the initial conditions of
+        the original space.
 
+        If the fitted DMD model acts on original data, then the initial state is also
+        often referred to as initial amplitudes. E.g., see :cite:`kutz_dynamic_2016`,
+        page 8.
 
-        If the DMD model acts on a dictionary space of an EDMD model, then the initial
-        states are the evaluation of the Koopman eigenfunctions at `t=0`. See
-        :cite:`williams_datadriven_2015` Eq. 3 or Eq. 6.
+        If the fitted DMD model acts on a dictionary space of an EDMD model, then the
+        initial states are the evaluation of the Koopman eigenfunctions` at this point.
+        E.g., see :cite:`williams_datadriven_2015` Eq. 3 or 6.
 
         Parameters
         ----------
-        initial_states
-            The initial states in original data space in column-orientation.
+        states
+            The states of original data space in column-orientation.
 
         Returns
         -------
+        numpy.ndarray
+            Transformed states.
         """
 
         # Choose alternative of how to evolve the linear system:
         if hasattr(self, "eigenvectors_left_") and (
             self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
         ):
-            # uses both eigenvectors (left and right). Used if is_diagonalize=True in
-            # DMDFull
-            initial_states = self.eigenvectors_left_ @ initial_states
+            # uses both eigenvectors (left and right).
+            # this is Eq. 16 in :cite:`williams_datadriven_2015` (note that in the
+            # paper the Koopman matrix is transposed, therefore here these are the left
+            # eigenvectors, whereas in the paper they are the right.
+            states = self.eigenvectors_left_ @ states
         elif (
             hasattr(self, "eigenvectors_right_")
             and self.eigenvectors_right_ is not None
         ):
             # represent the initial condition in terms of right eigenvectors (by solving a
             # least-squares problem) -- only the right eigenvectors are required
-            initial_states = np.linalg.lstsq(
-                self.eigenvectors_right_, initial_states, rcond=None
-            )[0]
+            states = np.linalg.lstsq(self.eigenvectors_right_, states, rcond=None)[0]
         else:
             raise ValueError(f"eigenvectors_right is None. Please report bug.")
 
-        return initial_states
+        return states
 
     def _evolve_dmd_system(
         self,
         X_ic: pd.DataFrame,
-        modes,
+        modes: np.ndarray,
         time_values: np.ndarray,
         time_invariant=True,
         feature_columns=None,
@@ -392,8 +395,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             # check if duplicate ids are present
             raise ValueError("time series ids have to be unique")
 
-        initial_states_dmd = self._initial_states(
-            initial_states=initial_states_origspace
+        initial_states_dmd = self._compute_spectral_system_states(
+            states=initial_states_origspace
         )
 
         if time_invariant:

@@ -17,6 +17,7 @@ from datafold.dynfold.transform import (
     TSCTakensEmbedding,
 )
 from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
+from datafold.pcfold.timeseries.collection import TSCException
 
 
 class EDMDTest(unittest.TestCase):
@@ -159,6 +160,86 @@ class EDMDTest(unittest.TestCase):
 
         self.assertFalse(is_classifier(EDMD))
         self.assertFalse(is_classifier(EDMDCV))
+
+    def test_n_samples_ic(self):
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        actual = _edmd.transform(self.multi_waves.initial_states(_edmd.n_samples_ic_))
+
+        # each initial-condition time series must result into a single state in
+        # dictionary space
+        self.assertIsInstance(actual, pd.DataFrame)
+
+        # 2 ID states + 2 PCA components
+        self.assertEqual(actual.shape, (self.multi_waves.n_timeseries, 2 + 2))
+
+        # Take one sample more and transform the states
+        actual = _edmd.transform(
+            self.multi_waves.initial_states(_edmd.n_samples_ic_ + 1)
+        )
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        # Having not enough samples must result into error
+        with self.assertRaises(TSCException):
+            _edmd.transform(self.multi_waves.initial_states(_edmd.n_samples_ic_ - 1))
+
+    def test_error_nonmatch_time_sample(self):
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        initial_condition = self.multi_waves.initial_states(_edmd.n_samples_ic_)
+        # change time values to a different sampling interval
+        initial_condition.index = pd.MultiIndex.from_arrays(
+            [
+                initial_condition.index.get_level_values(TSCDataFrame.tsc_id_idx_name),
+                # change sample rate:
+                initial_condition.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+                * 2,
+            ]
+        )
+
+        with self.assertRaises(TSCException):
+            _edmd.predict(initial_condition)
+
+    def test_access_koopman_system_triplet(self):
+        # triplet = eigenvalues, Koopman modes and eigenfunctions
+
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        actual_modes = _edmd.koopman_modes
+        actual_eigvals = _edmd.eigenvalues
+        actual_eigfunc = _edmd.eigenfunctions(X=self.multi_waves)
+
+        # 2 original states
+        # 4 eigenvectors in dictionary space (2 ID states + 2 PCA states)
+        expected = (2, 4)
+        self.assertTrue(actual_modes.shape, expected)
+        self.assertTrue(actual_eigvals.shape, expected[1])
+        self.assertTrue(actual_eigfunc.shape, (self.multi_waves.shape[0], expected[1]))
+
+        self.assertIsInstance(actual_modes, pd.DataFrame)
+        self.assertIsInstance(actual_eigvals, pd.Series)
+        self.assertIsInstance(actual_eigfunc, TSCDataFrame)
 
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd_dict = EDMD(

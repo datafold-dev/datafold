@@ -128,9 +128,10 @@ class EDMD(Pipeline, TSCPredictMixIn):
             of the original feature names to avoid duplicates.
 
     compute_koopman_modes
-        If True, this computes the Koopman modes matrix that map from the dictionary
-        space to the full-state original space. If ``include_id_state=True`` already,
-        this parameter has no effect.
+        If True, a matrix that contains the Koopman modes is computed. It linearly maps
+        from the dictionary space to the full-state original space. The matrix is
+        accessible via the attribute ``koopman_modes_``. If
+        ``include_id_state=True`` at the same time, this parameter has no effect.
 
     memory: :class:`Optional[None, str, object]`, :class:`object` with the \
     `joblib.Memory` interface
@@ -152,11 +153,19 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Read-only attribute to access any step parameter by user given name. Keys are
         step names and values are steps parameters.
 
-    koopman_modes_: OPtional[np.ndarray]
-        A matrix which stores the weights to map from the dictionary states to the
-        original full-state (see Eq. 16 in :cite:`williams_datadriven_2015`). The
-        attribute remains ``None`` if both ``include_id_state`` and
-        ``compute_koopman_modes`` are set to False.
+    koopman_modes: Optional[pandas.DataFrame]
+        A matrix of shape `(n_features_fullstate, n_features_dict)` which stores the
+        weights to map from the dictionary states to the original full-state (see Eq.
+        16 in :cite:`williams_datadriven_2015`). The attribute remains ``None`` if
+        both ``include_id_state`` and ``compute_koopman_modes`` are set to False.
+
+    eigenvalues: pandas.Series
+        The computed eigenvalues from the Koopman matrix of shape `(n_features_dict,)`.
+
+    n_samples_ic_: int
+        The number of samples required for an initial condition. If the value is
+        larger than 1, then a time series is required with the same sampling interval
+        during fit.
 
     See Also
     --------
@@ -195,6 +204,61 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # Improves (internal) code readability when using  attribute
         # '_dmd_model' instead of general '_final_estimator'
         return self._final_estimator
+
+    @property
+    def koopman_modes(self):
+        check_is_fitted(self)
+
+        as_df = pd.DataFrame(
+            self._koopman_modes,
+            index=self.features_in_[1],
+            columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
+        )
+        return as_df
+
+    @property
+    def eigenvalues(self):
+        check_is_fitted(self)
+        return pd.Series(self._dmd_model.eigenvalues_, name="evals")
+
+    def eigenfunctions(self, X):
+        """Evaluate the Koopman eigenfunctions at samples.
+
+        Parameters
+        ----------
+        X
+
+        Returns
+        -------
+
+        """
+        check_is_fitted(self)
+
+        X_dict = self.transform(X)
+        eval_eigenfunction = self._dmd_model._compute_spectral_system_states(
+            X_dict.to_numpy().T
+        )
+
+        # TODO: if merge request !51 is merged, there is a utils functions that handles
+        #  the following much easier:
+        if isinstance(X, pd.DataFrame):
+            eval_eigenfunction = pd.DataFrame(
+                eval_eigenfunction.T,
+                index=X_dict.index,
+                columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
+            )
+        elif isinstance(X, TSCDataFrame):
+            eval_eigenfunction = TSCDataFrame.from_same_indices_as(
+                X_dict,
+                eval_eigenfunction.T,
+                except_columns=[
+                    f"evec{i}" for i in range(self._koopman_modes.shape[1])
+                ],
+            )
+        else:
+            raise RuntimeError("")
+
+        return eval_eigenfunction
 
     def _validate_dictionary(self):
         # Check that all are TSCTransformer
@@ -315,11 +379,11 @@ class EDMD(Pipeline, TSCPredictMixIn):
             if not isinstance(X_ic, TSCDataFrame):
                 raise TypeError(
                     "For the initial condition a TSCDataFrame is required, "
-                    f"with {self.n_samples_ic_} (n_samples_ic_) samples per initial "
-                    f"condition. Got type={type(X_ic)}."
+                    f"with {self.n_samples_ic_} samples (see attribute 'n_samples_ic_') "
+                    f"per initial condition. Got type={type(X_ic)}."
                 )
 
-            if not (X_ic.n_timesteps > self.n_samples_ic_).all():
+            if not np.asarray(X_ic.n_timesteps == self.n_samples_ic_).all():
                 raise TSCException(
                     f"For each initial condition exactly {self.n_samples_ic_} samples "
                     f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
@@ -429,7 +493,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             self._dmd_model.fit(X=X_dict, y=y, **fit_params)
 
-        self.koopman_modes_ = self._compute_koopman_modes(X_dict, X)
+        self._koopman_modes = self._compute_koopman_modes(X_dict, X)
 
         return self
 
