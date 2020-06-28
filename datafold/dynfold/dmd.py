@@ -297,7 +297,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
            \Psi_r b = x_0
 
     2. , or using the left Koopman matrix eigenvectors (:math:`\Psi_l`, if available) and
-      inexpensive matrix-vector product \
+       inexpensive matrix-vector product \
 
        .. math::
            \Psi_l x_0 = b
