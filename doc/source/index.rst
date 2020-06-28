@@ -20,17 +20,6 @@ Contents
    tutorial_index
    references
 
-Quick links
-===========
-
-.. Not used -- :ref:`modindex`
-.. Not used -- :ref:`search`
-
-* `Gitlab repository <https://gitlab.com/datafold-dev/datafold>`_
-* `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_ (use for
-  questions, feature requests or bug reports)
-* :ref:`genindex` software documentation
-
 -----
 
 .. include:: ../../README.rst

@@ -1,8 +1,24 @@
 #!/usr/bin/env python
 
+import importlib.util
+import os
+
 from setuptools import find_packages, setup
 
-import datafold
+
+def read_datafold_version():
+    """This reads the version from datafold/version.py without importing parts of
+    datafold (which would require some of the dependencies already installed)."""
+    # code parts were taken from here https://stackoverflow.com/a/67692
+
+    path2setup = os.path.dirname(__file__)
+    version_file = os.path.abspath(os.path.join(path2setup, "datafold", "version.py"))
+
+    spec = importlib.util.spec_from_file_location("version", version_file)
+    version = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(version)
+    return version.Version.v_short
+
 
 # see documentation
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/
@@ -11,16 +27,19 @@ AUTHOR = "datafold development team"
 # TODO: in future, if appropriate, can set up a mailing list
 EMAIL = "daniel.lehmberg@hm.edu"
 
+long_description = (
+    "datafold is a Python package that provides data-driven models for point clouds to "
+    "find an explicit manifold parametrization and to identify non-linear dynamical "
+    "systems on these manifolds."
+)
+
 setup(
     name="datafold",
     author=AUTHOR,
-    version=datafold.__version__,
-    description="datafold processes high-dimensional data (point clouds or time "
-    "series) to learn hidden geometric structures.",
-    long_description="""
-datafold is a Python package consisting of *data*-driven algorithms with 
-mani*fold* assumption. That is to process high-dimensional data (including time series) 
-that lie on an (unknown) manifold with intrinsic lower-dimension.""",
+    version=read_datafold_version(),
+    description="datafold is Python software for data-driven algorithms with "
+    "manifold assumption",
+    long_description=long_description,
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
     keywords=[
