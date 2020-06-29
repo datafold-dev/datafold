@@ -8,14 +8,15 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute
-#
+
+import importlib
 import os
 import sys
 from datetime import datetime
 
 # "read the doc" theme
 # -- https://sphinx-rtd-theme.readthedocs.io/en/stable/
-import sphinx_rtd_theme
+# import sphinx_rtd_theme
 
 PATH2DOC = os.path.abspath(".")
 PATH2ROOT = os.path.abspath(os.path.join(PATH2DOC, "..", ".."))
@@ -246,12 +247,14 @@ nbsphinx_execute_arguments = [
 # add datafold and tutorials folder to PYTHONPATH to run jupyter notebooks
 os.environ["PYTHONPATH"] = f"{PATH2ROOT}:{os.path.join(PATH2ROOT, 'tutorials')}"
 
-# at the beginning of this file, the sys.path is set to PATH2DOC which allows to import
-# this module
-from include_tutorials import setup_tutorials  # isort:skip
+# code parts were taken from here https://stackoverflow.com/a/67692
+spec = importlib.util.spec_from_file_location(
+    "tutorials_script", os.path.join(PATH2DOC, "generate_tutorials_page.py")
+)
+tutorials_script = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(tutorials_script)
 
-setup_tutorials()
-
+tutorials_script.setup_tutorials()
 
 # ----------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------

@@ -37,7 +37,7 @@ class LinearDynamicalSystem(object):
 
     - continuous
         .. math::
-            \frac{d}{dt} x(t) = \mathcal{A} \cdot x(t)\\
+            \frac{d}{dt} x(t) = \mathcal{A} \cdot x(t),
             \mathcal{A} \in \mathbb{R}^{[m \times m]}
 
     This continuous-system representation can also be written in terms of a discrete-time
@@ -131,11 +131,11 @@ class LinearDynamicalSystem(object):
         r"""Evolve the dynamical system with spectral components of the dynamical
         matrix.
 
-        Using the eigenvalues :math:`\Lambda` and eigenvectors :math:`\Psi` of the
-        constant matrix :math:`A`
+        Using the eigenvalues on the diagonal matrix :math:`\Lambda` and (right)
+        eigenvectors :math:`\Psi_r` of the constant matrix :math:`A`
 
         .. math::
-            A \Psi = \Psi \Lambda
+            A \Psi_r = \Psi_r \Lambda
 
         the linear system evolves
 
@@ -152,14 +152,16 @@ class LinearDynamicalSystem(object):
         conditions of the respective system.
 
         .. note::
-            Initial condition states :math:`x` of the original system need to be
+            Initial condition states :math:`x_0` of the original system need to be
             aligned to the right eigenvectors beforehand:
 
             * By using the right eigenvectors and solving in a least square sense
-                .. math::
-                    \Psi_r x_0 = b_0
 
-            * or by using the left eigenvectors and computing the matrix-vector product
+                .. math::
+                    \Psi_r b_0 = x_0
+
+            * , or by using the left eigenvectors and computing the matrix-vector product
+
                 .. math::
                     \Psi_l x_0 = b_0
 
@@ -256,7 +258,7 @@ class LinearDynamicalSystem(object):
 class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
 
-    A DMD model decomposes time series data linearly into spatio-temporal components.
+    A DMD model decomposes time series data linearly into spatial-temporal components.
     Due to it's strong connection to non-linear dynamical systems with Koopman spectral
     theory, the DMD variants (subclasses) are framed in the context of this theory.
 
@@ -266,8 +268,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     .. math:: K^n x_0 &= x_n
 
     with :math:`x_n` being the (column) state vectors of the system at time :math:`n`.
-    Note, that the state vectors :math:`x` are often not the original observations of a
-    system but states from a functional coordinate basis that seeks to linearize the
+    Note, that the state vectors :math:`x` are often not the true original observations
+    of a system but states from a functional coordinate basis that seeks to linearize the
     dynamics (see reference for details).
 
     The spectrum of the Koopman matrix \
@@ -284,26 +286,26 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         &= K^n \Psi_r b  \\
         &= \Psi_r \Lambda^n b
 
-    The vector :math:`b` indicates the initial condition, which is aligned to the
-    linear system using the eigenvectors of the Koopman matrix:
+    The vector :math:`b` contains the Koopman modes for a specified initial conditions
+    :math:`x_0`. The modes remain constant for a prediction and are aligned to the
+    linear system, described by the spectral decomposition of the Koopman matrix. The
+    modes can be either computed
 
-    1. in a least squares sense with the right eigenvectors already computed in a least \
-       square sense
+    1. in a least squares sense with the right eigenvectors of the Koopman matrix
 
        .. math::
            \Psi_r b = x_0
 
-    2. using the left eigenvectors (:math:`\Psi_l`, if available) and inexpensive \
-       matrix-vector product
+    2. , or using the left Koopman matrix eigenvectors (:math:`\Psi_l`, if available) and
+       inexpensive matrix-vector product \
 
        .. math::
            \Psi_l x_0 = b
 
-
     All subclasses of ``DMDBase`` must provide the (right) eigenpairs
     :math:`\left(\Lambda, \Psi_r\right)`, in respective attributes
     :code:`eigenvalues_` and :code:`eigenvectors_right_`. If the left eigenvectors
-    (in attribute :code:`eigenvectors_left_`) are available the initial condition always
+    (attribute :code:`eigenvectors_left_`) are available the initial condition always
     solves with the second case for :math:`b`, because this is more efficient.
 
     References
@@ -336,7 +338,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             feature_columns = self.features_in_[1]
 
         # initial condition is numpy-only, from now on
-        ic = X_ic.to_numpy().T
+        initial_conditions = X_ic.to_numpy().T
         time_series_ids = X_ic.index.get_level_values(
             TSCDataFrame.tsc_id_idx_name
         ).to_numpy()
@@ -349,16 +351,25 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         if hasattr(self, "eigenvectors_left_") and (
             self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
         ):
-            # uses both eigenvectors (left and right). Used if is_diagonalize=True in
+            # Uses both eigenvectors (left and right). Used if is_diagonalize=True in
             # DMDFull
-            ic = self.eigenvectors_left_ @ ic
+            # The Koopman modes are b_0 in the documentation
+            koopman_modes = self.eigenvectors_left_ @ initial_conditions
         elif (
             hasattr(self, "eigenvectors_right_")
             and self.eigenvectors_right_ is not None
         ):
             # represent the initial condition in terms of right eigenvectors (by solving a
             # least-squares problem) -- only the right eigenvectors are required
-            ic = np.linalg.lstsq(self.eigenvectors_right_, ic, rcond=None)[0]
+            koopman_modes = np.linalg.lstsq(
+                self.eigenvectors_right_, initial_conditions, rcond=None
+            )[0]
+        else:
+            raise NotImplementedError(
+                "The DMD subclass does not provide the attribute 'eigenvectors_right_', "
+                "which is required to evolve the dynamical system. Please check "
+                "implementation or report bug. "
+            )
 
         if post_map is not None:
             # transform eigenvectors with post_map
@@ -391,7 +402,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             dynmatrix=dynmatrix,
             eigenvalues=self.eigenvalues_,
             time_delta=self.dt_,
-            initial_conditions=ic,
+            initial_conditions=koopman_modes,
             time_values=norm_time_samples,
             time_series_ids=time_series_ids,
             feature_columns=feature_columns,
@@ -625,7 +636,7 @@ class DMDFull(DMDBase):
         self.is_diagonalize = is_diagonalize
         self.rcond = rcond
 
-    def _diagonalize_left_eigenvectors(self):
+    def _diagonalize_left_eigenvectors(self, koopman_matrix):
         """Compute right eigenvectors (not normed) such that
         Koopman matrix = right_eigenvectors @ diag(eigenvalues) @ left_eigenvectors .
         """
@@ -634,7 +645,7 @@ class DMDFull(DMDBase):
         lhs_matrix = self.eigenvectors_right_ * self.eigenvalues_
 
         # NOTE: the left eigenvectors are not normed (i.e. ||ev|| != 1
-        self.eigenvectors_left_ = np.linalg.solve(lhs_matrix, self.koopman_matrix_)
+        self.eigenvectors_left_ = np.linalg.solve(lhs_matrix, koopman_matrix)
 
     def _compute_koopman_matrix(self, X: TSCDataFrame):
 
@@ -743,7 +754,7 @@ class DMDFull(DMDBase):
         )
 
         if self.is_diagonalize:
-            self._diagonalize_left_eigenvectors()
+            self._diagonalize_left_eigenvectors(koopman_matrix_)
 
         if store_koopman_matrix:
             self.koopman_matrix_ = koopman_matrix_
@@ -881,9 +892,9 @@ class PyDMDWrapper(DMDBase):
             raise ImportError(
                 "Python package pydmd could not be imported. Check installation."
             )
+        assert pydmd is not None
 
         self._setup_default_tsc_metric_and_score()
-
         self.method_ = method.lower()
 
         standard_params = {

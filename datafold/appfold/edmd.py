@@ -635,7 +635,7 @@ def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):
 
 
 def _fit_and_score_edmd(
-    edmd,
+    edmd: EDMD,
     X: TSCDataFrame,
     y,
     scorer,
