@@ -8,9 +8,10 @@ geometrical structure on which data is sampled. For point clouds a typical
 use case is to parametrize the manifold with an intrinsic lower dimension to enable
 non-linear dimension reduction. For time series data the underlying dynamical system is
 assumed to have a phase space that is a manifold. The models contained in *datafold* can
-process potentially high-dimensional data that lie close to manifolds. For a longer
-introduction go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`_
-and for a mathematical thorough introduction, we refer to the used references, also listed
+process potentially high-dimensional data that lie close to manifolds.
+
+For further readong go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`_
+and for a mathematical thorough introduction, we refer to the used references, listed
 `here <https://datafold-dev.gitlab.io/datafold/references.html>`.
 
 The source code is distributed under the `MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`_.
@@ -133,12 +134,12 @@ dependencies are listed in the next section and install automatically.
 
 There are two ways to install *datafold*:
 
-* **PyPI**: install the *datafold* core package (without tutorials and tests). To download
-  the tutorials separately visit
-  `this page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_.
-* **Source**: download the entire repository. This is only recommended to access the
-  latest (but potentially unstable) development, plan to contribute to *datafold*, or to
-  run the tests.
+* **PyPI**: installs the *datafold* core package (without tutorials and tests). To
+  download the tutorial files separately please visit the
+  `Tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_.
+* **Source**: downloads the entire repository. This is only recommended if you want access
+  to the latest (but potentially unstable) development, plan to contribute to *datafold*,
+  or to run the tests.
 
 From PyPI
 ---------
@@ -170,9 +171,9 @@ From source
 
 2. Install *datafold* by executing ``setup.py`` in the root folder of the repository.
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   python setup.py install
+       python setup.py install
 
    Add the :code:`--user` flag to install *datafold* only for the current user.
 
@@ -180,19 +181,19 @@ From source
    repository. Before executing the actual tests, the development dependencies must be
    installed separately.
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   pip install -r requirements-dev.txt
-   python setup.py install
+      pip install -r requirements-dev.txt
+      python setup.py install
 
-Use ``python3`` if ``python`` is reserved for ``Python<3``.
+   Use ``python3`` if ``python`` is reserved for ``Python<3``.
 
 Dependencies
 ============
 
 The *datafold* package dependencies are managed in `setup.py <https://gitlab
 .com/datafold-dev/datafold/-/blob/master/setup.py>`_ and install with the package
-manager ``pip``, if not already installed. The tests and some tutorials may require
+manager ``pip``, if not already installed. The tests and some tutorials require
 further dependencies which are managed in the ``requirements-dev.txt`` file.
 
 The *datafold* software integrates with common packages from the
@@ -246,28 +247,49 @@ All code contributors are listed in the
 Setting up development environment
 ----------------------------------
 
-This section describes all steps to set up a *datafold* development environment and should
-be read before contributing code.
+This section describes all steps to set up *datafold* for code development and should be
+read before contributing code. The *datafold* repository must be cloned via git (see
+section "From source" above).
 
-For convenience, the following code snippet includes all described steps for an optimal
-set up:
+Quick set up
+^^^^^^^^^^^^
+
+This code snippet includes all steps described in detail below.
 
 .. code-block:: bash
 
+   # Clone repository
    git clone git@gitlab.com:datafold-dev/datafold.git
+   cd ./datafold/
+
+   # Optional: set up virtual environment
    python -m venv .venv
    source .venv/bin/activate
    pip install --upgrade pip
-   python setup.py install    # (optional)
+
+   # Optional: install datafold
+   python setup.py install
+
+   # Install development dependencies
    pip install -r requirements-dev.txt
    pre-commit install
-   python setup.py test       # (optional)
+
+   # Optional: run code formatting tools
+   pre-commit run --all-files
+
+   # Optional: run tests
+   python setup.py test
+
+   # Optional: build documentation
+   sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
+   sphinx-build -b html ./doc/source/ ./public/
 
 Install developer dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The file ``requirements-dev.txt`` contains all developing dependencies and is readable
-with :code:`pip` (:code:`pip3`). To install the dependencies execute:
+The file ``requirements-dev.txt`` in the root directory of the repository contains all
+developing dependencies and is readable with :code:`pip` (:code:`pip3`). To install the
+dependencies execute:
 
 .. code-block:: bash
 
@@ -305,8 +327,8 @@ way, meaning each tool should only format the code once to obtain the desired fo
 Also none of the tool should break the code or alter its behaviour.
 
 To set up the tools, the most convenient way is to install the git commit-hooks via the
-tool `pre-commit <https://pre-commit.com/>`_ (it installs with the development
-dependencies). To install the hooks run from root directory:
+`pre-commit <https://pre-commit.com/>`_ (installs with the development
+dependencies). To install the git-hooks run from root directory:
 
 .. code-block:: bash
 
@@ -326,11 +348,16 @@ Run tests
 The tests are executed with Python package `nose <https://nose.readthedocs
 .io/en/latest/>`_ (installs with the development dependencies).
 
-To execute all *datafold* unit tests locally run from the repository root directory:
+To execute all *datafold* unit tests locally run from the root directory of the
+repository:
 
 .. code-block:: bash
+    python setup.py test
 
-   nosetests datafold/ -v
+Alternatively, you can also execute with further options (see ``nosetests --help``)
+
+.. code-block:: bash
+    nosetests datafold/ -v
 
 To execute the tutorials (tests check only if an error occurs in the tutorial) run from
 the root directory:
@@ -347,7 +374,7 @@ Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The *datafold* documentation uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ and
-various Sphinx extensions (all installs with the development dependencies). The source
+various Sphinx extensions (all install with the development dependencies). The source
 code is documented with `numpydoc <https://numpydoc.readthedocs.io/en/latest/format
 .html#overview>`_ style.
 
@@ -355,16 +382,19 @@ Additional dependencies for building the documentation (**not** contained in
 ``requirements-dev.txt``):
 
 * `LaTex <https://www.latex-project.org/>`_ to render maths equations,
-* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in the browser (for
-  Linux install packages `libjs-mathjax`, `fonts-mathjax` and `dvipng`).
+* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in the browser
 * `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
 * `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
   `nbsphinx` extension that includes the tutorials into the web page documentation).
 
-Note that the documentation also builds remotely in the CI pipeline, either as a
-test (all branches except `master`) or to update the web page (only for `master`).
+In Linux, install the packages
 
-To build the documentation run from root directory
+.. code-block:: bash
+
+    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
+
+This excludes Latex, see `texlive` packages. To build the documentation run from root
+directory
 
 .. code-block:: bash
 
@@ -373,3 +403,7 @@ To build the documentation run from root directory
 
 The html entry is then located at ``./public/index.html``. Please make sure that the
 installation of Sphinx is in the path so the Sphinx tools are accessible.
+
+**Note** that the documentation also builds remotely in the CI pipeline, either as a
+test (all branches except `master`) or to update the web page (only for `master`).
+
