@@ -184,7 +184,7 @@ From source
    .. code-block:: bash
 
       pip install -r requirements-dev.txt
-      python setup.py install
+      python setup.py test
 
    Use ``python3`` if ``python`` is reserved for ``Python<3``.
 
