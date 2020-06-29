@@ -10,7 +10,8 @@ PATH2TUTORIAL_DOC = os.path.abspath(os.path.join(PATH2TUTORIAL, "docs"))
 
 rst_before_tutorials_list = """This page contains tutorials and code snippets to showcase 
 *datafold's* API. All tutorials can be viewed online in the list below. If you wish to 
-execute the notebooks in a Jupyter notebook locally, follow the steps the steps 
+execute the notebooks in a Jupyter notebook locally, follow the steps in "Execute 
+interactively" below. 
 """
 
 rst_after_tutorials_list = """
@@ -46,7 +47,7 @@ Download files
    * To download a specific tutorial file, navigate to the file and click the download 
      button. 
 
-* **If the *datafold* repository was downloaded or cloned, ...**
+* **If the datafold repository was cloned or downloaded, ...**
   
   navigate to the folder ``[root_repository]/tutorials/docs``. Before executing the 
   tutorials, please make sure that *datafold* is either installed 

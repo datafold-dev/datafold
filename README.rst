@@ -352,11 +352,14 @@ To execute all *datafold* unit tests locally run from the root directory of the
 repository:
 
 .. code-block:: bash
+
     python setup.py test
 
-Alternatively, you can also execute with further options (see ``nosetests --help``)
+Alternatively, you can also execute the tests with ``nosetests``, which provides further options
+(see ``nosetests --help``)
 
 .. code-block:: bash
+
     nosetests datafold/ -v
 
 To execute the tutorials (tests check only if an error occurs in the tutorial) run from
