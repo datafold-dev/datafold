@@ -14,9 +14,8 @@ from sklearn.gaussian_process.kernels import (
 from sklearn.preprocessing import normalize
 
 from datafold.decorators import warn_experimental_class
-from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold import *
-
+from datafold.pcfold.distance import compute_distance_matrix
 from datafold.utils.general import (
     diagmat_dot_mat,
     is_float,
@@ -1076,29 +1075,32 @@ class MahalanobisKernel(PCManifoldKernel):
     """
     Parameters
     ----------
-    verbosity_level
-        if >0, prints some log statements
+
     epsilon
-        the kernel bandwidth. If "None" (default), it will be estimated from the
+        The kernel bandwidth. If ``None``, it will be estimated from the
         mahalanobis distance matrix, using the median of 10-th nearest neighbor distances.
+
     distance_metric
-        distance metric to use in the pre-computation of the neighborhoods. 
-        Default: "euclidean"
+        The distance metric to use in the pre-computation of the neighborhoods.
+
     cov_matrices
         N*m*m array of N covariance matrices of shape m*m each.
+
+    verbosity_level
+        If value>0, it prints log statements.
     """
 
     def __init__(
         self,
-        verbosity_level=0,
         epsilon=None,
         distance_metric="euclidean",
-        cov_matrices=None,
+        cov_matrices=None,  # TODO: Cannot be None -> no routine resolve "None"!
+        verbosity_level=0,
     ):
-        self.__verbosity_level = verbosity_level
-        self.__cov_matrices = cov_matrices
-        self.distance_metric = distance_metric
         self.epsilon = epsilon
+        self.distance_metric = distance_metric
+        self.cov_matrices = cov_matrices
+        self.verbosity_level = verbosity_level
 
     def __call__(
         self, X, Y=None, dist_kwargs=None, **kernel_kwargs
@@ -1136,28 +1138,25 @@ class MahalanobisKernel(PCManifoldKernel):
         if Y is not None:
             Y = np.atleast_2d(Y)
 
-        self.__log(f"MahalanobisKernel dist_kwargs: {dist_kwargs}")
+        self._log(f"MahalanobisKernel dist_kwargs: {dist_kwargs}")
 
         distance_matrix = compute_distance_matrix(
             X, Y, metric=self.distance_metric, **dist_kwargs or {},
         )
 
-        kernel_matrix = self.eval(X, distance_matrix, self.__cov_matrices, dist_kwargs)
+        kernel_matrix = self.eval(X, distance_matrix, self.cov_matrices, dist_kwargs)
 
         return kernel_matrix
 
-    def __log(self, string):
-        if self.__verbosity_level > 0:
+    def _log(self, string):
+        if self.verbosity_level > 0:
             print(string)
 
     def eval(
         self, points, distance_matrix, covariance_matrices, dist_kwargs
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
+        """Replace the given distance_matrix with the mahalanobis kernel matrix.
         """
-        Replace the given distance_matrix with the mahalanobis kernel matrix.
-        """
-
-        point_indices = np.arange(points.shape[0])
 
         distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
 
@@ -1166,6 +1165,7 @@ class MahalanobisKernel(PCManifoldKernel):
 
             p1 = points[row, :]
             c1 = covariance_matrices[row, :, :]
+
             for d_index in range(len(r.data)):
                 col = r.indices[d_index]
                 if col != row:
@@ -1178,12 +1178,13 @@ class MahalanobisKernel(PCManifoldKernel):
                         distance_matrix.indptr[row] : distance_matrix.indptr[row + 1]
                     ][d_index] = M_distance
 
-        self.__log("Mahalanobis metric ready.")
+        self._log("Mahalanobis metric ready.")
 
         if dist_kwargs is None:
             dist_kwargs = {}
 
         _epsilon = self.epsilon
+
         if _epsilon is None:
             cut_off = datafold.pcfold.estimators.estimate_cutoff(
                 points, k=dist_kwargs.get("kmin", 25), distance_matrix=distance_matrix
@@ -1191,7 +1192,7 @@ class MahalanobisKernel(PCManifoldKernel):
             _epsilon = datafold.pcfold.estimators.estimate_scale(
                 points, cut_off=cut_off
             )
-        self.__log(f"Using epsilon {_epsilon}")
+        self._log(f"Using epsilon {_epsilon}")
 
         # convert distance to kernel
         distance_matrix.data = np.exp(
