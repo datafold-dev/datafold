@@ -10,20 +10,22 @@ class Version:
 
     # See also https://semver.org/
 
+    ###### TO UPDATE -- START
     major_version: int = 1  # making incompatible API changes,
     minor_version: int = 0  # adding functionality in a backwards-compatible manner
-    patch: int = 0  # for backwards-compatible bug fixes
+    patch: int = 1  # for backwards-compatible bug fixes
+
+    # Make date of release for longer version numbers.
+    year: int = 2020
+    month: int = 6
+    day: int = 29
+    ###### TO UPDATE -- END
 
     assert major_version >= 0 and isinstance(major_version, int)
     assert minor_version >= 0 and isinstance(minor_version, int)
     assert patch >= 0 and isinstance(patch, int)
 
     v_short = f"{major_version}.{minor_version}.{patch}"
-
-    # Make date of release for longer version numbers.
-    year: int = 2020
-    month: int = 5
-    day: int = 20
 
     date_string = datetime.datetime(year=year, month=month, day=day).strftime(
         "%Y-%m-%d"

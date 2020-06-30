@@ -36,7 +36,7 @@ class LinearDynamicalSystem(object):
 
     - continuous
         .. math::
-            \frac{d}{dt} x(t) = \mathcal{A} \cdot x(t)\\
+            \frac{d}{dt} x(t) = \mathcal{A} \cdot x(t),
             \mathcal{A} \in \mathbb{R}^{[m \times m]}
 
     This continuous-system representation can also be written in terms of a discrete-time
@@ -130,11 +130,11 @@ class LinearDynamicalSystem(object):
         r"""Evolve the dynamical system with spectral components of the dynamical
         matrix.
 
-        Using the eigenvalues :math:`\Lambda` and eigenvectors :math:`\Psi` of the
-        constant matrix :math:`A`
+        Using the eigenvalues on the diagonal matrix :math:`\Lambda` and (right)
+        eigenvectors :math:`\Psi_r` of the constant matrix :math:`A`
 
         .. math::
-            A \Psi = \Psi \Lambda
+            A \Psi_r = \Psi_r \Lambda
 
         the linear system evolves
 
@@ -151,14 +151,16 @@ class LinearDynamicalSystem(object):
         conditions of the respective system.
 
         .. note::
-            Initial condition states :math:`x` of the original system need to be
+            Initial condition states :math:`x_0` of the original system need to be
             aligned to the right eigenvectors beforehand:
 
             * By using the right eigenvectors and solving in a least square sense
-                .. math::
-                    \Psi_r x_0 = b_0
 
-            * or by using the left eigenvectors and computing the matrix-vector product
+                .. math::
+                    \Psi_r b_0 = x_0
+
+            * , or by using the left eigenvectors and computing the matrix-vector product
+
                 .. math::
                     \Psi_l x_0 = b_0
 
@@ -255,7 +257,7 @@ class LinearDynamicalSystem(object):
 class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
 
-    A DMD model decomposes time series data linearly into spatio-temporal components.
+    A DMD model decomposes time series data linearly into spatial-temporal components.
     Due to it's strong connection to non-linear dynamical systems with Koopman spectral
     theory (see e.g. introduction in :cite:`tu_dynamic_2014`), the DMD variants
     (subclasses) are framed in the context of this theory.
@@ -285,26 +287,27 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         &= K^n \Psi_r b  \\
         &= \Psi_r \Lambda^n b
 
-    The vector :math:`b` indicates the initial condition, which is aligned to the
-    linear system using the eigenvectors of the Koopman matrix:
+    The vector :math:`b` contains the initial state (adapted from :math:`x_0` to the
+    spectral system state). In the Koopman analysis this correosponds to the initial
+    eigenfunction setting, in a pure DMD settings this corresponds to the initial
+    amplitudes. The initial state :math:`b_0` can be either computed
 
-    1. in a least squares sense with the right eigenvectors already computed in a least \
-       square sense
-
-       .. math::
-           \Psi_r b = x_0
-
-    2. using the left eigenvectors (:math:`\Psi_l`, if available) and inexpensive \
-       matrix-vector product
+    1. in a least squares sense with the right eigenvectors of the Koopman matrix
 
        .. math::
-           \Psi_l x_0 = b
+           \Psi_r b_0 = x_0
 
+    2. , or using the left Koopman matrix eigenvectors (:math:`\Psi_l`, if available) and
+       inexpensive matrix-vector product \
 
+       .. math::
+           \Psi_l x_0 = b_0
+
+    The DMD modes :math:`\Psi_r` remain constant.
     All subclasses of ``DMDBase`` must provide the (right) eigenpairs
     :math:`\left(\Lambda, \Psi_r\right)`, in respective attributes
     :code:`eigenvalues_` and :code:`eigenvectors_right_`. If the left eigenvectors
-    (in attribute :code:`eigenvectors_left_`) are available the initial condition always
+    (attribute :code:`eigenvectors_left_`) are available the initial condition always
     solves with the second case for :math:`b`, because this is more efficient.
 
     References
@@ -326,7 +329,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
     def _compute_spectral_system_states(self, states) -> np.ndarray:
         """Compute the spectral states of the system.
-        
+
         If the linear system is defined as follows:
 
         .. math::
