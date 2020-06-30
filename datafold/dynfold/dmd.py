@@ -127,8 +127,7 @@ class LinearDynamicalSystem(object):
         time_series_ids: Optional[Dict] = None,
         feature_columns: Optional[Union[pd.Index, list]] = None,
     ):
-        r"""Evolve the dynamical system with spectral components of the dynamical
-        matrix.
+        r"""Evolve the dynamical system with spectral components of the system matrix.
 
         Using the eigenvalues on the diagonal matrix :math:`\Lambda` and (right)
         eigenvectors :math:`\Psi_r` of the constant matrix :math:`A`
@@ -268,13 +267,14 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     .. math:: K^n x_0 &= x_n
 
     with :math:`x_n` being the (column) state vectors of the system at time :math:`n`.
-    Note, that the state vectors :math:`x` when used in conjuction with the
-    :py:meth:`EDMD` model are not the original observations of a system but states from a
+    Note, that the state vectors :math:`x`, when used in conjunction with the
+    :py:meth:`EDMD` model are not the original observations of a system, but states from a
     functional coordinate basis that seeks to linearize the dynamics (see reference for
     details).
 
     The spectrum of the Koopman matrix \
-    (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` eigenvalues on diagonal)
+    (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` matrix with eigenvalues on
+    diagonal)
 
     .. math:: K \Psi_r = \Psi_r \Lambda
 
@@ -284,13 +284,13 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
     .. math::
         x_n &= K^n x_0 \\
-        &= K^n \Psi_r b  \\
-        &= \Psi_r \Lambda^n b
+        &= K^n \Psi_r b_0  \\
+        &= \Psi_r \Lambda^n b_0
 
-    The vector :math:`b` contains the initial state (adapted from :math:`x_0` to the
-    spectral system state). In the Koopman analysis this correosponds to the initial
-    eigenfunction setting, in a pure DMD settings this corresponds to the initial
-    amplitudes. The initial state :math:`b_0` can be either computed
+    The vector :math:`b_0` contains the initial state (adapted from :math:`x_0` to the
+    spectral system state). In the Koopman analysis this corresponds to the initial
+    Koopman eigenfunctions, whereas in a pure DMD settings this is often referred to the
+    initial amplitudes. The vector :math:`b_0` can be either computed
 
     1. in a least squares sense with the right eigenvectors of the Koopman matrix
 
@@ -304,14 +304,16 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
            \Psi_l x_0 = b_0
 
     The DMD modes :math:`\Psi_r` remain constant.
+
     All subclasses of ``DMDBase`` must provide the (right) eigenpairs
     :math:`\left(\Lambda, \Psi_r\right)`, in respective attributes
     :code:`eigenvalues_` and :code:`eigenvectors_right_`. If the left eigenvectors
     (attribute :code:`eigenvectors_left_`) are available the initial condition always
-    solves with the second case for :math:`b`, because this is more efficient.
+    solves with the second case for :math:`b_0`, because this is more efficient.
 
     References
     ----------
+
     :cite:`tu_dynamic_2014`
     :cite:`williams_datadriven_2015`
     :cite:`kutz_dynamic_2016`
@@ -320,6 +322,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
     --------
 
     :py:class:`.LinearDynamicalSystem`
+
     """
 
     @property
@@ -809,7 +812,7 @@ class DMDFull(DMDBase):
     def fit(
         self, X: TimePredictType, y=None, store_koopman_matrix=False, **fit_params
     ) -> "DMDFull":
-        """Build Koopman matrix and its spectral components from time series data.
+        """Compute Koopman matrix and its spectral components from time series data.
 
         Parameters
         ----------
@@ -821,7 +824,8 @@ class DMDFull(DMDBase):
 
         store_koopman_matrix
             If True, the model stores the Koopman matrix in attribute
-            ``koopman_matrix_``, otherwise only the spectral components are stored.
+            ``koopman_matrix_``, otherwise only the spectral components are stored for
+            memory efficiency.
 
         Returns
         -------
