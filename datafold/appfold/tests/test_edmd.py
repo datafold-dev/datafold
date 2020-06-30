@@ -62,7 +62,7 @@ class EDMDTest(unittest.TestCase):
     def setUp(self) -> None:
         self.sine_wave_tsc = self._setup_sine_wave_data()
         self.multi_sine_wave_tsc = self._setup_multi_sine_wave_data()
-        self._setup_multi_sine_wave_data2()
+        self.multi_waves = self._setup_multi_sine_wave_data2()
 
     def test_id_dict(self):
         _edmd_dict = EDMD(
@@ -76,6 +76,65 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_frame_equal(
             _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
+
+    def test_qoi_selection1(self):
+        tsc = self.multi_waves
+
+        # pre-selection
+        edmd = EDMD(dict_steps=[("id", TSCIdentity())], include_id_state=False).fit(tsc)
+
+        cos_values = edmd.predict(tsc.initial_states(), qois=["cos"])
+        sin_values = edmd.predict(tsc.initial_states(), qois=["sin"])
+
+        pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values.columns)
+        pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values.columns)
+
+        cos_values_reconstruct = edmd.reconstruct(tsc, qois=["cos"])
+        sin_values_reconstruct = edmd.reconstruct(tsc, qois=["sin"])
+
+        pdtest.assert_index_equal(
+            tsc.loc[:, "cos"].columns, cos_values_reconstruct.columns
+        )
+        pdtest.assert_index_equal(
+            tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
+        )
+
+    def test_qoi_selection2(self):
+        tsc = self.multi_waves
+
+        # pre-selection
+        edmd = EDMD(
+            dict_steps=[("id", TSCIdentity(include_const=False, rename_features=True))],
+            include_id_state=True,
+        ).fit(tsc)
+
+        cos_values_predict = edmd.predict(tsc.initial_states(), qois=["cos"])
+        sin_values_predict = edmd.predict(tsc.initial_states(), qois=["sin"])
+
+        pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values_predict.columns)
+        pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values_predict.columns)
+
+        cos_values_reconstruct = edmd.reconstruct(tsc, qois=["cos"])
+        sin_values_reconstruct = edmd.reconstruct(tsc, qois=["sin"])
+
+        pdtest.assert_index_equal(
+            tsc.loc[:, "cos"].columns, cos_values_reconstruct.columns
+        )
+        pdtest.assert_index_equal(
+            tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
+        )
+
+    def test_qoi_selection3(self):
+        tsc = self.multi_waves
+
+        # pre-selection
+        edmd = EDMD(
+            dict_steps=[("id", TSCIdentity(include_const=False, rename_features=True))],
+            include_id_state=True,
+        ).fit(tsc)
+
+        with self.assertRaises(ValueError):
+            edmd.predict(tsc.initial_states(), qois=["INVALID"])
 
     def test_edmd_no_classifier(self):
         # import from internal module -- subject to change without warning!

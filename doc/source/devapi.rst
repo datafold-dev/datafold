@@ -31,9 +31,11 @@ Classes
    .. automethod:: check_timeseries_same_length
    .. automethod:: check_timeseries_same_timevalues
    .. automethod:: check_tsc
+   .. automethod:: compute_shift_matrices
+   .. automethod:: finite_difference
+   .. automethod:: iter_timevalue_window
    .. automethod:: normalize_time
    .. automethod:: plot_density2d
-   .. automethod:: compute_shift_matrices
    .. automethod:: shift_time
    .. automethod:: time_values_overview
 

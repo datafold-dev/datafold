@@ -1,6 +1,6 @@
 import abc
 import warnings
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -297,7 +297,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
            \Psi_r b = x_0
 
     2. , or using the left Koopman matrix eigenvectors (:math:`\Psi_l`, if available) and
-      inexpensive matrix-vector product \
+       inexpensive matrix-vector product \
 
        .. math::
            \Psi_l x_0 = b
@@ -373,15 +373,16 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         if post_map is not None:
             # transform eigenvectors with post_map
-            try:
-                post_map = np.asarray(post_map, dtype=np.float64)
-            except Exception:
-                raise TypeError("Cannot convert post_map to numpy array.")
+            if post_map.dtype == np.bool:
+                assert (
+                    post_map.ndim == 1
+                    and len(post_map) == self.eigenvectors_right_.shape[0]
+                )
+                dynmatrix = self.eigenvectors_right_[post_map, :]
             else:
-                if post_map.ndim != 2:
-                    raise TypeError("'post_map' must be two dimensional")
-
-            dynmatrix = post_map @ self.eigenvectors_right_
+                post_map = np.asarray(post_map, np.float64)
+                assert post_map.ndim == 2
+                dynmatrix = post_map @ self.eigenvectors_right_
         else:
             dynmatrix = self.eigenvectors_right_
 
@@ -431,6 +432,45 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         return tsc_df
 
+    def _set_post_map(self, X, qois, predict_params):
+        if qois is not None:
+            if isinstance(qois, np.ndarray):
+                if qois.dtype != np.bool:
+                    raise TypeError(
+                        "If argument 'qois' is of type 'np.ndarray', "
+                        "then the dtype must be bool."
+                    )
+
+                if qois.ndim != 1 or len(qois) == X.shape[1]:
+                    raise ValueError(
+                        "The argument 'qois' must be a 1-dim. array with "
+                        "number of features."
+                    )
+                post_map = qois
+            elif isinstance(qois, (pd.Index, list)):
+                post_map = np.isin(X.columns.to_numpy(), qois)
+
+                if np.sum(post_map) != len(qois):
+                    raise ValueError(
+                        "The argument 'qois' contains invalid feature "
+                        f"names. \n {qois}"
+                    )
+            else:
+                raise TypeError(f"Type of 'qois={type(qois)}' not understood.")
+
+            feature_columns = X.columns[post_map]
+        else:
+            # user defined post_map
+            post_map = predict_params.pop("post_map", None)
+            feature_columns = predict_params.pop("feature_columns", None)
+
+            if len(predict_params.keys()) > 0:
+                raise KeyError(
+                    f"predict_params keys are invalid: {predict_params.keys()}"
+                )
+
+        return post_map, feature_columns
+
     @abc.abstractmethod
     def fit(self, X: TimePredictType, **fit_params) -> "DMDBase":
         """Abstract method to train DMD model.
@@ -443,7 +483,11 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         raise NotImplementedError("base class")
 
     def predict(
-        self, X: InitialConditionType, time_values=None, **predict_params
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        **predict_params,
     ) -> TSCDataFrame:
         """Predict time series data for each initial condition and time values.
 
@@ -454,6 +498,19 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         time_values
             Time values to evaluate the model at.
+
+        qois
+            List of feature names of interest to be include in the return object.
+            Selecting a small number of features relative to all features reduces the
+            memory footprint and required computations to evolve the system.
+            Internally, this sets the ``post_map`` and ``feature_columns`` arguments,
+            also accessible as keyword arguments (which cannot be provided at the same
+            time). Note that the input ``X`` must still contain all features used
+            during fit. The input can be:
+
+            * ``numpy.ndarray`` of length `(n_features,)` and dtype `bool` indicating
+              which features to compute
+            * selection of feature names in a list or ``pandas.Index``
 
         Keyword Args
         ------------
@@ -487,11 +544,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             X=X, time_values=time_values
         )
 
-        post_map = predict_params.pop("post_map", None)
-        feature_columns = predict_params.pop("feature_columns", None)
-
-        if len(predict_params.keys()) > 0:
-            raise KeyError(f"predict_params keys are invalid: {predict_params.keys()}")
+        post_map, feature_columns = self._set_post_map(
+            X=X, qois=qois, predict_params=predict_params
+        )
 
         return self._evolve_dmd_system(
             X_ic=X,
@@ -500,7 +555,11 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             feature_columns=feature_columns,
         )
 
-    def reconstruct(self, X: TSCDataFrame):
+    def reconstruct(
+        self,
+        X: TSCDataFrame,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+    ):
         """Reconstruct time series collection.
 
         Extract the same initial states from the time series in the collection and
@@ -508,8 +567,12 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         Parameters
         ----------
-        X: TSCDataFrame
+        X
             Time series to reconstruct.
+
+        qois
+            List of feature names of interest to be include in the return object.
+            Passed to :py:meth:`.predict`.
 
         Returns
         -------
@@ -530,7 +593,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=1
         ):
-            X_ts = self.predict(X=X_ic, time_values=time_values)
+            X_ts = self.predict(X=X_ic, time_values=time_values, qois=qois)
             X_reconstruct_ts.append(X_ts)
 
         X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)

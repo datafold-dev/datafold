@@ -17,7 +17,8 @@ from datafold.pcfold.kernels import PCManifoldKernel
 from datafold.pcfold.timeseries.collection import TSCException
 
 try:
-    from findiff import FinDiff
+    import findiff
+    import findiff.diff
 except ImportError:
     IMPORTED_FINDIFF = False
 else:
@@ -178,12 +179,15 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixIn):
 
 
 class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
-    """Dummy transformer for testing or as a "passthrough" placeholder.
+    """Transformer as a "passthrough" placeholder and/or attaching a constant feature.
 
     Parameters
     ----------
     include_const
         If True, a constant (all ones) column is attached to the data.
+
+    rename_features
+        If True, to each feature name the suffix "_id" is attached after `transform`.
 
     Attributes
     ----------
@@ -191,8 +195,9 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         True if fit has been called.
     """
 
-    def __init__(self, include_const: bool = False):
+    def __init__(self, include_const: bool = False, rename_features: bool = False):
         self.include_const = include_const
+        self.rename_features = rename_features
 
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
@@ -212,8 +217,14 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         """
         X = self._validate_data(X)
 
-        if self.include_const and self._has_feature_names(X):
-            features_out = np.append(X.columns, ["const"])
+        if self._has_feature_names(X):
+            if self.rename_features:
+                features_out = np.asarray([f"{col}_id" for col in X.columns])
+            else:
+                features_out = X.columns
+
+            if self.include_const:
+                features_out = np.append(features_out, ["const"])
         else:
             features_out = "like_features_in"
 
@@ -242,10 +253,14 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         X = self._validate_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        if self.include_const:
-            if self._has_feature_names(X):
+        if self._has_feature_names(X):
+            if self.rename_features:
+                X = X.add_suffix("_id")
+
+            if self.include_const:
                 X["const"] = 1
-            else:
+        else:
+            if self.include_const:
                 X = np.column_stack([X, np.ones(X.shape[0])])
 
         return X
@@ -1195,12 +1210,11 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         if self._has_feature_names(X):
             features_out = [f"{col}_dot" for col in X.columns]
         else:
-            features_out = [f"dot{i}" for i in np.arange(X.shape[1])]
+            features_out = X.shape[1]
 
         self._setup_features_fit(X=X, features_out=features_out)
 
         if self.spacing == "dt":
-
             if not isinstance(X, TSCDataFrame):
                 raise TypeError(
                     "For input 'spacing=dt' a time series collections is required."
@@ -1269,24 +1283,15 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         """
         check_is_fitted(self)
         X = self._validate_data(
-            X, validate_tsc_kwargs=dict(ensure_delta_time=self.spacing_)
+            X,
+            ensure_feature_name_type="tsc",
+            validate_tsc_kwargs=dict(ensure_delta_time=self.spacing_),
         )
+
         self._validate_feature_input(X=X, direction="transform")
 
-        # first parameter is the axis along which to take the derivative
-        # second parameter is the grid spacing
-        # third parameter the derivative order
-        # acc = order of accuracy (defaults to 2)
-        dt_func = FinDiff(0, self.spacing_, self.diff_order, acc=self.accuracy)
-
-        if isinstance(X, TSCDataFrame):
-            time_derivative = X
-            for tsid, time_series in X.itertimeseries():
-                time_series_dt = dt_func(time_series.to_numpy())
-                time_derivative.loc[tsid, :] = time_series_dt
-        else:
-            time_derivative = dt_func(np.asarray(X))
-
-        return self._same_type_X(
-            X=X, values=time_derivative, feature_names=self.features_out_[1]
+        time_derivative = X.tsc.time_derivative(
+            diff_order=self.diff_order, accuracy=self.accuracy
         )
+        time_derivative = time_derivative.add_suffix(f"_dot{self.diff_order}")
+        return time_derivative

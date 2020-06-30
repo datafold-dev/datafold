@@ -3,6 +3,7 @@
 import itertools
 from typing import Optional, Tuple, Union
 
+import findiff.diff
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
@@ -277,7 +278,6 @@ class TSCAccessor(object):
         ------
         TSCException
             If time delta between all time series is not constant.
-
         """
 
         convert_times = self._tsc_df.index.get_level_values(
@@ -311,6 +311,116 @@ class TSCAccessor(object):
         assert self._tsc_df.is_normalized_time()
 
         return self._tsc_df
+
+    def time_derivative(
+        self, diff_order: int = 1, accuracy: int = 2
+    ) -> Union[pd.DataFrame, TSCDataFrame]:
+        """Compute finite differences in time for each time series.
+
+        .. warning::
+            The time values are shifted in the return object to the offset (of a
+            centered finite difference scheme) that lies furthest in the future. This
+            is because we cannot include samples of future. Disabling this behaviour
+            for other use-cases (e.g. descriptive analysis) requires
+            implementation.
+
+        Parameters
+        ----------
+        diff_order
+            The order of the derivative.
+
+        accuracy
+            The accuracy level of the central derivative.
+
+        Returns
+        -------
+        Union[pd.DataFrame, TSCDataFrame]
+            The finite difference time series. The boundary samples are removed,
+            i.e. the number of samples decrease accordingly.
+        """
+
+        class InternalDiff(findiff.diff.Diff):
+            """Overwrite the behaviour of the findiff superclass."""
+
+            def diff(
+                self, data: Union[np.ndarray, pd.DataFrame], spacing: int, accuracy: int
+            ):
+                n_samples = data.shape[self.axis]
+                coeff_dict = findiff.coefficients(self.order, accuracy)
+
+                weights = coeff_dict["center"]["coefficients"]
+                offsets = coeff_dict["center"]["offsets"]
+
+                # only select samples where we can compute the centered difference
+                # scheme (i.e. we drop samples at the time series boundary)
+                start_sample = np.abs(offsets.min())
+                end_sample = n_samples - np.abs(offsets.max())
+
+                ref_slice = slice(start_sample, end_sample, 1)
+                off_slices = [
+                    self._shift_slice(ref_slice, offsets[k], n_samples)
+                    for k in range(len(offsets))
+                ]
+
+                data_dt = np.zeros_like(data)
+
+                if isinstance(data, pd.DataFrame):
+                    data_numpy = data.to_numpy()
+                else:
+                    data_numpy = data.view()
+
+                self._apply_to_array(
+                    data_dt, data_numpy, weights, off_slices, ref_slice, self.axis
+                )
+
+                data_dt = data_dt[start_sample:end_sample, :]
+
+                h_inv = 1.0 / spacing ** self.order
+                data_dt *= h_inv
+
+                if isinstance(data, pd.DataFrame):
+                    # NOTE: Only the first samples of the time values are dropped. This
+                    # means that the time is shifted to the finite difference offset that
+                    # lies furthest in the future.
+                    lost_samples = data.shape[0] - data_dt.shape[0]
+                    return pd.DataFrame(
+                        data_dt, data.index[lost_samples:], columns=data.columns
+                    )
+                else:
+                    return data_dt
+
+        self.check_const_time_delta()
+        spacing = self._tsc_df.delta_time
+
+        min_samples = np.inf
+        time_derivative = list()
+
+        dt_func = InternalDiff(axis=0, order=diff_order)
+
+        for ts_id, time_series in self._tsc_df.itertimeseries():
+            time_series_dt = dt_func.diff(
+                data=time_series, spacing=spacing, accuracy=accuracy,
+            )
+            min_samples = min(min_samples, time_series_dt.shape[0])
+
+            time_derivative.append(time_series_dt)
+
+        # Construct the return value
+        if min_samples > 1:
+            time_derivative = TSCDataFrame.from_frame_list(
+                time_derivative, ts_ids=self._tsc_df.ids
+            )
+        else:
+            # if not a legal time series collection, then fall back to pandas.DataFrame
+            time_derivative = pd.concat(time_derivative, axis=0)
+            assert isinstance(time_derivative, pd.DataFrame)  # mypy check
+
+            time_derivative = time_derivative.set_index(
+                pd.MultiIndex.from_arrays([self._tsc_df.ids, time_derivative.index]),
+                drop=True,
+            )
+
+        return time_derivative
 
     def compute_shift_matrices(
         self, snapshot_orientation: str = "col"

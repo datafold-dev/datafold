@@ -87,11 +87,17 @@ class TSCBaseMixIn:
         if validate_tsc_kwargs is None:
             validate_tsc_kwargs = {}
 
-        if ensure_feature_name_type and not self._has_feature_names(X):
-            raise TypeError(
-                f"X is of type {type(X)} but frame types ("
-                f"pd.DataFrame of TSCDataFrame) are required."
-            )
+        if ensure_feature_name_type:
+            if not self._has_feature_names(X):
+                raise TypeError(
+                    f"X is of type {type(X)} but frame types ("
+                    f"pd.DataFrame of TSCDataFrame) are required."
+                )
+
+            if ensure_feature_name_type == "tsc" and not isinstance(X, TSCDataFrame):
+                raise TypeError(
+                    f"X is of type {type(X)} but a TSCDataFrame is required."
+                )
 
         if not isinstance(X, TSCDataFrame):
             # Currently, a pd.DataFrame is treated like numpy data
@@ -232,8 +238,11 @@ class TSCTransformerMixIn(TSCBaseMixIn, TransformerMixin):
                 features_in=X.columns, features_out=features_out
             )
         else:
-            if features_out == "like_features_in":
+
+            if isinstance(features_out, str) and features_out == "like_features_in":
                 features_out = X.shape[1]
+            elif isinstance(features_out, int):
+                assert features_out > 0
             else:
                 # if list or pd.Index use the number of features out
                 features_out = len(features_out)
@@ -453,13 +462,20 @@ class TSCPredictMixIn(TSCBaseMixIn):
                 f"delta_time during fit was {self.dt_}, now it is {delta_time}"
             )
 
-    def _validate_feature_names(self, X: TransformType):
+    def _validate_feature_names(self, X: TransformType, require_all=True):
         self._check_attributes_set_up(check_attributes=["features_in_"])
 
         try:
-            pdtest.assert_index_equal(
-                right=self.features_in_[1], left=X.columns, check_names=False
-            )
+            if require_all:
+                pdtest.assert_index_equal(
+                    right=self.features_in_[1], left=X.columns, check_names=False
+                )
+            else:
+                if not np.isin(X.columns, self.features_in_[1]).all():
+                    raise AssertionError(
+                        f"feature names in X are invalid "
+                        f"{X.columns[np.isin(self.features_in_[1],X.columns)]}"
+                    )
         except AssertionError as e:
             raise ValueError(e.args[0])
 
@@ -490,8 +506,18 @@ class TSCPredictMixIn(TSCBaseMixIn):
     def fit(self, X: TimePredictType, **fit_params):
         raise NotImplementedError("method not implemented")
 
-    def reconstruct(self, X: TSCDataFrame):
+    def reconstruct(
+        self,
+        X: TSCDataFrame,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+    ):
         raise NotImplementedError("method not implemented")
 
-    def predict(self, X: InitialConditionType, time_values=None, **predict_params):
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        **predict_params,
+    ):
         raise NotImplementedError("method not implemented")
