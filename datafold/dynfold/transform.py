@@ -254,6 +254,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         self._validate_feature_input(X, direction="transform")
 
         if self._has_feature_names(X):
+            X = X.copy(deep=True)
             if self.rename_features:
                 X = X.add_suffix("_id")
 
@@ -263,6 +264,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
             if self.include_const:
                 X = np.column_stack([X, np.ones(X.shape[0])])
 
+        # Need to copy to not alter the original data
         return X
 
     def inverse_transform(self, X: TransformType):
@@ -283,6 +285,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         self._validate_feature_input(X, direction="inverse_transform")
 
         if self.include_const:
+            X = X.copy(deep=True)
             if self._has_feature_names(X):
                 X = X.drop("const", axis=1)
             else:

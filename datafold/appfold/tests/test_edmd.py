@@ -76,9 +76,10 @@ class EDMDTest(unittest.TestCase):
             _edmd_dict.transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
 
-        pdtest.assert_frame_equal(
-            _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
-        )
+        actual = _edmd_dict.inverse_transform(_edmd_dict.transform(self.sine_wave_tsc))
+        expected = self.sine_wave_tsc
+
+        pdtest.assert_frame_equal(actual, expected)
 
     def test_id_dict2(self):
         _edmd_dict = EDMD(
@@ -94,6 +95,18 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_frame_equal(
             _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
+
+    def test_id_dict3(self):
+        _edmd_dict = EDMD(
+            dict_steps=[("id", TSCIdentity(include_const=True))],
+            include_id_state=False,
+            compute_koopman_modes=True,
+        ).fit(self.sine_wave_tsc)
+
+        actual = _edmd_dict.inverse_transform(_edmd_dict.transform(self.sine_wave_tsc))
+        expected = self.sine_wave_tsc
+
+        pdtest.assert_frame_equal(actual, expected)
 
     def test_qoi_selection1(self):
         tsc = self.multi_waves
