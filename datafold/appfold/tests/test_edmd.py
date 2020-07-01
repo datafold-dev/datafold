@@ -18,6 +18,7 @@ from datafold.dynfold.transform import (
 )
 from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
+from datafold.utils.general import is_df_same_index
 
 
 class EDMDTest(unittest.TestCase):
@@ -78,8 +79,10 @@ class EDMDTest(unittest.TestCase):
 
         actual = _edmd_dict.inverse_transform(_edmd_dict.transform(self.sine_wave_tsc))
         expected = self.sine_wave_tsc
-
         pdtest.assert_frame_equal(actual, expected)
+
+        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        is_df_same_index(expected, self.sine_wave_tsc)
 
     def test_id_dict2(self):
         _edmd_dict = EDMD(
@@ -96,6 +99,9 @@ class EDMDTest(unittest.TestCase):
             _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
 
+        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        is_df_same_index(expected, self.sine_wave_tsc)
+
     def test_id_dict3(self):
         _edmd_dict = EDMD(
             dict_steps=[("id", TSCIdentity(include_const=True))],
@@ -107,6 +113,9 @@ class EDMDTest(unittest.TestCase):
         expected = self.sine_wave_tsc
 
         pdtest.assert_frame_equal(actual, expected)
+
+        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        is_df_same_index(expected, self.sine_wave_tsc)
 
     def test_qoi_selection1(self):
         tsc = self.multi_waves

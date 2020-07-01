@@ -577,16 +577,19 @@ class EDMD(Pipeline, TSCPredictMixIn):
         #  correct
         assert isinstance(X_dict, pd.DataFrame)
 
+        if qois is None:
+            feature_columns = self.features_in_[1]
+        else:
+            feature_columns = qois
+
         if self.koopman_modes is not None:
             if qois is None:
                 modes = self.koopman_modes.to_numpy()
-                feature_columns = self.features_in_[1]
             else:
                 project_matrix = projection_matrix_from_features(
                     self.features_in_[1], qois
                 )
                 modes = project_matrix.T @ self.koopman_modes.to_numpy()
-                feature_columns = qois
 
             # compute the time series in original space directly by adapting the modes
             X_ts = self._dmd_model.predict(
@@ -594,12 +597,13 @@ class EDMD(Pipeline, TSCPredictMixIn):
                 time_values=time_values,
                 **{"modes": modes, "feature_columns": feature_columns},
             )
-            X_ts = X_ts.loc[:, feature_columns]
         else:
+            # predict all dictionary time series
             X_ts = self._dmd_model.predict(X_dict, time_values=time_values)
 
-            # transform from dictionary space by inverse_transform the pipeline
-            X_ts = self.inverse_transform(X_ts, qois=qois)
+            # transform from dictionary space by pipeline inverse_transform
+            X_ts = self.inverse_transform(X_ts)
+            X_ts = X_ts.loc[:, feature_columns]
 
         return X_ts
 
