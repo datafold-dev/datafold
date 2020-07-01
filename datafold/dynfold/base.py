@@ -16,6 +16,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 from datafold.pcfold import TSCDataFrame, TSCMetric, TSCScoring
 from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
 from datafold.pcfold.kernels import DmapKernelFixed
+from datafold.pcfold.timeseries.collection import TSCException
 from datafold.utils.general import if1dim_rowvec
 
 DataFrameType = Union[TSCDataFrame, pd.DataFrame]
@@ -458,7 +459,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
             )
 
         if delta_time != self.dt_:
-            raise ValueError(
+            raise TSCException(
                 f"delta_time during fit was {self.dt_}, now it is {delta_time}"
             )
 
@@ -517,7 +518,6 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
         **predict_params,
     ):
         raise NotImplementedError("method not implemented")
