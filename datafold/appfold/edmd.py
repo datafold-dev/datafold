@@ -234,7 +234,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         return pd.Series(self._dmd_model.eigenvalues_, name="evals")
 
     def koopman_eigenfunction(self, X: TransformType) -> TransformType:
-        """Evaluate the Koopman eigenfunctions at samples.
+        """Evaluate the Koopman eigenfunctions.
 
         Parameters
         ----------
@@ -242,7 +242,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             The points of the original space at which to evaluate the Koopman
             eigenfunctions. If `n_samples_ic_ > 1`, then the input must be a
             `TSCDataFrame` where each time series must have at least `n_samples_ic_`
-            samples, with the same time frequency as during fit. The input must fulfill
+            samples, with the same time delta as during fit. The input must fulfill
             the first step in the pipeline.
 
         Returns
@@ -250,7 +250,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Union[TSCDataFrame, pandas.DataFrame]
             The evaluated Koopman eigenfunctions. The number of samples are reduced
             accordingly if `n_samples_ic_ > 1` with fallback to `pandas.DataFrame` if
-            not a legal `TSCDataFrame`.
+            the it is not not a legal `TSCDataFrame`.
         """
         check_is_fitted(self)
 
@@ -687,21 +687,6 @@ class EDMD(Pipeline, TSCPredictMixIn):
         X_ts = self._predict_ic(X_dict=X_dict, time_values=time_values, qois=qois)
 
         return X_ts
-
-    def predict_dict(self, X):
-        """(NOT IMPLEMENTED) Predict the time series in dictionary space.
-
-        This can be valuable for analysis.
-
-        Parameters
-        ----------
-        X
-
-        Returns
-        -------
-
-        """
-        raise NotImplementedError("Implement if required")
 
     def reconstruct(
         self, X: TSCDataFrame, qois: Optional[Union[pd.Index, List[str]]] = None,
