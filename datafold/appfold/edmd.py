@@ -236,6 +236,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def koopman_eigenfunction(self, X: TransformType) -> TransformType:
         """Evaluate the Koopman eigenfunctions.
 
+        The operation is equivalent to Eq. 18 in :cite:`williams_datadriven_2015`.
+
         Parameters
         ----------
         X : TSCDataFrame, pandas.DataFrame
@@ -255,6 +257,9 @@ class EDMD(Pipeline, TSCPredictMixIn):
         check_is_fitted(self)
 
         X_dict = self.transform(X)
+
+        # transform of X_dict matrix
+        #   -> note that in the DMD model, there are column-oriented features
         eval_eigenfunction = self._dmd_model._compute_spectral_system_states(
             X_dict.to_numpy().T
         )
@@ -400,8 +405,12 @@ class EDMD(Pipeline, TSCPredictMixIn):
                     f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
                 )
 
-    def _compute_inverse_map(self, X, X_dict):
-        """Matrix :math:`B` in Williams et al.
+    def _compute_inverse_map(self, X: TSCDataFrame, X_dict: TSCDataFrame):
+        """Compute matrix that linearly maps from dictionary space to original feature
+        space.
+
+        This is equivalent to matrix :math:`B`, Eq. 16 in
+        :cite:`williams_datadriven_2015`.
 
         See also _compute_koopman_modes for further details.
 
@@ -415,17 +424,19 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         Returns
         -------
+        numpy.ndarray
 
         """
+
         if self.include_id_state:
-            # trivial case: we just need a projection matrix to select the full-states
-            # from the dictionary functions
+            # trivial case: we just need a projection matrix to select the
+            # original full-states from the dictionary functions
             inverse_map = projection_matrix_from_features(
                 X_dict.columns, self.features_in_[1]
             )
 
         elif self.compute_koopman_modes:
-            # Compute a matrix that linearly maps back to the full-state space.
+            # Compute the matrix in a least squares sense
             # inverse_map = "B" in Williams et al., Eq. 16
             inverse_map = scipy.linalg.lstsq(
                 X_dict.to_numpy(), X.loc[X_dict.index, :].to_numpy(), cond=None
@@ -437,7 +448,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         return inverse_map
 
-    def _compute_koopman_modes(self, inverse_map) -> Optional[np.ndarray]:
+    def _compute_koopman_modes(self) -> Optional[np.ndarray]:
         """Compute the Koopman modes based on the user settings.
 
         The Koopman modes :math;`V` are a computed with
@@ -464,19 +475,17 @@ class EDMD(Pipeline, TSCPredictMixIn):
            are set to ``None``. Instead the `inverse_transform` of the dictionary pipeline
            must be called to get back to the original space.
 
-        Parameters
-        ----------
-        inverse_map
-            The matrix :math:`B`.
-
         Returns
         -------
         Optional[numpy.ndarray]
             The computed Koopman modes.
         """
 
-        if inverse_map is not None:
-            koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
+        if not hasattr(self, "_inverse_map"):
+            raise NotImplementedError("_inverse_map not available. Please report bug. ")
+
+        if self._inverse_map is not None:
+            koopman_modes = self._inverse_map.T @ self._dmd_model.eigenvectors_right_
         else:
             koopman_modes = None
 
@@ -550,7 +559,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             self._dmd_model.fit(X=X_dict, y=y, **fit_params)
 
         self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
-        self._koopman_modes = self._compute_koopman_modes(self._inverse_map)
+        self._koopman_modes = self._compute_koopman_modes()
 
         return self
 

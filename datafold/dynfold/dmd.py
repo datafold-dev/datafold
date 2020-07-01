@@ -344,9 +344,9 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         .. math ..
             \Psi \Lambda b_0 = x_n
 
-        where `b_0`, is the spectral state, which is computed in this fuction. It does
-        not necessarily need to be an initial condition, but is primarily required for a
-        prediction.
+        where `b_0`, is the spectral state, which is computed in this function. It does
+        not necessarily need to be an initial condition, but is primarily required for
+        this case. See documentation :py:class:`DMDBase` for further details.
 
         If the fitted DMD model acts on original data, then the spectral state is also
         often referred to as "amplitudes". E.g., see :cite:`kutz_dynamic_2016`,
@@ -372,16 +372,17 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
         ):
             # uses both eigenvectors (left and right).
-            # this is Eq. 16 in :cite:`williams_datadriven_2015` (note that in the
-            # paper the Koopman matrix is transposed, therefore here these are the left
-            # eigenvectors, whereas in the paper they are the right.
+            # this is Eq. 18 in :cite:`williams_datadriven_2015` (note that in the
+            # paper the Koopman matrix is transposed, therefore here left and right
+            # eigenvectors are exchanged.
             states = self.eigenvectors_left_ @ states
         elif (
             hasattr(self, "eigenvectors_right_")
             and self.eigenvectors_right_ is not None
         ):
             # represent the initial condition in terms of right eigenvectors (by solving a
-            # least-squares problem) -- only the right eigenvectors are required
+            # least-squares problem)
+            # -- in this case only the right eigenvectors are required
             states = np.linalg.lstsq(self.eigenvectors_right_, states, rcond=None)[0]
         else:
             raise ValueError(f"eigenvectors_right is None. Please report bug.")
