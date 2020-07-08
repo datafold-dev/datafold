@@ -34,7 +34,7 @@ Download files
    * To download a specific tutorial file, navigate to the file and click the download 
      button. 
 
-* **If the datafold repository was cloned or downloaded, ...**
+* **If the datafold repository was downloaded, ...**
   
   navigate to the folder ``[root_repository]/tutorials/``. Before executing the 
   tutorials, please make sure that *datafold* is either installed 
