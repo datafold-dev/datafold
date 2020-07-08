@@ -163,8 +163,8 @@ From PyPI
 Use :code:`pip3`` if :code:`pip` is reserved for :code:`Python<3`.
 
 .. note::
-    If you use Python with Anaconda, please also visit
-    `"Installation with Anaconda" <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
+    If you installed Python with Anaconda, please also go to
+    `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
 
 From source
 -----------
