@@ -10,15 +10,17 @@ non-linear dimension reduction. For time series data the underlying dynamical sy
 assumed to have a phase space that is a manifold. The models contained in *datafold* can
 process potentially high-dimensional data that lie close to manifolds.
 
-For further readong go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`_
-and for a mathematical thorough introduction, we refer to the used references, listed
-`here <https://datafold-dev.gitlab.io/datafold/references.html>`.
+For a longer introduction to *datafold*, please go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`_
+and for a mathematical thorough introduction, we refer to the used
+`references <https://datafold-dev.gitlab.io/datafold/references.html>`__.
 
 The source code is distributed under the `MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`_.
 
 Any contribution (code/tutorials/documentation improvements) and feedback is
-very welcome. Either use the `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_,
-or go to "Contributing" section further below.
+very welcome. Either use the
+`issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
+`service desk email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
+Please also see the "Contributing" section further below.
 
 .. note::
     The project is under active development in a research-driven environment.
@@ -43,11 +45,17 @@ or go to "Contributing" section further below.
 Quick links
 ===========
 
-* `Gitlab repository <https://gitlab.com/datafold-dev/datafold>`_
+* `Project repository <https://gitlab.com/datafold-dev/datafold>`_
 * `Software documentation <https://datafold-dev.gitlab.io/datafold/>`_
-* `Tutorial <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_
-* `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_ (use for
-  feedback of any kind, usage questions, feature requests and bug reports)
+* `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_
+* Feedback of any kind, usage questions, feature requests and bug reports
+
+  * `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__,
+    requires gitlab account
+  * `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__,
+    requires no gitlab account (creates a confident issue via gitlab's
+    `service desk <https://docs.gitlab.com/ee/user/project/service_desk.html#how-it-works>`__).
+
 * `Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`_
 
 Highlights
@@ -65,7 +73,7 @@ Highlights
 * (Extended-) Dynamic Mode Decomposition (e.g. ``DMDFull`` or ``EDMD``) which
   are data-driven dynamical models built from time series data. To improve the
   model's accuracy, the available data can be transformed with a variety of functions.
-  This includes scaling of heterogenous time series features, representing the
+  This includes scaling of heterogeneous time series features, representing the
   time series in another coordinate system (e.g. Laplace-Beltrami operator) or to
   reconstruct a diffeomorphic copy of the phase space with time delay embedding (cf.
   `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`_).
@@ -154,32 +162,39 @@ From PyPI
 
 Use :code:`pip3`` if :code:`pip` is reserved for :code:`Python<3`.
 
+.. note::
+    If you use Python with Anaconda, please also visit
+    `"Installation with Anaconda" <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
+
 From source
 -----------
 
 1. Download the git repository
 
-   a. If you wish to contribute code, it is required to have `git <https://git-scm.com/>`_
+   a. If you wish to contribute code, it is required to have
+      `git <https://git-scm.com/>`__
       installed. Clone the repository with
 
    .. code-block:: bash
 
-       git clone git@gitlab.com:datafold-dev/datafold.git
+       git clone https://gitlab.com/datafold-dev/datafold.git
 
-   b. Download the repository via https://gitlab.com/datafold-dev/datafold/
-      "Download button" -> "Download source code"
+   b. Download the repository
+   (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
+   `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
+   `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
+   `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__)
 
-2. Install *datafold* by executing ``setup.py`` in the root folder of the repository.
+2. Install *datafold* from the root folder of the repository with
 
    .. code-block:: bash
 
        python setup.py install
 
-   Add the :code:`--user` flag to install *datafold* only for the current user.
+   Add the :code:`--user` flag to install the software for the current user only.
 
-3. (*optional*) Run the tests by executing ``setup.py`` in the root folder of the
-   repository. Before executing the actual tests, the development dependencies must be
-   installed separately.
+3. Optionally, run the tests locally. Because the tests have additional dependencies,
+   they have be installed separately with the ``requirements-dev.txt`` file
 
    .. code-block:: bash
 
@@ -191,10 +206,12 @@ From source
 Dependencies
 ============
 
-The *datafold* package dependencies are managed in `setup.py <https://gitlab
-.com/datafold-dev/datafold/-/blob/master/setup.py>`_ and install with the package
-manager ``pip``, if not already installed. The tests and some tutorials require
-further dependencies which are managed in the ``requirements-dev.txt`` file.
+The *datafold* package dependencies are managed in the
+`setup.py <https://gitlab.com/datafold-dev/datafold/-/blob/master/setup.py>`_ file
+and install with the package manager ``pip``, if the package requirement is not already
+fulfilled. The tests and some tutorials require further dependencies which are managed in
+the `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__
+file.
 
 The *datafold* software integrates with common packages from the
 `Python scientific computing stack <https://www.scipy.org/about.html>`_. Specifically,
@@ -239,42 +256,49 @@ Bug reports, feature requests and user questions
 
 Any contribution (code/tutorials/documentation changes) and feedback is very
 welcome. For all correspondence regarding the software please open a new issue in the
-*datafold* `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`_
+*datafold* `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
+`email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if do not
+have a gitlab account (this opens a confident issue in gitlab).
 
 All code contributors are listed in the
-`contributor list <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`_.
+`contributors file <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-Setting up development environment
-----------------------------------
+Setting up *datafold* for development
+-------------------------------------
 
 This section describes all steps to set up *datafold* for code development and should be
-read before contributing code. The *datafold* repository must be cloned via git (see
-section "From source" above).
+read before contributing. The *datafold* repository must be cloned via ``git``
+(see section "From source" above).
 
 Quick set up
 ^^^^^^^^^^^^
 
-This code snippet includes all steps described in detail below.
+The following bash commands include all steps described in detail below for a quick
+set up.
 
 .. code-block:: bash
 
-   # Clone repository
-   git clone git@gitlab.com:datafold-dev/datafold.git
+   # Clone repository (replace FORK_NAMESPACE after forking datafold)
+   git clone git@gitlab.com:[FORK``venv`` _NAMESPACE]/datafold.git
    cd ./datafold/
 
    # Optional: set up virtual environment
+   # Note: if you use Python with Anaconda create a conda environment instead and
+   #       install pip in it
+   #       https://datafold-dev.gitlab.io/datafold/conda_install_info.html
    python -m venv .venv
    source .venv/bin/activate
    pip install --upgrade pip
 
    # Optional: install datafold
+   #   not required if repository path is included in PYTHONPATH
    python setup.py install
 
-   # Install development dependencies
+   # Install development dependencies and code
    pip install -r requirements-dev.txt
-   pre-commit install
 
-   # Optional: run code formatting tools
+   # Optional: install and run code formatting tools
+   pre-commit install
    pre-commit run --all-files
 
    # Optional: run tests
@@ -284,19 +308,36 @@ This code snippet includes all steps described in detail below.
    sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
    sphinx-build -b html ./doc/source/ ./public/
 
+Fork and create merge requests to *datafold*
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Please read and follow the steps of gitlab's
+`"Project forking workflow" <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html>`__.
+
+* `How to create a fork <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#creating-a-fork>`__
+* `How to create a merge request <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#merging-upstream>`__
+
+.. note::
+    We have set up a "Continuous Integration" (CI) pipeline. However, the worker (a
+    `gitlab-runner`) of the parent repository is not available for forked projects (for
+    reasons see
+    `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
+
+After you have created a fork you can clone the repository with
+
+ .. code-block:: bash
+
+   git clone git@gitlab.com:[FORK_NAMESPACE]/datafold.git
+
+
 Install developer dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The file ``requirements-dev.txt`` in the root directory of the repository contains all
-developing dependencies and is readable with :code:`pip` (:code:`pip3`). To install the
-dependencies execute:
-
-.. code-block:: bash
-
-   pip install -r requirements-dev.txt
+developing dependencies and is readable with :code:`pip`.
 
 The recommended (but optional) way is to install all dependencies into a
-`virtual environment <https://virtualenv.pypa.io/en/stable/>`_. This avoids conflicts
+`virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
 with other installed packages. In order to set up a virtual environment run from
 the root directory:
 
@@ -309,24 +350,37 @@ the root directory:
 
 Use ``python3`` if ``python`` is reserved for :code:`Python<3`.
 
+.. note::
+    If you are using Python with Anaconda, please see
+    ``"Installation with Anaconda", <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__,
+    to set up a ``conda`` environment instead of a ``virtualenv``.
+
+To install the dependencies without a virtual environment simply execute:
+
+.. code-block:: bash
+
+   pip install -r requirements-dev.txt
+
+Use ``pip3`` if ``pip`` is reserved for :code:`Python<3`.
+
 Install git pre-commit hooks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The *datafold* source code is automatically formatted with
 
-* `black <https://black.readthedocs.io/en/stable/>`_ for general code formatting
-* `isort <https://timothycrosley.github.io/isort/>`_ for sorting Python :code:`import`
+* `black <https://black.readthedocs.io/en/stable/>`__ for general code formatting
+* `isort <https://timothycrosley.github.io/isort/>`__ for sorting Python :code:`import`
   statements alphabetically and in sections.
-* `nbstripout <https://github.com/kynan/nbstripout>`_ for removing potentially large
+* `nbstripout <https://github.com/kynan/nbstripout>`__ for removing potentially large
   binary formatted output cells in a Jupyter notebook before the content gets into the git
   history.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
-committed to the git history. The tools alter the source code in an deterministic
+committed to the git history. The tools alter the source code in a deterministic
 way, meaning each tool should only format the code once to obtain the desired format.
-Also none of the tool should break the code or alter its behaviour.
+None of the tool should break the code or alter its behaviour.
 
-To set up the tools, the most convenient way is to install the git commit-hooks via the
+The most convenient way to set up the tools is to install the git commit-hooks via
 `pre-commit <https://pre-commit.com/>`_ (installs with the development
 dependencies). To install the git-hooks run from root directory:
 
@@ -334,9 +388,9 @@ dependencies). To install the git-hooks run from root directory:
 
    pre-commit install
 
-The installed git-hooks run then automatically before each ``git commit``. To also execute
-the formatting tools without a commit or to perform formatting for testing purposes,
-run from the root directory of the repository:
+The installed git-hooks then run automatically prior to each ``git commit``. To execute
+the formatting on the current source code without a commit (e.g., for testing purposes or
+during development), run from the root directory of the repository:
 
 .. code-block:: bash
 
@@ -345,8 +399,9 @@ run from the root directory of the repository:
 Run tests
 ^^^^^^^^^
 
-The tests are executed with Python package `nose <https://nose.readthedocs
-.io/en/latest/>`_ (installs with the development dependencies).
+The tests are executed with Python package
+`nose <https://nose.readthedocs.io/en/latest/>`_ (installs with the development
+dependencies).
 
 To execute all *datafold* unit tests locally run from the root directory of the
 repository:
@@ -355,8 +410,8 @@ repository:
 
     python setup.py test
 
-Alternatively, you can also execute the tests with ``nosetests``, which provides further options
-(see ``nosetests --help``)
+Alternatively, you can also execute the tests with ``nosetests``, which provides further
+options (see ``nosetests --help``)
 
 .. code-block:: bash
 
@@ -369,14 +424,17 @@ the root directory:
 
    nosetests tutorials/ -v
 
-All tests (unit and tutorials) are also executed remotely in a gitlab "Continuous
-Integration" (CI) setup. The pipeline runs for every push to the
-`remote repository <https://gitlab.com/datafold-dev/datafold>`_.
+All tests (unit and tutorials) can also be executed remotely in a gitlab "Continuous
+Integration" (CI) setup. The pipeline runs for every push to the set up repository.
+
+Visit `"gitlab pipelines" <https://docs.gitlab.com/ee/ci/pipelines/>`__ for an
+introduction. *datafold*'s pipeline configuration is located in the file
+`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__.
 
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The *datafold* documentation uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ and
+The documentation is built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ and
 various Sphinx extensions (all install with the development dependencies). The source
 code is documented with `numpydoc <https://numpydoc.readthedocs.io/en/latest/format
 .html#overview>`_ style.
@@ -396,17 +454,13 @@ In Linux, install the packages
 
     apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
 
-This excludes Latex, see `texlive` packages. To build the documentation run from root
-directory
+The above command excludes Latex (see the available `texlive` packages). To build the
+documentation run from the root repository directory:
 
 .. code-block:: bash
 
    sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
    sphinx-build -b html ./doc/source/ ./public/
 
-The html entry is then located at ``./public/index.html``. Please make sure that the
-installation of Sphinx is in the path so the Sphinx tools are accessible.
-
-**Note** that the documentation also builds remotely in the CI pipeline, either as a
-test (all branches except `master`) or to update the web page (only for `master`).
-
+The page entry is then located at ``./public/index.html``. Please make sure that the
+installation of Sphinx is in the path environment variable.
