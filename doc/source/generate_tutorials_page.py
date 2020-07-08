@@ -23,7 +23,7 @@ Run notebooks in Jupyter
 Download files
 ^^^^^^^^^^^^^^
 
-* **If *datafold* was installed via PyPI, ...**
+* **If datafold was installed via PyPI, ...**
  
   the tutorials must be downloaded separately from the list above. An alternative way 
   is to naviagte to the 
@@ -81,7 +81,7 @@ def add_tutorial(filename, description, warning=None):
             f"The filepath {os.path.join(PATH2TUTORIAL, filename)} does not exist."
         )
 
-    download_link = f"https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/docs/{filename}?inline=false"
+    download_link = f"https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/{filename}?inline=false"
 
     nblink_filename = get_nblink(filename)
     web_link = f"https://datafold-dev.gitlab.io/datafold/{nblink_filename}.html"
@@ -244,7 +244,7 @@ def generate_docs_str(target):
     tutorial_page_content += "\n"
     tutorial_page_content += (
         "`Download "
-        "<https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip?path=tutorials/docs>`__ "
+        "<https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip?path=tutorials/>`__ "
         "all tutorials in a zipped file.\n\n"
     )
     tutorial_page_content += ".. toctree::\n"
