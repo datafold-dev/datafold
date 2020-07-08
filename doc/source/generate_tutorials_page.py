@@ -27,7 +27,7 @@ Download files
  
   the tutorials must be downloaded separately from the list above. An alternative way 
   is to naviagte to the 
-  `tutorials repository page <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials/docs>`__. 
+  `tutorials repository page <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`__. 
 
    * To download all files, click the download button, select "Download this directory" 
      and extract the content of the compressed file.
@@ -129,7 +129,7 @@ def get_tutorial_text_doc(filename, target):
         # "filename (download_link, doc_link)" in readme
         _str = (
             f"* `{filename}` (`download <{_dict['download_link']}>`__ , "
-            f"`doc <{_dict['web_link']}>`__))\n"
+            f"`doc <{_dict['web_link']}>`__)\n"
         )
         _str += f"{WHITESPACE}{_dict['description']}"
 
