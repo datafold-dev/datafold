@@ -98,8 +98,7 @@ def scipy_eigsolver(
             "tol": 1e-14,
         }
 
-        # The selection of sigma is a result of the microbenchmark_kernel_eigvect.py
-        # which checks solution quality and convergence speed.
+        # The selection of sigma is a result of a microbenchmark
         if is_symmetric and is_stochastic:
             # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
             # setting sigma=1 resulted into a slower computation.

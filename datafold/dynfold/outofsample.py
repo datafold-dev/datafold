@@ -326,8 +326,6 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         # Gradient computation
         ki_psis = kernel_matrix * values
 
-        # NOTE: see also file misc/microbenchmark_gradient.py, using numexpr can squeeze
-        # out some computation speed for large numbers of xi.shape[0]
         grad = np.zeros_like(X)
         v = np.empty_like(self.X_)
         for p in range(X.shape[0]):

@@ -124,14 +124,11 @@ def _symmetric_matrix_division(
             vec_inv_right, 0, m=matrix.shape[1], n=matrix.shape[1]
         )
 
-        # See file mircobenchmark_sparse_outer_division.py:
         # The performance of DIA-sparse matrices is good if the matrix is actually
-        # sparse. I.e. the performance drops for a dense-sparse matrix. There is another
-        # implementation in the mircrobenchmark that also handles this case well,
-        # however, it requires numba.
+        # sparse. I.e. the performance drops for a sparse-dense-sparse multiplication.
 
-        # The zeros are removed in the matrix multiplication. However, if matrix is a
-        # distance matrix we need to preserve the "true zeros"!
+        # The zeros are removed in the matrix multiplication, but because 'matrix' is
+        # usually a distance matrix we need to preserve the "true zeros"!
         matrix.data[matrix.data == 0] = np.nan
         matrix = left_inv_diag_sparse @ matrix @ right_inv_diag_sparse
         matrix.data[np.isnan(matrix.data)] = 0
@@ -217,8 +214,7 @@ def _conjugate_stochastic_kernel_matrix(
     kernel_matrix = _symmetric_matrix_division(
         kernel_matrix, vec=left_vec, vec_right=None
     )
-    # TODO: maybe let _symmetric_matrix_division return the reciprocal left_vec /
-    #  right_vec
+
     basis_change_matrix = scipy.sparse.diags(np.reciprocal(left_vec, out=left_vec))
 
     return kernel_matrix, basis_change_matrix
@@ -252,20 +248,20 @@ def _stochastic_kernel_matrix(kernel_matrix: Union[np.ndarray, scipy.sparse.spma
         normalized kernel matrix with type same as `kernel_matrix`
     """
     if scipy.sparse.issparse(kernel_matrix):
-        # see microbenchmark_stochastic_matrix.py, for the sparse case this variant is
-        # the fastest)
+        # in a microbenchmark this turned out to be the fastest solution for sparse
+        # matrices
         kernel_matrix = normalize(kernel_matrix, copy=False, norm="l1")
     else:  # dense
 
         normalize_diagonal = np.sum(kernel_matrix, axis=1)
 
         with np.errstate(divide="ignore", over="ignore"):
-            # especially in cdist there can be far away outliers (or very small
-            # scale/epsilon), such that elements are near 0
+            # especially in cdist computations there can be far away outliers
+            # (or very small scale/epsilon). This results in elements near 0 and
             #  the reciprocal can then
             #     - be inf
             #     - overflow (resulting in negative values)
-            #  these cases are catched with bool_invalid below
+            #  these cases are catched with 'bool_invalid' below
             normalize_diagonal = np.reciprocal(
                 normalize_diagonal, out=normalize_diagonal
             )
