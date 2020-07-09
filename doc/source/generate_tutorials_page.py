@@ -10,29 +10,25 @@ PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
 PATH2TUTORIAL = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
 
 rst_text_before_tutorials_list = """This page contains tutorials and code snippets to showcase 
-*datafold's* API. All tutorials can be viewed online or downloaded in the following list 
-below. If you wish to execute the notebooks in Jupyter locally, follow the steps in the 
-section below the tutorial list. 
+*datafold's* API. All tutorials can be viewed online or downloaded in from the list 
+below. If you want to execute the notebooks in Jupyter, please also note the 
+instructions in "Run notebooks with Jupyter".
 """
 
 rst_text_after_tutorials_list = """
 
-Run notebooks in Jupyter
-------------------------
+Run notebooks with Jupyter
+--------------------------
 
 Download files
 ^^^^^^^^^^^^^^
 
 * **If datafold was installed via PyPI, ...**
  
-  the tutorials must be downloaded separately from the list above. An alternative way 
-  is to naviagte to the 
-  `tutorials repository page <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`__. 
-
-   * To download all files, click the download button, select "Download this directory" 
-     and extract the content of the compressed file.
-   * To download a specific tutorial file, navigate to the file and click the download 
-     button. 
+  then the tutorials must be downloaded separately from the list above (i.e., they are 
+  not included in the installed package). You can also navigate to the 
+  `tutorials repository page <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`__, 
+  to download the files from there. 
 
 * **If the datafold repository was downloaded, ...**
   
@@ -146,9 +142,9 @@ def get_tutorial_text_doc(filename, target):
 
 add_tutorial(
     "01_basic_datastructures.ipynb",
-    "We introduce the data structures that are implemented and used in *datafold*. The "
+    "We introduce *datafold*'s data structures with manifold context. The "
     "data structures are either used internally in model implementations, but can also "
-    "be required as a data format to fit a model or be useful to estimate model "
+    "be required as a data format for model input/output or be useful to estimate model "
     "parameters.",
 )
 
@@ -163,22 +159,22 @@ add_tutorial(
 add_tutorial(
     "03_basic_dmap_scurve.ipynb",
     "We use a ``DiffusionMaps`` model to compute possible lower dimensional embeddings "
-    "of an S-curved point cloud manifold. Furthermore, we select the best combination of "
-    "a new coordinates automatically with an optimization routine.",
+    "of an S-curved point cloud manifold. We also select the best combination of "
+    "coordinates automatically with an optimization routine.",
 )
 
 add_tutorial(
     "04_basic_dmap_digitclustering.ipynb",
-    "We use the ``DiffusionMaps`` model to cluster handwritten digits and "
-    "perform out-of-sample embeddings. The example is taken from the scikit-learn project "
-    "and can be compared against the other manifold learning algorithms.",
+    "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
+    "perform an out-of-sample embeddings. The example is taken from the scikit-learn "
+    "project and can be compared against the other manifold learning algorithms.",
 )
 
 add_tutorial(
     filename="05_basic_gh_oos.ipynb",
     description="We showcase the out-of-sample problem for manifold learning models such "
-    "as the *DiffusionMaps* model. For this we use the *GeometricHarmonicsInterpolator* "
-    "for forward and backwards interpolation mappings.",
+    "as the ``DiffusionMaps`` model. For this we use the "
+    "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation mappings.",
     warning="The tutorial requires also the Python package "
     "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ "
     "which does not install with *datafold*.",
@@ -187,7 +183,7 @@ add_tutorial(
 add_tutorial(
     "06_basic_edmd_limitcycle.ipynb",
     "We generate data from a dynamical system (Hopf system) and compare different "
-    "dictionaries of the 'Extended Dynamic Mode Decomposition'. We also perform "
+    "dictionaries of the 'Extended Dynamic Mode Decomposition'. We perform "
     "out-of-sample predictions with time ranges exceeding the time horizon of the "
     "training data.",
 )

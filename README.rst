@@ -279,7 +279,7 @@ set up.
 .. code-block:: bash
 
    # Clone repository (replace FORK_NAMESPACE after forking datafold)
-   git clone git@gitlab.com:[FORK``venv`` _NAMESPACE]/datafold.git
+   git clone git@gitlab.com:[FORK_NAMESPACE]/datafold.git
    cd ./datafold/
 
    # Optional: set up virtual environment
@@ -352,7 +352,7 @@ Use ``python3`` if ``python`` is reserved for :code:`Python<3`.
 
 .. note::
     If you are using Python with Anaconda, please see
-    ``"Installation with Anaconda", <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__,
+    ``Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__,
     to set up a ``conda`` environment instead of a ``virtualenv``.
 
 To install the dependencies without a virtual environment simply execute:
@@ -448,14 +448,15 @@ Additional dependencies for building the documentation (**not** contained in
 * `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
   `nbsphinx` extension that includes the tutorials into the web page documentation).
 
-In Linux, install the packages
+In Linux, install the packages with
 
 .. code-block:: bash
 
     apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
 
-The above command excludes Latex (see the available `texlive` packages). To build the
-documentation run from the root repository directory:
+(This excludes the Latex installation see the available `texlive` packages).
+
+To build the documentation run from the root folder of the repository:
 
 .. code-block:: bash
 
