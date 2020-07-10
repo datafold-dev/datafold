@@ -730,14 +730,14 @@ class DMDFull(DMDBase):
         self.rcond = rcond
 
     def _diagonalize_left_eigenvectors(self, koopman_matrix):
-        """Compute right eigenvectors (not normed) such that
-        Koopman matrix = right_eigenvectors @ diag(eigenvalues) @ left_eigenvectors .
+        """Compute left eigenvectors (not normed) such that
+        Koopman matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_ .
         """
 
         # lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_right_)
         lhs_matrix = self.eigenvectors_right_ * self.eigenvalues_
 
-        # NOTE: the left eigenvectors are not normed (i.e. ||ev|| != 1
+        # NOTE: the left eigenvectors are not normed (i.e. ||ev|| != 1)
         self.eigenvectors_left_ = np.linalg.solve(lhs_matrix, koopman_matrix)
 
     def _compute_koopman_matrix(self, X: TSCDataFrame):
