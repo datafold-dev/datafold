@@ -923,16 +923,11 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixIn):
         LocalRegressionSelection
             self
         """
+        # NOTE: This function has performance issues for large number of samples. There
+        # are 2 loops, the inner loop runs over all samples, which could be
+        # parallelized in a future work or by using numba.
 
-        # Code received from Yannis and adapted (author unknown). The code that was
-        # received was translated from a MATLAB version from Dsilva.
-
-        # TODO: performance issues: There are 2 loops, the inner loop goes over all
-        #  samples
-        #  1: use numba, numexpr or try to vectorize numpy code, last resort: cython
-        #  2: parallelize code (outer loop)
-
-        # Note: this saves self._transform_columns = X.columns
+        # NOTE: this saves self._transform_columns = X.columns
         # Later on not all of these columns are required because of the selection
         # performed.
 
