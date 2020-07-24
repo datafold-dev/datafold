@@ -229,14 +229,34 @@ class LinearDynamicalSystem(object):
             n_feature=n_feature,
         )
 
+        # NOTE: Both the discrete and continuous time evolution can be optimized,
+        # but the current version is better readable and so far no computational
+        # problems were encountered.
         if self.mode == "continuous":
-            # TODO: see gitlab #82
-            omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
+
+            # Usually, for a continuous system the eigenvalues are written as:
+            # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
+            # --> evolve system with
+            #               exp(omegas * t)
+            # because this matches the way how a continuous system is evolved
+
+            # The disadvantage is, that it requires the complex logarithm, which for
+            # complex (eigen-)values can happen to be not well defined.
+
+            # A numerical more stable way is:
+            # exp(omegas * t)
+            # exp(log(ev) / time_delta * t)
+            # exp(log(ev^(t/time_delta)))  -- logarithm rules
+            # --> evolve system with
+            #               ev^(t / time_delta)
 
             for idx, time in enumerate(time_values):
                 time_series_tensor[:, idx, :] = np.real(
                     dynmatrix
-                    @ diagmat_dot_mat(np.exp(omegas * time), initial_conditions)
+                    @ diagmat_dot_mat(
+                        np.float_power(eigenvalues, time / time_delta),
+                        initial_conditions,
+                    )
                 ).T
         else:  # self.mode == "discrete"
             for idx, time in enumerate(time_values):
@@ -245,12 +265,24 @@ class LinearDynamicalSystem(object):
                     @ diagmat_dot_mat(np.power(eigenvalues, time), initial_conditions)
                 ).T
 
-        return TSCDataFrame.from_tensor(
-            time_series_tensor,
-            time_series_ids=time_series_ids,
-            columns=feature_columns,
-            time_values=time_values,
-        )
+        if len(time_values) != 1:
+            return TSCDataFrame.from_tensor(
+                time_series_tensor,
+                time_series_ids=time_series_ids,
+                columns=feature_columns,
+                time_values=time_values,
+            )
+        else:
+            # in the special case where only one time value is requested, we cannot
+            # return a time series -> fallback to pandas.DataFrame
+            idx = pd.MultiIndex.from_arrays(
+                [time_series_ids, np.ones(len(time_series_ids)) * time_values[0]],
+                names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
+            )
+
+            return pd.DataFrame(
+                time_series_tensor[:, 0, :], index=idx, columns=feature_columns
+            )
 
 
 class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
@@ -707,10 +739,11 @@ class DMDFull(DMDBase):
         Eigenvalues of Koopman matrix.
 
     eigenvectors_right_: numpy.ndarray
-        All right eigenvectors of Koopman matrix.
+        All right eigenvectors of Koopman matrix with same shape and ordered column wise.
 
     eigenvectors_left_: numpy.ndarray
-        All left eigenvectors of Koopman matrix if ``is_diagonalize=True``.
+        All left eigenvectors of Koopman matrix with same shape and ordered row-wise.
+        Only accessible if ``is_diagonalize=True``.
 
     koopman_matrix_: numpy.ndarray
         Koopman matrix obtained from least squares. Only stored if
