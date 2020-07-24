@@ -1,0 +1,278 @@
+#!/usr/bin/env python3
+
+import unittest
+import unittest.mock as mock
+
+import matplotlib.pyplot as plt
+import numpy as np
+import numpy.testing as nptest
+import pandas as pd
+import scipy.linalg
+
+from datafold.dynfold.dmd import DMDFull, LinearDynamicalSystem
+from datafold.dynfold.tests.helper import assert_equal_eigenvectors
+from datafold.pcfold import TSCDataFrame
+
+
+class LinearDynamicalSystemTest(unittest.TestCase):
+    def _set_attrs_discrete_system(self):
+
+        # A too small time_delta increases error (its only a first order finite diff
+        # scheme). Smallest time_delta by testing 1e-8
+        self.time_delta_approx = 1e-8
+
+        # Is \dot{x} = A x (i.e., A = generator_matrix)
+        self.generator_matrix = np.array([[1, -3], [-2, 1]])
+
+        # This is basically, that the Koopman matrix is
+        # A = (K - I) / time_delta, now we can simply use a small time_delta, because
+        # we have the true generator matrix A given
+        self.dyn_matrix_discrete = (
+            np.eye(self.generator_matrix.shape[0])
+            + self.time_delta_approx * self.generator_matrix
+        )
+
+        self.eigvals, self.eigvec_right = np.linalg.eig(self.dyn_matrix_discrete)
+        self.eigvec_left = np.linalg.solve(
+            self.eigvec_right * self.eigvals, self.dyn_matrix_discrete
+        )
+
+        # Check that diagonalization of the discrete matrix is correct
+        nptest.assert_allclose(
+            self.eigvec_right @ np.diag(self.eigvals) @ self.eigvec_left,
+            self.dyn_matrix_discrete,
+            atol=1e-15,
+            rtol=0,
+        )
+
+    def setUp(self) -> None:
+        self._set_attrs_discrete_system()
+
+    def test_approx_continuous_linear_system(self, plot=False):
+
+        n_timesteps = 200
+        time_values = np.linspace(0, 1, n_timesteps)
+
+        ic = np.array([[3], [2]])
+
+        expected = np.zeros([n_timesteps, self.generator_matrix.shape[0]])
+        for i, t in enumerate(time_values):
+            expected[i, :] = np.real(
+                (scipy.linalg.expm(t * self.generator_matrix) @ ic).ravel()
+            )
+
+        actual = LinearDynamicalSystem(
+            mode="continuous", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            time_delta=self.time_delta_approx,
+            initial_conditions=self.eigvec_left @ ic,
+            time_values=time_values,
+        )
+
+        nptest.assert_allclose(expected, actual.to_numpy(), atol=1e-6, rtol=1e-14)
+
+        if plot:
+            f, ax = plt.subplots(2, 1)
+
+            expected = TSCDataFrame.from_same_indices_as(actual, expected)
+
+            expected.plot(ax=ax[0])
+            actual.plot(ax=ax[1])
+
+            plt.show()
+
+    def test_equivalence_cont_discrete_system(self):
+
+        n_timesteps = 10
+
+        ic = np.array([[1], [3]], dtype=np.float)
+
+        actual_discrete = LinearDynamicalSystem(
+            mode="discrete", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            time_delta=1e100,  # must be ignored, by the discrete system
+            initial_conditions=self.eigvec_left @ ic,
+            time_values=np.arange(n_timesteps),
+        )
+
+        actual_continuous = LinearDynamicalSystem(
+            mode="continuous", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            # to match up the discrete system we have to assume a time delta of 1
+            time_delta=1,
+            initial_conditions=self.eigvec_left @ ic,
+            time_values=np.arange(n_timesteps),
+        )
+
+        nptest.assert_array_equal(
+            actual_continuous.to_numpy(), actual_discrete.to_numpy()
+        )
+
+    def test_time_values(self):
+
+        time_values = np.random.default_rng(1).uniform(size=(100)) * 100
+
+        actual = LinearDynamicalSystem(
+            mode="continuous", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            # to match up the discrete system we have to assume a time delta of 1
+            time_delta=1,
+            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
+            time_values=time_values,
+        )
+
+        nptest.assert_array_equal(actual.time_values(), np.sort(time_values))
+
+    def test_multi_initial_conditions(self):
+
+        n_timeseries = 10
+        initial_conditions = np.random.default_rng(1).uniform(size=(2, n_timeseries))
+
+        time_values = np.linspace(0, 20, 100)
+
+        actual = LinearDynamicalSystem(
+            mode="continuous", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            # to match up the discrete system we have to assume a time delta of 1
+            time_delta=1,
+            initial_conditions=self.eigvec_left @ initial_conditions,
+            time_values=time_values,
+            feature_columns=["A", "B"],
+        )
+
+        self.assertEqual(actual.n_timesteps, len(time_values))
+        self.assertEqual(actual.n_timeseries, n_timeseries)
+        self.assertEqual(actual.columns.tolist(), ["A", "B"])
+        nptest.assert_array_equal(actual.time_values(), time_values)
+
+    def test_feature_columns(self):
+
+        actual = LinearDynamicalSystem(
+            mode="continuous", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            # to match up the discrete system we have to assume a time delta of 1
+            time_delta=1,
+            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
+            time_values=np.arange(4),
+            feature_columns=["expectedA", "expectedB"],
+        )
+
+        self.assertEqual(actual.columns.tolist(), ["expectedA", "expectedB"])
+
+        with self.assertRaises(ValueError):
+            LinearDynamicalSystem().evolve_system_spectrum(
+                dynmatrix=self.eigvec_right,
+                eigenvalues=self.eigvals,
+                # to match up the discrete system we have to assume a time delta of 1
+                time_delta=1,
+                initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
+                time_values=np.arange(4),
+                feature_columns=[1, 2, 3],
+            )
+
+    def test_discrete_system_err_float_time(self):
+
+        with self.assertRaises(TypeError):
+            LinearDynamicalSystem(mode="discrete").evolve_system_spectrum(
+                dynmatrix=self.eigvec_right,
+                eigenvalues=self.eigvals,
+                # to match up the discrete system we have to assume a time delta of 1
+                time_delta=1,
+                initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
+                time_values=np.arange(4).astype(np.float) * 0.5,
+            )
+
+    def test_return_types(self):
+        actual = LinearDynamicalSystem(
+            mode="continuous", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            # to match up the discrete system we have to assume a time delta of 1
+            time_delta=1,
+            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
+            time_values=np.arange(1),
+        )
+
+        # Is a pandas.DataFrame, but NOT a TSCDataFrame
+        self.assertIsInstance(actual, pd.DataFrame)
+        self.assertFalse(isinstance(actual, TSCDataFrame))
+
+        actual = LinearDynamicalSystem(
+            mode="continuous", time_invariant=True
+        ).evolve_system_spectrum(
+            dynmatrix=self.eigvec_right,
+            eigenvalues=self.eigvals,
+            # to match up the discrete system we have to assume a time delta of 1
+            time_delta=1,
+            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
+            time_values=np.arange(2),
+        )
+
+        # is a TSCDataFrame, because more than two time values are a time series
+        self.assertIsInstance(actual, TSCDataFrame)
+
+
+class DMDTest(unittest.TestCase):
+    def _create_dummy_tsc(self, dim):
+        data = pd.DataFrame(np.random.rand(dim, dim))
+        return TSCDataFrame.from_single_timeseries(data)
+
+    def test_dmd_eigenpairs(self):
+        # From http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf
+        # page 297 Example 9.5
+
+        dmd_model = DMDFull(is_diagonalize=True)
+
+        mock_koopman_matrix = np.array([[3.0, 1], [2, 2]])
+        dmd_model._compute_koopman_matrix = mock.MagicMock(
+            return_value=mock_koopman_matrix
+        )
+
+        dmd_model = dmd_model.fit(self._create_dummy_tsc(dim=2))
+
+        expected_eigenvalues = np.array([4.0, 1.0])  # must be sorted descending
+        nptest.assert_array_equal(expected_eigenvalues, dmd_model.eigenvalues_)
+
+        expected_eigenvectors_right = np.array([[1, 1], [1, -2]])
+
+        assert_equal_eigenvectors(
+            expected_eigenvectors_right, dmd_model.eigenvectors_right_
+        )
+
+        expected_eigenvectors_left = np.array([[2 / 3, 1 / 3], [1 / 3, -1 / 3]])
+
+        # NOTE: the left eigenvectors are transposed because the they are
+        # stored row-wise (whereas right eigenvectors are column-wise). The helper
+        # function assert_equal_eigenvectors assumes column-wise ordering
+        assert_equal_eigenvectors(
+            expected_eigenvectors_left.T, dmd_model.eigenvectors_left_.T
+        )
+
+        # sanity check: diagonalization of mocked Koopman matrix
+        nptest.assert_equal(
+            expected_eigenvectors_right
+            @ np.diag(expected_eigenvalues)
+            @ expected_eigenvectors_left,
+            mock_koopman_matrix,
+        )
+
+        actual = (
+            dmd_model.eigenvectors_right_
+            @ np.diag(dmd_model.eigenvalues_)
+            @ dmd_model.eigenvectors_left_
+        )
+
+        nptest.assert_allclose(mock_koopman_matrix, actual, rtol=1e-15, atol=1e-15)
