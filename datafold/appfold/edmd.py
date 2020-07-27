@@ -382,29 +382,6 @@ class EDMD(Pipeline, TSCPredictMixIn):
         # number that is required for the initial condition
         return int(diff) + 1
 
-    def _validate_type_and_n_samples_ic(self, X_ic):
-
-        if self.n_samples_ic_ == 1:
-            if isinstance(X_ic, TSCDataFrame):
-                raise TypeError(
-                    "The n_samples to define an inital condition ("
-                    f"n_samples_ic_={self.n_samples_ic_}) is incorrect. "
-                    f"Got a time series collection with multiple samples."
-                )
-        else:  # self.n_samples_ic_ > 1
-            if not isinstance(X_ic, TSCDataFrame):
-                raise TypeError(
-                    "For the initial condition a TSCDataFrame is required, "
-                    f"with {self.n_samples_ic_} samples (see attribute 'n_samples_ic_') "
-                    f"per initial condition. Got type={type(X_ic)}."
-                )
-
-            if not np.asarray(X_ic.n_timesteps == self.n_samples_ic_).all():
-                raise TSCException(
-                    f"For each initial condition exactly {self.n_samples_ic_} samples "
-                    f"(attribute n_samples_ic_) are required. Got: \n {X_ic.n_timesteps}"
-                )
-
     def _compute_inverse_map(self, X: TSCDataFrame, X_dict: TSCDataFrame):
         """Compute matrix that linearly maps from dictionary space to original feature
         space.
@@ -540,9 +517,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             (2) all values must be finite (no `NaN` or `inf`)
         """
         self._validate_data(
-            X,
-            ensure_feature_name_type=True,
-            validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X)
 
@@ -563,7 +538,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         return self
 
-    def _predict_ic(self, X_dict, time_values, qois) -> TSCDataFrame:
+    def _predict_ic(self, X_dict: TSCDataFrame, time_values, qois) -> TSCDataFrame:
         """Prediction with initial condition.
 
         Parameters
@@ -581,10 +556,6 @@ class EDMD(Pipeline, TSCPredictMixIn):
         -------
 
         """
-
-        # this needs to always hold if the checks _validate_type_and_n_samples_ic are
-        #  correct
-        assert isinstance(X_dict, pd.DataFrame)
 
         if qois is None:
             feature_columns = self.features_in_[1]
@@ -634,31 +605,24 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         Parameters
         ----------
-        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            Initial conditions states for prediction. The input type depends on the
-            number of samples ``n_samples_ic_`` that are required for an initial
-            condition:
-
-            * ``n_samples_ic_ = 1`` a :class:`DataFrame` or `ndarray` is sufficient (per \
-              row one initial condition)
-            
-            * ``n_samples_ic_ > 1`` a :py:class:`TSCDataFrame` is required with each \
-              initial condition being a time series of ``n_samples_ic_`` identical time \
-              values.
-
-            The input must fulfill the input requirements of first step of the pipeline.
+        X: TSCDataFrame, numpy.ndarray
+            Initial conditions states for prediction. The preferred input type is
+            :py:class:`TSCDataFrame`. If only a single sample is required
+            to define an initial condition (``n_samples_ic_ = 1``), then an ``ndarray``
+            with row-wise initial conditions is also sufficient. The input must fulfill
+            the input requirements of first step of the pipeline.
 
         time_values
             Time values to evaluate the model for each initial condition.
             Defaults to time values contained in the data available during ``fit``. The
-            values should be ascending and must be non-negative numeric values.
+            values should be ascending and non-negative numeric values.
 
         qois
-            List of feature names of interest to be include in the return object. If
+            List of feature names of interest to be include in the returned results. If
             ``include_id_state=True``, the time series are only computed for the selected
-            features in the dictionary space, which decreases the memory requirements.
-            Otherwise, the features are selected afterwards. Note that the input ``X``
-            must still contain all features used during fit.
+            features in the dictionary space (via Koopman modes), which decreases the
+            memory requirements. Otherwise, the features are selected afterwards. Note
+            that the input ``X`` must still contain all features used during fit.
 
         **predict_params: Dict[str, object]
             Keyword arguments passed to the ``predict`` method of the DMD model.
@@ -679,24 +643,24 @@ class EDMD(Pipeline, TSCPredictMixIn):
         check_is_fitted(self)
 
         if isinstance(X, np.ndarray):
-            # work internally only with DataFrames
+            # work internally only with TSCDataFrame
             X = InitialCondition.from_array(X, columns=self.features_in_[1])
         else:
-            InitialCondition.validate(X)
+            InitialCondition.validate(
+                X,
+                n_samples_ic=self.n_samples_ic_,
+                dt=self.dt_ if self.n_samples_ic_ > 1 else None,
+            )
 
-        self._validate_data(
-            X,
-            ensure_feature_name_type=True,
-            validate_tsc_kwargs={"ensure_const_delta_time": True},
-        )
-
-        self._validate_type_and_n_samples_ic(X_ic=X)
         X, time_values = self._validate_features_and_time_values(
             X=X, time_values=time_values
         )
 
-        X_dict = self.transform(X)
+        self._validate_data(
+            X, ensure_tsc=True,
+        )
 
+        X_dict = self.transform(X)
         X_ts = self._predict_ic(X_dict=X_dict, time_values=time_values, qois=qois)
 
         return X_ts
@@ -716,7 +680,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         Parameters
         ----------
         X
-            Time series collection to reconstruct.
+            The time series collection to reconstruct.
 
         qois
             List of feature names of interest to be include in the return object.
@@ -738,7 +702,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         X = self._validate_data(
             X,
-            ensure_feature_name_type="tsc",
+            ensure_tsc=True,
             # Note: no const_delta_time required here. The required const samples for
             # time series initial conditions is included in the predict method.
         )
