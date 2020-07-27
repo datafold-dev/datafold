@@ -20,6 +20,11 @@ Contents
    tutorial_index
    references
 
+.. toctree::
+   :hidden:
+
+   conda_install_info
+
 -----
 
 .. include:: ../../README.rst

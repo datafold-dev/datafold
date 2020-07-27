@@ -10,8 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScaler
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.decorators import warn_experimental_class
-from datafold.dynfold.base import DataFrameType, TransformType, TSCTransformerMixIn
+from datafold.dynfold.base import TransformType, TSCTransformerMixIn
 from datafold.pcfold import MultiquadricKernel, PCManifold, TSCDataFrame
 from datafold.pcfold.kernels import PCManifoldKernel
 from datafold.pcfold.timeseries.collection import TSCException
@@ -254,6 +253,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         self._validate_feature_input(X, direction="transform")
 
         if self._has_feature_names(X):
+            X = X.copy(deep=True)
             if self.rename_features:
                 X = X.add_suffix("_id")
 
@@ -263,6 +263,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
             if self.include_const:
                 X = np.column_stack([X, np.ones(X.shape[0])])
 
+        # Need to copy to not alter the original data
         return X
 
     def inverse_transform(self, X: TransformType):
@@ -283,6 +284,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixIn):
         self._validate_feature_input(X, direction="inverse_transform")
 
         if self.include_const:
+            X = X.copy(deep=True)
             if self._has_feature_names(X):
                 X = X.drop("const", axis=1)
             else:
@@ -551,7 +553,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
             name=TSCDataFrame.tsc_feature_col_name,
         )
 
-    def fit(self, X: DataFrameType, y=None, **fit_params) -> "TSCTakensEmbedding":
+    def fit(self, X: TSCDataFrame, y=None, **fit_params) -> "TSCTakensEmbedding":
         """Compute delay indices based on settings and validate input with setting.
 
         Parameters
@@ -586,7 +588,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
                 "ensure_const_delta_time": True,
                 "ensure_min_timesteps": self.min_timesteps_,
             },
-            ensure_feature_name_type=True,
+            ensure_tsc=True,
         )
 
         X = self._columns_to_type_str(X)
@@ -602,7 +604,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
         )
         return self
 
-    def transform(self, X: DataFrameType) -> DataFrameType:
+    def transform(self, X: TSCDataFrame) -> TSCDataFrame:
         """Perform Takens time delay embedding for each time series in the collection.
 
         Parameters
@@ -612,7 +614,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
         Returns
         -------
-        TSCDataFrame, pandas.DataFrame
+        TSCDataFrame
             Each time series is shortend by the number of samples required for the
             delays. The type can fall back to `pandas.DataFrame` if the result is not
             not a valid :class:`.TSCDataFrame` anymore (this is a typical scenario for
@@ -633,7 +635,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
                 "ensure_delta_time": self.delta_time_fit_,
                 "ensure_min_timesteps": self.min_timesteps_,
             },
-            ensure_feature_name_type=True,
+            ensure_tsc=True,
         )
 
         X = self._columns_to_type_str(X)
@@ -703,14 +705,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
             delayed_timeseries[idx] = df
 
-        X = pd.concat(delayed_timeseries, axis=0)
-
-        try:
-            X = TSCDataFrame(X)
-        except AttributeError:
-            # simply return the pandas DataFrame then
-            pass
-
+        X = TSCDataFrame(pd.concat(delayed_timeseries, axis=0))
         return X
 
     def inverse_transform(self, X: TransformType) -> TransformType:
@@ -731,7 +726,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixIn):
 
         X = self._validate_data(
             X,
-            ensure_feature_name_type=True,
+            ensure_tsc=True,
             # will only be checked if TSCDataFrame (pandas DataFrame is also legal and
             # won't be checked for delta time)
             validate_tsc_kwargs=dict(ensure_delta_time=self.delta_time_fit_),
@@ -810,8 +805,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixIn):
         TSCRadialBasis
             self
         """
-
-        from datafold.pcfold import PCManifold
 
         X = self._validate_data(X)
         self._validate_center_type(center_type=self.center_type)
@@ -1073,7 +1066,7 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
             self
         """
         self._not_implemented_numpy_arrays(X)
-        X = self._validate_data(X, ensure_feature_name_type=True)
+        X = self._validate_data(X, ensure_tsc=True)
 
         features_out = [
             f"{feature_name}_lambda{i}"
@@ -1101,7 +1094,7 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixIn):
         self._not_implemented_numpy_arrays(X)
 
         check_is_fitted(self)
-        X = self._validate_data(X, ensure_feature_name_type=True)
+        X = self._validate_data(X, ensure_tsc=True)
         self._validate_feature_input(X, direction="transform")
 
         lambdas_applied = list()
@@ -1199,7 +1192,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         """
         X = self._validate_data(
             X,
-            ensure_feature_name_type=False,
+            ensure_tsc=False,
             validate_tsc_kwargs=dict(
                 ensure_delta_time=self.spacing
                 if isinstance(self.spacing, float)
@@ -1284,7 +1277,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixIn):
         check_is_fitted(self)
         X = self._validate_data(
             X,
-            ensure_feature_name_type="tsc",
+            ensure_tsc=True,
             validate_tsc_kwargs=dict(ensure_delta_time=self.spacing_),
         )
 

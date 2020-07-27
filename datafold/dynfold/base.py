@@ -16,16 +16,15 @@ from sklearn.utils.validation import check_array, check_is_fitted
 from datafold.pcfold import TSCDataFrame, TSCMetric, TSCScoring
 from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
 from datafold.pcfold.kernels import DmapKernelFixed
+from datafold.pcfold.timeseries.collection import TSCException
 from datafold.utils.general import if1dim_rowvec
 
-DataFrameType = Union[TSCDataFrame, pd.DataFrame]
-
 # types allowed for transformation
-TransformType = Union[DataFrameType, np.ndarray]
+TransformType = Union[TSCDataFrame, np.ndarray]
 
 # types allowed for time predictions
 TimePredictType = TSCDataFrame
-InitialConditionType = Union[TSCDataFrame, pd.DataFrame, np.ndarray]
+InitialConditionType = Union[TSCDataFrame, np.ndarray]
 
 
 class TSCBaseMixIn:
@@ -73,41 +72,38 @@ class TSCBaseMixIn:
 
     def _validate_data(
         self,
-        X,
-        ensure_feature_name_type=False,
-        validate_array_kwargs=None,
-        validate_tsc_kwargs=None,
+        X: Union[TSCDataFrame, np.ndarray],
+        ensure_tsc: bool = False,
+        validate_array_kwargs: Optional[dict] = None,
+        validate_tsc_kwargs: Optional[dict] = None,
     ):
         """Provides a general function to validate data -- can be overwritten if a
         concrete implementation requires different checks."""
 
-        if validate_array_kwargs is None:
-            validate_array_kwargs = {}
+        # defaults to empty dictionary if None
+        validate_array_kwargs = validate_array_kwargs or {}
+        validate_tsc_kwargs = validate_tsc_kwargs or {}
 
-        if validate_tsc_kwargs is None:
-            validate_tsc_kwargs = {}
+        if ensure_tsc and not isinstance(X, TSCDataFrame):
+            raise TypeError(
+                f"Input 'X' is of type {type(X)} but a TSCDataFrame is required."
+            )
 
-        if ensure_feature_name_type:
-            if not self._has_feature_names(X):
-                raise TypeError(
-                    f"X is of type {type(X)} but frame types ("
-                    f"pd.DataFrame of TSCDataFrame) are required."
-                )
+        if type(X) != TSCDataFrame:
+            # Currently, everything that is not strictly a TSCDataFrame will go the
+            # path of an usual array format. This includes:
+            #  * sparse scipy matrices
+            #  * numpy ndarray
+            #  * memmap
+            #  * pandas.DataFrame (Note a TSCDataFrame is also a pandas.DataFrame,
+            #                      but not strictly)
 
-            if ensure_feature_name_type == "tsc" and not isinstance(X, TSCDataFrame):
-                raise TypeError(
-                    f"X is of type {type(X)} but a TSCDataFrame is required."
-                )
-
-        if not isinstance(X, TSCDataFrame):
-            # Currently, a pd.DataFrame is treated like numpy data
-            #  -- there is no assumption of the content in on the index (for
-            #  TSCDataFrame it is time series ID and time)
-
-            validate_tsc_kwargs = {}  # no need to check
+            validate_tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
             if self._strictly_pandas_df(X):
-                assert isinstance(X, pd.DataFrame)  # for mypy checking
+                # special handling of pandas.DataFrame
+                # --> keep the type (recover after validation).
+                assert isinstance(X, pd.DataFrame)  # mypy checking
                 revert_to_data_frame = True
                 idx, col = X.index, X.columns
             else:
@@ -136,7 +132,7 @@ class TSCBaseMixIn:
 
         else:
 
-            validate_array_kwargs = {}  # no need to check
+            validate_array_kwargs = {}  # no need to check -> overwrite to empty dict
 
             X = X.tsc.check_tsc(
                 ensure_all_finite=validate_tsc_kwargs.pop("ensure_all_finite", True),
@@ -156,6 +152,9 @@ class TSCBaseMixIn:
                 ),
                 ensure_min_timesteps=validate_tsc_kwargs.pop(
                     "ensure_min_timesteps", None
+                ),
+                ensure_no_degenerate_ts=validate_tsc_kwargs.pop(
+                    "ensure_no_degenerate_ts", False
                 ),
             )
 
@@ -458,7 +457,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
             )
 
         if delta_time != self.dt_:
-            raise ValueError(
+            raise TSCException(
                 f"delta_time during fit was {self.dt_}, now it is {delta_time}"
             )
 
@@ -480,7 +479,7 @@ class TSCPredictMixIn(TSCBaseMixIn):
             raise ValueError(e.args[0])
 
     def _validate_features_and_time_values(
-        self, X: DataFrameType, time_values: Optional[np.ndarray] = None
+        self, X: TSCDataFrame, time_values: Optional[np.ndarray]
     ):
 
         self._check_attributes_set_up(check_attributes=["time_values_in_"])
@@ -492,13 +491,6 @@ class TSCPredictMixIn(TSCBaseMixIn):
             raise TypeError("only types that support feature names are supported")
 
         self._validate_time_values(time_values=time_values)
-
-        if isinstance(X, TSCDataFrame):
-            # sometimes also for initial conditions a TSCDataFrame is required (e.g.
-            # for transformation with Takens) -- for this case check also that the
-            # delta_time matches.
-            self._validate_delta_time(delta_time=X.delta_time)
-
         self._validate_feature_names(X)
 
         return X, time_values
@@ -517,7 +509,6 @@ class TSCPredictMixIn(TSCBaseMixIn):
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
         **predict_params,
     ):
         raise NotImplementedError("method not implemented")

@@ -251,7 +251,7 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         self._precompute_aux()
 
         if store_kernel_matrix:
-            if self._dmap_kernel.is_symmetric_transform(is_pdist=True):
+            if self._dmap_kernel.is_symmetric_transform():
                 self.kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
                     kernel_matrix=kernel_matrix_,
                     basis_change_matrix=basis_change_matrix,
@@ -326,8 +326,6 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         # Gradient computation
         ki_psis = kernel_matrix * values
 
-        # NOTE: see also file misc/microbenchmark_gradient.py, using numexpr can squeeze
-        # out some computation speed for large numbers of xi.shape[0]
         grad = np.zeros_like(X)
         v = np.empty_like(self.X_)
         for p in range(X.shape[0]):
