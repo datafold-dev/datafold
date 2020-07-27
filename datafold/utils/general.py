@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import warnings
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -256,6 +256,46 @@ def diagmat_dot_mat(diag_elements: np.ndarray, matrix: np.ndarray, out=None):
     return np.multiply(matrix, diag_elements[:, np.newaxis], out=out)
 
 
+def df_type_and_indices_from(
+    indices_from: pd.DataFrame,
+    values: Union[np.ndarray, pd.DataFrame],
+    except_index: Optional[Union[pd.Index, List[str]]] = None,
+    except_columns: Optional[Union[pd.Index, List[str]]] = None,
+):
+    # import here to prevent circular imports
+    from datafold.pcfold import TSCDataFrame
+
+    if except_index is not None and except_columns is not None:
+        raise ValueError(
+            "'except_index' and 'except_columns' are both given. "
+            "Cannot copy neither index nor column from existing TSCDataFrame if both "
+            "is excluded."
+        )
+
+    # view input as array (allows for different input, which is
+    # compatible with numpy.ndarray
+    values = np.asarray(values)
+
+    if except_index is None:
+        index = indices_from.index  # type: ignore  # mypy cannot infer type here
+    else:
+        index = except_index
+
+    if except_columns is None:
+        columns = indices_from.columns
+    else:
+        columns = except_columns
+
+    if isinstance(indices_from, TSCDataFrame):
+        return TSCDataFrame(data=values, index=index, columns=columns)
+    elif isinstance(indices_from, pd.DataFrame):
+        return pd.DataFrame(data=values, index=index, columns=columns)
+    else:
+        raise TypeError(
+            f"The argument type 'type(indices_from)={type(indices_from)} is invalid."
+        )
+
+
 def is_symmetric_matrix(
     matrix: Union[np.ndarray, scipy.sparse.csr_matrix], tol: float = 0
 ) -> bool:
@@ -264,9 +304,9 @@ def is_symmetric_matrix(
     Parameters
     ----------
     matrix
-        square matrix
+       A square matrix to be checked for symmetry.
     tol
-        maximum allowed absolute deviation between corresponding elements
+       The maximum allowed absolute deviation between corresponding elements.
 
     Returns
     -------

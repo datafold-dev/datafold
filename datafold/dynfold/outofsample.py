@@ -251,7 +251,7 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         self._precompute_aux()
 
         if store_kernel_matrix:
-            if self._dmap_kernel.is_symmetric_transform(is_pdist=True):
+            if self._dmap_kernel.is_symmetric_transform():
                 self.kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
                     kernel_matrix=kernel_matrix_,
                     basis_change_matrix=basis_change_matrix,

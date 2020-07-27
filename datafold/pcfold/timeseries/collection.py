@@ -3,9 +3,15 @@ from typing import Generator, List, Optional, Tuple, Union
 import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
+import scipy.sparse
 from pandas.core.indexing import _iLocIndexer, _LocIndexer
 
-from datafold.utils.general import is_df_same_index, is_integer
+from datafold.pcfold.distance import compute_distance_matrix
+from datafold.utils.general import (
+    df_type_and_indices_from,
+    is_df_same_index,
+    is_integer,
+)
 
 ColumnType = Union[pd.Index, List[str]]
 NumericalTimeType = Union[int, float, np.datetime64]
@@ -34,7 +40,7 @@ class TSCException(Exception):
 
     @classmethod
     def not_const_delta_time(cls, actual_delta_time=None):
-        msg = "not const delta time"
+        msg = "the time sampling ('delta_time') is not constant"
 
         if actual_delta_time is not None:
             msg += f"\n {actual_delta_time}"
@@ -50,16 +56,16 @@ class TSCException(Exception):
 
     @classmethod
     def not_same_time_values(cls):
-        return cls("time series have not the same time values")
+        return cls("Time series have not the same time values.")
 
     @classmethod
     def not_normalized_time(cls):
-        return cls("time is not normalized")
+        return cls("Time values are not normalized.")
 
     @classmethod
     def not_required_n_timeseries(cls, required_n_timeseries, actual_n_timeseries):
         return cls(
-            f"there are {actual_n_timeseries} time series present. "
+            f"There are {actual_n_timeseries} time series present. "
             f"Required: {required_n_timeseries}"
         )
 
@@ -82,6 +88,10 @@ class TSCException(Exception):
         return cls(
             "One or more time series are degenerated (i.e. have only a single sample)."
         )
+
+    @classmethod
+    def no_kernel(cls):
+        return cls("No kernel is set.")
 
 
 class _LocTSCIndexer(_LocIndexer):
@@ -219,8 +229,13 @@ class TSCDataFrame(pd.DataFrame):
     ----------
     *args
     **kwargs
-        All parameters (`*args` and `**kwargs`) are passed to superclass
-        ``pandas.DataFrame``.
+        All parameters (`*args` and `**kwargs`) are passed to the superclass
+        ``pandas.DataFrame``, except:
+
+        * ``kernel`` :py:class:`.BaseManifoldKernel` - A kernel to describe the
+           manifold  of the time series samples. Defaults to ``None``
+        * ``dist_kwargs`` :class:`dict` - Keyword arguments passed to
+          :py:meth:`.compute_distance_matrix`.
 
     Attributes
     ----------
@@ -232,6 +247,12 @@ class TSCDataFrame(pd.DataFrame):
     
     tsc_feature_col_name
         The name of feature axis (columns).
+
+    kernel
+        The kernel to describe the locality between samples. A
+        :py:class:`.PCManifoldKernel` takes the samples independently, whereas a
+        :py:class:`.TSCManifoldKernel` can include the time information of samples in a
+        kernel.
     """
 
     tsc_id_idx_name = "ID"  # name used in index of (unique) time series
@@ -239,16 +260,25 @@ class TSCDataFrame(pd.DataFrame):
     tsc_feature_col_name = "feature"
 
     def __init__(self, *args, **kwargs):
+
+        # remove specific attributes from kwargs first into local attributes
+        kernel = kwargs.pop("kernel", None)
+        dist_kwargs = kwargs.pop("dist_kwargs", dict())
+
         # NOTE: do not move this call after other setters "self.attribute = ...".
         # Otherwise, there is an infinite recursion because pandas handles the
         # __getattr__ magic function.
         super(TSCDataFrame, self).__init__(*args, **kwargs)
 
+        self.kernel = kernel
+
+        dist_kwargs.setdefault("cut_off", np.inf)
+        dist_kwargs.setdefault("kmin", 0)
+        dist_kwargs.setdefault("backend", "guess_optimal")
+        self.attrs["dist_kwargs"] = dist_kwargs
+
         self._validate()
-        # self._set_time_precision_float64()
-        self.sort_index(
-            level=[self.tsc_id_idx_name, self.tsc_time_idx_name], inplace=True
-        )
+        self._sort_tsc_index()
 
     @classmethod
     def from_tensor(
@@ -424,28 +454,15 @@ class TSCDataFrame(pd.DataFrame):
             new instance
         """
 
-        if except_index is not None and except_columns is not None:
-            raise ValueError(
-                "'except_index' and 'except_columns' are both given. "
-                "Cannot copy neither index nor column from existing TSCDataFrame if both "
-                "is excluded."
-            )
+        if not isinstance(indices_from, TSCDataFrame):
+            raise TypeError("'indices_from' must be of type TSCDataFrame")
 
-        # view input as array (allows for different input, which is
-        # compatible with numpy.ndarray
-        values = np.asarray(values)
-
-        if except_index is None:
-            index = indices_from.index  # type: ignore  # mypy cannot infer type here
-        else:
-            index = except_index
-
-        if except_columns is None:
-            columns = indices_from.columns
-        else:
-            columns = except_columns
-
-        return cls(data=values, index=index, columns=columns)
+        return df_type_and_indices_from(
+            indices_from=indices_from,
+            values=values,
+            except_index=except_index,
+            except_columns=except_columns,
+        )
 
     @classmethod
     def from_single_timeseries(
@@ -573,6 +590,11 @@ class TSCDataFrame(pd.DataFrame):
     def _constructor_expanddim(self):
         raise NotImplementedError("expanddim is not required for TSCDataFrame")
 
+    def _sort_tsc_index(self):
+        self.sort_index(
+            level=[self.tsc_id_idx_name, self.tsc_time_idx_name], inplace=True
+        )
+
     def _validate(self) -> bool:
 
         if self.index.nlevels != 2:
@@ -614,7 +636,6 @@ class TSCDataFrame(pd.DataFrame):
                 # The ids have to be integer values
                 raise AttributeError(
                     "Time series IDs must be of integer value. Got "
-                    f"self.index.get_level_values(0). "
                     f"dtype={self.index.get_level_values(0).dtype}"
                 )
 
@@ -767,6 +788,88 @@ class TSCDataFrame(pd.DataFrame):
             return n_time_elements
 
     @property
+    def kernel(self):
+        """The kernel to describe the proximity between .
+
+        Returns
+        -------
+
+        :py:class:`.BaseManifoldKernel`
+        """
+        if "kernel" not in self.attrs:
+            self.attrs["kernel"] = None
+
+        return self.attrs["kernel"]
+
+    @kernel.setter
+    def kernel(self, kernel) -> None:
+        """Set a new kernel.
+
+        Parameters
+        ----------
+        kernel
+            The new kernel to be set.
+
+        Returns
+        -------
+
+        """
+
+        from datafold.pcfold.kernels import BaseManifoldKernel
+
+        if kernel is not None and not isinstance(kernel, BaseManifoldKernel):
+            raise TypeError(
+                f"Kernel must be a subclass of type BaseManifoldKernel. Got "
+                f"type {type(kernel)}."
+            )
+        self.attrs["kernel"] = kernel
+
+    @property
+    def dist_kwargs(self) -> dict:
+        """The kernel to describe the proximity between .
+
+        Returns
+        -------
+
+        :py:class:`.BaseManifoldKernel`
+        """
+        if "dist_kwargs" not in self.attrs:
+            self.attrs["dist_kwargs"] = dict()
+
+        return self.attrs["dist_kwargs"]
+
+    @dist_kwargs.setter
+    def dist_kwargs(self, dist_kwargs: Optional[dict]) -> None:
+        """Set new keyword arguments for the distance matrix computation.
+
+        Parameters
+        ----------
+        dist_kwargs
+            The new arguments passed to the distance matrix backend. To set the default
+            keywords pass ``None``.
+
+        Returns
+        -------
+
+        """
+
+        if dist_kwargs is not None and not isinstance(dist_kwargs, dict):
+            raise TypeError(
+                f"Keyword arguments for distance computation must be a dictionary or "
+                f"None. Got type {type(dist_kwargs)}."
+            )
+
+        dist_kwargs = {} or dist_kwargs
+
+        assert dist_kwargs is not None  # for mypy
+
+        dist_kwargs.setdefault("cut_off", np.inf)
+        dist_kwargs.setdefault("kmin", 0)
+        dist_kwargs.setdefault("backend", "guess_optimal")
+
+        self.attrs["dist_kwargs"] = dist_kwargs
+
+    @property
     def loc(self):
         """Overwrites label based access to provide fall back types in case the result
         is not a valid ``TSCDataFrame`` anymore.
@@ -790,6 +893,29 @@ class TSCDataFrame(pd.DataFrame):
     @property
     def iloc(self):
         return _iLocTSCIndexer("iloc", self)
+
+    def set_index(
+        self, keys, drop=True, append=False, inplace=False, verify_integrity=False,
+    ):
+        result = super(TSCDataFrame, self).set_index(
+            keys=keys,
+            drop=drop,
+            append=append,
+            inplace=inplace,
+            verify_integrity=verify_integrity,
+        )
+
+        try:
+            if inplace:
+                self._validate()
+                self._sort_tsc_index()
+            else:
+                # calls validate and sorts result
+                result = TSCDataFrame(result)
+        except AttributeError as e:
+            raise e
+
+        return result
 
     def xs(
         self, key, axis=0, level=None, drop_level: bool = True
@@ -874,7 +1000,9 @@ class TSCDataFrame(pd.DataFrame):
         if isinstance(_dt, pd.Series):
             return False
 
-        return np.isfinite(_dt)
+        # pd.isnull is better than np.finite because it also checks for
+        # NaT (Not a Time[-delta])
+        return not pd.isnull(_dt)
 
     def is_same_time_values(self) -> bool:
         """Indicates if all time series in the collection share the same time values.
@@ -921,7 +1049,7 @@ class TSCDataFrame(pd.DataFrame):
         """Return the degenerate time series IDs.
 
         Degenerate time series consist only of a single sample.
-       
+
         Returns
         -------
         """
@@ -941,11 +1069,128 @@ class TSCDataFrame(pd.DataFrame):
 
     def has_degenerate_ts(self) -> bool:
         """Indicates whether degenerate time series are present in the collection.
-        
+
         Returns
         -------
         """
         return self.degenerate_ts_ids() is not None
+
+    def compute_distance_matrix(
+        self, Y: Optional[Union["TSCDataFrame", np.ndarray]] = None, metric="euclidean"
+    ) -> Union["TSCDataFrame", np.ndarray]:
+        """Compute distance matrix on time series collection.
+
+        Internally calls :py:meth:`datafold.pcfold.distance.compute_distance_matrix`
+        and adds time information if possible.
+
+        No time information is added when
+
+           * the query matrix `Y` is a numpy matrix
+           * the distance matrix is sparse due to ``dist_kwargs`` settings.
+
+        Parameters
+        ----------
+        Y
+            Query point cloud of shape (n_samples_Y, n_features). If provided, compute
+            the distance matrix component-wise, else `Y=self` (pair-wise). For further
+            details see also :class:`.DistanceAlgorithm`.
+
+        metric
+            Distance metric. The backend algorithm set in ``dist_kwargs`` must support
+            the metric.
+
+        Returns
+        -------
+        Union[np.ndarray, scipy.sparse.csr_matrix, TSCDataFrame]
+            Distance matrix.
+        """
+
+        if Y is not None:
+            is_attach_time = isinstance(Y, pd.DataFrame)
+        else:
+            is_attach_time = True
+
+        distance_matrix = compute_distance_matrix(
+            X=self, Y=Y, metric=metric, **self.dist_kwargs,
+        )
+
+        if is_attach_time and not isinstance(distance_matrix, scipy.sparse.spmatrix):
+            time_idx_from = self if Y is None else Y
+
+            distance_matrix = df_type_and_indices_from(
+                time_idx_from,
+                distance_matrix,
+                except_columns=[f"X{i}" for i in np.arange(self.shape[0])],
+            )
+
+        return distance_matrix
+
+    def compute_kernel_matrix(
+        self, Y: Optional[Union[np.ndarray, "TSCDataFrame"]] = None, **kernel_kwargs
+    ) -> pd.DataFrame:
+        """Compute the kernel matrix with the specified kernel.
+
+        Parameters
+        ----------
+        Y
+            Query point cloud or other time series collection of shape
+            `(n_samples_Y, n_features)`. If provided, it computes
+            the kernel matrix component-wise, else `Y=self` for a pair-wise kernel
+            matrix.
+
+
+        kernel_kwargs
+            Keyword arguments passed passed to the kernel.
+
+        Returns
+        -------
+        Union[numpy.ndarray, pandas.DataFrame, TSCDataFrame]
+            If the kernel is of type :class:`PCManifoldKernel` (i.e. acts on
+            point clouds), the time information is added in this routine. If the time
+            information. For :class:`.TSCManifoldKernel` (i.e. kernels natively act on
+            time series data), the result is directly returned from the kernel.
+
+        Optional
+            The specified kernel can return further objects, which are all forwarded
+            by this function. See :meth:`PCManifoldKernel.__call__`,
+            :meth:`TSCManifoldKernel.__call__` or the respective kernel for details.
+        """
+
+        if self.kernel is None:
+            raise TSCException.no_kernel()
+
+        if Y is not None:
+            is_attach_time = isinstance(Y, pd.DataFrame)
+        else:
+            is_attach_time = True
+
+        kernel_output = self.kernel(
+            X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs,
+        )
+
+        if isinstance(kernel_output, (tuple, list)):
+            ty_kernel_matrix = type(kernel_output[0])
+        else:
+            ty_kernel_matrix = type(kernel_output)
+
+        def _pcmkernel2tsc(kernel_matrix, indices_from):
+            return df_type_and_indices_from(
+                indices_from,
+                kernel_matrix,
+                except_columns=[f"X{i}" for i in np.arange(self.shape[0])],
+            )
+
+        if is_attach_time and ty_kernel_matrix == np.ndarray:
+            time_idx_from = self if Y is None else Y
+
+            if isinstance(kernel_output, (tuple, list)):
+                kernel_output = list(kernel_output)
+                kernel_output[0] = _pcmkernel2tsc(kernel_output[0], time_idx_from)
+                kernel_output = tuple(kernel_output)
+            else:
+                kernel_output = _pcmkernel2tsc(kernel_output, time_idx_from)
+
+        return kernel_output
 
     def insert_ts(
         self, df: pd.DataFrame, ts_id: Optional[int] = None
@@ -1161,6 +1406,7 @@ class TSCDataFrame(pd.DataFrame):
             If there is a time series with less than the required number of samples.
 
         """
+
         if not is_integer(n_samples) or n_samples < 1:
             raise ValueError("Parameter 'n_samples' must be a positive integer.")
 
@@ -1185,7 +1431,7 @@ class TSCDataFrame(pd.DataFrame):
         """
         ax = kwargs.pop("ax", None)
         legend = kwargs.pop("legend", True)
-        feature_colors = None
+        color = kwargs.pop("color", None)
 
         first = True
 
@@ -1194,12 +1440,14 @@ class TSCDataFrame(pd.DataFrame):
 
             if first:
                 ax = ts.plot(legend=legend, **kwargs)
-                feature_colors = [
-                    mclrs.to_rgba(ax.lines[j].get_c()) for j in range(self.n_features)
-                ]
+                if color is None:
+                    color = [
+                        mclrs.to_rgba(ax.lines[j].get_c())
+                        for j in range(self.n_features)
+                    ]
                 first = False
             else:
-                ax = ts.plot(color=feature_colors, legend=False, **kwargs)
+                ax = ts.plot(color=color, legend=False, **kwargs)
 
         return ax
 
@@ -1223,7 +1471,7 @@ class InitialCondition(object):
         cls, X: np.ndarray, columns: Union[pd.Index, List[str]]
     ) -> TSCDataFrame:
         """Build initial conditions object from a NumPy array.
-        
+
         Note that the assumption is that each row is a new initial condition. All time
         values are set to zero.
 
@@ -1266,7 +1514,7 @@ class InitialCondition(object):
     @classmethod
     def from_tsc(cls, X: TSCDataFrame, n_samples_ic: int = 1) -> pd.DataFrame:
         """Extract initial states from a ``TSCDataFrame``.
-        
+
         Parameters
         ----------
         X
@@ -1313,14 +1561,17 @@ class InitialCondition(object):
             and the associate time values.
         """
 
-        table = X.tsc.time_values_overview()
+        X.tsc.check_required_min_timesteps(n_samples_ic)
+        time_series_table = X.tsc.time_values_overview()
 
-        if np.isnan(table["delta_time"]).any():
+        if np.isnan(time_series_table["delta_time"]).any():
             raise NotImplementedError(
                 "Currently, only constant delta times are " "implemented."
             )
 
-        for (_, _, _), df in table.groupby(by=["start", "end", "delta_time"], axis=0):
+        for (_, _, _), df in time_series_table.groupby(
+            by=["start", "end", "delta_time"], axis=0
+        ):
             grouped_ids = df.index
 
             grouped_tsc: TSCDataFrame = X.loc[grouped_ids, :]
@@ -1352,7 +1603,7 @@ class InitialCondition(object):
         n_samples_ic
             If provided, then validate that each initial condition has the set number of
             samples.
-        
+
         dt
             If provided, then validate that the time series have the set constant delta
             time sampling. The parameter ``n_samples_ic`` must be given at the same time.
