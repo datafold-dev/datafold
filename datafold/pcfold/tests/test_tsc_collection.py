@@ -5,6 +5,7 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
+from datafold.pcfold import GaussianKernel, PCManifold
 from datafold.pcfold.timeseries.collection import (
     InitialCondition,
     TSCDataFrame,
@@ -26,7 +27,7 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(tc.loc[0, :], self.simple_df.loc[0, :])
         pdtest.assert_frame_equal(tc.loc[1, :], self.simple_df.loc[1, :])
 
-    def test_nr_timeseries(self):
+    def test_n_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.n_timeseries, 4)
 
@@ -37,6 +38,145 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_shape(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))
+
+    def test_set_kernel(self):
+
+        actual = TSCDataFrame(self.simple_df)
+        self.assertEqual(actual.kernel, None)
+
+        actual = TSCDataFrame(self.simple_df, kernel=GaussianKernel(1))
+        self.assertEquals(actual.kernel, GaussianKernel(1))
+
+        actual.kernel = GaussianKernel(999)
+        self.assertEquals(actual.kernel, GaussianKernel(999))
+
+    def test_compute_kernel_matrix(self):
+        kernel = GaussianKernel(1)
+        actual = TSCDataFrame(self.simple_df, kernel=kernel)
+
+        actual_kernel = actual.compute_kernel_matrix()
+
+        expected = PCManifold(actual.to_numpy(), kernel=kernel)
+        expected_kernel = expected.compute_kernel_matrix()
+
+        # the time information is not lost when computing a kernel matrix
+        self.assertIsInstance(actual_kernel, TSCDataFrame)
+        self.assertIsInstance(expected_kernel, np.ndarray)
+
+        # the two kernels matrices must be identical
+        nptest.assert_array_equal(actual_kernel.to_numpy(), expected_kernel)
+
+        actual_kernel.kernel = None
+        with self.assertRaises(TSCException):
+            # no kernel available
+            actual_kernel.compute_kernel_matrix()
+
+    def test_set_dist_kwargs(self):
+
+        from copy import deepcopy
+
+        actual = TSCDataFrame(self.simple_df)
+        default_kwargs = dict(cut_off=np.inf, kmin=0, backend="guess_optimal")
+
+        # needs to be changed if the default dist_kwargs is changed
+        self.assertEqual(actual.dist_kwargs, default_kwargs)
+
+        other_kwargs = deepcopy(default_kwargs)
+        other_kwargs["cut_off"] = 2
+        other_kwargs["kmin"] = 100
+
+        actual = TSCDataFrame(self.simple_df, dist_kwargs=other_kwargs)
+        self.assertEquals(actual.dist_kwargs, other_kwargs)
+
+        other_kwargs["cut_off"] = 100
+        other_kwargs["kmin"] = 20
+
+        actual.dist_kwargs = other_kwargs
+        self.assertEquals(actual.dist_kwargs, other_kwargs)
+
+        actual.dist_kwargs = default_kwargs
+        self.assertEquals(actual.dist_kwargs, default_kwargs)
+
+    def test_compute_distance_matrix(self):
+        actual = TSCDataFrame(self.simple_df)
+        actual_distance = actual.compute_distance_matrix()
+
+        expected = PCManifold(actual.to_numpy())
+        expected_distance = expected.compute_distance_matrix()
+
+        # the time information is not lost when computing a kernel matrix
+        self.assertIsInstance(actual_distance, TSCDataFrame)
+        self.assertIsInstance(expected_distance, np.ndarray)
+
+        # the two kernels matrices must be identical
+        nptest.assert_array_equal(actual_distance.to_numpy(), expected_distance)
+
+        ## set new dist_kwargs
+
+    def test_set_index1(self):
+        tsc_df = TSCDataFrame(self.simple_df)
+
+        new_idx = pd.MultiIndex.from_arrays(
+            [np.zeros(9, dtype=np.float64), np.arange(9)]
+        )
+
+        actual = tsc_df.set_index(new_idx)
+
+        # no change in the basis TSCDataFrame
+        self.assertEqual(tsc_df.n_timeseries, 4)
+
+        self.assertEqual(actual.n_timeseries, 1)
+        nptest.assert_array_equal(actual.time_values(), np.arange(9))
+        self.assertEqual(actual.index.get_level_values(0).dtype, np.integer)
+
+        # test inplace
+        tsc_df.set_index(new_idx, inplace=True)
+        pdtest.assert_frame_equal(tsc_df, actual)
+
+    def test_set_index2(self):
+        tsc_df = TSCDataFrame(self.simple_df)
+
+        new_idx_float_id = pd.MultiIndex.from_arrays(
+            [np.ones(9, dtype=np.float64) * 0.5, np.arange(9)]
+        )
+
+        # has only one time sample for ID 0
+        new_idx_degenerated_ts = pd.MultiIndex.from_arrays(
+            [np.hstack([0, np.ones(8)]), np.arange(9)[::-1]]
+        )
+
+        # test new_idx_float_id that
+        with self.assertRaises(AttributeError):
+            tsc_df.set_index(new_idx_float_id)
+
+        with self.assertRaises(AttributeError):
+            tsc_df.set_index(new_idx_float_id)
+
+        with self.assertRaises(AttributeError):
+            # Note: the AttributeError is raised, but after that tsc_df is left in an
+            # invalid state with floating time series IDs
+            tsc_df.set_index(new_idx_float_id, inplace=True)
+
+        # reset tsc_df
+        tsc_df = TSCDataFrame(self.simple_df)
+
+        # test new_idx_degenerated_ts
+        self.assertTrue(tsc_df.set_index(new_idx_degenerated_ts).has_degenerate_ts())
+
+        # no inplace oper
+        self.assertFalse(tsc_df.has_degenerate_ts())
+
+        tsc_df.set_index(new_idx_degenerated_ts, inplace=True)
+        self.assertTrue(tsc_df.has_degenerate_ts())
+
+    def test_set_index3(self):
+        tsc_df = TSCDataFrame(self.simple_df)
+        new_idx = pd.MultiIndex.from_arrays([np.ones(9), np.arange(9)[::-1]])
+
+        actual = tsc_df.set_index(new_idx)
+
+        # Test that indices are internally sorted
+        nptest.assert_array_equal(actual.index.get_level_values(1), np.arange(9))
 
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
@@ -314,7 +454,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
     @unittest.skip(reason="see gitlab issue #85")
     def test_delta_time(self):
-        # TODO: if adressing this issue, test for multiple n_values
+        # TODO: if addressing this issue, test for multiple n_values
 
         n_values = 100  # 100 -> delta_time=1.0, 20 delta_time=nan
 

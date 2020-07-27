@@ -83,8 +83,12 @@ from datafold.dynfold.base import (
 )
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
-from datafold.pcfold.timeseries.metric import kfold_cv_reassign_ids
-from datafold.utils.general import is_integer, projection_matrix_from_features
+from datafold.pcfold.timeseries.metric import TSCCrossValidationSplits
+from datafold.utils.general import (
+    df_type_and_indices_from,
+    is_integer,
+    projection_matrix_from_features,
+)
 
 
 class EDMD(Pipeline, TSCPredictMixIn):
@@ -266,20 +270,11 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         # TODO: if merge request !51 is merged, there is a utils functions that handles
         #  the following much easier:
-        if isinstance(X_dict, TSCDataFrame):
-            eval_eigenfunction = TSCDataFrame.from_same_indices_as(
-                X_dict,
-                eval_eigenfunction.T,
-                except_columns=[f"evec{i}" for i in range(eval_eigenfunction.shape[0])],
-            )
-        elif isinstance(X_dict, pd.DataFrame):
-            eval_eigenfunction = pd.DataFrame(
-                eval_eigenfunction.T,
-                index=X_dict.index,
-                columns=[f"evec{i}" for i in range(eval_eigenfunction.shape[0])],
-            )
-        else:
-            raise RuntimeError("")
+
+        columns = [f"evec{i}" for i in range(eval_eigenfunction.shape[0])]
+        eval_eigenfunction = df_type_and_indices_from(
+            indices_from=X_dict, values=X_dict, except_columns=columns
+        )
 
         return eval_eigenfunction
 
@@ -349,15 +344,10 @@ class EDMD(Pipeline, TSCPredictMixIn):
             # Note, here the samples are row-wise
             values = X.to_numpy() @ self._inverse_map
 
-            # TODO: with cone kernel branch this becomes much easier!
-            if isinstance(X, TSCDataFrame):
-                X_ts = TSCDataFrame.from_same_indices_as(
-                    X, values, except_columns=self.features_in_[1],
-                )
-            else:
-                X_ts = pd.DataFrame(
-                    values, index=X.index, columns=self.features_in_[1],
-                )
+            X_ts = df_type_and_indices_from(
+                indices_from=X, values=values, except_columns=self.features_in_[1]
+            )
+
         else:
             # inverse_transform the pipeline because an inverse linear map is not
             # available.
@@ -848,8 +838,8 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
 
 def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):
-    X_train, X_test = kfold_cv_reassign_ids(
-        X=X, train_indices=train_indices, test_indices=test_indices
+    X_train, X_test = X.tsc.assign_ids_train_test(
+        train_indices=train_indices, test_indices=test_indices
     )
 
     if not isinstance(X_train, TSCDataFrame) or not isinstance(X_test, TSCDataFrame):
@@ -1202,7 +1192,11 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
     """
 
     def __init__(
-        self, estimator: EDMD, param_grid: Union[Dict, List[Dict]], cv, **kwargs
+        self,
+        estimator: EDMD,
+        param_grid: Union[Dict, List[Dict]],
+        cv: TSCCrossValidationSplits,
+        **kwargs,
     ):
 
         super(EDMDCV, self).__init__(
@@ -1215,7 +1209,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixIn):
         if not isinstance(self.estimator, EDMD):
             raise TypeError("EDMDCV only supports EDMD estimators.")
 
-        if not isinstance(self.cv, (TSCKfoldSeries, TSCKFoldTime)):
+        if not isinstance(self.cv, TSCCrossValidationSplits):
             raise TypeError(f"cv must be of type {(TSCKfoldSeries, TSCKFoldTime)}")
 
     def _check_multiscore(self):

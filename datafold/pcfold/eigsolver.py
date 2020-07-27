@@ -165,15 +165,16 @@ def compute_kernel_eigenpairs(
             f"Got kernel_matrix.shape={kernel_matrix.shape}"
         )
 
+    err_nonfinite = ValueError(
+        "kernel_matrix must only contain finite values (no np.nan " "or np.inf)"
+    )
     if (
         isinstance(kernel_matrix, scipy.sparse.spmatrix)
         and not np.isfinite(kernel_matrix.data).all()
-    ) or (
-        isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all()
     ):
-        raise ValueError(
-            "kernel_matrix must only contain finite values (no np.nan or np.inf)"
-        )
+        raise err_nonfinite
+    elif isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all():
+        raise err_nonfinite
 
     assert not is_symmetric or (is_symmetric and is_symmetric_matrix(kernel_matrix))
 

@@ -4,16 +4,20 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
+import pandas as pd
+import pandas.testing as pdtest
 import scipy.sparse
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, squareform
 
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import (
+    ConeKernel,
     ContinuousNNKernel,
     DmapKernelFixed,
     GaussianKernel,
     _kth_nearest_neighbor_dist,
 )
+from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
 
 
 def generate_box_data(n_left, n_middle, n_right, seed):
@@ -195,6 +199,26 @@ class TestPCManifoldKernel(unittest.TestCase):
         kernel = GaussianKernel(epsilon=1)
         self.assertEqual(kernel.__repr__(), "GaussianKernel(epsilon=1)")
 
+    def test_gaussian_kernel_callable(self):
+
+        data = np.random.rand(10, 10)
+
+        kernel_ufunc = GaussianKernel(epsilon=np.median)
+        kernel_ufunc(data)
+
+        self.assertEqual(
+            kernel_ufunc.epsilon,
+            np.median(squareform(pdist(data, metric="sqeuclidean"))),
+        )
+
+        kernel_lambda = GaussianKernel(epsilon=lambda x: np.median(x))
+        kernel_lambda(data)
+
+        self.assertEqual(
+            kernel_lambda.epsilon,
+            np.median(squareform(pdist(data, metric="sqeuclidean"))),
+        )
+
 
 class TestDiffusionMapsKernelTest(unittest.TestCase):
     def test_is_symmetric01(self):
@@ -205,42 +229,34 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         self.assertTrue(k1.is_symmetric)
 
         # No transformation to symmetrize the kernel is required
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
+        self.assertFalse(k1.is_symmetric_transform())
 
         # Because the kernel is not stochastic, the kernel remains symmetric
         k2 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=False)
         self.assertTrue(k2.is_symmetric)
 
         # No transformation is required
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
+        self.assertFalse(k1.is_symmetric_transform())
 
     def test_is_symmetric02(self):
         # symmetric_kernel and alpha == 0
         k1 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=False)
         self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
+        self.assertFalse(k1.is_symmetric_transform())
 
         k2 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=True)
         self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform(is_pdist=True))
+        self.assertTrue(k2.is_symmetric_transform())
 
     def test_is_symmetric03(self):
         # symmetric_kernel and alpha > 0
         k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=False)
         self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=True))
+        self.assertFalse(k1.is_symmetric_transform())
 
         k2 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
         self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform(is_pdist=True))
-
-    def test_is_symmetric04(self):
-        # when is_pdist is False
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
-        self.assertFalse(k1.is_symmetric_transform(is_pdist=False))
-
-        k2 = DmapKernelFixed(is_stochastic=False, alpha=1, symmetrize_kernel=True)
-        self.assertFalse(k2.is_symmetric_transform(is_pdist=False))
+        self.assertTrue(k2.is_symmetric_transform())
 
     def test_missing_row_alpha_fit(self):
         data_X = np.random.rand(100, 5)
@@ -372,7 +388,7 @@ class TestContinuousNNKernel(unittest.TestCase):
         with self.assertRaises(ValueError):
             cknn.eval(sparse_distance_matrix, is_pdist=True)
 
-    def test_wrong_setups(self):
+    def test_invalid_parameters(self):
 
         with self.assertRaises(ValueError):
             ContinuousNNKernel(k_neighbor=0, delta=1)
@@ -393,5 +409,105 @@ class TestContinuousNNKernel(unittest.TestCase):
             ContinuousNNKernel(k_neighbor=41, delta=1).eval(distance_matrix)
 
 
-if __name__ == "__main__":
-    TestContinuousNNKernel().test_circle_example(True)
+class TestConeKernel(unittest.TestCase):
+    def setUp(self) -> None:
+        data_X = np.random.default_rng(2).uniform(size=(100, 2))
+        data_Y = np.random.default_rng(2).uniform(size=(50, 2))
+
+        self.X_tsc = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(data_X, columns=["A", "B"])
+        )
+
+        self.Y_tsc = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(data_Y, columns=["A", "B"])
+        )
+
+    def test_return_type(self):
+        actual, cdist_kwargs = ConeKernel(zeta=0.5)(self.X_tsc)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        self.assertIsInstance(cdist_kwargs, dict)
+        self.assertIsInstance(cdist_kwargs["timederiv_X"], TSCDataFrame)
+        self.assertIsInstance(cdist_kwargs["norm_timederiv_X"], TSCDataFrame)
+
+        actual, cdist_kwargs = ConeKernel(zeta=0.5)(
+            self.X_tsc, self.Y_tsc, **cdist_kwargs
+        )
+
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertEqual(cdist_kwargs, None)
+
+    def test_zeta_approx_zero(self):
+        actual, cdist_kwargs = ConeKernel(zeta=1e-15)(self.X_tsc)
+        expected, cdist_kwargs2 = ConeKernel(zeta=0)(self.X_tsc)
+
+        nptest.assert_allclose(actual, expected, rtol=0, atol=1e-15)
+
+        actual, _ = ConeKernel(zeta=1e-15)(self.X_tsc, self.Y_tsc, **cdist_kwargs)
+        expected, _ = ConeKernel(zeta=0)(self.X_tsc, self.Y_tsc, **cdist_kwargs2)
+        nptest.assert_allclose(actual, expected, rtol=0, atol=1e-15)
+
+    def test_cdist_evaluation_no_error(self):
+        cone_kernel = ConeKernel(0.5)
+        kernel_pdist, cdist_kwargs = cone_kernel(self.X_tsc)
+        kernel_cdist, _ = cone_kernel(self.X_tsc, self.Y_tsc, **cdist_kwargs)
+
+        self.assertTrue(np.isfinite(kernel_pdist).all().all())
+        self.assertTrue(np.isfinite(kernel_cdist).all().all())
+
+    def test_cdist(self):
+        kernel = ConeKernel(zeta=0.5)
+        expected_kernel, cdist_kwargs = kernel(self.X_tsc)
+        actual_kernel, _ = kernel(self.X_tsc, self.X_tsc, **cdist_kwargs)
+        pdtest.assert_frame_equal(expected_kernel, actual_kernel)
+
+        # zeta=0 is a special case
+        kernel = ConeKernel(zeta=0.0)
+        expected_kernel, cdist_kwargs = kernel(self.X_tsc)
+        actual_kernel, _ = kernel(self.X_tsc, self.X_tsc, **cdist_kwargs)
+        pdtest.assert_frame_equal(expected_kernel, actual_kernel)
+
+    def test_duplicate_samples(self):
+        X = self.X_tsc.copy()
+        Y = self.X_tsc.copy()
+
+        X.iloc[0, :] = X.iloc[1, :]
+        Y.iloc[0, :] = X.iloc[0, :]
+
+        cone_kernel = ConeKernel(0.5)
+        kernel_pdist, cdist_kwargs = cone_kernel(self.X_tsc)
+        kernel_cdist, _ = cone_kernel(self.X_tsc, self.Y_tsc, **cdist_kwargs)
+
+        self.assertTrue(np.isfinite(kernel_pdist).all().all())
+        self.assertTrue(np.isfinite(kernel_cdist).all().all())
+
+    def test_invalid_setting(self):
+
+        with self.assertRaises(ValueError):
+            ConeKernel(zeta=1)(self.X_tsc)
+
+        with self.assertRaises(ValueError):
+            ConeKernel(zeta=-0.1)(self.X_tsc)
+
+        with self.assertRaises(ValueError):
+            ConeKernel(epsilon=-0.1)(self.X_tsc, self.Y_tsc)
+
+        with self.assertRaises(ValueError):
+            ConeKernel(0.5)(self.X_tsc, self.Y_tsc)
+
+        # different sampling frequency in X than in Y
+        Y_tsc = self.Y_tsc.copy().set_index(
+            pd.MultiIndex.from_arrays(
+                [np.ones(self.Y_tsc.shape[0]), np.arange(0, 2 * self.Y_tsc.shape[0], 2)]
+            )
+        )
+        _, cdist_kwargs = ConeKernel(zeta=0.5)(self.X_tsc)
+
+        with self.assertRaises(TSCException):
+            ConeKernel(0.5)(self.X_tsc, Y_tsc, **cdist_kwargs)
+
+        # non constant time sampling:
+        X_tsc = self.X_tsc.copy().drop(5, level=1)
+        with self.assertRaises(TSCException):
+            ConeKernel(0.5)(X_tsc)

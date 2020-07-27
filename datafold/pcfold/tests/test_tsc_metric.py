@@ -13,8 +13,9 @@ from datafold.pcfold import (
     TSCKFoldTime,
     TSCMetric,
     TSCScoring,
+    TSCWindowFoldTime,
 )
-from datafold.pcfold.timeseries.metric import kfold_cv_reassign_ids
+from datafold.pcfold.timeseries.collection import TSCException
 
 
 class TestTSCMetric(unittest.TestCase):
@@ -450,8 +451,6 @@ class TestTSCCV(unittest.TestCase):
         n_splits = 2
 
         for train, test in TSCKFoldTime(n_splits).split(self.single_id_tsc):
-            # print(f"train{train} {self.single_id_tsc.iloc[train, :]}")
-            # print(f"test{train} {self.single_id_tsc.iloc[test, :]}")
 
             train_part: TSCDataFrame = self.single_id_tsc.iloc[train, :]
             test_part: TSCDataFrame = self.single_id_tsc.iloc[test, :]
@@ -473,37 +472,156 @@ class TestTSCCV(unittest.TestCase):
 
         n_splits = 4
 
-        for train, test in TSCKFoldTime(n_splits=n_splits).split(X=self.single_id_tsc):
+        for train_idx, test_idx in TSCKFoldTime(n_splits=n_splits).split(
+            X=self.single_id_tsc
+        ):
 
-            train, test = kfold_cv_reassign_ids(self.single_id_tsc, train, test)
+            actual_train, actual_test = self.single_id_tsc.tsc.assign_ids_train_test(
+                train_idx, test_idx
+            )
 
-            # print(f"train {train}")
-            # print(f"test {test}")
+            self.assertIsInstance(actual_train, TSCDataFrame)
+            self.assertIsInstance(actual_test, TSCDataFrame)
 
-            self.assertIsInstance(train, TSCDataFrame)
-            self.assertIsInstance(test, TSCDataFrame)
+            self.assertTrue(actual_train.is_const_delta_time())
+            self.assertTrue(actual_test.is_const_delta_time())
 
-            self.assertTrue(train.is_const_delta_time())
-            self.assertTrue(test.is_const_delta_time())
+            self.assertIn(len(actual_train.ids), (1, 2))
+            self.assertIn(len(actual_test.ids), (1, 2))
 
-            self.assertIn(len(train.ids), (1, 2))
-            self.assertIn(len(test.ids), (1, 2))
-
-            self.assertFalse(np.in1d(train.ids, test.ids).any())
+            self.assertFalse(np.in1d(actual_train.ids, actual_test.ids).any())
 
     def test_kfold_time_two_id_tsc(self):
         n_splits = 4
 
-        for train, test in TSCKFoldTime(n_splits=n_splits).split(X=self.two_id_tsc):
-            train, test = kfold_cv_reassign_ids(self.two_id_tsc, train, test)
+        for train_idx, test_idx in TSCKFoldTime(n_splits=n_splits).split(
+            X=self.two_id_tsc
+        ):
+            actual_train, actual_test = self.two_id_tsc.tsc.assign_ids_train_test(
+                train_idx, test_idx
+            )
 
-            self.assertIsInstance(train, TSCDataFrame)
-            self.assertIsInstance(test, TSCDataFrame)
+            self.assertIsInstance(actual_train, TSCDataFrame)
+            self.assertIsInstance(actual_test, TSCDataFrame)
 
-            self.assertTrue(train.is_const_delta_time())
-            self.assertTrue(test.is_const_delta_time())
+            self.assertTrue(actual_train.is_const_delta_time())
+            self.assertTrue(actual_test.is_const_delta_time())
 
-            self.assertIn(len(train.ids), (2, 3, 4))
-            self.assertIn(len(test.ids), (2, 3, 4))
+            self.assertIn(len(actual_train.ids), (2, 3, 4))
+            self.assertIn(len(actual_test.ids), (2, 3, 4))
 
-            self.assertFalse(np.in1d(train.ids, test.ids).any())
+            self.assertFalse(np.in1d(actual_train.ids, actual_test.ids).any())
+
+    def test_window_split1(self):
+        df1 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(5))
+        df2 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(10, 15))
+
+        X = TSCDataFrame.from_frame_list([df1, df2])
+
+        for i, (train, test) in enumerate(
+            TSCWindowFoldTime(test_window_length=3, train_min_timesteps=3).split(X)
+        ):
+
+            if i == 0:
+                nptest.assert_array_equal(test, np.array([7, 8, 9]))
+                nptest.assert_array_equal(train, np.array([0, 1, 2, 3, 4]))
+            elif i == 1:
+                nptest.assert_array_equal(test, np.array([2, 3, 4]))
+                nptest.assert_array_equal(train, np.array([5, 6, 7, 8, 9]))
+            else:
+                assert False
+
+            self.assertTrue((~np.isin(train, test)).all())
+
+        self.assertEqual(TSCWindowFoldTime(test_window_length=3).get_n_splits(X), 2)
+
+    def test_window_split2(self):
+        df1 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(5))
+        df2 = pd.DataFrame(np.arange(4).reshape(2, 2), index=np.arange(10, 12))
+
+        X = TSCDataFrame.from_frame_list([df1, df2])
+
+        for i, (train, test) in enumerate(
+            TSCWindowFoldTime(test_window_length=2, train_min_timesteps=None).split(X)
+        ):
+
+            if i == 0:
+                nptest.assert_array_equal(test, np.array([5, 6]))
+                nptest.assert_array_equal(train, np.array([0, 1, 2, 3, 4]))
+            elif i == 1:
+                nptest.assert_array_equal(test, np.array([3, 4]))
+                nptest.assert_array_equal(train, np.array([0, 1, 2, 5, 6]))
+            elif i == 2:
+                nptest.assert_array_equal(test, np.array([1, 2]))
+                nptest.assert_array_equal(train, np.array([0, 3, 4, 5, 6]))
+            else:
+                assert False
+
+            self.assertTrue((~np.isin(train, test)).all())
+        self.assertEqual(TSCWindowFoldTime(test_window_length=2).get_n_splits(X), 3)
+
+    def test_window_split3(self):
+        # test that empty training samples are skipped (if the samples [2,3] are in
+        # test, then the train_min_timesteps is not fulfilled).
+
+        df = pd.DataFrame(np.arange(12).reshape(6, 2), index=np.arange(6))
+        X = TSCDataFrame.from_single_timeseries(df)
+
+        for i, (train, test) in enumerate(
+            TSCWindowFoldTime(test_window_length=2, train_min_timesteps=3).split(X)
+        ):
+            if i == 0:
+                nptest.assert_array_equal(test, np.array([4, 5]))
+                nptest.assert_array_equal(train, np.array([0, 1, 2, 3]))
+            elif i == 1:
+                nptest.assert_array_equal(test, np.array([0, 1]))
+                nptest.assert_array_equal(train, np.array([2, 3, 4, 5]))
+            else:
+                assert False
+
+            self.assertTrue((~np.isin(train, test)).all())
+        self.assertEqual(TSCWindowFoldTime(test_window_length=2).get_n_splits(X), 3)
+
+    def test_window_split4(self):
+        df1 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(5))
+        df2 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(10, 15))
+        X = TSCDataFrame.from_frame_list([df1, df2])
+
+        with self.assertRaises(ValueError):
+            list(TSCWindowFoldTime(test_window_length=6).split(X))
+
+        df1 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(5))
+        df2 = df1.copy()
+        X = TSCDataFrame.from_frame_list([df1, df2])
+
+        with self.assertRaises(TSCException):
+            list(TSCWindowFoldTime(test_window_length=2).split(X))
+
+    def test_window_split5(self, plot=False):
+        # Simply check if an error is raised for plotting
+
+        df1 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(5))
+        df2 = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(10, 15))
+        X = TSCDataFrame.from_frame_list([df1, df2])
+
+        df_test = pd.DataFrame(np.arange(10).reshape(5, 2), index=np.arange(15, 20))
+        X_test = TSCDataFrame.from_single_timeseries(df_test)
+
+        # test if it errors
+        TSCWindowFoldTime(test_window_length=2).plot_splits(X)
+        TSCWindowFoldTime(test_window_length=2).plot_splits(X, X_test)
+        self.assertTrue(True)
+
+        df_test_invalid = pd.DataFrame(
+            np.arange(10).reshape(5, 2), index=np.arange(14, 19)
+        )
+        X_test_invalid = TSCDataFrame.from_single_timeseries(df_test_invalid)
+
+        with self.assertRaises(ValueError):
+            # test_set is not completely separated from the data
+            TSCWindowFoldTime(test_window_length=2).plot_splits(X, X_test_invalid)
+
+        if plot:
+            import matplotlib.pyplot as plt
+
+            plt.show()

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import abc
+from functools import partial
 from typing import Generator, Optional, Tuple, Union
 
 import numpy as np
@@ -9,7 +11,7 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
 
 from datafold.pcfold import TSCDataFrame
-from datafold.utils.general import is_df_same_index, series_if_applicable
+from datafold.utils.general import is_df_same_index, is_integer, series_if_applicable
 
 
 class TSCMetric(object):
@@ -543,7 +545,22 @@ class TSCScoring(object):
         return factor * float(score)
 
 
-class TSCKfoldSeries(object):
+class TSCCrossValidationSplits(metaclass=abc.ABCMeta):
+    """Abstract base class for cross validation splits.
+
+    See sub-classes for details.
+    """
+
+    @abc.abstractmethod
+    def split(self, X: TSCDataFrame, y=None, groups=None):
+        raise NotImplementedError("base class")
+
+    @abc.abstractmethod
+    def get_n_splits(self, X: Optional[TSCDataFrame] = None, y=None, groups=None):
+        raise NotImplementedError("base class")
+
+
+class TSCKfoldSeries(TSCCrossValidationSplits):
     """K-fold splits on entire time series.
 
     Both the training and the test set consist of time series in its original length.
@@ -640,7 +657,7 @@ class TSCKfoldSeries(object):
         return self.kfold_splitter.get_n_splits(X=X, y=y, groups=groups)
 
 
-class TSCKFoldTime(object):
+class TSCKFoldTime(TSCCrossValidationSplits):
     """K-fold splits on time values.
 
     The splits are along the time axis. This means that the time series collection can
@@ -683,7 +700,7 @@ class TSCKFoldTime(object):
         """
         if not X.is_same_time_values():
             raise NotImplementedError(
-                "Currently, each time series must have the same " "time indices."
+                "Currently, each time series must have the same time indices."
             )
 
         n_samples = X.shape[0]
@@ -696,7 +713,7 @@ class TSCKFoldTime(object):
             test_indices = indices_matrix[test].flatten()
             yield train_indices, test_indices
 
-    def get_n_splits(self, X=None, y=None, groups=None):
+    def get_n_splits(self, X=None, y=None, groups=None) -> int:
         """Number of splits, which are also the number of cross-validation iterations.
 
         All parameter are ignored to align with scikit-learn's function.
@@ -718,50 +735,283 @@ class TSCKFoldTime(object):
         return self.kfold_splitter.get_n_splits(X=X, y=y, groups=groups)
 
 
-def kfold_cv_reassign_ids(X: TSCDataFrame, train_indices, test_indices):
-    """Re-assigns time series ids based on training and test indices.
+class TSCWindowFoldTime(TSCCrossValidationSplits):
+    """Assign windows of test samples starting from the end of the time series collection.
 
-    Returns
-    -------
-    TSCDataFrame
-        The training time series collection.
+    This method is useful for time series collections with gaps (time intervals of no
+    data). Specifically, the time series' time values should not overlap and be in
+    ordered with time (e.g. time series ID 0 should not start after ID 1).
 
-    TSCDataFrame
-        The test time series collection.
+    The windows are set with these rules:
+
+    * The iteration is in reverse order, i.e., the first window for testing is set in
+      the last ID with the respective last time samples. The benefit is that when the
+      number of splits are reduced, then a optimization procedure uses the latest time
+      samples. This window has the most predictive power because it contains the most
+      recent samples.
+    * The window is always of the same size and only placed within a time series (i.e.
+      no overlapping. If the next window within a time series cannot be placed,
+      then these samples will not be included in any test set.
+    * If a time series has less samples than ``test_window_length``, then this time
+      series will not be considered for testing.
+
+    Parameters
+    ----------
+
+    test_window_length
+        The length of a window for samples included in testing.
+
+    window_offset
+        The offset to next possible test window. In a single long time series the offset
+        equals the gap between windows.
+
+    train_min_timesteps
+        The minimum number of time steps required for training. If a time series has
+        less samples than the required minimum (e.g. because the time series is split
+        due to a test window) then these time series are dropped.
     """
-    # mark train samples with 0 and test samples with 1
-    mask_train_test = np.zeros(X.shape[0])
-    mask_train_test[test_indices] = 1
 
-    # usage of np.diff -> dectect changes in
-    # i) new fold or ii) new ID (i.e. time series)
-    # -- both change detections are required to reassign new IDs
+    def __init__(
+        self,
+        test_window_length: int,
+        window_offset: int = 0,
+        train_min_timesteps: Optional[int] = None,
+    ):
 
-    # i) detect switch between test / train
-    change_fold_indicator = np.append(0, np.diff(mask_train_test)).astype(np.bool)
+        if not is_integer(test_window_length) or test_window_length <= 0:
+            raise ValueError(
+                f"The parameter 'test_window_length={test_window_length}' must be a "
+                f"positive integer."
+            )
 
-    # ii) detect switch of new ID
-    change_id_indicator = np.append(
-        0, np.diff(X.index.get_level_values(TSCDataFrame.tsc_id_idx_name))
-    ).astype(np.bool)
+        if not is_integer(window_offset) or window_offset < 0:
+            raise ValueError(
+                f"The parameter 'window_offset={window_offset}' must be a "
+                f"non-negative integer."
+            )
 
-    # cumulative sum of on or the other change and reassign IDs
-    id_cum_sum_mask = np.logical_or(change_fold_indicator, change_id_indicator)
-    new_ids = np.cumsum(id_cum_sum_mask)
+        if train_min_timesteps is not None and (
+            not is_integer(train_min_timesteps) or train_min_timesteps <= 0
+        ):
+            raise ValueError(
+                f"The parameter 'train_min_timesteps={train_min_timesteps}' "
+                f"must be a positive integer."
+            )
 
-    reassigned_ids_idx = pd.MultiIndex.from_arrays(
-        arrays=(new_ids, X.index.get_level_values(TSCDataFrame.tsc_time_idx_name),)
-    )
+        # parse to Python built-in integer (e.g. in case it is a numpy.integer)
+        self.test_window_length = int(test_window_length)
+        self.minimum_n_timesteps = (
+            int(train_min_timesteps) if train_min_timesteps is not None else None
+        )
+        self.test_offset = int(window_offset)
 
-    splitted_tsc = TSCDataFrame.from_same_indices_as(
-        X, values=X, except_index=reassigned_ids_idx
-    )
+    def _reversed_ids_and_indices_tsc(self, X: TSCDataFrame):
+        """Create an TSCDataFrame with reversed order of samples and ids.
 
-    train_tsc = splitted_tsc.iloc[train_indices, :]
-    test_tsc = splitted_tsc.iloc[test_indices, :]
+        This is used internally to select the samples for training and testing.
+        """
+        max_id = np.max(X.ids)
+        time_series_ids = np.abs(
+            X.index.get_level_values(TSCDataFrame.tsc_id_idx_name) - max_id
+        )
+        idx = pd.MultiIndex.from_arrays(
+            [np.sort(time_series_ids), np.arange(X.shape[0])]
+        )
+        indices_tsc = TSCDataFrame(index=idx)
+        indices_tsc.loc[:, "indices"] = np.arange(X.shape[0])[::-1]
+        return indices_tsc
 
-    # asserts also assumption made in the algorithm (in hindsight)
-    assert isinstance(train_tsc, TSCDataFrame)
-    assert isinstance(test_tsc, TSCDataFrame)
+    def split(self, X: TSCDataFrame, y=None, groups=None):
+        """Yield windows of indices for training and testing for a time series
+        collection with non-overlapping time series.
 
-    return train_tsc, test_tsc
+        Parameters
+        ----------
+        X
+            The data to split.
+
+        y
+            ignored
+
+        groups
+            ignored
+
+        Yields
+        ------
+        numpy.ndarray
+            train indices
+
+        numpy.ndarray
+            test indices
+        """
+        if np.asarray(X.n_timesteps < self.test_window_length).all():
+            raise ValueError(
+                "All time series are shorter than the set "
+                f"'test_window_length={self.test_window_length}'"
+            )
+
+        indices_tsc = self._reversed_ids_and_indices_tsc(X)
+
+        X.tsc.check_non_overlapping_timeseries()
+        X.tsc.check_const_time_delta()
+
+        for test_tsc in indices_tsc.copy().tsc.iter_timevalue_window(
+            blocksize=self.test_window_length,
+            offset=self.test_window_length + self.test_offset,
+            per_time_series=True,
+        ):
+
+            train_tsc = indices_tsc.copy().drop(test_tsc.index, axis=0)
+
+            # it is important to reassign the ids to keep the same sub-sampling and
+            # assign two IDs, if the test window is somewhere in between
+            # a longer time series.
+            train_tsc, test_tsc = indices_tsc.copy().tsc.assign_ids_train_test(
+                train_indices=train_tsc.time_values(),
+                test_indices=test_tsc.time_values(),
+            )
+
+            if self.minimum_n_timesteps is not None:
+                # see issue #106
+                # https://gitlab.com/datafold-dev/datafold/-/issues/106
+                n_timesteps = train_tsc.n_timesteps
+                if isinstance(n_timesteps, pd.Series):
+                    drop_ids = n_timesteps[
+                        train_tsc.n_timesteps < self.minimum_n_timesteps
+                    ].index
+
+                    if len(drop_ids) > 0:
+                        train_tsc = train_tsc.drop(
+                            drop_ids if len(drop_ids) > 0 else None, level=0
+                        )
+                else:
+                    if n_timesteps < self.minimum_n_timesteps:
+                        train_tsc = pd.DataFrame()
+
+            train_indices = train_tsc.to_numpy()[::-1].ravel()
+            test_indices = test_tsc.to_numpy()[::-1].ravel()
+
+            if len(train_indices) != 0:
+                yield train_indices, test_indices
+
+    def get_n_splits(
+        self, X: Optional[TSCDataFrame] = None, y=None, groups=None
+    ) -> int:
+        """Number of splits.
+
+        Parameters
+        ----------
+        X
+            The time series data to split. This parameter is mandatory to compute the
+            number of splits.
+        y
+            ignored
+
+        groups
+            ignored
+
+        Returns
+        -------
+        """
+
+        if X is None:
+            raise ValueError("'X' must be provided to compute the number of splits.")
+
+        return len(list(self.split(X)))
+
+    def plot_splits(self, X: TSCDataFrame, test_set=None) -> None:
+        """Plot the test, training and dropped samples.
+
+        Parameters
+        ----------
+        X
+            The time series data to split.
+
+        test_set
+            A completely separated test set. If provided, then the test windows
+            produced by `TSCWindowFoldTime` are labeled as validation sets.
+
+        Returns
+        -------
+        """
+        import matplotlib.pyplot as plt
+
+        if test_set is not None and (
+            np.isin(test_set.time_values(), X.time_values()).any()
+        ):
+            raise ValueError(
+                "The provided test_set contains time values also contained in 'X'."
+            )
+
+        n_splits = self.get_n_splits(X)
+
+        delta_time = X.delta_time
+
+        f, ax = plt.subplots(n_splits, 1, sharex=True, sharey=True)
+
+        time_name = TSCDataFrame.tsc_time_idx_name
+        id_name = TSCDataFrame.tsc_id_idx_name
+
+        for i, (train_indices, test_indices) in enumerate(self.split(X)):
+
+            train_tsc, test_tsc, dropped_samples = X.tsc.assign_ids_train_test(
+                train_indices, test_indices, return_dropped=True
+            )
+
+            ax[i].set_ylabel(f"split {i}")
+            ax[i].set_yticks([])
+
+            for j, (_, df) in enumerate(train_tsc.groupby(id_name)):
+                time_values = df.index.get_level_values(time_name)
+                width = time_values[-1] - time_values[0] + delta_time
+                ax[i].bar(
+                    time_values[0],
+                    height=1,
+                    width=width,
+                    align="edge",
+                    color="green",
+                    label="train" if j == 0 else None,
+                )
+
+            for j, (_, df) in enumerate(test_tsc.groupby(id_name)):
+                time_values = df.index.get_level_values(time_name)
+                width = time_values[-1] - time_values[0] + delta_time
+                ax[i].bar(
+                    time_values[0],
+                    height=1,
+                    width=width,
+                    align="edge",
+                    color="orange",
+                    label="validation" if j == 0 else None,
+                )
+
+            # This can be made easier when #105 is addressed
+            dropped_samples = dropped_samples.index.get_level_values(time_name)
+            if len(dropped_samples) > 0:
+                ax[i].bar(
+                    dropped_samples,
+                    height=1,
+                    width=delta_time,
+                    align="edge",
+                    color="black",
+                    label="dropped",
+                )
+
+            if test_set is not None:
+                for j, (_, df) in enumerate(
+                    test_set.groupby(TSCDataFrame.tsc_id_idx_name)
+                ):
+                    time_values = df.time_values()
+                    width = time_values[-1] - time_values[0]
+
+                    ax[i].bar(
+                        time_values[0],
+                        height=1,
+                        width=width,
+                        align="edge",
+                        color="red",
+                        label="test" if j == 0 else None,
+                    )
+
+        ax[-1].set_xlabel("time")
+        plt.legend(loc="lower center")

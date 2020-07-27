@@ -27,6 +27,7 @@ predicted and true time series (:class:`TSCMetric`).
 
 import datafold.pcfold.timeseries.accessor
 from datafold.pcfold.kernels import (
+    ConeKernel,
     ContinuousNNKernel,
     CubicKernel,
     DmapKernelFixed,
@@ -54,4 +55,5 @@ from datafold.pcfold.timeseries.metric import (
     TSCKFoldTime,
     TSCMetric,
     TSCScoring,
+    TSCWindowFoldTime,
 )

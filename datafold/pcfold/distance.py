@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
 import abc
-import warnings
 from typing import Optional, Sequence, Type, Union
 
-import numexpr as ne
 import numpy as np
 import scipy.sparse
 import scipy.spatial
@@ -12,8 +10,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import BallTree, NearestNeighbors
 
-from datafold.decorators import warn_experimental_function
-from datafold.utils.general import if1dim_colvec, if1dim_rowvec, is_symmetric_matrix
+from datafold.utils.general import if1dim_colvec, if1dim_rowvec
 
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only

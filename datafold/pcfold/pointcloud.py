@@ -167,29 +167,6 @@ class PCManifold(np.ndarray):
 
         self.dist_kwargs["cut_off"] = float(cut_off)
 
-    def compute_kernel_matrix(self, Y=None, **kernel_kwargs):
-        """Compute the kernel matrix on the point cloud.
-
-        Parameters
-        ----------
-        Y
-            Query point cloud of shape `(n_samples_Y, n_features)`. If provided, compute
-            the kernel matrix component-wise, else `Y=self` (pair-wise).
-
-        **kernel_kwargs
-            Keyword arguments passed passed to the kernel.
-            
-        Returns
-        -------
-        Union[np.ndarray, scipy.sparse.csr_matrix]
-            kernel matrix of shape `(n_samples_Y, n_samples_self)`
-
-        Optional
-            A kernel can return further values see :meth:`PCManifoldKernel.__call__`
-            for details.
-        """
-        return self.kernel(X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs)
-
     def compute_distance_matrix(
         self, Y: Optional[np.ndarray] = None, metric="euclidean"
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
@@ -205,14 +182,39 @@ class PCManifold(np.ndarray):
             details see also :class:`.DistanceAlgorithm`.
 
         metric
-            Distance metric. The backend algorithm must supported the metric.
-            
+            Distance metric. The backend algorithm set in ``dist_kwargs`` must support
+            the metric.
+
         Returns
         -------
         Union[np.ndarray, scipy.sparse.csr_matrix]
             distance matrix
         """
         return compute_distance_matrix(X=self, Y=Y, metric=metric, **self.dist_kwargs,)
+
+    def compute_kernel_matrix(self, Y=None, **kernel_kwargs):
+        """Compute the kernel matrix on the point cloud.
+
+        Parameters
+        ----------
+        Y
+            Query point cloud of shape `(n_samples_Y, n_features)`. If provided, it computes
+            the kernel matrix component-wise, else `Y=self` for a pair-wise kernel
+            matrix.
+
+        **kernel_kwargs
+            Keyword arguments passed passed to the kernel.
+            
+        Returns
+        -------
+        Union[np.ndarray, scipy.sparse.csr_matrix]
+            kernel matrix of shape `(n_samples_Y, n_samples_self)`
+
+        Optional
+            A kernel can return further values see :meth:`PCManifoldKernel.__call__`
+            for details.
+        """
+        return self.kernel(X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs)
 
     def optimize_parameters(
         self,

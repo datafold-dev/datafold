@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Optional, Tuple, Union
+import warnings
+from typing import Generator, Optional, Tuple, Union
 
 import findiff.diff
 import matplotlib.pyplot as plt
@@ -236,31 +237,93 @@ class TSCAccessor(object):
         if self._tsc_df.has_degenerate_ts():
             raise TSCException.has_degenerate_ts()
 
-    def iter_timevalue_window(self, blocksize, offset):
+    def check_non_overlapping_timeseries(self) -> None:
+        """Check if all time series have disjoint time values (do not overlap).
+
+        Returns
+        -------
+
+        """
+        _, counts = np.unique(
+            self._tsc_df.index.get_level_values(TSCDataFrame.tsc_time_idx_name),
+            return_counts=True,
+        )
+        if (counts > 1).any():
+            raise TSCException("time series are required to be non-overlapping")
+
+    def iter_timevalue_window(
+        self, blocksize: int, offset: int, per_time_series: bool = False
+    ) -> Generator[TSCDataFrame, None, None]:
+        """Iterator over time series intervals (window).
+
+        Parameters
+        ----------
+        blocksize
+            The number of samples for each window. Note that the `blocksize` is not
+            guaranteed and is usually shorter in last iterations if the number of samples
+            are not a multiple of `blocksize`.
+
+        offset
+            A positive integer value that indicates by how much the next window should be
+            shifted. If ``offset=blocksize``, then the windows are non-overlapping.
+
+        per_time_series
+            If True, then the windows are generated for each time series separately.
+            This is recommended for cases when a collection consists of disjoint time
+            series (i.e. non-overlapping time intervals). Otherwise, the time
+            values that match the current window of multiple time series are returned.
+
+        Returns
+        -------
+        Generator[TSCDataFrame]
+            An iterator for the windowed time series data.
+        """
 
         if not is_integer(blocksize):
-            raise TypeError("'blocksize must be of type integer'")
+            raise TypeError(
+                f"The parameter 'blocksize={blocksize}' must be of type integer. "
+                f"Got {type(blocksize)}"
+            )
 
         if not is_integer(offset):
-            raise TypeError("'offset must be of type integer'")
+            raise TypeError(
+                f"The parameter 'offset={offset}' must be of type integer."
+                f"Got {type(blocksize)}"
+            )
 
         if blocksize <= 0:
-            raise ValueError("'blocksize must be positive")
+            raise ValueError(
+                f"The parameter 'blocksize={blocksize}' must be positive."
+                f"Got {type(blocksize)}"
+            )
 
         if offset <= 0:
-            raise ValueError("'offset must be positive")
+            raise ValueError(
+                f"The parameter 'offset={offset}' must be positive."
+                f"Got {type(blocksize)}"
+            )
 
-        time_values = self._tsc_df.time_values()
-        start = 0
-        end = start + blocksize
+        if per_time_series:
+            _iter_timeseries_collection = self._tsc_df.groupby(
+                by=self._tsc_df.tsc_id_idx_name
+            )
+        else:
+            # This mimics a single element of the "groupby" function -- the first element
+            # is the time series id, but not required here and therefore None
+            _iter_timeseries_collection = [(None, self._tsc_df)]
 
-        while end <= time_values.shape[0]:
-            selected_time_values = time_values[start:end]
-
-            start = start + offset
+        for _, current_tsc in _iter_timeseries_collection:
+            time_values = current_tsc.time_values()
+            start = 0
             end = start + blocksize
 
-            yield self._tsc_df.select_time_values(selected_time_values)
+            while end <= time_values.shape[0]:
+                selected_time_values = time_values[start:end]
+
+                start = start + offset
+                end = start + blocksize
+
+                yield current_tsc.select_time_values(selected_time_values)
 
     def shift_time(self, shift_t: float):
         """Shift all time values from the time series by a constant value.
@@ -454,6 +517,291 @@ class TSCAccessor(object):
             )
 
         return time_derivative
+
+    def assign_ids_sequential(self) -> TSCDataFrame:
+        """Assign time series IDs sequentially starting from zero in a collection.
+
+        Note, that this operation is inplace and overwrites the existing time series IDs.
+
+        Returns
+        -------
+        TSCDataFrame
+            The data with time series IDs in sequential order.
+        """
+
+        self._tsc_df.set_index(self._tsc_df.index.remove_unused_levels(), inplace=True)
+        # levels[0] = IDs, levels[1] = time
+        n_timeseries = len(self._tsc_df.index.levels[0])
+
+        self._tsc_df.index.set_levels(np.arange(n_timeseries), level=0, inplace=True)
+        return self._tsc_df
+
+    def assign_ids_train_test(
+        self,
+        train_indices: np.ndarray,
+        test_indices: np.ndarray,
+        return_dropped: bool = False,
+    ):
+        """Split and assign time series IDs based on training and test indices.
+
+        Note, that the indices included in train_indices and test_indices must be
+        disjoint (i.e. a sample cannot be both in ``train_indices`` and
+        ``test_indices``). Indices that are not included in either training or
+        testing are dropped samples.
+
+        Parameters
+        ----------
+        train_indices
+            The indices to indicate which samples are included in the training set.
+
+        test_indices
+            The indices to indicate which samples are included in the test set.
+
+        return_dropped
+            If True, a DataFrame is returned in the third return value which includes
+            all samples that were neigher included in the training indices nor the test
+            indices.
+
+        Returns
+        -------
+        TSCDataFrame
+            The time series collection for training.
+
+        TSCDataFrame
+            The time series collection for testing.
+
+        pandas.DataFrame
+            The dropped samples; only returned if ``return_dropped_samples=True``.
+        """
+
+        all_indices = np.append(train_indices, test_indices)
+        if len(np.unique(all_indices)) != len(all_indices):
+            raise ValueError(
+                "Some indices are both included in 'train_indices' and 'test_indices'."
+            )
+
+        # mark train samples with 0 and test samples with 1
+        mask_test = np.zeros(self._tsc_df.shape[0])
+        mask_test[test_indices] = 1
+
+        # usage of np.diff -> detect changes in
+        # i) new fold or ii) new ID (i.e. time series)
+        # -- both change detections are required to reassign new IDs
+
+        # i) detect switch between test / train
+        change_fold_indicator = np.append(0, np.diff(mask_test)).astype(np.bool)
+
+        # ii) detect switch of new ID
+        change_id_indicator = np.append(
+            0,
+            np.diff(self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)),
+        ).astype(np.bool)
+
+        # iii) detect switch of dropped indices
+        mask_dropped = np.ones(self._tsc_df.shape[0], dtype=np.bool)
+        mask_dropped[train_indices] = False
+        mask_dropped[test_indices] = False
+
+        # cumulative sum of on or the other change and reassign IDs
+        id_cum_sum_mask = np.logical_or(
+            np.logical_or(change_fold_indicator, change_id_indicator), mask_dropped,
+        )
+        new_ids = np.cumsum(id_cum_sum_mask)
+
+        reassigned_ids_idx = pd.MultiIndex.from_arrays(
+            arrays=(
+                new_ids,
+                self._tsc_df.index.get_level_values(TSCDataFrame.tsc_time_idx_name),
+            )
+        )
+
+        # See also gitlab issue #105 (if addressed, can use TSCDataFrame)
+        splitted_df = pd.DataFrame(
+            data=self._tsc_df.to_numpy(),
+            index=reassigned_ids_idx,
+            columns=self._tsc_df.columns,
+        )
+
+        train_tsc = splitted_df.iloc[train_indices, :]
+        test_tsc = splitted_df.iloc[test_indices, :]
+
+        try:
+            # return TSCDataFrame if legal
+            train_tsc = TSCDataFrame(train_tsc)
+        except AttributeError:
+            pass  # return pd.DataFrame
+
+        try:
+            # return TSCDataFrame if legal
+            test_tsc = TSCDataFrame(test_tsc)
+        except AttributeError:
+            pass  # return pd.DataFrame
+
+        if return_dropped:
+            dropped_tsc = pd.DataFrame(splitted_df).loc[mask_dropped]
+            return train_tsc, test_tsc, dropped_tsc
+        else:
+            return train_tsc, test_tsc
+
+    def assign_ids_const_delta(self, drop_samples=False) -> Optional[TSCDataFrame]:
+        """Split time series with irregular time sampling frequencies in new time
+        series of intervals with constant time sampling.
+
+        This function only considers time series with irregular ``delta_time`` and aims
+        to split these into sub time series of finite ``delta_time``. Time series with a
+        finite ``delta_time`` may only receive a new ID, but the samples remain the same.
+
+        The detection of constant sampling intervals is carried out with the second time
+        differences. For the detection of a new sub time series the sampling rate must
+        be at constant for three samples (i.e. two time differences). This means the
+        function does not assign sample pairs (time series of length two) when dealing
+        with completely irregular time series. Instead the samples of irregular
+        intervals are dropped. The main reason for this is that the assignment is not
+        unique.
+
+        Parameters
+        ----------
+        drop_samples
+            If True, the function drops samples from irregular sampled intervals (up
+            to entire time series). If dropping samples is required for assignment and
+            the parameter is set to False, a ``ValueError`` is raised.
+
+        Returns
+        -------
+        Optional[TSCDataFrame]
+            Time series collection with re-allocated time series if irregular time
+            series are present in the ``TSCDataFrame``. It returns ``None`` if all time
+            series have a completely irregular time sampling.
+        """
+
+        def split_irregular_time_series(local_tsc_df: TSCDataFrame, min_id: int):
+            assert min_id >= 0
+
+            if local_tsc_df.shape[0] == 1 and drop_samples:
+                # degenerated time series are dropped
+                return None
+            elif local_tsc_df.shape[0] == 1 and not drop_samples:
+                raise ValueError(
+                    "There is a single-sampled time series present and at "
+                    "the same time 'drop_samples=False'."
+                )
+
+            if local_tsc_df.shape[0] == 2:
+                # return early of special case of only 2 samples
+                return local_tsc_df
+
+            # time difference
+            first_diff = np.diff(
+                local_tsc_df.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+            )
+
+            if local_tsc_df.is_datetime_index():
+                first_diff = first_diff.astype(np.int)
+
+            first_diff = np.append(np.inf, first_diff)
+
+            # change in time difference
+            second_diff = np.diff(first_diff)
+            second_diff = np.append(second_diff, 0)
+
+            # Indicator for first case:
+            # There is a gap in the sampling, e.g.
+            # 1,2,3,10,11,12
+            # This results into
+            # first diff   1,1,7,1,1
+            # second diff   0,6,-6,0
+            # To identify this case, neighboring non-zero (with respect to the first
+            # sample) are identified (the "6" identifies a new start of an ID)
+            indicator = np.logical_and(second_diff[:-1], second_diff[1:])
+
+            # remove the indentifications of the first kind from the second diff
+            # from the example above remove the 6 and the neighboring -6
+            second_diff[np.append(0, indicator).astype(np.bool)] = 0
+            second_diff[np.append(indicator, 0).astype(np.bool)] = 0
+
+            indicator = np.append(0, indicator)
+
+            # Indicator for the second case:
+            # There is a new sampling frequency
+            # 1,2,3,5,7,9
+            # This results into
+            # first diff   1,1,2,2,2
+            # second diff   0,1,0,0
+            # I.e. there is a single difference (without a neighboring)
+            # We simply take the second_diff (after removals of the first case) as
+            # indicator for the start of a new time series ID).
+            indicator = np.logical_or(indicator, second_diff.astype(np.bool))
+
+            new_ids = np.cumsum(indicator)
+            new_ids += min_id
+
+            unique_ids, counts = np.unique(new_ids, return_counts=True)
+
+            if drop_samples:
+                remove_ids = unique_ids[counts == 1]
+
+                mask_keep_elements = ~np.isin(new_ids, remove_ids)
+                new_ids = new_ids[mask_keep_elements]
+                local_tsc_df = local_tsc_df.loc[mask_keep_elements, :]
+            else:
+                if np.array(counts == 1).any():
+                    raise ValueError(
+                        "The new time series collection is invalid because there are "
+                        "intervals of irregular time sampling frequency. Consider "
+                        "setting 'drop_samples=True'."
+                    )
+
+            if local_tsc_df.shape[0] == 2 and drop_samples:
+                return None
+            else:
+                # prepare df and assign new ids -
+                # >> this creates new sub time series
+                reassigned_ids_idx = pd.MultiIndex.from_arrays(
+                    arrays=(
+                        new_ids,
+                        local_tsc_df.index.get_level_values(
+                            TSCDataFrame.tsc_time_idx_name
+                        ),
+                    )
+                )
+                local_tsc_df.set_index(reassigned_ids_idx, inplace=True)
+                return local_tsc_df
+
+        result_dfs = list()
+
+        min_id = 0
+        for _id, timeseries_df in self._tsc_df.groupby(by=TSCDataFrame.tsc_id_idx_name):
+
+            if pd.isnull(timeseries_df.delta_time):
+                new_df = split_irregular_time_series(timeseries_df, min_id=min_id)
+            else:
+                # reset time series ID
+                new_df = timeseries_df
+                new_df.index = new_df.index.set_levels([min_id], 0)
+
+            if new_df is not None:
+                min_id = max(new_df.ids) + 1
+                result_dfs.append(new_df)
+            else:
+                if not drop_samples:
+                    raise RuntimeError(
+                        "BUG: DataFrame is None while drop_samples=False. Please report."
+                    )
+
+        if result_dfs:
+            self._tsc_df = pd.concat(result_dfs, axis=0)
+            self._tsc_df = self._tsc_df.tsc.assign_ids_sequential()
+
+            if np.isnan(np.asarray(self._tsc_df.delta_time)).any():
+                warnings.warn(
+                    "The function 'assign_ids_const_delta' was unsuccessful "
+                    "to remove all irregular time series. Please "
+                    "consider to report case."
+                )
+
+            return self._tsc_df
+        else:
+            return None
 
     def compute_shift_matrices(
         self, snapshot_orientation: str = "col"
@@ -693,6 +1041,7 @@ class TSCAccessor(object):
 
 
 if __name__ == "__main__":
+    # copy content to doc/source/devapi.rst
     for i in dir(TSCAccessor):
         if not i.startswith("_"):
             print(f"   .. automethod:: {i}")
