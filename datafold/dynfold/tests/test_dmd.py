@@ -206,9 +206,9 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             time_values=np.arange(1),
         )
 
-        # Is a pandas.DataFrame, but NOT a TSCDataFrame
-        self.assertIsInstance(actual, pd.DataFrame)
-        self.assertFalse(isinstance(actual, TSCDataFrame))
+        # Is a TSCDataFrame, also for single time steps
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertTrue(actual.has_degenerate_ts())
 
         actual = LinearDynamicalSystem(
             mode="continuous", time_invariant=True

@@ -49,6 +49,8 @@ class TSCAccessor(object):
         ensure_normalized_time: bool = False,
         ensure_n_timeseries: Optional[int] = None,
         ensure_min_timesteps: Optional[int] = None,
+        ensure_n_timesteps: Optional[int] = None,
+        ensure_no_degenerate_ts: bool = True,
     ) -> TSCDataFrame:
         """Validate time series properties.
 
@@ -76,10 +78,18 @@ class TSCAccessor(object):
 
         ensure_n_timeseries
             If provided, check if the required number time series are present.
-            
+
+        ensure_n_timesteps
+            If provded, check that all time series have exactly the number the
+            timesteps spectifed.
+
         ensure_min_timesteps
             If provided, check if every time series has the required minimum of time
             steps.
+
+        ensure_no_degenerate_ts
+            If True, make sure that no degenerate (ones with single sample) time series
+            are present.
 
         Returns
         -------
@@ -110,8 +120,14 @@ class TSCAccessor(object):
         if ensure_n_timeseries is not None:
             self.check_required_n_timeseries(required_n_timeseries=ensure_n_timeseries)
 
+        if ensure_n_timesteps is not None:
+            self.check_required_n_timesteps(ensure_n_timesteps)
+
         if ensure_min_timesteps is not None:
             self.check_required_min_timesteps(ensure_min_timesteps)
+
+        if ensure_no_degenerate_ts:
+            self.check_no_degenerate_ts()
 
         return self._tsc_df
 
@@ -191,6 +207,16 @@ class TSCAccessor(object):
                 actual_n_timeseries=self._tsc_df.n_timeseries,
             )
 
+    def check_required_n_timesteps(self, required_n_timesteps: int) -> None:
+        n_timesteps = self._tsc_df.n_timesteps
+
+        if isinstance(n_timesteps, pd.Series):
+            raise TSCException.not_n_timesteps(required=required_n_timesteps)
+        else:
+            assert isinstance(n_timesteps, int)
+            if n_timesteps != required_n_timesteps:
+                raise TSCException.not_n_timesteps(required=required_n_timesteps)
+
     def check_required_min_timesteps(self, required_min_timesteps: int) -> None:
         """Check if all time series in the collection have a minimum number of time steps.
 
@@ -205,6 +231,10 @@ class TSCAccessor(object):
                 required_n_timesteps=required_min_timesteps,
                 actual_n_timesteps=_n_timesteps,
             )
+
+    def check_no_degenerate_ts(self):
+        if self._tsc_df.has_degenerate_ts():
+            raise TSCException.has_degenerate_ts()
 
     def iter_timevalue_window(self, blocksize, offset):
 
@@ -451,7 +481,7 @@ class TSCAccessor(object):
         Raises
         ------
         TSCException
-            If time series have no constant time delta.
+            If time series collection has no constant time delta.
 
         See Also
         --------

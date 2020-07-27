@@ -3,6 +3,7 @@ from typing import Generator, List, Optional, Tuple, Union
 import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
+from pandas.core.indexing import _iLocIndexer, _LocIndexer
 
 from datafold.utils.general import is_df_same_index, is_integer
 
@@ -43,8 +44,8 @@ class TSCException(Exception):
     @classmethod
     def not_required_delta_time(cls, required_delta_time, actual_delta_time):
         return cls(
-            f"required delta_time (={required_delta_time}) does not met actual delta "
-            f"time {actual_delta_time}"
+            f"The required delta_time (={required_delta_time}) does not match the "
+            f"actual delta time {actual_delta_time}."
         )
 
     @classmethod
@@ -65,79 +66,110 @@ class TSCException(Exception):
     @classmethod
     def not_min_timesteps(cls, required_n_timesteps, actual_n_timesteps):
         return cls(
-            f"the minimum number of required timesteps (={required_n_timesteps}) is not "
+            f"The minimum number of required timesteps (={required_n_timesteps}) is not "
             f"met. Got: \n{actual_n_timesteps}"
         )
 
+    @classmethod
+    def not_n_timesteps(cls, required: int):
+        return cls(
+            f"The number of required timesteps {required} is not fulfilled by one or "
+            f"more time series."
+        )
 
-class _LocHandler(object):
+    @classmethod
+    def has_degenerate_ts(cls):
+        return cls(
+            "One or more time series are degenerated (i.e. have only a single sample)."
+        )
+
+
+class _LocTSCIndexer(_LocIndexer):
     """Required for overwriting the behavior of :meth:`TSCDataFrame.loc`.
     `iloc` is currently not supported, see #61"""
 
-    def __init__(self, tsc, method):
-        # cast for the request back to a DataFrame
-        self.tsc_as_df = pd.DataFrame(tsc)
-        self._method = method
-
-    # TODO: best would be to wrap all attributes through getattr
-    #  unfortunately this seems not to work with magic functions as __call__ when
-    #  they depending on how they are used:
-    #    self.loc.__call__ --> prints "got here" and returns the right attribute
-    #    self.loc() --> Error cannot be called, has no __call__ function
-    # def __getattr__(self, attr, *args, **kwargs):
-    #     print("got here")
-    #     return getattr(self.tsc_as_df.loc, attr)
-
-    def __call__(self, axis):
-        if self._method == "loc":
-            return self.tsc_as_df.loc(axis=axis)
-        else:
-            return self.tsc_as_df.iloc(axis=axis)
-
     def __getitem__(self, item):
-        if self._method == "loc":
-            sliced = self.tsc_as_df.loc[item]
-        else:
-            sliced = self.tsc_as_df.iloc[item]
-
+        sliced = super(_LocTSCIndexer, self).__getitem__(item)
         _type = type(sliced)
 
         try:
             # there is no "TSCSeries", so always use TSCDataFrame, even when
             # sliced has only 1 column and is a pd.Series.
-            return TSCDataFrame(sliced)
+            if isinstance(sliced, pd.Series):
+                # raises attribute error if not possible
+                sliced = TSCDataFrame(sliced)
+            else:
+                sliced._validate()
+
         except AttributeError:
             # Fallback if the sliced is not a valid TSC anymore
             # returns to pd.Series or pd.DataFrame (depending on what the
             # sliced object of a standard pd.DataFrame is).
-            return _type(sliced)
+            if _type == TSCDataFrame:
+                sliced = pd.DataFrame(sliced)
+
+        return sliced
 
     def __setitem__(self, key, value):
-        if self._method == "loc":
-            self.tsc_as_df.loc[key] = value
-        else:
-            self.tsc_as_df.iloc[key] = value
+        set_obj = super(_LocTSCIndexer, self).__setitem__(key, value)
 
-        # may raise AttributeError, when after the insertion it is not a valid
-        # TSCDataFrame
-        return TSCDataFrame(self.tsc_as_df)
+        try:
+            # there is no "TSCSeries", so always use TSCDataFrame, even when
+            # sliced has only 1 column and is a pd.Series.
+            set_obj._validate()
+        except AttributeError:
+            # Fallback if the sliced is not a valid TSC anymore
+            # returns to pd.Series or pd.DataFrame (depending on what the
+            # sliced object of a standard pd.DataFrame is).
+            set_obj = pd.DataFrame(set_obj)
+        return set_obj
+
+
+class _iLocTSCIndexer(_iLocIndexer):
+    def __getitem__(self, item):
+        sliced = super(_iLocIndexer, self).__getitem__(item)
+        _type = type(sliced)
+
+        try:
+            # NOTE: this is different to loc -- here a pd.Series remains a pd.Series!
+            # This is because of pandas internal testing
+            if isinstance(sliced, pd.Series):
+                # TODO: see gitlab issue #61
+                #  https://gitlab.com/datafold-dev/datafold/-/issues/61
+                raise AttributeError
+            else:
+                sliced._validate()
+
+        except AttributeError:
+            # Fallback if the sliced is not a valid TSC anymore
+            # returns to pd.Series or pd.DataFrame (depending on what the
+            # sliced object of a standard pd.DataFrame is).
+            if _type == TSCDataFrame:
+                sliced = pd.DataFrame(sliced)
+
+        return sliced
 
 
 class TSCDataFrame(pd.DataFrame):
     """Data frame to represent collections of time series data.
 
     The class inherits from pandas' data structure :class:`pandas.DataFrame` and provides
-    additional methods to manipulate or analyse the time series collection. The following
-    main restrictions are made on a `pandas.DataFrame`:
+    additional methods to manipulate or analyse the time series collection. The main
+    restrictions on a more general ``pandas.DataFrame`` are:
 
     * two-dimensional index, where the first index indicates the time series ID (
       integer), and the second the time (non-negative numerical values)
     * one-dimensional columns for feature names
     * neither the index nor in column allows duplicates
 
-    Please visist the Pandas
-    `documentation <https://pandas.pydata.org/pandas-docs/stable/index.html>`_ for
-    inherited attributes, methods and other algorithms that act on data frames.
+    A time series are usually two or more samples. However, the data structure can also
+    store degenerated time series with only one time sample. This is useful to define
+    initial conditions.
+
+    Please visit the Pandas
+    `documentation <https://pandas.pydata.org/pandas-docs/stable/index.html>`__ for
+    inherited attributes, methods and other algorithms that can in general act on data
+    frames.
 
     .. note::
         Because Pandas provides a large variety of functionality of its data
@@ -153,8 +185,9 @@ class TSCDataFrame(pd.DataFrame):
     Examples
     --------
 
-    Data frame structure with 3 short time series, same time values (rows) and two
-    features (columns). Each time series has a different frequency of sine and cosine.
+    A data frame structure with four time series with two features (columns). The first
+    three share the same time values (rows) . The fourth time series is a so-called
+    degenerated time series because it only consists of a single sample.
 
     +-------------+---------------+-----------+-----------+
     | feature     |               | sin       | cos       |
@@ -178,6 +211,8 @@ class TSCDataFrame(pd.DataFrame):
     |             | 0.063467      | 0.281733  |  0.959493 |
     +-------------+---------------+-----------+-----------+
     |             | 0.126933      | 0.540641  |  0.841254 |
+    +-------------+---------------+-----------+-----------+
+    | 3           | 0.000000      | 0.000000  | 1.000000  |
     +-------------+---------------+-----------+-----------+
 
     Parameters
@@ -608,15 +643,6 @@ class TSCDataFrame(pd.DataFrame):
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html?highlight=kind#numpy.dtype.kind
             raise AttributeError("data dtype must be numeric")
 
-        if (ids_index.value_counts() <= 1).any():
-            unique_ids, ids_time_count = np.unique(ids_index, return_counts=True)
-            mask_short_ids = ids_time_count <= 1
-            raise AttributeError(
-                "The minimum length of a time series is 2. Some IDs have less entries:"
-                f"time series ids={unique_ids[mask_short_ids]} with respective lengths "
-                f"{ids_time_count[mask_short_ids]}"
-            )
-
         if self.index.duplicated().any():
             raise AttributeError(
                 f"Duplicated indices found: "
@@ -742,9 +768,9 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def loc(self):
-        """Overwrites label based access to provide fall back types in case the result 
+        """Overwrites label based access to provide fall back types in case the result
         is not a valid ``TSCDataFrame`` anymore.
-        
+
         The following types are returned:
 
         * ``TSCDataFrame`` if the slice is still valid
@@ -757,13 +783,13 @@ class TSCDataFrame(pd.DataFrame):
 
         Returns
         -------
-        
-        """
-        return _LocHandler(self, method="loc")
 
-    # @property
-    # def iloc(self):
-    #     return LocHandler(self, method="iloc")
+        """
+        return _LocTSCIndexer("loc", self)
+
+    @property
+    def iloc(self):
+        return _iLocTSCIndexer("iloc", self)
 
     def xs(
         self, key, axis=0, level=None, drop_level: bool = True
@@ -784,26 +810,33 @@ class TSCDataFrame(pd.DataFrame):
             slice.
         """
 
-        _internal_df = pd.DataFrame(self)
-        _xs_df = _internal_df.xs(key, axis=axis, level=level, drop_level=drop_level)
+        _slice = super(TSCDataFrame, self).xs(
+            key, axis=axis, level=level, drop_level=drop_level
+        )
 
         try:
-            _xs_df = TSCDataFrame(_xs_df)
+            _slice._validate()
         except AttributeError:
-            return _xs_df  # as pd.DataFrame
-        else:
-            return _xs_df  # as TSCDataFrame
+            if isinstance(_slice, TSCDataFrame):
+                _slice = pd.DataFrame(_slice)
+
+        return _slice
 
     def __getitem__(self, key):
-        # may turn into Series or DataFrame
-        pd_slice = pd.DataFrame(self).__getitem__(key=key)
+
+        _slice = super(TSCDataFrame, self).__getitem__(key=key)
 
         try:
-            pd_slice = TSCDataFrame(pd_slice)
+            if isinstance(_slice, pd.Series):
+                # try to convert to TSCDataFrame
+                _slice = TSCDataFrame(_slice)
+            else:
+                _slice._validate()
         except AttributeError:
-            return pd_slice  # return TSCDataFrame
-        else:
-            return pd_slice  # return DataFrame or Series
+            if isinstance(_slice, TSCDataFrame):
+                _slice = pd.DataFrame(_slice)
+
+        return _slice
 
     def is_datetime_index(self) -> bool:
         """Indicates whether 'time' index is datetime format.
@@ -867,7 +900,7 @@ class TSCDataFrame(pd.DataFrame):
             n_time_level_values = len(self.index.levels[1])
             return length_time_series == n_time_level_values
 
-    def is_normalized_time(self):
+    def is_normalized_time(self) -> bool:
         """Indicates if the time values are normalized.
 
         A normalized time has the following properties:
@@ -879,10 +912,40 @@ class TSCDataFrame(pd.DataFrame):
             return False
         return self.time_interval()[0] == 0 and self.delta_time == 1
 
-    def is_finite(self):
+    def is_finite(self) -> bool:
         """Indicates if all feature values are finite (i.e. neither NaN nor inf).
         """
         return np.isfinite(self).all().all()
+
+    def degenerate_ts_ids(self) -> Optional[pd.Index]:
+        """Return the degenerate time series IDs.
+
+        Degenerate time series consist only of a single sample.
+       
+        Returns
+        -------
+        """
+
+        n_timesteps = self.n_timesteps
+        _ids = None
+
+        if isinstance(n_timesteps, pd.Series):
+            _ids = n_timesteps[n_timesteps == 1].index
+            if len(_ids) == 0:
+                _ids = None
+        else:
+            if is_integer(n_timesteps) and n_timesteps == 1:
+                _ids = self.ids
+
+        return _ids
+
+    def has_degenerate_ts(self) -> bool:
+        """Indicates whether degenerate time series are present in the collection.
+        
+        Returns
+        -------
+        """
+        return self.degenerate_ts_ids() is not None
 
     def insert_ts(
         self, df: pd.DataFrame, ts_id: Optional[int] = None
@@ -1049,7 +1112,7 @@ class TSCDataFrame(pd.DataFrame):
         idx = pd.IndexSlice
         return self.loc[idx[:, time_values], :]
 
-    def initial_states(self, n_samples: int = 1) -> Union[pd.DataFrame, "TSCDataFrame"]:
+    def initial_states(self, n_samples: int = 1) -> "TSCDataFrame":
         """Get initial state of each time series in the collection.
 
         Parameters
@@ -1060,7 +1123,7 @@ class TSCDataFrame(pd.DataFrame):
 
         Returns
         -------
-        Union[pd.DataFrame, TSCDataFrame]
+        TSCDataFrame
             Initial states of shape `(n_samples * n_timeseries, n_features)`.
 
         Raises
@@ -1071,21 +1134,15 @@ class TSCDataFrame(pd.DataFrame):
         """
 
         if not is_integer(n_samples) or n_samples < 1:
-            raise ValueError("n_samples must be an integer and greater or equal to 1.")
+            raise ValueError(
+                "The parameter 'n_samples' must be a positive integer value."
+            )
 
-        # only larger than 2 because by definition each time series
-        # has a minimum of 2 time samples
-        if n_samples > 2:
-            self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
+        self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
 
-        if n_samples == 1:
-            _df = pd.DataFrame(self)
-        else:
-            _df = self
+        return self.groupby(by="ID", axis=0, level=0).head(n=n_samples)
 
-        return _df.groupby(by="ID", axis=0, level=0).head(n=n_samples)
-
-    def final_states(self, n_samples: int = 1) -> Union[pd.DataFrame, "TSCDataFrame"]:
+    def final_states(self, n_samples: int = 1) -> "TSCDataFrame":
         """Get the final states of each time series in the collection.
 
         Parameters
@@ -1095,7 +1152,7 @@ class TSCDataFrame(pd.DataFrame):
 
         Returns
         -------
-        Union[pd.DataFrame, TSCDataFrame]
+        TSCDataFrame
             The final states of shape `(n_samples, n_features)`.
 
         Raises
@@ -1105,21 +1162,11 @@ class TSCDataFrame(pd.DataFrame):
 
         """
         if not is_integer(n_samples) or n_samples < 1:
-            raise ValueError("")
+            raise ValueError("Parameter 'n_samples' must be a positive integer.")
 
-        # only larger than 2 because by definition each time series
-        # has a minimum of 2 time samples
-        if n_samples > 2 and not np.asarray(n_samples <= self.n_timesteps).all():
-            raise TSCException.not_required_n_timesteps(
-                required_length=n_samples, actual_length=self.n_timesteps
-            )
+        self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
 
-        if n_samples == 1:
-            _df = pd.DataFrame(self)
-        else:
-            _df = self
-
-        return _df.groupby(by="ID", axis=0, level=0).tail(n=n_samples)
+        return self.groupby(by="ID", axis=0, level=0).tail(n=n_samples)
 
     def plot(self, **kwargs):
         """Plots time series.
@@ -1161,22 +1208,24 @@ class InitialCondition(object):
     """Helper functions to create and validate initial conditions for time series
     predictions.
 
-    Initial conditions are described with ``pandas.DataFrame`` objects
-    (including :class:`.TSCDataFrame`). However, a user can also provide a
-    :class:`numpy.ndarray`, but there are less checks for input validation possible.
+    Initial conditions are internally described with ``TSCDataFrame`` objects.
 
     In general, initial conditions are required in models that train on time series
     data, see for example in :py:meth:`EDMD.predict`. An initial condition can consist of
     single states (e.g. a vector at time zero), or a time series itself. The latter is
     the case if model transformations require multiple time values to define the
-    transformed state.
+    transformed state (such as :py:class:`.TSCTakensEmbedding` or
+    :py:class:`TSCFiniteDifference`).
     """
 
     @classmethod
     def from_array(
         cls, X: np.ndarray, columns: Union[pd.Index, List[str]]
-    ) -> pd.DataFrame:
-        """Build initial conditions from an array.
+    ) -> TSCDataFrame:
+        """Build initial conditions object from a NumPy array.
+        
+        Note that the assumption is that each row is a new initial condition. All time
+        values are set to zero.
 
         Parameters
         ----------
@@ -1189,7 +1238,7 @@ class InitialCondition(object):
 
         Returns
         -------
-        pandas.DataFrame
+        TSCDataFrame
             initial condition
         """
 
@@ -1207,68 +1256,61 @@ class InitialCondition(object):
                 f"X.ndim={X.ndim}"
             )
 
-        index = pd.Index(np.arange(X.shape[0]), name=TSCDataFrame.tsc_id_idx_name)
-        ic_df = pd.DataFrame(X, index=index, columns=columns)
-        InitialCondition.validate(ic_df)
+        n_ic = X.shape[0]
+        index = pd.MultiIndex.from_arrays([np.arange(n_ic), np.zeros(n_ic)])
+
+        ic_df = TSCDataFrame(X, index=index, columns=columns)
+        InitialCondition.validate(ic_df, n_samples_ic=1, dt=None)
         return ic_df
 
     @classmethod
     def from_tsc(cls, X: TSCDataFrame, n_samples_ic: int = 1) -> pd.DataFrame:
-        """Collects all initial states from a ``TSCDataFrame``.
-        
-        .. note::
-
-            The time values of the time series' initial states are ignored for single
-            states. For time series with multiple timesteps, the initial condition is
-            invalid if the time values are not identical between initial states.
-
-        Parameters
-        ----------
-        X
-            Object to extract initial states from.
-
-        n_samples_ic
-            Number of time steps per initial condition.
-
-        Returns
-        -------
-        TSCDataFrame, pandas.DataFrame
-            initial condition
-        """
-
-        # TODO: Implement if required: input parameter "time_values", to overwrite the
-        #  time values in time series with possibly different values.
-
-        ic_df = X.initial_states(n_samples=n_samples_ic)
-
-        if n_samples_ic == 1:
-            # drop the time column
-            ic_df.index = ic_df.index.droplevel(TSCDataFrame.tsc_time_idx_name)
-
-        InitialCondition.validate(ic_df)
-        return ic_df
-
-    @classmethod
-    def iter_reconstruct_ic(
-        cls, X: TSCDataFrame, n_samples_ic: int = 1
-    ) -> Generator[Tuple[pd.DataFrame, np.ndarray], None, None]:
-        """Extract and iterate over initial conditions with time series groups of that
-        have identical time values.
-
-        This iterator is useful to reconstruct time series.
+        """Extract initial states from a ``TSCDataFrame``.
         
         Parameters
         ----------
         X
-            Object to extract initial states from.
+            The time series data to extract initial states from.
 
         n_samples_ic
             The number of time steps per initial condition.
 
         Returns
         -------
-        iterator (Union[TSCDataFrame, pandas.DataFrame], numpy.ndarray)
-            single iteration returns initial state and time values
+        TSCDataFrame
+            initial condition
+        """
+
+        ic_df = X.initial_states(n_samples=n_samples_ic)
+        InitialCondition.validate(
+            ic_df,
+            n_samples_ic=n_samples_ic,
+            dt=X.delta_time if n_samples_ic > 1 else None,
+        )
+        return ic_df
+
+    @classmethod
+    def iter_reconstruct_ic(
+        cls, X: TSCDataFrame, n_samples_ic: int = 1
+    ) -> Generator[Tuple[TSCDataFrame, np.ndarray], None, None]:
+        """Extract and iterate over initial conditions over groups of time series that
+        have identical time values.
+
+        This iterator is particulary usefule to reconstruct time series.
+        
+        Parameters
+        ----------
+        X
+            The time series collection to extract initial states from.
+
+        n_samples_ic
+            The number of time steps per initial condition.
+
+        Returns
+        -------
+        iterator Tuple[TSCDataFrame, numpy.ndarray]
+            Each iteration returns the initial states for each time series of the group
+            and the associate time values.
         """
 
         table = X.tsc.time_values_overview()
@@ -1284,14 +1326,6 @@ class InitialCondition(object):
             grouped_tsc: TSCDataFrame = X.loc[grouped_ids, :]
 
             initial_states = grouped_tsc.initial_states(n_samples_ic)
-
-            if n_samples_ic == 1:
-                # the time index plays no role in for single IC (compared to time
-                # series IC)
-                initial_states.index = initial_states.index.droplevel(
-                    TSCDataFrame.tsc_time_idx_name
-                )
-
             time_values = grouped_tsc.time_values()
 
             if n_samples_ic > 1:
@@ -1302,92 +1336,60 @@ class InitialCondition(object):
             yield initial_states, time_values
 
     @classmethod
-    def _validate_frame(cls, X_ic: pd.DataFrame):
-
-        # INDEX
-        # in index.names (n-D) or name (1-D) must be name=ID
-        if X_ic.index.nlevels == 1:
-            if X_ic.index.name != TSCDataFrame.tsc_id_idx_name:
-                raise ValueError(
-                    f"The index.name is not '{TSCDataFrame.tsc_id_idx_name}'. "
-                    f"Got {X_ic.index.name}"
-                )
-
-            _id_index: pd.Index = X_ic.index
-
-        else:  # X_ic.index.nlevels >= 1:
-            if TSCDataFrame.tsc_id_idx_name not in X_ic.index.names:
-                raise ValueError(
-                    f"No index name has required "
-                    f"index.name='{TSCDataFrame.tsc_id_idx_name}'."
-                    f"Got {X_ic.index.names}"
-                )
-
-            _id_index = X_ic.index.get_level_values(TSCDataFrame.tsc_id_idx_name)
-
-        if not _id_index.is_integer():
-            raise ValueError(
-                f"The index '{TSCDataFrame.tsc_id_idx_name}' must be of type integer. "
-                f"Got type {_id_index.dtype}."
-            )
-
-        if _id_index.has_duplicates:
-            raise ValueError(
-                f"The index '{TSCDataFrame.tsc_id_idx_name}' must be unique. "
-                f"Duplicates found \n{_id_index.duplicated()}"
-            )
-
-        # COLUMNS
-        if X_ic.columns.nlevels != 1:
-            raise ValueError(
-                f"The columns must be single indexed. "
-                f"Got columns.nlevels={X_ic.columns.nlevels}"
-            )
-
-        if X_ic.columns.has_duplicates:
-            raise ValueError(
-                f"The columns must be unique. Duplicates found: \n"
-                f"{X_ic.columns.duplicated()}"
-            )
-
-    @classmethod
-    def _validate_tsc(cls, X_ic: TSCDataFrame):
-
-        # all the usual restrictions for TSCDataFrame apply
-        assert X_ic._validate()
-
-        X_ic.tsc.check_tsc(
-            ensure_same_length=True,
-            ensure_const_delta_time=True,
-            ensure_same_time_values=True,
-        )
-
-    @classmethod
-    def validate(cls, X_ic: pd.DataFrame) -> bool:
-        """Validate correctness of initial condition format.
+    def validate(
+        cls,
+        X_ic: TSCDataFrame,
+        n_samples_ic: Optional[int] = None,
+        dt: Optional[float] = None,
+    ) -> bool:
+        """Validate the initial condition format of a :py:class:`-TSCDataFrame`.
 
         Parameters
         ----------
         X_ic
             The initial condition to validate.
 
+        n_samples_ic
+            If provided, then validate that each initial condition has the set number of
+            samples.
+        
+        dt
+            If provided, then validate that the time series have the set constant delta
+            time sampling. The parameter ``n_samples_ic`` must be given at the same time.
+
         Returns
         -------
         """
 
-        # apply for both
-        if X_ic.isnull().any().any():
-            raise ValueError(
-                "Initial conditions must be finite (i.e. no nan or inf " "values)"
+        if not isinstance(X_ic, TSCDataFrame):
+            raise TypeError(
+                "The initial condition to be validated must be of type TSCDataFrame."
             )
 
-        if isinstance(X_ic, TSCDataFrame):
-            # important to have this first (TSCDataFrame is also pd.DataFrame)
-            cls._validate_tsc(X_ic)
-        elif isinstance(X_ic, pd.DataFrame):
-            cls._validate_frame(X_ic)
-        else:
-            raise TypeError(f"Type {type(X_ic)} not supported for initial conditions.")
+        if n_samples_ic is None and dt is not None:
+            raise ValueError(
+                "If validating delta time, then the parameter 'n_samples_ic' "
+                "must be given."
+            )
+
+        if n_samples_ic == 1 and dt is not None:
+            raise ValueError(
+                "Cannot check the time sampling rate, when at the same "
+                "time only one sample is required per initial condition."
+            )
+
+        # all the usual restrictions for TSCDataFrame apply
+        assert X_ic._validate()
+
+        X_ic.tsc.check_tsc(
+            ensure_const_delta_time=np.array(X_ic.n_timesteps > 1).any(),
+            ensure_no_degenerate_ts=False,
+            ensure_same_length=True,
+            ensure_all_finite=True,
+            ensure_same_time_values=True,
+            ensure_n_timesteps=n_samples_ic,
+            ensure_delta_time=dt,
+        )
 
         return True
 

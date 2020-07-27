@@ -265,24 +265,12 @@ class LinearDynamicalSystem(object):
                     @ diagmat_dot_mat(np.power(eigenvalues, time), initial_conditions)
                 ).T
 
-        if len(time_values) != 1:
-            return TSCDataFrame.from_tensor(
-                time_series_tensor,
-                time_series_ids=time_series_ids,
-                columns=feature_columns,
-                time_values=time_values,
-            )
-        else:
-            # in the special case where only one time value is requested, we cannot
-            # return a time series -> fallback to pandas.DataFrame
-            idx = pd.MultiIndex.from_arrays(
-                [time_series_ids, np.ones(len(time_series_ids)) * time_values[0]],
-                names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
-            )
-
-            return pd.DataFrame(
-                time_series_tensor[:, 0, :], index=idx, columns=feature_columns
-            )
+        return TSCDataFrame.from_tensor(
+            time_series_tensor,
+            time_series_ids=time_series_ids,
+            columns=feature_columns,
+            time_values=time_values,
+        )
 
 
 class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
@@ -557,7 +545,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         Parameters
         ----------
-        X: pandas.DataFrame, numpy.ndarray
+        X: TSCDataFrame, numpy.ndarray
             Initial conditions of shape `(n_initial_condition, n_features)`.
 
         time_values
@@ -593,7 +581,8 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             # work internally only with DataFrames
             X = InitialCondition.from_array(X, columns=self.features_in_[1])
         else:
-            InitialCondition.validate(X)
+            # for DMD the number of samples per initial condition is always 1
+            InitialCondition.validate(X, n_samples_ic=1)
 
         self._validate_data(X)
 
@@ -641,9 +630,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         check_is_fitted(self)
         X = self._validate_data(
-            X,
-            ensure_feature_name_type=True,
-            validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._validate_feature_names(X)
 
@@ -868,9 +855,7 @@ class DMDFull(DMDBase):
         """
 
         self._validate_data(
-            X=X,
-            ensure_feature_name_type=True,
-            validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
 
@@ -990,9 +975,7 @@ class DMDEco(DMDBase):
 
     def fit(self, X: TimePredictType, y=None, **fit_params):
         self._validate_data(
-            X,
-            ensure_feature_name_type=True,
-            validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X)
         self._compute_internals(X)
@@ -1062,9 +1045,7 @@ class PyDMDWrapper(DMDBase):
     def fit(self, X: TimePredictType, y=None, **fit_params) -> "PyDMDWrapper":
 
         self._validate_data(
-            X,
-            ensure_feature_name_type=True,
-            validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
 
