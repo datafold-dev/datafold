@@ -48,6 +48,7 @@ class _DmapKernelAlgorithms:
         is_symmetric: bool,
         is_stochastic: bool,
         basis_change_matrix: Optional[scipy.sparse.dia_matrix],
+        index_from: Optional[TSCDataFrame] = None,
     ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame]]:
 
         if isinstance(kernel_matrix, pd.DataFrame):
@@ -94,9 +95,9 @@ class _DmapKernelAlgorithms:
 
         eigvect /= np.linalg.norm(eigvect, axis=0)[np.newaxis, :]
 
-        if isinstance(kernel_matrix, TSCDataFrame):
+        if index_from is not None:
             eigvect = TSCDataFrame.from_same_indices_as(
-                kernel_matrix,
+                index_from,
                 eigvect,
                 except_columns=[f"ev{i}" for i in range(n_eigenpairs)],
             )
@@ -443,6 +444,21 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         # if key is not present, this is a bug. The value for the key can also be None.
         basis_change_matrix = ret_extra["basis_change_matrix"]
 
+        # choose object to copy time information, if applicable
+        if isinstance(kernel_matrix_, TSCDataFrame):
+            # if possible take time index from kernel_matrix (especially
+            # dynamics-adapted kernels can drop samples from X)
+            index_from = kernel_matrix_
+        elif (
+            isinstance(kernel_matrix_, TSCDataFrame)
+            and kernel_matrix_.shape[0] == self.X_.shape[0]
+        ):
+            # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_ is a time
+            # series, then take from X_ -- this only works if no samples are dropped.
+            index_from = self.X_
+        else:
+            index_from = None
+
         (
             self.eigenvalues_,
             self.eigenvectors_,
@@ -452,6 +468,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
             is_symmetric=self._dmap_kernel.is_symmetric,
             is_stochastic=self.is_stochastic,
             basis_change_matrix=basis_change_matrix,
+            index_from=index_from,
         )
 
         if self._dmap_kernel.is_symmetric_transform() and store_kernel_matrix:
