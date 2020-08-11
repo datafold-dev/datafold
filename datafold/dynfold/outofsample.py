@@ -511,44 +511,45 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
     """Laplacian pyramids interpolation of function values on data manifold using
     kernels with different scales.
 
-    The model implementation is generalized to vector valued targets: the kernel scales
+    The model implementation is generalized to vector valued targets: The kernel scales
     are decreased (i.e. a new kernel with lower scale is computed) until for each target
-    function the corresponding stopping criteria is reached (based on residual).
+    function the corresponding stopping criteria is reached (based on the residual).
 
     Parameters
     ----------
 
     initial_epsilon
-        Scale of kernel in first iteration.
+        The scale of kernel in first iteration.
 
     mu
-        Factor by which epsilon is decreased in every iteration
-        :code:`(new_epsilon = old_epsilon / mu)`. Must be strictly larger than 1.
+        The factor by which epsilon is decreased in every iteration
+        :code:`(new_epsilon = old_epsilon / mu)`. Must be a strictly larger than one.
 
     residual_tol
-        Decreasing kernel scale terminates if interpolation residual gets
-        smaller than tolerance. If ``auto_adaptive=False`` a parameter must be provided.
+        The tolerance at which the iteration (i.e. decreasing kernel scales) is
+        terminated. If ``auto_adaptive=False`` a value must be provided.
 
     auto_adaptive
         If True, decreasing the kernel scale terminates based on LOOCV (leave
         one out cross validation) estimation in each iteration.
 
     alpha
-        Parameter handled to the diffusion maps kernel used (see
-        :class:`DmapKernelFixed`).
+        A parameter handled to the diffusion maps kernel that in internally used
+        (see :py:class:`DmapKernelFixed`).
 
     Attributes
     ----------
 
     X_: numpy.ndarray
-        Point cloud during fit.
+        The point cloud during fit. Must be stored into memory to be able to perform
+        out-of-sample interpolations.
 
     level_: int
         The number of levels and kernels used in the model.
 
     n_targets_: int
-        The number of target functions during fit. (Note: the target values are not hold
-        in the model).
+        The number of target functions during fit. (Note, the target values are not
+        stored in the model).
 
     References
     ----------
@@ -590,7 +591,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         if self.residual_tol is None and not self.auto_adaptive:
             raise ValueError(
                 "Need to specify a stopping criteria by either providing a "
-                "residual tolerance or auto_adaptive=True"
+                "residual tolerance or enabling auto adaptive termination."
             )
 
         if self.residual_tol is not None:
@@ -666,11 +667,11 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         ):
             signal = self._LoopCond.BELOW_RES_TOL
 
-        MAGIC_TINY_RESIDUAL = 1e-15
+        TINY_RESIDUAL = 1e-15
 
         if (
             signal == self._LoopCond.NO_TERMINATION
-            and current_residual_norm < MAGIC_TINY_RESIDUAL
+            and current_residual_norm < TINY_RESIDUAL
         ):
             # Stop in any configuration, below this threshold
             signal = self._LoopCond.TINY_RES

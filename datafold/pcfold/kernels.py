@@ -100,11 +100,11 @@ def _symmetric_matrix_division(
     """
 
     if matrix.ndim != 2:
-        raise ValueError("Parameter 'matrix' must be an two dimensional array.")
+        raise ValueError("Parameter 'matrix' must be a two dimensional array.")
 
     if matrix.shape[0] != matrix.shape[1] and vec_right is None:
         raise ValueError(
-            "If matrix has recangular shape, then 'vec_right' must be provided."
+            "If 'matrix' has rectangular shape, then 'vec_right' must be provided."
         )
 
     vec_inv_left = np.reciprocal(vec.astype(np.float64))
@@ -116,14 +116,14 @@ def _symmetric_matrix_division(
 
     if vec_inv_left.ndim != 1 or vec_inv_left.shape[0] != matrix.shape[0]:
         raise ValueError(
-            f"invalid input: 'vec.shape={vec.shape}' is not compatible with "
-            f"'matrix.shape={matrix.shape}'"
+            f"Invalid input: 'vec.shape={vec.shape}' is not compatible with "
+            f"'matrix.shape={matrix.shape}'."
         )
 
     if vec_inv_right.ndim != 1 or vec_inv_right.shape[0] != matrix.shape[1]:
         raise ValueError(
-            f"invalid input: 'vec_right.shape={vec_inv_right.shape}' is not compatible "
-            f"with 'matrix.shape={matrix.shape}'"
+            f"Invalid input: 'vec_right.shape={vec_inv_right.shape}' is not compatible "
+            f"with 'matrix.shape={matrix.shape}'."
         )
 
     if scipy.sparse.issparse(matrix):

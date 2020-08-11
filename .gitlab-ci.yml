@@ -15,8 +15,13 @@ setup:
 unittests:
   stage: test
   script:
-    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ datafold/ -v
+    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ --cover-html --cover-html-dir="./coverage/" datafold/ -v
   allow_failure: false
+  artifacts:
+    paths:
+      - ./coverage/
+    expire_in: 1 week
+    when: on_success
 
 functional_tests:
   script:

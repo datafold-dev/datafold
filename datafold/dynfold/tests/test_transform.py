@@ -18,7 +18,7 @@ from datafold.dynfold.transform import (
     TSCPrincipalComponent,
     TSCRadialBasis,
     TSCTakensEmbedding,
-    TSCTransformerMixIn,
+    TSCTransformerMixin,
 )
 from datafold.pcfold.kernels import *
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
@@ -26,7 +26,7 @@ from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
 
 def _all_tsc_transformers():
     # only finds the ones that are importated (DMAP e.g. is not here)
-    print(TSCTransformerMixIn.__subclasses__())
+    print(TSCTransformerMixin.__subclasses__())
 
 
 class TestTSCTransform(unittest.TestCase):
@@ -322,39 +322,52 @@ class TestTSCTransform(unittest.TestCase):
         simple_df = self.takens_df_short.drop("B", axis=1)
         tsc_df = TSCDataFrame(simple_df)
 
-        actual = TSCTakensEmbedding(lag=0, delays=1, frequency=1,).fit_transform(tsc_df)
+        takens = TSCTakensEmbedding(lag=0, delays=1, frequency=1,)
+        actual = takens.fit_transform(tsc_df)
 
-        self.assertIsInstance(actual, pd.DataFrame)
+        self.assertIsInstance(actual, TSCDataFrame)
 
-        actual = actual.to_numpy()  # only compare the numeric values
-
+        # First test
+        actual_numerics = actual.to_numpy()  # only compare the numeric values
         expected = np.array(
             [[2.0, 0.0], [6.0, 4.0], [10.0, 8.0], [14.0, 12.0], [16.0, 14.0],]
         )
 
-        nptest.assert_equal(actual, expected)
+        nptest.assert_equal(actual_numerics, expected)
+
+        # Second test
+        actual_inverse = takens.inverse_transform(actual)
+        pdtest.assert_frame_equal(tsc_df.drop([0, 17], level=1), actual_inverse)
 
     def test_takens_embedding1(self):
         # test kappa = 1
 
         tsc_df = TSCDataFrame.from_single_timeseries(
-            pd.DataFrame([0, 1, 2, 3, 4, 5], columns=["A"])
+            pd.DataFrame([0, 1, 2, 3, 4, 5], columns=["A"], dtype=np.float)
         )
+
+        takens = TSCTakensEmbedding(lag=0, delays=5, frequency=1, kappa=1)
 
         # embedd to a single instance
-        actual = TSCTakensEmbedding(
-            lag=0, delays=5, frequency=1, kappa=1
-        ).fit_transform(tsc_df)
+        actual = takens.fit_transform(tsc_df)
 
-        self.assertIsInstance(actual, pd.DataFrame)
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertTrue(actual.has_degenerate_ts())
+        self.assertEqual(actual.n_timeseries, 1)
 
-        actual = actual.to_numpy()  # only compare the numeric values
+        # First test
+        actual_numerics = actual.to_numpy()  # only compare the numeric values
 
         expected = np.array([[5, 4, 3, 2, 1, 0]], dtype=float) * np.exp(
-            -1 * np.array([0, 1, 2, 3, 4, 5])
+            -1.0 * np.array([0, 1, 2, 3, 4, 5])
         )
 
-        nptest.assert_equal(actual, expected)
+        nptest.assert_equal(actual_numerics, expected)
+
+        # Second test
+        actual_inverse = takens.inverse_transform(actual)
+        expected = tsc_df.final_states(1)
+        pdtest.assert_frame_equal(actual_inverse, expected)
 
     def test_takens_delay_indices(self):
         tsc_short = TSCDataFrame(self.takens_df_short)  # better check for errors

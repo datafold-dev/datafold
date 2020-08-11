@@ -633,7 +633,7 @@ class TSCKfoldSeries(TSCCrossValidationSplits):
             train_indices = indices_matrix[train].flatten()
             test_indices = indices_matrix[test].flatten()
 
-            yield train_indices, test_indices
+            yield np.sort(train_indices), np.sort(test_indices)
 
     def get_n_splits(self, X=None, y=None, groups=None) -> int:
         """Number of splits, which are also the number of cross-validation iterations.
@@ -711,7 +711,7 @@ class TSCKFoldTime(TSCCrossValidationSplits):
         for train, test in self.kfold_splitter.split(indices_matrix):
             train_indices = indices_matrix[train].flatten()
             test_indices = indices_matrix[test].flatten()
-            yield train_indices, test_indices
+            yield np.sort(train_indices), np.sort(test_indices)
 
     def get_n_splits(self, X=None, y=None, groups=None) -> int:
         """Number of splits, which are also the number of cross-validation iterations.
@@ -892,7 +892,7 @@ class TSCWindowFoldTime(TSCCrossValidationSplits):
             test_indices = test_tsc.to_numpy()[::-1].ravel()
 
             if len(train_indices) != 0:
-                yield train_indices, test_indices
+                yield np.sort(train_indices), np.sort(test_indices)
 
     def get_n_splits(
         self, X: Optional[TSCDataFrame] = None, y=None, groups=None
