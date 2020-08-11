@@ -9,9 +9,13 @@ import numpy.testing as nptest
 import pandas as pd
 import scipy.linalg
 
-from datafold.dynfold.dmd import DMDFull, LinearDynamicalSystem
-from datafold.dynfold.tests.helper import assert_equal_eigenvectors
+from datafold.dynfold.dmd import DMDEco, DMDFull, LinearDynamicalSystem, PyDMDWrapper
 from datafold.pcfold import TSCDataFrame
+from datafold.utils.general import (
+    assert_equal_eigenvectors,
+    is_df_same_index,
+    sort_eigenpairs,
+)
 
 
 class LinearDynamicalSystemTest(unittest.TestCase):
@@ -226,8 +230,25 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
 
 class DMDTest(unittest.TestCase):
-    def _create_dummy_tsc(self, dim):
-        data = pd.DataFrame(np.random.rand(dim, dim))
+    def _create_random_tsc(self, dim, n_samples):
+        data = np.random.default_rng(1).normal(size=(n_samples, dim))
+        data = pd.DataFrame(data)
+        return TSCDataFrame.from_single_timeseries(data)
+
+    def _create_harmonic_tsc(self, n_samples, dim):
+        x_eval = np.linspace(0, 2, n_samples)
+
+        col_stacks = []
+
+        counter = 1
+        for i in range(dim):
+            if np.mod(i, 2) == 0:
+                col_stacks.append(np.cos(x_eval * 2 * np.pi / counter))
+            else:
+                col_stacks.append(np.sin(x_eval * 2 * np.pi / counter))
+            counter += 1
+
+        data = pd.DataFrame(np.column_stack(col_stacks))
         return TSCDataFrame.from_single_timeseries(data)
 
     def test_dmd_eigenpairs(self):
@@ -241,7 +262,7 @@ class DMDTest(unittest.TestCase):
             return_value=mock_koopman_matrix
         )
 
-        dmd_model = dmd_model.fit(self._create_dummy_tsc(dim=2))
+        dmd_model = dmd_model.fit(self._create_random_tsc(n_samples=2, dim=2))
 
         expected_eigenvalues = np.array([4.0, 1.0])  # must be sorted descending
         nptest.assert_array_equal(expected_eigenvalues, dmd_model.eigenvalues_)
@@ -276,3 +297,131 @@ class DMDTest(unittest.TestCase):
         )
 
         nptest.assert_allclose(mock_koopman_matrix, actual, rtol=1e-15, atol=1e-15)
+
+    def test_dmd_pydmd1(self):
+
+        test_data = self._create_random_tsc(n_samples=500, dim=30)
+
+        pydmd = PyDMDWrapper(
+            method="dmd", svd_rank=1000, tlsq_rank=0, exact=True, opt=False
+        ).fit(test_data)
+
+        # datafold and PyDMD have a different way to order the eigenvalues. For
+        # the test we sort both accoring to the complex eigenvalue
+        expected_eigenvalues, expected_modes = sort_eigenpairs(
+            pydmd.eigenvalues_, pydmd.dmd_modes
+        )
+
+        dmd = DMDFull().fit(test_data)
+        actual = dmd.dmd_modes
+
+        nptest.assert_allclose(
+            dmd.eigenvalues_, expected_eigenvalues, atol=1e-4, rtol=0,
+        )
+
+        assert_equal_eigenvectors(expected_modes, actual, tol=1e-15)
+
+    def test_dmd_pydmd2(self):
+        test_data = self._create_random_tsc(n_samples=500, dim=100)
+
+        pydmd = PyDMDWrapper(
+            method="dmd", svd_rank=10, tlsq_rank=0, exact=True, opt=False
+        ).fit(test_data)
+        expected = pydmd.dmd_modes
+
+        dmd = DMDEco(svd_rank=10).fit(test_data)
+        actual = dmd.dmd_modes
+
+        nptest.assert_allclose(dmd.eigenvalues_, pydmd.eigenvalues_, atol=1e-15, rtol=0)
+
+        assert_equal_eigenvectors(expected, actual, tol=1e-15)
+
+    def test_reconstruct_indices(self):
+
+        expected_indices = self._create_random_tsc(n_samples=100, dim=10)
+        actual_indices = DMDFull(is_diagonalize=False).fit_predict(expected_indices)
+
+        is_df_same_index(
+            actual_indices,
+            expected_indices,
+            check_column=True,
+            check_index=True,
+            handle="raise",
+        )
+
+    def test_predict_indices(self):
+        tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
+        predict_ic = self._create_random_tsc(n_samples=20, dim=10)
+
+        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+
+        # predict with array
+        predict_ic = predict_ic.to_numpy()
+        actual = dmd.predict(predict_ic)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertEqual(actual.n_timeseries, predict_ic.shape[0])
+        self.assertEqual(actual.n_timesteps, dmd.time_values_in_.quantity)
+        nptest.assert_array_equal(actual.ids, np.arange(predict_ic.shape[0]))
+
+        # provide own time series IDs in the initial condition and own time values
+        expected_ids = np.arange(0, predict_ic.shape[0] * 2, 2)
+        expected_time_values = np.arange(500)
+
+        predict_ic = TSCDataFrame(
+            predict_ic,
+            index=pd.MultiIndex.from_arrays(
+                [expected_ids, np.zeros(predict_ic.shape[0]),]
+            ),
+            columns=tsc_df_fit.columns,
+        )
+
+        actual = dmd.predict(predict_ic, time_values=expected_time_values)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertEqual(actual.n_timeseries, predict_ic.shape[0])
+        self.assertEqual(actual.n_timesteps, len(expected_time_values))
+        nptest.assert_array_equal(actual.time_values(), expected_time_values)
+        nptest.assert_array_equal(actual.ids, expected_ids)
+
+    def test_invalid_time_values(self):
+        tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
+        predict_ic = self._create_random_tsc(n_samples=20, dim=10).to_numpy()
+
+        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+
+        time_values = np.arange(500, dtype=np.float)
+
+        with self.assertRaises(ValueError):
+            _values = time_values.copy()
+            _values[0] = np.nan
+            dmd.predict(predict_ic, _values)
+
+        with self.assertRaises(ValueError):
+            _values = time_values.copy()
+            _values[-1] = np.inf
+            dmd.predict(predict_ic, _values)
+
+        with self.assertRaises(ValueError):
+            _values = time_values.copy()
+            _values[0] = -1
+            dmd.predict(predict_ic, _values)
+
+        with self.assertRaises(ValueError):
+            _values = time_values.copy()
+            _values = _values[::-1]
+            dmd.predict(predict_ic, _values)
+
+        with self.assertRaises(TypeError):
+            _values = time_values.copy().astype(np.complex)
+            _values[-1] = _values[-1] + 1j
+            dmd.predict(predict_ic, _values)
+
+        with self.assertRaises(ValueError):
+            _values = time_values.copy()
+            _values[0] = _values[1]
+            dmd.predict(predict_ic, _values)
+
+        with self.assertRaises(ValueError):
+            _values = time_values.copy()[np.newaxis, :]
+            dmd.predict(predict_ic, _values)

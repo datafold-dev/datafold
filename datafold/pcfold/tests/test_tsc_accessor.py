@@ -160,6 +160,29 @@ class TestTscAccessor(unittest.TestCase):
         self.assertFalse(2 in actual_train.time_values())
         self.assertFalse(7 in actual_test.time_values())
 
+    def test_assign_ids_train_test3(self):
+        df = pd.DataFrame(np.arange(20).reshape(10, 2), columns=("A", "B"))
+        X = TSCDataFrame.from_single_timeseries(df)
+
+        train_indices = np.arange(5)
+        test_indices = np.arange(5, 10)
+
+        # success
+        X.tsc.assign_ids_train_test(train_indices, test_indices)
+
+        with self.assertRaises(ValueError):
+            train_indices_invalid = np.arange(5).reshape(2)
+            X.tsc.assign_ids_train_test(train_indices_invalid, test_indices)
+
+        with self.assertRaises(ValueError):
+            train_indices_invalid = train_indices.copy()
+            train_indices_invalid[0] = -1
+            X.tsc.assign_ids_train_test(train_indices_invalid, test_indices)
+
+        with self.assertRaises(ValueError):
+            train_indices_invalid = train_indices.astype(np.float).copy()
+            X.tsc.assign_ids_train_test(train_indices_invalid, test_indices)
+
     def test_assign_ids_const_delta1(self):
 
         original_idx = pd.MultiIndex.from_arrays(
@@ -346,7 +369,7 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_equal(actual_right, expected_right)
 
     def test_shift_time1(self):
-        tsc_df = TSCDataFrame(self.simple_df)
+        tsc_df = TSCDataFrame(self.simple_df).copy()
 
         tsc_df.tsc.shift_time(5)
         nptest.assert_array_equal(

@@ -909,42 +909,6 @@ def _all_available_distance_algorithm():
     return return_backends
 
 
-@DeprecationWarning
-def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):
-
-    if tol == 0:
-        # TODO: check if what are valid tol values and what the tolerance is exactly
-        #  used for...
-        raise ZeroDivisionError("tol cannot be zero.")
-
-    k_smallest_element_values = _k_smallest_element_value(
-        distance_matrix, kmin, ignore_zeros=True, fill_value=1 / tol
-    )
-    xk = np.reciprocal(k_smallest_element_values)
-
-    epsilon = 0.25  # TODO: magic number, parametrize?
-
-    if scipy.sparse.issparse(distance_matrix):
-
-        xk_inv_sp = scipy.sparse.dia_matrix((xk, 0), (xk.shape[0], xk.shape[0]))
-        distance_matrix.data = np.square(distance_matrix.data)
-        distance_matrix = xk_inv_sp @ distance_matrix @ xk_inv_sp
-        distance_matrix.data = np.sqrt(distance_matrix.data)
-
-        # TODO: 4 is magic number, and the product is currently always 1
-        distance_matrix.data[distance_matrix.data > 4 * epsilon] = 0
-        # TODO: maybe for pdist matrices need to set the diagonal with zeros again
-        distance_matrix.eliminate_zeros()
-    else:  # dense case
-        xk_inv = np.diag(xk)
-        distance_matrix = np.square(distance_matrix)
-        distance_matrix = xk_inv @ distance_matrix @ xk_inv
-        distance_matrix = np.sqrt(distance_matrix)
-        distance_matrix[distance_matrix > 4 * epsilon] = 0  # TODO: see above
-
-    return distance_matrix
-
-
 def get_backend_distance_algorithm(backend):
     """Selects and validates the backend class for distance matrix computation.
 

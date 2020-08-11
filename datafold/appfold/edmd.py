@@ -78,8 +78,8 @@ from datafold.dynfold.base import (
     InitialConditionType,
     TimePredictType,
     TransformType,
-    TSCPredictMixIn,
-    TSCTransformerMixIn,
+    TSCPredictMixin,
+    TSCTransformerMixin,
 )
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
@@ -91,7 +91,7 @@ from datafold.utils.general import (
 )
 
 
-class EDMD(Pipeline, TSCPredictMixIn):
+class EDMD(Pipeline, TSCPredictMixin):
     """Extended Dynamic Mode Decomposition (EDMD) model to approximate the Koopman
     operator with a matrix.
 
@@ -227,7 +227,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             # which feature
             modes = pd.DataFrame(
                 self._koopman_modes,
-                index=self.features_in_[1],
+                index=self.features_in_.names,
                 columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
             )
             return modes
@@ -281,7 +281,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
     def _validate_dictionary(self):
         # Check that all are TSCTransformer
         for (_, trans_str, transformer) in self._iter(with_final=False):
-            if not isinstance(transformer, TSCTransformerMixIn):
+            if not isinstance(transformer, TSCTransformerMixin):
                 raise TypeError(
                     "Currently, in the pipeline only supports transformers "
                     "that can handle indexed data structures (pd.DataFrame "
@@ -345,7 +345,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             values = X.to_numpy() @ self._inverse_map
 
             X_ts = df_type_and_indices_from(
-                indices_from=X, values=values, except_columns=self.features_in_[1]
+                indices_from=X, values=values, except_columns=self.features_in_.names
             )
 
         else:
@@ -399,7 +399,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
             # trivial case: we just need a projection matrix to select the
             # original full-states from the dictionary functions
             inverse_map = projection_matrix_from_features(
-                X_dict.columns, self.features_in_[1]
+                X_dict.columns, self.features_in_.names
             )
 
         elif self.compute_koopman_modes:
@@ -548,7 +548,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
         """
 
         if qois is None:
-            feature_columns = self.features_in_[1]
+            feature_columns = self.features_in_.names
         else:
             feature_columns = qois
 
@@ -557,7 +557,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
                 modes = self.koopman_modes.to_numpy()
             else:
                 project_matrix = projection_matrix_from_features(
-                    self.features_in_[1], qois
+                    self.features_in_.names, qois
                 )
                 modes = project_matrix.T @ self.koopman_modes.to_numpy()
 
@@ -634,7 +634,7 @@ class EDMD(Pipeline, TSCPredictMixIn):
 
         if isinstance(X, np.ndarray):
             # work internally only with TSCDataFrame
-            X = InitialCondition.from_array(X, columns=self.features_in_[1])
+            X = InitialCondition.from_array(X, columns=self.features_in_.names)
         else:
             InitialCondition.validate(
                 X,
@@ -970,7 +970,7 @@ def _fit_and_score_edmd(
     return ret
 
 
-class EDMDCV(GridSearchCV, TSCPredictMixIn):
+class EDMDCV(GridSearchCV, TSCPredictMixin):
     """Exhaustive parameter search over specified grid for a :class:`EDMD` model with
     cross-validation.
 

@@ -27,6 +27,39 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(tc.loc[0, :], self.simple_df.loc[0, :])
         pdtest.assert_frame_equal(tc.loc[1, :], self.simple_df.loc[1, :])
 
+    def test_invalid1(self):
+        tc = TSCDataFrame(self.simple_df)
+
+        # ID 45 appears at the start and end
+        tsc_append = TSCDataFrame(
+            np.arange(4).reshape(2, 2),
+            index=pd.MultiIndex.from_arrays([[45, 45], [20, 21]]),
+            columns=self.simple_df.columns,
+        )
+
+        with self.assertRaises(AttributeError):
+            pd.concat([tsc_append, tc], axis=0)
+
+        # time 1 for ID 0 is duplicated
+        tsc_append = TSCDataFrame(
+            np.arange(4).reshape(2, 2),
+            index=pd.MultiIndex.from_arrays([[0, 0], [1, 2]]),
+            columns=self.simple_df.columns,
+        )
+
+        with self.assertRaises(AttributeError):
+            pd.concat([tsc_append, tc], axis=0)
+
+        # time values of ID 0 are not sorted
+        tsc_append = TSCDataFrame(
+            np.arange(4).reshape(2, 2),
+            index=pd.MultiIndex.from_arrays([[0, 0], [50, 51]]),
+            columns=self.simple_df.columns,
+        )
+
+        with self.assertRaises(AttributeError):
+            pd.concat([tsc_append, tc], axis=0)
+
     def test_n_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.n_timeseries, 4)
@@ -134,15 +167,10 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(tsc_df, actual)
 
     def test_set_index2(self):
-        tsc_df = TSCDataFrame(self.simple_df)
+        tsc_df = TSCDataFrame(self.simple_df.copy())
 
         new_idx_float_id = pd.MultiIndex.from_arrays(
             [np.ones(9, dtype=np.float64) * 0.5, np.arange(9)]
-        )
-
-        # has only one time sample for ID 0
-        new_idx_degenerated_ts = pd.MultiIndex.from_arrays(
-            [np.hstack([0, np.ones(8)]), np.arange(9)[::-1]]
         )
 
         # test new_idx_float_id that
@@ -161,22 +189,18 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc_df = TSCDataFrame(self.simple_df)
 
         # test new_idx_degenerated_ts
+        # has only one time sample for ID 0
+        new_idx_degenerated_ts = pd.MultiIndex.from_arrays(
+            [np.hstack([0, np.ones(8)]), np.arange(9)]
+        )
+
         self.assertTrue(tsc_df.set_index(new_idx_degenerated_ts).has_degenerate_ts())
 
-        # no inplace oper
+        # no inplace operation
         self.assertFalse(tsc_df.has_degenerate_ts())
 
         tsc_df.set_index(new_idx_degenerated_ts, inplace=True)
         self.assertTrue(tsc_df.has_degenerate_ts())
-
-    def test_set_index3(self):
-        tsc_df = TSCDataFrame(self.simple_df)
-        new_idx = pd.MultiIndex.from_arrays([np.ones(9), np.arange(9)[::-1]])
-
-        actual = tsc_df.set_index(new_idx)
-
-        # Test that indices are internally sorted
-        nptest.assert_array_equal(actual.index.get_level_values(1), np.arange(9))
 
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
@@ -1175,7 +1199,7 @@ class TestInitialCondition(unittest.TestCase):
             InitialCondition.iter_reconstruct_ic(self.test_tsc01, n_samples_ic=1)
         ):
 
-            select_ts = pd.DataFrame(self.test_tsc01).loc[[i, None], :]
+            select_ts = pd.DataFrame(self.test_tsc01).loc[[i], :]
             expected_ic = select_ts.head(n_samples_ic)
             expected_time_values = select_ts.index.get_level_values(
                 TSCDataFrame.tsc_time_idx_name
@@ -1194,7 +1218,7 @@ class TestInitialCondition(unittest.TestCase):
             InitialCondition.iter_reconstruct_ic(self.test_tsc02, n_samples_ic=1)
         ):
 
-            select_ts = pd.DataFrame(self.test_tsc02).loc[[i, None], :]
+            select_ts = pd.DataFrame(self.test_tsc02).loc[[i], :]
             expected_ic = select_ts.head(n_samples_ic)
 
             expected_time_values = select_ts.index.get_level_values(
@@ -1214,7 +1238,7 @@ class TestInitialCondition(unittest.TestCase):
             InitialCondition.iter_reconstruct_ic(self.test_tsc02, n_samples_ic=3)
         ):
 
-            select_ts = self.test_tsc02.loc[[i, None], :]
+            select_ts = self.test_tsc02.loc[[i], :]
             expected_ic = select_ts.head(n_sample_ic)
 
             expected_time_values = select_ts.index.get_level_values(
