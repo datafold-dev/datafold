@@ -55,7 +55,7 @@ setup(
         "numpy>=0.18.0",
         "scikit-learn>=0.22.1,<0.23.0",
         "scipy>=1.4.0",
-        "pandas>=1.0.0",
+        "pandas>=1.0.0,<1.2.0",
         "numexpr>=2.7.1,<3.0.0",
         "matplotlib>=3.2.0",
         "findiff>=0.8.0",
