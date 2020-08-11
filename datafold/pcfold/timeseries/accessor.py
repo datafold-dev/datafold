@@ -574,6 +574,21 @@ class TSCAccessor(object):
             The dropped samples; only returned if ``return_dropped_samples=True``.
         """
 
+        def _test_array(_array):
+            bool_dim = _array.ndim == 1
+            bool_positive = np.all(_array >= 0)
+            bool_sorted = np.all(_array[:-1] < _array[1:])
+            bool_type = _array.dtype == np.integer
+
+            if not (bool_dim and bool_positive and bool_sorted and bool_type):
+                raise ValueError(
+                    "The arrays 'train_indices' and 'test_indices' must be sorted 1-dim. "
+                    "array of non-negative and unique integer values."
+                )
+
+        _test_array(train_indices)
+        _test_array(test_indices)
+
         all_indices = np.append(train_indices, test_indices)
         if len(np.unique(all_indices)) != len(all_indices):
             raise ValueError(

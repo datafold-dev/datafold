@@ -79,8 +79,8 @@ class TSCException(Exception):
     @classmethod
     def not_n_timesteps(cls, required: int):
         return cls(
-            f"The number of required timesteps {required} is not fulfilled by one or "
-            f"more time series."
+            f"Invalid format: The time series collection has the requirement of"
+            f" {required} samples per time series."
         )
 
     @classmethod
@@ -278,7 +278,6 @@ class TSCDataFrame(pd.DataFrame):
         self.attrs["dist_kwargs"] = dist_kwargs
 
         self._validate()
-        self._sort_tsc_index()
 
     @classmethod
     def from_tensor(
@@ -352,7 +351,11 @@ class TSCDataFrame(pd.DataFrame):
         idx = pd.MultiIndex.from_arrays([time_series_ids, col_time_values])
 
         data = tensor.reshape(n_timeseries * n_timesteps, n_feature)
-        return cls(data=data, index=idx, columns=columns)
+
+        # sorting index handles cases where time values are provided in sorted order
+        data = pd.DataFrame(data=data, index=idx, columns=columns)
+        data.sort_index(axis=0, level=0, inplace=True)
+        return cls(data)
 
     @classmethod
     def from_shift_matrices(
@@ -498,6 +501,9 @@ class TSCDataFrame(pd.DataFrame):
                 df.name = cls.tsc_feature_col_name
             df = pd.DataFrame(df)
 
+        # The time values must be sorted.
+        df.sort_index(axis=0, inplace=True)
+
         df[cls.tsc_id_idx_name] = ts_id
         df.set_index(cls.tsc_id_idx_name, append=True, inplace=True)
         df = df.reorder_levels([cls.tsc_id_idx_name, df.index.names[0]])
@@ -616,7 +622,7 @@ class TSCDataFrame(pd.DataFrame):
         if self.columns.nlevels != 1:
             # must exactly have two levels [ID, time]
             raise AttributeError(
-                f"columns.nlevels =! 1. Columns has to be single level. "
+                f"Columns must be single level (columns.nlevels == 1).  "
                 f"Got: Columns.nlevels={self.columns.nlevels}"
             )
 
@@ -643,7 +649,7 @@ class TSCDataFrame(pd.DataFrame):
             unique_ids = np.unique(ids_index)
             unique_negative_ids = unique_ids[unique_ids < 0]
             raise AttributeError(
-                f"All time series IDs have to be positive integer values. "
+                f"All time series IDs have to be non-negative integer values. "
                 f"Got time series ids: {unique_negative_ids}"
             )
 
@@ -662,7 +668,7 @@ class TSCDataFrame(pd.DataFrame):
 
         if self.to_numpy().dtype.kind not in "biufc":
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html?highlight=kind#numpy.dtype.kind
-            raise AttributeError("data dtype must be numeric")
+            raise AttributeError("Data type of time series must be numeric.")
 
         if self.index.duplicated().any():
             raise AttributeError(
@@ -675,6 +681,17 @@ class TSCDataFrame(pd.DataFrame):
                 f"Duplicated columns found: "
                 f"{self.columns[self.columns.duplicated()].to_numpy()}"
             )
+
+        # bool index to the start of new IDs
+        bool_new_id = np.append(1, np.diff(self.index.codes[0])).astype(np.bool)
+        _ids = self.index.get_level_values(self.tsc_id_idx_name)[bool_new_id]
+
+        if len(np.unique(_ids)) != len(_ids):
+            raise AttributeError("Time series IDs appear multiple times.")
+
+        ts_internal_codes = np.append(0, np.diff(self.index.codes[1]))
+        if np.any(ts_internal_codes[~bool_new_id] <= 0):
+            raise AttributeError("The time values of each time series must be sorted.")
 
         return True
 

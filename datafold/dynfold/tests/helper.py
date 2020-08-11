@@ -13,6 +13,7 @@ import numpy.testing as nptest
 from scipy.sparse import csr_matrix
 
 from datafold.dynfold.dmap import DiffusionMaps
+from datafold.utils.general import assert_equal_eigenvectors
 
 
 def make_strip(
@@ -86,18 +87,6 @@ def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
             logging.debug(
                 "All eigenvalues are very close to one, did not compare eigenvectors. "
             )
-
-
-def assert_equal_eigenvectors(eigvec1, eigvec2, tol=1e-14):
-    # Allows to also check orthogonality, but is not yet implemented
-    norms1 = np.linalg.norm(eigvec1, axis=0)
-    norms2 = np.linalg.norm(eigvec2, axis=0)
-    eigvec_test = (eigvec1.T @ eigvec2) * np.reciprocal(np.outer(norms1, norms2))
-
-    actual = np.abs(np.diag(eigvec_test))  # -1 is also allowed for same direction
-    expected = np.ones(actual.shape[0])
-
-    nptest.assert_allclose(expected, actual, atol=tol, rtol=0)
 
 
 def cmp_kernel_matrix(

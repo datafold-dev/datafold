@@ -1,8 +1,6 @@
 Documented internals
 ====================
 
-
-
 Classes
 ~~~~~~~
 
@@ -50,10 +48,10 @@ Modules
        WARNING: autosummary: stub file not found 'XXXXX'. Check your autosummary_generate setting.
 
 .. automodapi:: datafold.dynfold.base
-    :skip: BaseEstimator,DmapKernelFixed,List,NotFittedError,NumericalMathError,TSCDataFrame,TSCMetric,TSCScoring,TimePredictType,TransformerMixin,Tuple,TSCException
+    :skip: List,NotFittedError,TSCDataFrame,TSCMetric,TSCScoring,TimePredictType,TransformerMixin,Tuple,TSCException,NamedTuple
 
 .. automodapi:: datafold.pcfold.distance
-    :skip: NearestNeighbors,apply_continuous_nearest_neighbor,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec
+    :skip: NearestNeighbors,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec
 
 .. automodapi:: datafold.pcfold.eigsolver
     :skip: Callable,sort_eigenpairs,is_symmetric_matrix,Tuple,Dict

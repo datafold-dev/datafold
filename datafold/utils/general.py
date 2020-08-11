@@ -4,6 +4,7 @@ import warnings
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 import scipy.sparse
@@ -29,6 +30,18 @@ def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
         raise TypeError(f"type={type(ds)} not supported")
 
     return ds
+
+
+def assert_equal_eigenvectors(eigvec1, eigvec2, tol=1e-14):
+    # Allows to also check orthogonality, but is not yet implemented
+    norms1 = np.linalg.norm(eigvec1, axis=0)
+    norms2 = np.linalg.norm(eigvec2, axis=0)
+    eigvec_test = (eigvec1.conj().T @ eigvec2) * np.reciprocal(np.outer(norms1, norms2))
+
+    actual = np.abs(np.diag(eigvec_test))  # -1 is also allowed for same direction
+    expected = np.ones(actual.shape[0])
+
+    nptest.assert_allclose(expected, actual, atol=tol, rtol=0)
 
 
 def is_df_same_index(
@@ -191,8 +204,12 @@ def sort_eigenpairs(
             f"number of eigenvectors (={eigenvectors.shape[1]})"
         )
 
-    # Sort eigenvectors according to absolute value of eigenvalue:
-    idx = np.abs(eigenvalues).argsort()
+    # Sort eigenvectors according to (complex) value of eigenvalue
+    #  -- NOTE: the ordering according to the complex value is preferred over the
+    #           ordering of absolute value because often complex conjugate eigenvalues
+    #           have the same abs. value which makes sorting typically unstable (i.e.
+    #           there can be two equivalent but different according to the complex order)
+    idx = np.argsort(eigenvalues)
 
     if not ascending:
         # creates a view on array and is most efficient way for reversing order

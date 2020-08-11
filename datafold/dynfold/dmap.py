@@ -10,7 +10,7 @@ import scipy.spatial
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.dynfold.base import TransformType, TSCTransformerMixIn
+from datafold.dynfold.base import TransformType, TSCTransformerMixin
 from datafold.pcfold import DmapKernelFixed, PCManifold, TSCDataFrame
 from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
 from datafold.pcfold.kernels import (
@@ -144,8 +144,8 @@ class _DmapKernelAlgorithms:
         return kernel_matrix
 
 
-class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
-    """Define diffusion processes on point clouds to find meaningful geometric
+class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
+    """Define diffusion processes on point cloud to find meaningful geometric
     descriptions.
 
     The model can be used for
@@ -160,35 +160,37 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
     Parameters
     ----------
     kernel
-        Internal kernel to describe proximity between points. The kernel is passed
-        as an `internal_kernel` to :class:`.DmapKernelFixed`, which describes
+        The kernel to describe proximity between points. The kernel is passed
+        as an ``internal_kernel`` to :py:class:`.DmapKernelFixed`, which describes
         the diffusion process.
 
     n_eigenpairs
-        Number of eigenpairs to compute from kernel matrix.
+        The number of eigenpairs to compute from kernel matrix.
 
     time_exponent
-        Time of diffusion process (exponent of eigenvalues in embedding).
+        The time of the diffusion process (exponent of eigenvalues in embedding).
 
     is_stochastic
-        If True, the diffusion kernel matrix is normalized (row stochastic).
+        If True, the diffusion kernel matrix is normalized (row stochastic). In the
+        standard definition of diffusion maps this has to be true.
 
     alpha
-        Re-normalization parameter between `(0,1)`. ``alpha=1`` corrects the sampling
-        density in the data as an artifact of the collection process. Special values are
+        The re-normalization parameter between `(0,1)`. Set ``alpha=1`` to correct the
+        sampling density in the data as an artifact of the collection process. Special
+        values are
 
-        * `alpha=0` graph Laplacian,
+        * `alpha=0` Graph Laplacian,
         * `alpha=0.5` Fokker-Plank operator,
         * `alpha=1` Laplace-Beltrami operator
 
-        Note, that `is_stochastic=True` is required in all three cases.
+        Note, that ``is_stochastic=True`` is required in all three cases.
 
     symmetrize_kernel
         If True, a conjugate transformation is performed if the settings
         lead to a non-symmetric kernel matrix. This improves numerical stability when
-        solving the eigenvectors of the kernel matrix as it allows algorithms designed
-        for (sparse) Hermitian matrices to be used. If the kernel matrix is symmetric
-        already (`is_stochastic=False`), then the parameter has no effect.
+        solving the eigenvectors of the kernel matrix because it allows algorithms
+        designed for (sparse) Hermitian matrices to be used. If the kernel matrix is
+        symmetric already (`is_stochastic=False`), then the parameter has no effect.
 
     dist_kwargs
         Keyword arguments passed to the internal distance matrix computation. See
@@ -196,23 +198,25 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
 
     Attributes
     ----------
+
     X_: PCManifold
-        Training data during fit. The data is required for out-of-sample mappings.
-        Equipped with kernel :py:class:`DmapKernelFixed`.
+        The training data during fit. The data is required for out-of-sample mappings;
+        the object is equipped with kernel :py:class:`DmapKernelFixed`.
 
     eigenvalues_ : numpy.ndarray
-        Eigenvalues of diffusion kernel matrix in decreasing order.
+        The eigenvalues of diffusion kernel matrix in decreasing order.
 
     eigenvectors_: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-        Eigenvectors of the kernel matrix to parametrize the data manifold.
+        The eigenvectors of the kernel matrix to parametrize the data manifold.
 
     inv_coeff_matrix_: numpy.ndarray
-        Coefficient matrix to map points from embedding space back to original space.\
-        Computation is delayed until `inverse_transform` is called for the first time.
+        The coefficient matrix to map points from embedding space back to original space.\
+        The computation and setting the attribute is delayed until `inverse_transform` is
+        called for the first time.
 
     kernel_matrix_ : Union[numpy.ndarray, scipy.sparse.csr_matrix]
-        Computed kernel matrix, stored only if `store_kernel_matrix=True` is set during
-        fit.
+        The computed kernel matrix; the matrix is only stored if
+        ``store_kernel_matrix=True`` is set during :py:meth:`.fit`.
 
     References
     ----------
@@ -349,7 +353,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
             dmap_embedding = df_type_and_indices_from(
                 indices_from=eigenvectors,
                 values=dmap_embedding,
-                except_columns=self.features_out_[1],
+                except_columns=self.features_out_.names,
             )
 
         return dmap_embedding
@@ -448,7 +452,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
         if isinstance(kernel_matrix_, TSCDataFrame):
             # if possible take time index from kernel_matrix (especially
             # dynamics-adapted kernels can drop samples from X)
-            index_from = kernel_matrix_
+            index_from: Optional[TSCDataFrame] = kernel_matrix_
         elif (
             isinstance(kernel_matrix_, TSCDataFrame)
             and kernel_matrix_.shape[0] == self.X_.shape[0]
@@ -582,11 +586,11 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixIn):
 
         X_orig_space = np.asarray(X) @ self.inv_coeff_matrix_
         return self._same_type_X(
-            X, values=X_orig_space, feature_names=self.features_in_[1]
+            X, values=X_orig_space, feature_names=self.features_in_.names
         )
 
 
-class DiffusionMapsVariable(TSCTransformerMixIn):
+class DiffusionMapsVariable(TSCTransformerMixin):
     """(experimental, not documented)
     .. warning::
         This class is not documented. Contributions are welcome
@@ -699,7 +703,7 @@ class DiffusionMapsVariable(TSCTransformerMixIn):
         )
 
         self.eigenvectors_ = self._same_type_X(
-            X, values=self.eigenvectors_, feature_names=self.features_out_[1]
+            X, values=self.eigenvectors_, feature_names=self.features_out_.names
         )
 
         return self
@@ -714,10 +718,10 @@ class DiffusionMapsVariable(TSCTransformerMixIn):
 
     def fit_transform(self, X: TransformType, y=None, **fit_params):
         self.fit(X=X, y=y, **fit_params)
-        return self._same_type_X(X, self.eigenvectors_, self.features_out_[1])
+        return self._same_type_X(X, self.eigenvectors_, self.features_out_.names)
 
 
-class LocalRegressionSelection(BaseEstimator, TSCTransformerMixIn):
+class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
     """Automatic selection of functional independent geometric harmonic vectors for
     parsimonious data manifold embedding.
 
@@ -1063,7 +1067,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixIn):
         X_selected = self._same_type_X(
             X,
             np.asarray(X)[:, self.evec_indices_],
-            feature_names=self.features_out_[1],
+            feature_names=self.features_out_.names,
         )
 
         return X_selected

@@ -69,8 +69,17 @@ class PCManifold(np.ndarray):
         if obj.ndim != 2:
             raise ValueError("Point cloud must be in a 2 dim. array.")
 
+        if 0 in obj.shape:
+            raise ValueError(
+                f"Point cloud has invalid shape (={obj.shape}). At least "
+                f"one point and one feature column are required."
+            )
+
         if not np.isfinite(obj).all():
             raise ValueError("Point cloud must be finite (no 'nan' or 'inf' values).")
+
+        if dist_kwargs is not None and not isinstance(dist_kwargs, dict):
+            raise TypeError("Parameter 'dist_kwargs' must be of type 'dict'.")
 
         # Set the kernel according to user input
         obj.kernel = kernel

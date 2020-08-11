@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.decorators import warn_experimental_class
-from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixIn
+from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (
     diagmat_dot_mat,
@@ -78,23 +78,30 @@ class LinearDynamicalSystem(object):
 
     def _check_time_values(self, time_values):
 
+        try:
+            time_values = np.asarray(time_values)
+        except:
+            raise TypeError("The time values must be readable as a NumPy array.")
+
+        # see https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
+        if time_values.ndim != 1 and time_values.dtype.kind in "buif":
+            raise ValueError(
+                "The array must be 1-dim. and only contain real-valued numeric data."
+            )
+
         if (time_values < 0).any():
-            raise ValueError("time samples contain negative values")
+            raise ValueError("The time values must all be positive numbers.")
 
         if np.isnan(time_values).any() or np.isinf(time_values).any():
-            raise ValueError("time samples contain invalid vales (nan/inf)")
+            raise ValueError("The time values contain invalid numbers (nan/inf).")
 
-        if self.mode == "discrete":
-
-            if time_values.dtype == np.integer:
-                pass  # restrict time_sample
-            elif (
-                time_values.dtype == np.floating and (np.mod(time_values, 1) == 0).all()
-            ):
+        if self.mode == "discrete" and time_values.dtype != np.integer:
+            # try to transform to integer values if possible without loss
+            if time_values.dtype == np.floating and (np.mod(time_values, 1) == 0).all():
                 time_values = time_values.astype(np.int)
             else:
                 raise TypeError(
-                    "For mode=discrete the time_samples have to be integers"
+                    "For mode=discrete the time_samples have to be integers."
                 )
 
         return time_values
@@ -273,7 +280,7 @@ class LinearDynamicalSystem(object):
         )
 
 
-class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
+class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
     r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
 
     A DMD model decomposes time series data linearly into spatial-temporal components.
@@ -426,7 +433,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         self.eigenvalues_: np.ndarray
 
         if feature_columns is None:
-            feature_columns = self.features_in_[1]
+            feature_columns = self.features_in_.names
 
         # initial condition is numpy-only, from now on, and column-oriented
         initial_states_origspace = X_ic.to_numpy().T
@@ -579,7 +586,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
 
         if isinstance(X, np.ndarray):
             # work internally only with DataFrames
-            X = InitialCondition.from_array(X, columns=self.features_in_[1])
+            X = InitialCondition.from_array(X, columns=self.features_in_.names)
         else:
             # for DMD the number of samples per initial condition is always 1
             InitialCondition.validate(X, n_samples_ic=1)
@@ -639,7 +646,7 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=1
         ):
-            X_ts = self.predict(X=X_ic, time_values=time_values, qois=qois)
+            X_ts = self.predict(X=X_ic, time_values=time_values)
             X_reconstruct_ts.append(X_ts)
 
         X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)
@@ -659,9 +666,6 @@ class DMDBase(BaseEstimator, TSCPredictMixIn, metaclass=abc.ABCMeta):
             same shape as input `X`
         """
         return self.fit(X, **fit_params).reconstruct(X)
-
-    def koopman_modes(self, qois=None):
-        pass
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None) -> float:
         """Score model by reconstructing time series data.
@@ -827,7 +831,7 @@ class DMDFull(DMDBase):
         # (G_k)^T * K = G_{k+1}^T  (therefore the row snapshot orientation at the
         #                           beginning)
 
-        koopman_matrix = koopman_matrix.T
+        koopman_matrix = koopman_matrix.conj().T
         return koopman_matrix
 
     def fit(
@@ -953,7 +957,7 @@ class DMDEco(DMDBase):
         S = S[: self.svd_rank]
         S_inverse = np.reciprocal(S, out=S)
 
-        V = Vh.T
+        V = Vh.conj().T
         V = V[:, : self.svd_rank]
 
         koopman_matrix_low_rank = (
@@ -1001,46 +1005,64 @@ class PyDMDWrapper(DMDBase):
             raise ImportError(
                 "Python package pydmd could not be imported. Check installation."
             )
-        assert pydmd is not None
+        assert pydmd is not None  # mypy
 
         self._setup_default_tsc_metric_and_score()
-        self.method_ = method.lower()
+        self.method = method.lower()
+        self.svd_rank = svd_rank
+        self.tlsq_rank = tlsq_rank
+        self.exact = exact
+        self.opt = opt
+        self.init_params = init_params
 
-        standard_params = {
-            "svd_rank": svd_rank,
-            "tlsq_rank": tlsq_rank,
-            "exact": exact,
-            "opt": opt,
-        }
+    def _setup_pydmd_model(self):
 
-        if method == "dmd":
-            self.dmd_ = pydmd.DMD(**standard_params)
-        elif method == "hodmd":
-            standard_params["d"] = init_params.pop("d", 1)
-            self.dmd_ = pydmd.HODMD(**standard_params)
-
-        elif method == "fbdmd":
-            self.dmd_ = pydmd.FbDMD(**standard_params)
-        elif method == "mrdmd":
-            standard_params["max_cycles"] = init_params.pop("max_cycles", 1)
-            standard_params["max_level"] = init_params.pop("max_level", 6)
-            self.dmd_ = pydmd.MrDMD(**standard_params)
-        elif method == "cdmd":
-            standard_params["compression_matrix"] = init_params.pop(
-                "max_level", "uniform"
+        if self.method == "dmd":
+            self.dmd_ = pydmd.DMD(
+                svd_rank=self.svd_rank,
+                tlsq_rank=self.tlsq_rank,
+                exact=self.exact,
+                opt=self.opt,
             )
-            self.dmd_ = pydmd.CDMD(**standard_params)
-        elif method == "optdmd":
-            standard_params["factorization"] = init_params.pop("factorization", "evd")
-            self.dmd_ = pydmd.OptDMD(**standard_params)
-        elif method == "dmdc":
-            # self.dmd_ = pydmd.DMDc(**init_params)
+        elif self.method == "hodmd":
+            self.dmd_ = pydmd.HODMD(
+                svd_rank=self.svd_rank,
+                tlsq_rank=self.tlsq_rank,
+                exact=self.exact,
+                opt=self.opt,
+                **self.init_params,
+            )
+
+        elif self.method == "fbdmd":
+            self.dmd_ = pydmd.FbDMD(
+                svd_rank=self.svd_rank,
+                tlsq_rank=self.tlsq_rank,
+                exact=self.exact,
+                opt=self.opt,
+            )
+        elif self.method == "mrdmd":
+            self.dmd_ = pydmd.MrDMD(
+                svd_rank=self.svd_rank,
+                tlsq_rank=self.tlsq_rank,
+                exact=self.exact,
+                opt=self.opt,
+                **self.init_params,
+            )
+        elif self.method == "cdmd":
+            self.dmd_ = pydmd.CDMD(
+                svd_rank=self.svd_rank,
+                tlsq_rank=self.tlsq_rank,
+                opt=self.opt,
+                **self.init_params,
+            )
+
+        elif self.method == "dmdc":
             raise NotImplementedError(
                 "Currently not implemented because DMD with control requires "
                 "additional input."
             )
         else:
-            raise ValueError(f"method={method} not known")
+            raise ValueError(f"method={self.method} not known")
 
     def fit(self, X: TimePredictType, y=None, **fit_params) -> "PyDMDWrapper":
 
@@ -1048,6 +1070,7 @@ class PyDMDWrapper(DMDBase):
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
+        self._setup_pydmd_model()
 
         if len(X.ids) > 1:
             raise NotImplementedError(
