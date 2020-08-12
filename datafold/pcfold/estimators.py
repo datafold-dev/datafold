@@ -8,7 +8,7 @@ import numpy as np
 import scipy.spatial
 
 from datafold.pcfold import GaussianKernel
-from datafold.pcfold.distance import _k_smallest_element_value, compute_distance_matrix
+from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import _kth_nearest_neighbor_dist
 
 
