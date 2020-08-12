@@ -194,13 +194,13 @@ class TestTSCDataFrame(unittest.TestCase):
             [np.hstack([0, np.ones(8)]), np.arange(9)]
         )
 
-        self.assertTrue(tsc_df.set_index(new_idx_degenerated_ts).has_degenerate_ts())
+        self.assertTrue(tsc_df.set_index(new_idx_degenerated_ts).has_degenerate())
 
         # no inplace operation
-        self.assertFalse(tsc_df.has_degenerate_ts())
+        self.assertFalse(tsc_df.has_degenerate())
 
         tsc_df.set_index(new_idx_degenerated_ts, inplace=True)
-        self.assertTrue(tsc_df.has_degenerate_ts())
+        self.assertTrue(tsc_df.has_degenerate())
 
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
@@ -581,10 +581,8 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc_df = TSCDataFrame(self.simple_df)
         tsc_df = tsc_df.drop(0, level=1)
 
-        nptest.assert_equal(
-            tsc_df.degenerate_ts_ids(), np.array([0, 1, 15], dtype=np.int)
-        )
-        self.assertTrue(tsc_df.has_degenerate_ts())
+        nptest.assert_equal(tsc_df.degenerate_ids(), np.array([0, 1, 15], dtype=np.int))
+        self.assertTrue(tsc_df.has_degenerate())
 
     def test_degenerate_timeseries1(self):
         # test behavior with delta time
@@ -849,8 +847,8 @@ class TestTSCDataFrame(unittest.TestCase):
         # after slicing for a single time, it is not a valid TSCDataFrame anymore, therefore fall back to pd.DataFrame
         self.assertIsInstance(actual, TSCDataFrame)
 
-        self.assertTrue(actual.has_degenerate_ts())
-        nptest.assert_array_equal(actual.degenerate_ts_ids(), np.array([45]))
+        self.assertTrue(actual.has_degenerate())
+        nptest.assert_array_equal(actual.degenerate_ids(), np.array([45]))
 
     def test_loc_slice04(self):
         tscdf = TSCDataFrame(self.simple_df)
@@ -1014,12 +1012,12 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc.loc[(100, 0), :] = 1
 
         self.assertTrue(100 in tsc.ids)
-        nptest.assert_array_equal(tsc.degenerate_ts_ids(), np.array([100]))
+        nptest.assert_array_equal(tsc.degenerate_ids(), np.array([100]))
 
         tsc.loc[(100, 1), :] = 2
 
         self.assertEqual(tsc.n_timesteps.loc[100], 2)
-        self.assertEqual(tsc.degenerate_ts_ids(), None)
+        self.assertEqual(tsc.degenerate_ids(), None)
 
     def test_concat_new_timeseries(self):
         tsc = TSCDataFrame(self.simple_df)

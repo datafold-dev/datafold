@@ -352,7 +352,7 @@ class TestTSCTransform(unittest.TestCase):
         actual = takens.fit_transform(tsc_df)
 
         self.assertIsInstance(actual, TSCDataFrame)
-        self.assertTrue(actual.has_degenerate_ts())
+        self.assertTrue(actual.has_degenerate())
         self.assertEqual(actual.n_timeseries, 1)
 
         # First test

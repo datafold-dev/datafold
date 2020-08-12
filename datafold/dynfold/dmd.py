@@ -563,23 +563,23 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
 
         post_map: Union[numpy.ndarray, scipy.sparse.spmatrix]
             A matrix that is combined with the right eigenvectors. \
-            :code:`post_map @ eigenvectors_right_`. It set, then also `feature_columns`
-            is required. It cannot be set with 'modes' at the same time.
+            :code:`post_map @ eigenvectors_right_`. If set, then also the input
+            `feature_columns` is required. It cannot be set with 'modes' at the same time.
 
         modes: Union[numpy.ndarray]
-            A matrix that sets the DMD modes directly from outside. This must not be
-            given at the same time with `post_map`. It set, then also `feature_columns`
+            A matrix that sets the DMD modes directly. This must not be given at the
+            same time with ``post_map``. If set, then also the input ``feature_columns``
             is required. It cannot be set with 'modes' at the same time.
 
         feature_columns: pandas.Index
-            If `post_map` is given with a changed state length, then new feature names
+            If ``post_map`` is given with a changed state length, then new feature names
             must be provided.
 
         Returns
         -------
         TSCDataFrame
-            Computed time series predictions of shape `(n_time_values, n_features)` for
-            each initial condition.
+            The computed time series predictions, where each time series has shape
+            `(n_time_values, n_features)`.
         """
 
         check_is_fitted(self)
@@ -626,8 +626,8 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
             Time series to reconstruct.
 
         qois
-            List of feature names of interest to be include in the return object.
-            Passed to :py:meth:`.predict`.
+            A list of feature names of interest to be include in the returned
+            predictions. Passed to :py:meth:`.predict`.
 
         Returns
         -------
@@ -730,10 +730,10 @@ class DMDFull(DMDBase):
         Eigenvalues of Koopman matrix.
 
     eigenvectors_right_: numpy.ndarray
-        All right eigenvectors of Koopman matrix with same shape and ordered column wise.
+        All right eigenvectors of Koopman matrix; ordered column-wise.
 
     eigenvectors_left_: numpy.ndarray
-        All left eigenvectors of Koopman matrix with same shape and ordered row-wise.
+        All left eigenvectors of Koopman matrix with ordered row-wise.
         Only accessible if ``is_diagonalize=True``.
 
     koopman_matrix_: numpy.ndarray

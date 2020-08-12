@@ -546,7 +546,7 @@ class TSCScoring(object):
 
 
 class TSCCrossValidationSplits(metaclass=abc.ABCMeta):
-    """Abstract base class for cross validation splits.
+    """Abstract base class for cross validation splits for time series data.
 
     See sub-classes for details.
     """

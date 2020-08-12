@@ -87,8 +87,8 @@ Highlights
 Cite
 ====
 
-If you use *datafold* please cite the paper published in the *Journal of Open Source
-Software* (JOSS)
+If you use *datafold* in your research, please cite the paper published in the *Journal of
+Open Source Software* (JOSS).
 
 .. code-block:: latex
 
@@ -100,7 +100,8 @@ Software* (JOSS)
              volume    = {5},
              number    = {51},
              pages     = {2283},
-             author    = {Daniel Lehmberg and Felix Dietrich and Gerta Köster and Hans-Joachim Bungartz},
+             author    = {Daniel Lehmberg and Felix Dietrich and Gerta K{\"o}ster and
+             Hans-Joachim Bungartz},
              title     = {datafold: data-driven models for point clouds and time series on manifolds},
              journal   = {Journal of Open Source Software}}
 

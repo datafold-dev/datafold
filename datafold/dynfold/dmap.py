@@ -145,8 +145,7 @@ class _DmapKernelAlgorithms:
 
 
 class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
-    """Define diffusion processes on point cloud to find meaningful geometric
-    descriptions.
+    """Define diffusion process on point cloud to find meaningful geometric descriptions.
 
     The model can be used for
 
@@ -448,7 +447,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         # if key is not present, this is a bug. The value for the key can also be None.
         basis_change_matrix = ret_extra["basis_change_matrix"]
 
-        # choose object to copy time information, if applicable
+        # choose object to copy time information from, if applicable
         if isinstance(kernel_matrix_, TSCDataFrame):
             # if possible take time index from kernel_matrix (especially
             # dynamics-adapted kernels can drop samples from X)
@@ -458,7 +457,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             and kernel_matrix_.shape[0] == self.X_.shape[0]
         ):
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_ is a time
-            # series, then take from X_ -- this only works if no samples are dropped.
+            # series, then take incides from X_ -- this only works if no samples are
+            # dropped in the kernel computation.
             index_from = self.X_
         else:
             index_from = None

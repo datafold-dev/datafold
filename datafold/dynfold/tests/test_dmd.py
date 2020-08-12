@@ -212,7 +212,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         # Is a TSCDataFrame, also for single time steps
         self.assertIsInstance(actual, TSCDataFrame)
-        self.assertTrue(actual.has_degenerate_ts())
+        self.assertTrue(actual.has_degenerate())
 
         actual = LinearDynamicalSystem(
             mode="continuous", time_invariant=True

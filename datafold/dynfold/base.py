@@ -40,12 +40,6 @@ class TSCBaseMixin(object):
     :py:class:`.TSCPredictMixin`
     """
 
-    def _strictly_pandas_df(self, df):
-        """Check if the type is strictly a pandas.Dataframe object. This means it is
-        also False for TSCDataFrame.
-        """
-        return type(df) == pd.DataFrame
-
     def _has_feature_names(self, _obj):
         # True, for pandas.DataFrame or TSCDataFrame
         return isinstance(_obj, pd.DataFrame)
@@ -102,9 +96,9 @@ class TSCBaseMixin(object):
 
             validate_tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
-            if self._strictly_pandas_df(X):
-                # special handling of pandas.DataFrame
-                # --> keep the type (recover after validation).
+            if type(X) == pd.DataFrame:
+                # special handling of pandas.DataFrame (strictly, not including
+                # TSCDataFrame) --> keep the type (recover after validation).
                 assert isinstance(X, pd.DataFrame)  # mypy checking
                 revert_to_data_frame = True
                 idx, col = X.index, X.columns

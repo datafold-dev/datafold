@@ -89,8 +89,8 @@ class TSCAccessor(object):
             steps.
 
         ensure_no_degenerate_ts
-            If True, make sure that no degenerate (ones with single sample) time series
-            are present.
+            If True, make sure that no degenerate (single sampled) time series are
+            present.
 
         Returns
         -------
@@ -234,7 +234,7 @@ class TSCAccessor(object):
             )
 
     def check_no_degenerate_ts(self):
-        if self._tsc_df.has_degenerate_ts():
+        if self._tsc_df.has_degenerate():
             raise TSCException.has_degenerate_ts()
 
     def check_non_overlapping_timeseries(self) -> None:

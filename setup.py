@@ -62,7 +62,7 @@ setup(
     ],
     test_suite="nose.collector",
     tests_require=["nose>=1.3.7,<1.4"],
-    extras_require={"pydmd": ["pydmd"],},
+    extras_require={"pydmd": ["pydmd==0.2.1"],},
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",
