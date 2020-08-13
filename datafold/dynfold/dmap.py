@@ -193,7 +193,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
     dist_kwargs
         Keyword arguments passed to the internal distance matrix computation. See
-        :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
+        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
+        arguments.
 
     Attributes
     ----------

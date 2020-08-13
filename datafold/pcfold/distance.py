@@ -912,8 +912,8 @@ def compute_distance_matrix(
         Distance metric. Needs to be supported by backend.
 
     cut_off
-        Distances larger than `cut_off` are set to zero and controls the degree of
-        sparsity in the distance matrix.
+        Distances larger than `cut_off` are set to zero. The parameter controls the
+        degree of sparsity in the distance matrix.
 
         .. note::
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
