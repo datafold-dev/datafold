@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import warnings
-from functools import partial
 from typing import Optional
 
 import numpy as np
@@ -56,11 +55,15 @@ def estimate_cutoff(
 
     """
 
-    if k <= 1:
-        raise ValueError("")
+    from datafold.utils.general import is_integer
+
+    if k <= 1 and not is_integer(k):
+        raise ValueError("Parameter 'k' must be an integer greater than 1.")
+    else:
+        k = int(k)
 
     n_points = pcm.shape[0]
-    n_subsample = np.min([n_points, n_subsample])  # undersample the point set
+    n_subsample = np.min([n_points, n_subsample])
 
     if n_points < 10:
         d = scipy.spatial.distance.pdist(pcm)
@@ -82,7 +85,8 @@ def estimate_cutoff(
         )
 
         k = np.min([k, distance_matrix.shape[1]])
-        # need to transpose the matrix here to correctly work with _kth_nearest_neighbor_dist
+        # need to transpose the matrix here to correctly work with
+        # _kth_nearest_neighbor_dist
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix.T, k)
     else:
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
