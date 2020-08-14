@@ -11,6 +11,7 @@
 
 import importlib
 import os
+import shutil
 import sys
 from datetime import datetime
 
@@ -95,6 +96,15 @@ extensions = [
     "nbsphinx_link",
 ]
 
+# If the API folder is not removed, classes that were renamed can produce errors
+# because the old files are still around.
+remove_api_folder = True
+if remove_api_folder:
+    try:
+        shutil.rmtree(os.path.join(PATH2DOC, "api"))
+    except FileNotFoundError:
+        pass  # no worries the folder is already not there anymore
+
 # ----------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
 # sphinx.ext._todo:
@@ -105,7 +115,6 @@ todo_include_todos = True
 
 # If this is True, _todo emits a warning for each _TODO entry. The default is False.
 todo_emit_warnings = False
-
 
 # ----------------------------------------------------------------------------------------
 # sphinx.ext.imgmath -- only the image version allows to include full latex functionality
@@ -193,9 +202,9 @@ automodsumm_inherited_members = False
 # generate automatic links to the documentation of objects in other projects.
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://docs.scipy.org/doc/numpy", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
     "scikit-learn": ("https://scikit-learn.org/stable/", None),
-    "scipy": ("http://docs.scipy.org/doc/scipy/reference", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
 }
 
 # TODO: many pandas links are not resolved -- See:

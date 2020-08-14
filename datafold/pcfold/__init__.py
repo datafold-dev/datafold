@@ -2,14 +2,14 @@
 with data (e.g., kernels) and fundamental algorithms on data (e.g., distance matrix and
 eigen-solver). There are two data structures provided in *datafold*:
 
-* :class:`.PCManifold`  for point cloud data with manifold assumption. The data structure
-  is derived from :class:`numpy.ndarray` and attaches a kernel to describe local proximity
-  between points. All kernels implemented in *datafold* have the base class
-  :class:`PCManifoldKernel`. The data structure encapsulates the complexity of
+* :py:class:`.PCManifold` for point cloud data with manifold assumption. The data
+  structure is derived from :class:`numpy.ndarray` and attaches a kernel to describe
+  local proximity between points. All kernels implemented in *datafold* have the base
+  class :py:class:`.PCManifoldKernel`. The data structure encapsulates the complexity of
   recurring routines in kernel methods. For example, it computes sparse/dense kernel
   matrices of different distance metrics and eigenpairs with different backends.
 
-* :class:`.TSCDataFrame` is a collections of time series data. The data structure's
+* :py:class:`.TSCDataFrame` is a collections of time series data. The data structure's
   base class is Pandas' :class:`pandas.DataFrame` and can index multiple time series and
   time values of potentially multi-dimensional time series in a single object. The data
   structure is mainly required for system identification models. The time series can have
@@ -19,14 +19,15 @@ eigen-solver). There are two data structures provided in *datafold*:
 There are other low-level machine learning algorithms or tasks directly connected
 to the data structures. For estimating the scale of a :class:`GaussianKernel` the
 algorithms in :py:meth:`PCManifold.optimize_parameters` are suitable. For
-:class:`TSCDataframe` this includes time series splits into training/test sets (
-(:class:`TSCKfoldSeries` or :class:`TSCKFoldTime`) or measuring error metrics between
-predicted and true time series (:class:`TSCMetric`).
+:py:class:`TSCDataframe` this includes time series splits into training/test sets (
+(:py:class:`TSCKfoldSeries` or :py:class:`TSCKFoldTime`) or measuring error metrics
+between predicted and true time series (:py:class:`TSCMetric`).
 """
 
 
 import datafold.pcfold.timeseries.accessor
 from datafold.pcfold.kernels import (
+    ConeKernel,
     ContinuousNNKernel,
     CubicKernel,
     DmapKernelFixed,
@@ -54,4 +55,5 @@ from datafold.pcfold.timeseries.metric import (
     TSCKFoldTime,
     TSCMetric,
     TSCScoring,
+    TSCWindowFoldTime,
 )

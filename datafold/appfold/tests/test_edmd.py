@@ -17,6 +17,8 @@ from datafold.dynfold.transform import (
     TSCTakensEmbedding,
 )
 from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
+from datafold.pcfold.timeseries.collection import TSCException
+from datafold.utils.general import is_df_same_index
 
 
 class EDMDTest(unittest.TestCase):
@@ -62,11 +64,31 @@ class EDMDTest(unittest.TestCase):
     def setUp(self) -> None:
         self.sine_wave_tsc = self._setup_sine_wave_data()
         self.multi_sine_wave_tsc = self._setup_multi_sine_wave_data()
-        self._setup_multi_sine_wave_data2()
+        self.multi_waves = self._setup_multi_sine_wave_data2()
 
-    def test_id_dict(self):
+    def test_id_dict1(self):
         _edmd_dict = EDMD(
-            dict_steps=[("id", TSCIdentity())], include_id_state=False
+            dict_steps=[("id", TSCIdentity())],
+            include_id_state=False,
+            compute_koopman_modes=True,
+        ).fit(self.sine_wave_tsc)
+
+        pdtest.assert_frame_equal(
+            _edmd_dict.transform(self.sine_wave_tsc), self.sine_wave_tsc
+        )
+
+        actual = _edmd_dict.inverse_transform(_edmd_dict.transform(self.sine_wave_tsc))
+        expected = self.sine_wave_tsc
+        pdtest.assert_frame_equal(actual, expected)
+
+        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        is_df_same_index(expected, self.sine_wave_tsc)
+
+    def test_id_dict2(self):
+        _edmd_dict = EDMD(
+            dict_steps=[("id", TSCIdentity())],
+            include_id_state=False,
+            compute_koopman_modes=False,  # different to test_id_dict1
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
@@ -77,12 +99,196 @@ class EDMDTest(unittest.TestCase):
             _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
 
+        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        is_df_same_index(expected, self.sine_wave_tsc)
+
+    def test_id_dict3(self):
+        _edmd_dict = EDMD(
+            dict_steps=[("id", TSCIdentity(include_const=True))],
+            include_id_state=False,
+            compute_koopman_modes=True,
+        ).fit(self.sine_wave_tsc)
+
+        actual = _edmd_dict.inverse_transform(_edmd_dict.transform(self.sine_wave_tsc))
+        expected = self.sine_wave_tsc
+
+        pdtest.assert_frame_equal(actual, expected)
+
+        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        is_df_same_index(expected, self.sine_wave_tsc)
+
+    def test_qoi_selection1(self):
+        tsc = self.multi_waves
+
+        # pre-selection
+        edmd = EDMD(dict_steps=[("id", TSCIdentity())], include_id_state=False).fit(tsc)
+
+        cos_values = edmd.predict(tsc.initial_states(), qois=["cos"])
+        sin_values = edmd.predict(tsc.initial_states(), qois=["sin"])
+
+        pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values.columns)
+        pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values.columns)
+
+        cos_values_reconstruct = edmd.reconstruct(tsc, qois=["cos"])
+        sin_values_reconstruct = edmd.reconstruct(tsc, qois=["sin"])
+
+        pdtest.assert_index_equal(
+            tsc.loc[:, "cos"].columns, cos_values_reconstruct.columns
+        )
+        pdtest.assert_index_equal(
+            tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
+        )
+
+    def test_qoi_selection2(self):
+        tsc = self.multi_waves
+
+        # pre-selection
+        edmd = EDMD(
+            dict_steps=[("id", TSCIdentity(include_const=False, rename_features=True))],
+            include_id_state=True,
+        ).fit(tsc)
+
+        cos_values_predict = edmd.predict(tsc.initial_states(), qois=["cos"])
+        sin_values_predict = edmd.predict(tsc.initial_states(), qois=["sin"])
+
+        pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values_predict.columns)
+        pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values_predict.columns)
+
+        cos_values_reconstruct = edmd.reconstruct(tsc, qois=["cos"])
+        sin_values_reconstruct = edmd.reconstruct(tsc, qois=["sin"])
+
+        pdtest.assert_index_equal(
+            tsc.loc[:, "cos"].columns, cos_values_reconstruct.columns
+        )
+        pdtest.assert_index_equal(
+            tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
+        )
+
+    def test_qoi_selection3(self):
+        tsc = self.multi_waves
+
+        # pre-selection
+        edmd = EDMD(
+            dict_steps=[("id", TSCIdentity(include_const=False, rename_features=True))],
+            include_id_state=True,
+        ).fit(tsc)
+
+        with self.assertRaises(ValueError):
+            edmd.predict(tsc.initial_states(), qois=["INVALID"])
+
     def test_edmd_no_classifier(self):
         # import from internal module -- subject to change without warning!
         from sklearn.model_selection._validation import is_classifier
 
         self.assertFalse(is_classifier(EDMD))
         self.assertFalse(is_classifier(EDMDCV))
+
+    def test_n_samples_ic(self):
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        actual = _edmd.transform(self.multi_waves.initial_states(_edmd.n_samples_ic_))
+
+        # each initial-condition time series must result into a single state in
+        # dictionary space
+        self.assertIsInstance(actual, pd.DataFrame)
+
+        # 2 ID states + 2 PCA components
+        self.assertEqual(actual.shape, (self.multi_waves.n_timeseries, 2 + 2))
+
+        # Take one sample more and transform the states
+        actual = _edmd.transform(
+            self.multi_waves.initial_states(_edmd.n_samples_ic_ + 1)
+        )
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        # Having not enough samples must result into error
+        with self.assertRaises(TSCException):
+            _edmd.transform(self.multi_waves.initial_states(_edmd.n_samples_ic_ - 1))
+
+    def test_error_nonmatch_time_sample(self):
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        initial_condition = self.multi_waves.initial_states(_edmd.n_samples_ic_)
+        # change time values to a different sampling interval
+        initial_condition.index = pd.MultiIndex.from_arrays(
+            [
+                initial_condition.index.get_level_values(TSCDataFrame.tsc_id_idx_name),
+                # change sample rate:
+                initial_condition.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+                * 2,
+            ]
+        )
+
+        with self.assertRaises(TSCException):
+            _edmd.predict(initial_condition)
+
+    def test_access_koopman_system_triplet(self):
+        # triplet = eigenvalues, Koopman modes and eigenfunctions
+
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        actual_modes = _edmd.koopman_modes
+        actual_eigvals = _edmd.koopman_eigenvalues
+        actual_eigfunc = _edmd.koopman_eigenfunction(X=self.multi_waves)
+
+        # 2 original states
+        # 4 eigenvectors in dictionary space (2 ID states + 2 PCA states)
+        expected = (2, 4)
+        self.assertTrue(actual_modes.shape, expected)
+        self.assertTrue(actual_eigvals.shape, expected[1])
+        self.assertTrue(actual_eigfunc.shape, (self.multi_waves.shape[0], expected[1]))
+
+        self.assertIsInstance(actual_modes, pd.DataFrame)
+        self.assertIsInstance(actual_eigvals, pd.Series)
+        self.assertIsInstance(actual_eigfunc, TSCDataFrame)
+
+    def test_koopman_eigenfunction_eval(self):
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        actual = _edmd.koopman_eigenfunction(
+            self.multi_waves.initial_states(_edmd.n_samples_ic_ + 1)
+        )
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        actual = _edmd.koopman_eigenfunction(
+            self.multi_waves.initial_states(_edmd.n_samples_ic_)
+        )
+
+        self.assertIsInstance(actual, pd.DataFrame)
+
+        with self.assertRaises(TSCException):
+            _edmd.koopman_eigenfunction(
+                self.multi_waves.initial_states(_edmd.n_samples_ic_ - 1)
+            )
 
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd_dict = EDMD(

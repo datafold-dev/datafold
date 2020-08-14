@@ -16,7 +16,7 @@ configurations and model accuracies in a parameter space.
   Decomposition). The EDMD dictionary corresponds to the transform functions and the
   final estimator is a DMD algorithm (see :class:`DMDBase`) which approximates the Koopman
   operator with a matrix. A fitted EDMD model, which also derives
-  from :class:`TSCPredictMixIn`, can then perform time series predictions.
+  from :py:class:`TSCPredictMixin`, can then perform time series predictions.
 
 * :class:`sklearn.model_selection.GridSearchCV`
   Building upon the meta-model approach, an :class:`EDMD` instance can be integrated

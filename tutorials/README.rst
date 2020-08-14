@@ -6,7 +6,7 @@ Tutorials
 This page contains tutorials and code snippets to showcase 
 *datafold's* API. All tutorials can be viewed online or downloaded in from the list 
 below. If you want to execute the notebooks in Jupyter, please also note the 
-instructions in "Run notebooks in Jupyter".
+instructions in "Run notebooks with Jupyter".
 
 List
 ----
@@ -48,8 +48,8 @@ List
 
 
 
-Run notebooks in Jupyter
-------------------------
+Run notebooks with Jupyter
+--------------------------
 
 Download files
 ^^^^^^^^^^^^^^

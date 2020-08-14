@@ -12,8 +12,10 @@ datafold.egg-info/
 __pycache__/
 .mypy_cache/
 .ipynb_checkpoints/
+
+# Files for testing
 .coverage
-cover/
+coverage/
 
 # Files and directories related to documentation
 *.nblink
