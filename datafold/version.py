@@ -13,12 +13,12 @@ class Version:
     ###### TO UPDATE -- START
     major_version: int = 1  # making incompatible API changes,
     minor_version: int = 1  # adding functionality in a backwards-compatible manner
-    patch: int = 0  # for backwards-compatible bug fixes
+    patch: int = 1  # for backwards-compatible bug fixes
 
     # Set date of release for longer version numbers.
     year: int = 2020
     month: int = 8
-    day: int = 12
+    day: int = 14
     ###### TO UPDATE -- END
 
     assert major_version >= 0 and isinstance(major_version, int)
