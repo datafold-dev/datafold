@@ -52,7 +52,7 @@ setup(
     package_data={"": ["LICENSE"]},
     python_requires=">=3.6",  # uses f-strings
     install_requires=[
-        "numpy>=0.18.0,<0.20.0",
+        "numpy>=1.18.0,<1.20.0",
         "scikit-learn>=0.22.1,<0.23.0",
         "scipy>=1.4.0,<1.6",
         "pandas>=1.0.0,<1.2.0",
