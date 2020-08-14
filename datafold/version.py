@@ -15,7 +15,7 @@ class Version:
     minor_version: int = 1  # adding functionality in a backwards-compatible manner
     patch: int = 0  # for backwards-compatible bug fixes
 
-    # Make date of release for longer version numbers.
+    # Set date of release for longer version numbers.
     year: int = 2020
     month: int = 8
     day: int = 12
