@@ -74,10 +74,10 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.values = f(self.points)
 
     def test_valid_sklearn_estimator(self):
-        estimator = GeometricHarmonicsInterpolator(n_eigenpairs=1)
+
         # disable check on  boston housing dataset
         # see: https://scikit-learn.org/stable/developers/develop.html#estimator-tags
-        estimator._more_tags()["poor_score"] = True
+        estimator = GeometricHarmonicsInterpolator(n_eigenpairs=1)
         check_estimator(estimator)
 
         self.assertTrue(estimator._get_tags()["multioutput"])

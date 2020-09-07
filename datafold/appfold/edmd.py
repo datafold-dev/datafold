@@ -503,14 +503,15 @@ class EDMD(Pipeline, TSCPredictMixin):
             Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all values must be finite (no `NaN` or `inf`)
         """
-        self._validate_data(
+        self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X)
 
         # calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu)
-        X_dict, fit_params = self._fit(X, y, **fit_params)
+        fit_params = self._check_fit_params(**fit_params or {})
+        X_dict = self._fit(X, y, **fit_params)
 
         self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 
@@ -643,7 +644,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             X=X, time_values=time_values
         )
 
-        self._validate_data(
+        self._validate_datafold_data(
             X, ensure_tsc=True,
         )
 
@@ -687,7 +688,7 @@ class EDMD(Pipeline, TSCPredictMixin):
         """
         check_is_fitted(self)
 
-        X = self._validate_data(
+        X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
             # Note: no const_delta_time required here. The required const samples for
@@ -967,7 +968,7 @@ def _fit_and_score_edmd(
     return ret
 
 
-class EDMDCV(GridSearchCV, TSCPredictMixin):
+class EDMDCV(TSCPredictMixin, GridSearchCV):
     """Exhaustive parameter search over specified grid for a :class:`EDMD` model with
     cross-validation.
 
@@ -1258,7 +1259,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
             Parameters passed to the ``fit`` method of the estimator.
         """
         self._validate_settings_edmd()
-        X = self._validate_data(X)
+        X = self._validate_datafold_data(X)
 
         cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
 

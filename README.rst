@@ -1,5 +1,5 @@
 What is *datafold*?
-=====================
+====================
 
 *datafold* is a Python package that provides **data**-driven models for point clouds to
 find an *explicit* mani-**fold** parametrization and to identify non-linear
