@@ -151,8 +151,8 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     def _more_tags(self):
         # poor_score=True disables a regression test on a Boston Housing dataset
         # see "check_regressors_train" in sklearn/estimator_checks.py
-        # GHI computes the negated root mean squared error and therefore would fail
-        # always fail because of this assert:
+        # GHI computes the negated root mean squared error and therefore would
+        # always fail because of this assert in the test:
         #     regressor.score(X, y_) > 0.5
         return {"multioutput": True, "poor_score": True}
 
