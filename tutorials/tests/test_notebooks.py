@@ -5,7 +5,10 @@ import unittest
 
 import nbformat
 
-IGNORED_TESTED_NOTEBOOKS = []
+IGNORED_TESTED_NOTEBOOKS = [
+    "Hyperparameter optimization - dmaps.ipynb",
+    "basic_gh_oos.ipynb",
+]
 
 
 class TestNotebooks(unittest.TestCase):

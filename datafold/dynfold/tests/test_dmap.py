@@ -419,6 +419,27 @@ class DiffusionMapsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             dmap.transform(tsc_data.iloc[:10].to_numpy())
 
+    def test_kernel_symmetric_conjugate(self):
+        X = make_swiss_roll(1000)[0]
+
+        # The expected kernel is the one where no conjugate transform is performed
+        expected = DiffusionMaps(
+            kernel=GaussianKernel(epsilon=lambda K: np.median(K)),
+            n_eigenpairs=3,
+            symmetrize_kernel=False,
+        ).fit(X, store_kernel_matrix=True)
+
+        # It is checked if the true kernel matrix is recovered
+        actual = DiffusionMaps(
+            kernel=GaussianKernel(lambda K: np.median(K)),
+            n_eigenpairs=3,
+            symmetrize_kernel=True,
+        ).fit(X, store_kernel_matrix=True)
+
+        nptest.assert_allclose(
+            expected.kernel_matrix_, actual.kernel_matrix_, atol=1e-15, rtol=1e-15
+        )
+
     def test_types_tsc(self):
 
         # fit=TSCDataFrame

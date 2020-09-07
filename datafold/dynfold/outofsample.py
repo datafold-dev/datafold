@@ -17,7 +17,7 @@ from datafold.pcfold.kernels import DmapKernelFixed, GaussianKernel, PCManifoldK
 from datafold.utils.general import mat_dot_diagmat
 
 
-class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
+class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstimator):
     """Interpolation of function values on high dimensional data with manifold assumption.
 
     Parameters
@@ -148,9 +148,15 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
 
         return X, y
 
+    def _more_tags(self):
+        # poor_score=True disables a regression test on a Boston Housing dataset
+        # see "check_regressors_train" in sklearn/estimator_checks.py
+        # GHI computes the negated root mean squared error and therefore would fail
+        # always fail because of this assert:
+        #     regressor.score(X, y_) > 0.5
+        return {"multioutput": True, "poor_score": True}
+
     def _get_tags(self):
-        # _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
-        self._more_tags()["multioutput"] = True
         return super(GeometricHarmonicsInterpolator, self)._get_tags()
 
     def _setup_default_dist_kwargs(self):
@@ -509,7 +515,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         )
 
 
-class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
+class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstimator):
     """Laplacian pyramids interpolation of function values on data manifold using
     kernels with different scales.
 
@@ -588,7 +594,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
     def level_(self):
         return 0 if self._level_tracker == {} else max(self._level_tracker.keys())
 
-    def _validate(self, X, y=None, ensure_min_samples=1):
+    def _validate(self, X, y, ensure_y, ensure_min_samples):
 
         if self.residual_tol is None and not self.auto_adaptive:
             raise ValueError(
@@ -618,7 +624,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         else:
             copy = False
 
-        kwargs = {
+        check_params = {
             "accept_sparse": False,
             "copy": copy,
             "force_all_finite": True,
@@ -630,16 +636,15 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
             "ensure_min_features": 1,
         }
 
-        if y is not None:
-            kwargs["multi_output"] = True
-            kwargs["y_numeric"] = True
-            X, y = check_X_y(X, y, **kwargs)
-
+        if ensure_y:
+            check_params["multi_output"] = True
+            check_params["y_numeric"] = True
+            X, y = self._validate_data(X=X, y=y, reset=True, **check_params)
             if y.ndim == 1:
                 y = y[:, np.newaxis]
 
         else:
-            X = check_array(X, **kwargs)
+            X = check_array(X, **check_params)
 
         return X, y
 
@@ -922,7 +927,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         LaplacianPyramidsInterpolator
             self
         """
-        self.X_, y = self._validate(X, y, ensure_min_samples=2)
+        self.X_, y = self._validate(X, y, ensure_y=True, ensure_min_samples=2)
         self._setup()
 
         self.n_targets_ = y.shape[1]
@@ -944,7 +949,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
             Predicted function values of shape `(n_samples, n_targets_)`.
         """
 
-        X, _ = self._validate(X)
+        X, _ = self._validate(X, y=None, ensure_y=False, ensure_min_samples=1)
 
         check_is_fitted(self)
 

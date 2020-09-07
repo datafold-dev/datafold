@@ -163,14 +163,14 @@ def _conjugate_stochastic_kernel_matrix(
     r"""Conjugate transformation to obtain symmetric (conjugate) kernel matrix with same
     spectrum properties.
 
-    In Rabin et al. :cite:`rabin_heterogeneous_2012` (Eq. 3.1) states that \
+    Rabin et al. :cite:`rabin_heterogeneous_2012` states in equation Eq. 3.1 \
     (notation adapted):
 
     .. math::
         P = D^{-1} K
 
-    where :math:`D^{-1}` is the standard row normalization. Eq. 3.3 shows that matrix \
-    :math:`P` has a similar matrix with
+    the standard row normalization. Eq. 3.3 shows that matrix :math:`P` has a similar
+    matrix with
 
     .. math::
        A = D^{1/2} P D^{-1/2}
@@ -224,6 +224,7 @@ def _conjugate_stochastic_kernel_matrix(
         kernel_matrix, vec=left_vec, vec_right=None
     )
 
+    # This is D^{-1/2} in sparse matrix form.
     basis_change_matrix = scipy.sparse.diags(np.reciprocal(left_vec, out=left_vec))
 
     return kernel_matrix, basis_change_matrix
