@@ -30,7 +30,7 @@ else:
 
 
 class LinearDynamicalSystem(object):
-    r"""Evolve a linear dynamical system forward in time.
+    r"""Evolve linear dynamical system forward in time.
 
     A mathematical description of a linear dynamical system is
 
@@ -52,6 +52,7 @@ class LinearDynamicalSystem(object):
     Parameters
     ----------
 
+    # TODO: remove "mode"
     mode
         Type of linear system:
 
@@ -124,7 +125,7 @@ class LinearDynamicalSystem(object):
 
         return ic
 
-    def evolve_system_spectrum(
+    def evolve_discrete_system_spectrum(
         self,
         dynmatrix: np.ndarray,
         eigenvalues: np.ndarray,
@@ -134,24 +135,21 @@ class LinearDynamicalSystem(object):
         time_series_ids: Optional[Dict] = None,
         feature_columns: Optional[Union[pd.Index, list]] = None,
     ):
-        r"""Evolve the dynamical system with spectral components of the system matrix.
+        r"""Evolve discrete dynamical system with spectral components of a system
+        matrix for a discrete flow map.
 
         Using the eigenvalues on the diagonal matrix :math:`\Lambda` and (right)
-        eigenvectors :math:`\Psi_r` of the constant matrix :math:`A`
+        eigenvectors :math:`\Psi_r` of the constant matrix :math:`A` in
+        :math:`Ax_m = x_{m+1}`
 
         .. math::
             A \Psi_r = \Psi_r \Lambda
 
-        the linear system evolves
+        the linear system evolves with :math:`\left(t \in \mathbb{R}^{+}\right)` (note,
+        that values are interpolated with float_power)
 
-        - continuous :math:`\left(t \in \mathbb{R}^{+}\right)`
-            .. math::
-                \frac{d}{dt} x(t) &= \Psi \cdot \exp(\Omega \cdot t) \cdot b(0) \\
-                \Omega &= \frac{\log(\Lambda)}{\Delta t}
-
-        - discrete :math:`\left(n = \frac{t}{\Delta t} \in \mathbb{N}\right)`
-            .. math::
-                x_{n+1} = \Psi \cdot \Lambda^n \cdot b_{0}
+        .. math::
+            \frac{d}{dt} x(t) &= \Psi \cdot \Lambda^{t / \delta t}) \cdot b(0)
 
         where :math:`b(0)` and :math:`b_{0}` are the initial
         conditions of the respective system.
@@ -236,41 +234,32 @@ class LinearDynamicalSystem(object):
             n_feature=n_feature,
         )
 
-        # NOTE: Both the discrete and continuous time evolution can be optimized,
-        # but the current version is better readable and so far no computational
-        # problems were encountered.
-        if self.mode == "continuous":
+        # NOTE: The code can be optimized, but the current version is better readable
+        # and so far no computational problems were encountered.
 
-            # Usually, for a continuous system the eigenvalues are written as:
-            # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
-            # --> evolve system with
-            #               exp(omegas * t)
-            # because this matches the way how a continuous system is evolved
+        # Usually, for a continuous system the eigenvalues are written as:
+        # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
+        # --> evolve system with
+        #               exp(omegas * t)
+        # because this matches the way how a continuous system is evolved
 
-            # The disadvantage is, that it requires the complex logarithm, which for
-            # complex (eigen-)values can happen to be not well defined.
+        # The disadvantage is, that it requires the complex logarithm, which for
+        # complex (eigen-)values can happen to be not well defined.
 
-            # A numerical more stable way is:
-            # exp(omegas * t)
-            # exp(log(ev) / time_delta * t)
-            # exp(log(ev^(t/time_delta)))  -- logarithm rules
-            # --> evolve system with
-            #               ev^(t / time_delta)
+        # A numerical more stable way is:
+        # exp(omegas * t)
+        # exp(log(ev) / time_delta * t)
+        # exp(log(ev^(t/time_delta)))  -- logarithm rules
+        # --> evolve system with
+        #               ev^(t / time_delta)
 
-            for idx, time in enumerate(time_values):
-                time_series_tensor[:, idx, :] = np.real(
-                    dynmatrix
-                    @ diagmat_dot_mat(
-                        np.float_power(eigenvalues, time / time_delta),
-                        initial_conditions,
-                    )
-                ).T
-        else:  # self.mode == "discrete"
-            for idx, time in enumerate(time_values):
-                time_series_tensor[:, idx, :] = np.real(
-                    dynmatrix
-                    @ diagmat_dot_mat(np.power(eigenvalues, time), initial_conditions)
-                ).T
+        for idx, time in enumerate(time_values):
+            time_series_tensor[:, idx, :] = np.real(
+                dynmatrix
+                @ diagmat_dot_mat(
+                    np.float_power(eigenvalues, time / time_delta), initial_conditions,
+                )
+            ).T
 
         return TSCDataFrame.from_tensor(
             time_series_tensor,
@@ -463,7 +452,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
 
         tsc_df = LinearDynamicalSystem(
             mode="continuous", time_invariant=True
-        ).evolve_system_spectrum(
+        ).evolve_discrete_system_spectrum(
             dynmatrix=modes,
             eigenvalues=self.eigenvalues_,
             time_delta=self.dt_,
@@ -652,7 +641,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
         X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)
         return X_reconstruct_ts
 
-    def fit_predict(self, X: TSCDataFrame, **fit_params):
+    def fit_predict(self, X: TSCDataFrame, **fit_params) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
 
         Parameters
@@ -748,9 +737,15 @@ class DMDFull(DMDBase):
 
     """
 
-    def __init__(self, is_diagonalize: bool = False, rcond: Optional[float] = None):
+    def __init__(
+        self,
+        is_diagonalize: bool = False,
+        compute_generator=False,
+        rcond: Optional[float] = None,
+    ):
         self._setup_default_tsc_metric_and_score()
         self.is_diagonalize = is_diagonalize
+        self.compute_generator = compute_generator
         self.rcond = rcond
 
     def _diagonalize_left_eigenvectors(self, koopman_matrix):
@@ -864,6 +859,13 @@ class DMDFull(DMDBase):
         self._setup_features_and_time_fit(X=X)
 
         koopman_matrix_ = self._compute_koopman_matrix(X)
+
+        if self.compute_generator:
+            # TODO: rename koopman_matrix_ here later
+            from scipy.linalg import logm
+
+            koopman_matrix_ = 1 / self.dt_ * logm(koopman_matrix_)
+
         self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
             *np.linalg.eig(koopman_matrix_)
         )
@@ -986,11 +988,31 @@ class DMDEco(DMDBase):
         return self
 
 
+class DMDGeneratorFull(DMDBase):
+    # TODO: return from DMD also the Koopman matrix --> EDMD can then decide to take
+    #  the matrix-logarithm in order to provide the Generator.
+
+    def __init__(self):
+        pass
+
+    def fit(self, X: TimePredictType, **fit_params) -> "DMDGeneratorFull":
+
+        # TODO 1. validate data
+
+        # TODO 2: compute the time gradient of the points (parametrize later)
+
+        # TODO 3: Solve system for generator
+        #    A * M = G
+        #    A = \Psi_dot @ \Psi    G = \Psi @ \Psi
+
+        pass
+
+
 @warn_experimental_class
 class PyDMDWrapper(DMDBase):
     """
     .. warning::
-        This class is not documented and clsasified as experimental.
+        This class is not documented and is classified as experimental.
         Contributions are welcome:
             * documentation
             * write unit tests
@@ -1005,7 +1027,8 @@ class PyDMDWrapper(DMDBase):
             raise ImportError(
                 "Python package pydmd could not be imported. Check installation."
             )
-        assert pydmd is not None  # mypy
+        else:
+            assert pydmd is not None  # mypy
 
         self._setup_default_tsc_metric_and_score()
         self.method = method.lower()
