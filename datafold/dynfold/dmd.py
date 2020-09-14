@@ -52,8 +52,7 @@ class LinearDynamicalSystem(object):
     Parameters
     ----------
 
-    # TODO: remove "mode"
-    mode
+    system_type
         Type of linear system:
 
         * "continuous"
@@ -71,10 +70,10 @@ class LinearDynamicalSystem(object):
     
     """
 
-    _cls_valid_modes = ("continuous", "discrete")
+    _cls_valid_system_type = ("continuous", "discrete")
 
-    def __init__(self, mode: str = "continuous", time_invariant: bool = True):
-        self.mode = mode
+    def __init__(self, system_type: str = "continuous", time_invariant: bool = True):
+        self.mode = system_type
         self.time_invariant = time_invariant
 
     def _check_time_values(self, time_values):
@@ -96,15 +95,6 @@ class LinearDynamicalSystem(object):
         if np.isnan(time_values).any() or np.isinf(time_values).any():
             raise ValueError("The time values contain invalid numbers (nan/inf).")
 
-        if self.mode == "discrete" and time_values.dtype != np.integer:
-            # try to transform to integer values if possible without loss
-            if time_values.dtype == np.floating and (np.mod(time_values, 1) == 0).all():
-                time_values = time_values.astype(np.int)
-            else:
-                raise TypeError(
-                    "For mode=discrete the time_samples have to be integers."
-                )
-
         return time_values
 
     def _check_initial_condition(self, ic, state_length):
@@ -125,34 +115,40 @@ class LinearDynamicalSystem(object):
 
         return ic
 
-    def evolve_discrete_system_spectrum(
+    def evolve_system_spectrum(
         self,
         dynmatrix: np.ndarray,
         eigenvalues: np.ndarray,
         time_delta: float,
         initial_conditions: np.ndarray,
         time_values: np.ndarray,
-        time_series_ids: Optional[Dict] = None,
+        time_series_ids: Optional[np.ndarray] = None,
         feature_columns: Optional[Union[pd.Index, list]] = None,
     ):
         r"""Evolve discrete dynamical system with spectral components of a system
         matrix for a discrete flow map.
 
-        Using the eigenvalues on the diagonal matrix :math:`\Lambda` and (right)
-        eigenvectors :math:`\Psi_r` of the constant matrix :math:`A` in
-        :math:`Ax_m = x_{m+1}`
+        Using the eigenvalues in the diagonal matrix :math:`\Lambda` and (right)
+        eigenvectors :math:`\Psi_r` of the constant matrix :math:`\mathcal{A}` in the
+        continuous case or :math:`A` in the discrete case.
 
-        .. math::
-            A \Psi_r = \Psi_r \Lambda
+        - continuous
+            The system is evaluated with the analytical solution of a linear dynamical
+            system
 
-        the linear system evolves with :math:`\left(t \in \mathbb{R}^{+}\right)` (note,
-        that values are interpolated with float_power)
+            .. math::
+                x(t) = \Psi \cdot \exp(\Lambda \cdot t) \cdot b(0)
 
-        .. math::
-            \frac{d}{dt} x(t) &= \Psi \cdot \Lambda^{t / \delta t}) \cdot b(0)
+        - discrete
+            The system can be evaluated with continuous time values
+            :math:`\left(t \in \mathbb{R}^{+}\right)`. The values are interpolated with
+            ``float_power``)
 
-        where :math:`b(0)` and :math:`b_{0}` are the initial
-        conditions of the respective system.
+            .. math::
+                x(t) = \Psi \cdot \Lambda^{t / \delta t}) \cdot b_0
+
+        where :math:`b(0)` and :math:`b_{0}` are the initial conditions of the
+        respective system.
 
         .. note::
             Initial condition states :math:`x_0` of the original system need to be
@@ -234,32 +230,40 @@ class LinearDynamicalSystem(object):
             n_feature=n_feature,
         )
 
-        # NOTE: The code can be optimized, but the current version is better readable
-        # and so far no computational problems were encountered.
+        if self.mode == "discrete":
+            # NOTE: The code can be optimized, but the current version is better readable
+            # and so far no computational problems were encountered.
 
-        # Usually, for a continuous system the eigenvalues are written as:
-        # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
-        # --> evolve system with
-        #               exp(omegas * t)
-        # because this matches the way how a continuous system is evolved
+            # Usually, for a continuous system the eigenvalues are written as:
+            # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
+            # --> evolve system with
+            #               exp(omegas * t)
+            # because this matches the way how a continuous system is evolved
 
-        # The disadvantage is, that it requires the complex logarithm, which for
-        # complex (eigen-)values can happen to be not well defined.
+            # The disadvantage is, that it requires the complex logarithm, which for
+            # complex (eigen-)values can happen to be not well defined.
 
-        # A numerical more stable way is:
-        # exp(omegas * t)
-        # exp(log(ev) / time_delta * t)
-        # exp(log(ev^(t/time_delta)))  -- logarithm rules
-        # --> evolve system with
-        #               ev^(t / time_delta)
+            # A numerical more stable way is:
+            # exp(omegas * t)
+            # exp(log(ev) / time_delta * t)
+            # exp(log(ev^(t/time_delta)))  -- logarithm rules
+            # --> evolve system with
+            #               ev^(t / time_delta)
 
-        for idx, time in enumerate(time_values):
-            time_series_tensor[:, idx, :] = np.real(
-                dynmatrix
-                @ diagmat_dot_mat(
-                    np.float_power(eigenvalues, time / time_delta), initial_conditions,
-                )
-            ).T
+            for idx, time in enumerate(time_values):
+                time_series_tensor[:, idx, :] = np.real(
+                    dynmatrix
+                    @ diagmat_dot_mat(
+                        np.float_power(eigenvalues, time / time_delta),
+                        initial_conditions,
+                    )
+                ).T
+        else:  # self.mode == "continuous"
+            for idx, time in enumerate(time_values):
+                time_series_tensor[:, idx, :] = np.real(
+                    dynmatrix
+                    @ diagmat_dot_mat(np.exp(eigenvalues * time), initial_conditions)
+                ).T
 
         return TSCDataFrame.from_tensor(
             time_series_tensor,
@@ -411,6 +415,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
         modes: np.ndarray,
         time_values: np.ndarray,
         time_invariant=True,
+        system_type="discrete",
         feature_columns=None,
     ):
 
@@ -451,8 +456,8 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
         norm_time_samples = time_values - shift
 
         tsc_df = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
+            system_type=system_type, time_invariant=True
+        ).evolve_system_spectrum(
             dynmatrix=modes,
             eigenvalues=self.eigenvalues_,
             time_delta=self.dt_,
@@ -535,6 +540,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
+        system_type="discrete",
         **predict_params,
     ) -> TSCDataFrame:
         """Predict time series data for each initial condition and time values.
@@ -546,6 +552,10 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
 
         time_values
             Time values to evaluate the model at.
+
+        # TODO
+        system_type
+
 
         Keyword Args
         ------------

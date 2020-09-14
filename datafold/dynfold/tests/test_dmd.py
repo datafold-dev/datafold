@@ -66,8 +66,8 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             )
 
         actual = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
+            system_type="discrete", time_invariant=True
+        ).evolve_system_spectrum(
             dynmatrix=self.eigvec_right,
             eigenvalues=self.eigvals,
             time_delta=self.time_delta_approx,
@@ -87,44 +87,13 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
             plt.show()
 
-    def test_equivalence_cont_discrete_system(self):
-
-        n_timesteps = 10
-
-        ic = np.array([[1], [3]], dtype=np.float)
-
-        actual_discrete = LinearDynamicalSystem(
-            mode="discrete", time_invariant=True
-        ).evolve_discrete_system_spectrum(
-            dynmatrix=self.eigvec_right,
-            eigenvalues=self.eigvals,
-            time_delta=1e100,  # must be ignored, by the discrete system
-            initial_conditions=self.eigvec_left @ ic,
-            time_values=np.arange(n_timesteps),
-        )
-
-        actual_continuous = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
-            dynmatrix=self.eigvec_right,
-            eigenvalues=self.eigvals,
-            # to match up the discrete system we have to assume a time delta of 1
-            time_delta=1,
-            initial_conditions=self.eigvec_left @ ic,
-            time_values=np.arange(n_timesteps),
-        )
-
-        nptest.assert_array_equal(
-            actual_continuous.to_numpy(), actual_discrete.to_numpy()
-        )
-
     def test_time_values(self):
 
         time_values = np.random.default_rng(1).uniform(size=(100)) * 100
 
         actual = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
+            system_type="discrete", time_invariant=True
+        ).evolve_system_spectrum(
             dynmatrix=self.eigvec_right,
             eigenvalues=self.eigvals,
             # to match up the discrete system we have to assume a time delta of 1
@@ -143,8 +112,8 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         time_values = np.linspace(0, 20, 100)
 
         actual = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
+            system_type="continuous", time_invariant=True
+        ).evolve_system_spectrum(
             dynmatrix=self.eigvec_right,
             eigenvalues=self.eigvals,
             # to match up the discrete system we have to assume a time delta of 1
@@ -162,8 +131,8 @@ class LinearDynamicalSystemTest(unittest.TestCase):
     def test_feature_columns(self):
 
         actual = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
+            system_type="continuous", time_invariant=True
+        ).evolve_system_spectrum(
             dynmatrix=self.eigvec_right,
             eigenvalues=self.eigvals,
             # to match up the discrete system we have to assume a time delta of 1
@@ -176,7 +145,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         self.assertEqual(actual.columns.tolist(), ["expectedA", "expectedB"])
 
         with self.assertRaises(ValueError):
-            LinearDynamicalSystem().evolve_discrete_system_spectrum(
+            LinearDynamicalSystem().evolve_system_spectrum(
                 dynmatrix=self.eigvec_right,
                 eigenvalues=self.eigvals,
                 # to match up the discrete system we have to assume a time delta of 1
@@ -186,22 +155,10 @@ class LinearDynamicalSystemTest(unittest.TestCase):
                 feature_columns=[1, 2, 3],
             )
 
-    def test_discrete_system_err_float_time(self):
-
-        with self.assertRaises(TypeError):
-            LinearDynamicalSystem(mode="discrete").evolve_discrete_system_spectrum(
-                dynmatrix=self.eigvec_right,
-                eigenvalues=self.eigvals,
-                # to match up the discrete system we have to assume a time delta of 1
-                time_delta=1,
-                initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
-                time_values=np.arange(4).astype(np.float) * 0.5,
-            )
-
     def test_return_types(self):
         actual = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
+            system_type="continuous", time_invariant=True
+        ).evolve_system_spectrum(
             dynmatrix=self.eigvec_right,
             eigenvalues=self.eigvals,
             # to match up the discrete system we have to assume a time delta of 1
@@ -215,8 +172,8 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         self.assertTrue(actual.has_degenerate())
 
         actual = LinearDynamicalSystem(
-            mode="continuous", time_invariant=True
-        ).evolve_discrete_system_spectrum(
+            system_type="continuous", time_invariant=True
+        ).evolve_system_spectrum(
             dynmatrix=self.eigvec_right,
             eigenvalues=self.eigvals,
             # to match up the discrete system we have to assume a time delta of 1
