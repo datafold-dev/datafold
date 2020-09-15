@@ -15,6 +15,7 @@ from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series
 from datafold.utils.general import (
     diagmat_dot_mat,
     if1dim_colvec,
+    is_scalar,
     mat_dot_diagmat,
     projection_matrix_from_features,
     sort_eigenpairs,
@@ -34,15 +35,15 @@ class LinearDynamicalSystem(object):
 
     A mathematical description of a linear dynamical system is
 
-    - continuous
+    - differential
         .. math::
             \frac{d}{dt} x(t) = \mathcal{A} \cdot x(t),
             \mathcal{A} \in \mathbb{R}^{[m \times m]}
 
-    This continuous-system representation can also be written in terms of a discrete-time
-    system
+    This continuous system representation can also be written in terms of a
+    discrete-time system
 
-    - discrete
+    - flowmap
         .. math::
             x_{n+1} = A \cdot x_{n}
 
@@ -55,8 +56,8 @@ class LinearDynamicalSystem(object):
     system_type
         Type of linear system:
 
-        * "continuous"
-        * "discrete" (restricts time values to integer values)
+        * "differential"
+        * "flowmap"
 
     time_invariant
         If True, the system internally always starts with `time=0`. \
@@ -70,18 +71,30 @@ class LinearDynamicalSystem(object):
     
     """
 
-    _cls_valid_system_type = ("continuous", "discrete")
+    _cls_valid_system_type = ("differential", "flowmap")
 
-    def __init__(self, system_type: str = "continuous", time_invariant: bool = True):
-        self.mode = system_type
+    def __init__(self, system_type: str = "flowmap", time_invariant: bool = True):
+        self.system_type = system_type
         self.time_invariant = time_invariant
+
+        self._check_system_type()
+
+    def _check_system_type(self):
+        if self.system_type not in self._cls_valid_system_type:
+            raise ValueError(
+                f"system_type={self.system_type} is not known. "
+                f"Choose from {self._cls_valid_system_type}"
+            )
 
     def _check_time_values(self, time_values):
 
         try:
             time_values = np.asarray(time_values)
         except:
-            raise TypeError("The time values must be readable as a NumPy array.")
+            raise TypeError(
+                "The parameter 'time_values' must be an array-like object. "
+                f"Got type(time_values)={time_values}"
+            )
 
         # see https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
         if time_values.ndim != 1 and time_values.dtype.kind in "buif":
@@ -99,6 +112,16 @@ class LinearDynamicalSystem(object):
 
     def _check_initial_condition(self, ic, state_length):
 
+        try:
+            if is_scalar(ic):
+                ic = [ic]
+            ic = np.asarray(ic)
+        except:
+            raise TypeError(
+                "Parameter ic must be be an array like object. "
+                f"Got type(ic)={type(ic)}"
+            )
+
         if ic.ndim == 1:
             ic = if1dim_colvec(ic)
 
@@ -109,37 +132,54 @@ class LinearDynamicalSystem(object):
 
         if ic.shape[0] != state_length:
             raise ValueError(
-                f"Mismatch in ic.shape[0]={ic.shape[0]} is not "
-                f"dynmatrix.shape[1]={state_length}."
+                f"Mismatch in dimensions between initial condition and dynamics matrix. "
+                f"ic.shape[0]={ic.shape[0]} is not dynmatrix.shape[1]={state_length}."
             )
 
         return ic
+
+    def _check_time_delta(self, time_delta):
+
+        if self.system_type == "differential":
+            time_delta = None
+        elif time_delta is None or not is_scalar(time_delta):
+            raise TypeError(
+                "time_delta must be provided in a 'flowmap' system and a scalar value. "
+                f"Got type(time_delta)={type(time_delta)}"
+            )
+        else:
+            assert time_delta is not None  # mypy
+            time_delta = float(time_delta)  # built in Python
+            if time_delta <= 0:
+                raise ValueError(f"time_delta={time_delta} must be positive.")
+
+        return time_delta
 
     def evolve_system_spectrum(
         self,
         dynmatrix: np.ndarray,
         eigenvalues: np.ndarray,
-        time_delta: float,
         initial_conditions: np.ndarray,
         time_values: np.ndarray,
+        time_delta: Optional[float] = None,
         time_series_ids: Optional[np.ndarray] = None,
         feature_columns: Optional[Union[pd.Index, list]] = None,
     ):
-        r"""Evolve discrete dynamical system with spectral components of a system
-        matrix for a discrete flow map.
+        r"""Evolve dynamical system with spectral components of system matrix.
 
         Using the eigenvalues in the diagonal matrix :math:`\Lambda` and (right)
         eigenvectors :math:`\Psi_r` of the constant matrix :math:`\mathcal{A}` in the
-        continuous case or :math:`A` in the discrete case.
+        differential case or :math:`A` in the flowmap case (see definitions in class
+        description).
 
-        - continuous
+        - differential
             The system is evaluated with the analytical solution of a linear dynamical
             system
 
             .. math::
                 x(t) = \Psi \cdot \exp(\Lambda \cdot t) \cdot b(0)
 
-        - discrete
+        - flowmap
             The system can be evaluated with continuous time values
             :math:`\left(t \in \mathbb{R}^{+}\right)`. The values are interpolated with
             ``float_power``)
@@ -170,7 +210,8 @@ class LinearDynamicalSystem(object):
             Spectral linear time map of shape `(n_feature, n_feature_states)`, \
             where `n_feature_states` is the length of the initial condition.
 
-            * right eigenvectors :math:`\Psi` of matrix :math:`A` (in this case \
+            * right eigenvectors :math:`\Psi` of matrix :math:`\mathcal{A}`
+              (differential) or :math:`A` (flowmap). For this case \
               `n_feature=n_feature_states`), or
             * linear transformation of right eigenvectors :math:`D \cdot \Psi`. This \
               allows `n_feature` to be larger or smaller than `n_feature_states`. \
@@ -178,20 +219,19 @@ class LinearDynamicalSystem(object):
               space, e.g., only a selection of states for reduce memory footprint.
 
         eigenvalues
-            eigenvalues of matrix :math:`A`
-
-        time_delta
-            Time delta :math:`\Delta t` for a continuous system.
+            eigenvalues of matrix :math:`\mathcal{A}` (differential) or
+            :math:`A` (flowmap)
 
         initial_conditions
             Single initial condition of shape `(n_features,)` or multiple of shape \
             `(n_features, n_initial_conditions)`.
 
         time_values
-           Time values to evaluate the linear system at
+           Time values to evaluate the linear system at :math:`t \in \mathbb{R}^{+}`
 
-           * `mode="continuous"` - :math:`t \in \mathbb{R}^{+}`
-           * `mode="discrete"` - :math:`n \in \mathbb{N}_0`
+        time_delta
+            Time delta :math:`\Delta t` for reference. Required parameter in a "flowmap"
+            system.
 
         time_series_ids
            Unique integer time series IDs of shape `(n_initial_conditions,)` for each \
@@ -210,8 +250,11 @@ class LinearDynamicalSystem(object):
 
         n_feature, state_length = dynmatrix.shape
 
-        self._check_time_values(time_values)
-        self._check_initial_condition(initial_conditions, state_length=state_length)
+        time_values = self._check_time_values(time_values)
+        initial_conditions = self._check_initial_condition(
+            initial_conditions, state_length=state_length
+        )
+        time_delta = self._check_time_delta(time_delta=time_delta)
 
         if time_series_ids is None:
             time_series_ids = np.arange(initial_conditions.shape[1])
@@ -230,24 +273,31 @@ class LinearDynamicalSystem(object):
             n_feature=n_feature,
         )
 
-        if self.mode == "discrete":
-            # NOTE: The code can be optimized, but the current version is better readable
-            # and so far no computational problems were encountered.
+        # NOTE: The code can be optimized, but the current version is better readable
+        # and so far no computational problems were encountered.
+        if self.system_type == "differential":
+            for idx, time in enumerate(time_values):
+                time_series_tensor[:, idx, :] = np.real(
+                    dynmatrix
+                    @ diagmat_dot_mat(np.exp(eigenvalues * time), initial_conditions)
+                ).T
 
-            # Usually, for a continuous system the eigenvalues are written as:
+        else:  # self.system_type == "flowmap":
+
+            # Usually, for a differential system the eigenvalues are written as:
             # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
             # --> evolve system with
             #               exp(omegas * t)
-            # because this matches the way how a continuous system is evolved
+            # because this matches the notation of the differential system.
 
-            # The disadvantage is, that it requires the complex logarithm, which for
-            # complex (eigen-)values can happen to be not well defined.
+            # An disadvantage is, that it requires the complex logarithm, which for
+            # complex (eigen-)values can happen to be not well-defined.
 
             # A numerical more stable way is:
             # exp(omegas * t)
             # exp(log(ev) / time_delta * t)
             # exp(log(ev^(t/time_delta)))  -- logarithm rules
-            # --> evolve system with
+            # --> evolve system with, using `float_power`
             #               ev^(t / time_delta)
 
             for idx, time in enumerate(time_values):
@@ -257,12 +307,6 @@ class LinearDynamicalSystem(object):
                         np.float_power(eigenvalues, time / time_delta),
                         initial_conditions,
                     )
-                ).T
-        else:  # self.mode == "continuous"
-            for idx, time in enumerate(time_values):
-                time_series_tensor[:, idx, :] = np.real(
-                    dynmatrix
-                    @ diagmat_dot_mat(np.exp(eigenvalues * time), initial_conditions)
                 ).T
 
         return TSCDataFrame.from_tensor(
@@ -415,7 +459,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
         modes: np.ndarray,
         time_values: np.ndarray,
         time_invariant=True,
-        system_type="discrete",
+        system_type="flowmap",
         feature_columns=None,
     ):
 
@@ -540,7 +584,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        system_type="discrete",
+        system_type="flowmap",
         **predict_params,
     ) -> TSCDataFrame:
         """Predict time series data for each initial condition and time values.

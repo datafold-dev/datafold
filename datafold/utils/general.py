@@ -118,6 +118,23 @@ def is_float(n: object) -> bool:
     return isinstance(n, (float, np.floating))
 
 
+def is_scalar(n: object):
+    """Checks if `n` is a scalar.
+
+    Parameters
+    ----------
+    n
+        object to check
+
+    Returns
+    -------
+    bool
+        True if `n` is a scalar.
+
+    """
+    return is_float(n) or is_integer(n)
+
+
 def if1dim_colvec(vec: np.ndarray) -> np.ndarray:
     if vec.ndim == 1:
         return vec[:, np.newaxis]
