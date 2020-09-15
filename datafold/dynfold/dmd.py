@@ -580,7 +580,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
 
         return modes
 
-    def predict(
+    def _predict(
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
@@ -650,7 +650,20 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
             X_ic=X,
             modes=modes,
             time_values=time_values,
+            time_invariant=True,
+            system_type=system_type,
             feature_columns=feature_columns,
+        )
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        **predict_params,
+    ):
+        # the standard case is "flowmap"
+        return self.predict(
+            X=X, time_values=time_values, system_type="flowmap", **predict_params
         )
 
     def reconstruct(
@@ -914,12 +927,6 @@ class DMDFull(DMDBase):
 
         koopman_matrix_ = self._compute_koopman_matrix(X)
 
-        if self.compute_generator:
-            # TODO: rename koopman_matrix_ here later
-            from scipy.linalg import logm
-
-            koopman_matrix_ = 1 / self.dt_ * logm(koopman_matrix_)
-
         self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
             *np.linalg.eig(koopman_matrix_)
         )
@@ -930,7 +937,30 @@ class DMDFull(DMDBase):
         if store_koopman_matrix:
             self.koopman_matrix_ = koopman_matrix_
 
+        if self.compute_generator:
+            # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
+            # Eq. 3.2 and 3.3.
+            self.eigenvalues_ = np.log(self.eigenvalues_.astype(np.complex)) / self.dt_
+
         return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        **predict_params,
+    ) -> TSCDataFrame:
+        if self.compute_generator:
+            return super(DMDFull, self)._predict(
+                X=X,
+                time_values=time_values,
+                system_type="differential",
+                **predict_params,
+            )
+        else:
+            return super(DMDFull, self)._predict(
+                X=X, time_values=time_values, system_type="flowmap", **predict_params
+            )
 
 
 class DMDEco(DMDBase):
@@ -1042,6 +1072,7 @@ class DMDEco(DMDBase):
         return self
 
 
+@warn_experimental_class
 class DMDGeneratorFull(DMDBase):
     # TODO: return from DMD also the Koopman matrix --> EDMD can then decide to take
     #  the matrix-logarithm in order to provide the Generator.

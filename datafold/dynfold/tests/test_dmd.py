@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
+import pandas.testing as pdtest
 import scipy.linalg
 
 from datafold.dynfold.dmd import DMDEco, DMDFull, LinearDynamicalSystem, PyDMDWrapper
@@ -284,6 +285,34 @@ class DMDTest(unittest.TestCase):
         )
 
         nptest.assert_allclose(mock_koopman_matrix, actual, rtol=1e-15, atol=1e-15)
+
+    def test_dmd_equivalence_generator_flowmap(self):
+        test_data = self._create_random_tsc(n_samples=500, dim=30)
+
+        generator_system = DMDFull(is_diagonalize=True, compute_generator=True).fit(
+            test_data
+        )
+        flowmap_system = DMDFull(is_diagonalize=True, compute_generator=False).fit(
+            test_data
+        )
+
+        time_values = np.linspace(0, 5, 20)
+
+        generator_result = generator_system.predict(
+            test_data.initial_states(), time_values
+        )
+        flowmap_restult = flowmap_system.predict(
+            test_data.initial_states(), time_values
+        )
+
+        pdtest.assert_frame_equal(generator_result, flowmap_restult, rtol=0, atol=1e-16)
+
+        # check that eigenvalues are actually different
+        nptest.assert_allclose(
+            np.exp(generator_system.eigenvalues_) * generator_system.dt_,
+            flowmap_system.eigenvalues_,
+            atol=1e-16,
+        )
 
     def test_dmd_pydmd1(self):
 
