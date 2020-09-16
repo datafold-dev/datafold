@@ -225,7 +225,8 @@ def sort_eigenpairs(
     #  -- NOTE: the ordering according to the complex value is preferred over the
     #           ordering of absolute value because often complex conjugate eigenvalues
     #           have the same abs. value which makes sorting typically unstable (i.e.
-    #           there can be two equivalent but different according to the complex order)
+    #           there can be two equivalent abs values but different place according to
+    #           the complex order)
     idx = np.argsort(eigenvalues)
 
     if not ascending:

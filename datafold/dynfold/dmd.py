@@ -941,8 +941,18 @@ class DMDFull(DMDBase):
 
         koopman_matrix_ = self._compute_koopman_matrix(X)
 
+        self.eigenvalues_, self.eigenvectors_right_ = np.linalg.eig(koopman_matrix_)
+
+        if self.approx_generator:
+            # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
+            # Eq. 3.2 and 3.3.
+            self.eigenvalues_ = np.log(self.eigenvalues_.astype(np.complex)) / self.dt_
+
+            if store_koopman_matrix:
+                self.generator_matrix_ = scipy.linalg.logm(koopman_matrix_) / self.dt_
+
         self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
-            *np.linalg.eig(koopman_matrix_)
+            self.eigenvalues_, self.eigenvectors_right_
         )
 
         if self.is_diagonalize:
@@ -954,16 +964,6 @@ class DMDFull(DMDBase):
 
         if store_koopman_matrix:
             self.koopman_matrix_ = koopman_matrix_
-
-        if self.approx_generator:
-            # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
-            # Eq. 3.2 and 3.3.
-            self.eigenvalues_ = np.log(self.eigenvalues_.astype(np.complex)) / self.dt_
-
-            if store_koopman_matrix:
-                self.generator_matrix_ = (
-                    scipy.linalg.logm(self.koopman_matrix_) / self.dt_
-                )
 
         return self
 
@@ -1057,6 +1057,7 @@ class gDMDFull(DMDBase):
         rcond: Optional[float] = None,
         kwargs_fd: Optional[dict] = None,
     ):
+        self._setup_default_tsc_metric_and_score()
         self.is_diagonalize = is_diagonalize
         self.rcond = rcond
         self.kwargs_fd = kwargs_fd

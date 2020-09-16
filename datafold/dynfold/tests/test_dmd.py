@@ -10,7 +10,13 @@ import pandas as pd
 import pandas.testing as pdtest
 import scipy.linalg
 
-from datafold.dynfold.dmd import DMDEco, DMDFull, LinearDynamicalSystem, PyDMDWrapper
+from datafold.dynfold.dmd import (
+    DMDEco,
+    DMDFull,
+    LinearDynamicalSystem,
+    PyDMDWrapper,
+    gDMDFull,
+)
 from datafold.pcfold import TSCDataFrame
 from datafold.utils.general import (
     assert_equal_eigenvectors,
@@ -313,6 +319,42 @@ class DMDTest(unittest.TestCase):
             flowmap_system.eigenvalues_,
             atol=1e-16,
         )
+
+    def test_dmd_vs_gdmd(self, plot=False):
+        from datafold.dynfold import TSCTakensEmbedding
+
+        tsc_df = self._create_harmonic_tsc(100, 2)
+        tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
+
+        first = DMDFull(compute_generator=True).fit(tsc_df,)
+        # extremely high score to get to a similar error
+        second = gDMDFull(kwargs_fd=dict(scheme="center", accuracy=15)).fit(tsc_df)
+
+        score_dmd = first.score(tsc_df)
+        score_gdmd = second.score(tsc_df)
+
+        # also fails if there are changes in the implementation that includes small
+        # numerical noise
+        self.assertLessEqual(score_dmd, -2.9475169357533405e-12)
+        self.assertLessEqual(score_gdmd, -4.9367266780545945e-11)
+
+        if plot:
+            print(score_dmd)
+            print(score_gdmd)
+
+            from datafold.utils.plot import plot_eigenvalues
+
+            ax = plot_eigenvalues(first.eigenvalues_)
+            plot_eigenvalues(second.eigenvalues_, ax=ax)
+
+            f, ax = plt.subplots(nrows=3)
+            tsc_df.plot(ax=ax[0])
+            ax[0].set_title("original")
+            first.reconstruct(tsc_df).plot(ax=ax[1])
+            ax[1].set_title("reconstructed DMD")
+            second.reconstruct(tsc_df).plot(ax=ax[2])
+            ax[2].set_title("reconstructed gDMD")
+            plt.show()
 
     def test_dmd_pydmd1(self):
 

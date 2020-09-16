@@ -13,6 +13,7 @@ def plot_eigenvalues(
     eigenvalues: np.ndarray,
     plot_unit_circle: bool = False,
     semilogy: bool = False,
+    ax=None,
     subplot_kwargs: Optional[Dict[str, object]] = None,
 ) -> None:
     """Plots eigenvalue distribution.
@@ -28,14 +29,18 @@ def plot_eigenvalues(
     semilogy
         Enable logarithmic y-axis. Parameter is ignored for complex eigenvalues.
 
+    ax
+        Plot in existing matplotlib axes object. `subplot_kwargs` are ignored then.
+
     subplot_kwargs
-        keyword arguments handled to plt.subplpot
-        
+        Keyword arguments passed to ``plt.subplot``
+
     Returns
     -------
     """
 
-    f, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
+    if ax is None:
+        f, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
 
     if eigenvalues.dtype == np.complexfloating:
         ax.plot(np.real(eigenvalues), np.imag(eigenvalues), "+")
