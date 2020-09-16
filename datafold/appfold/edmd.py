@@ -268,7 +268,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             X_dict.to_numpy().T
         )
 
-        columns = [f"evec{i}" for i in range(eval_eigenfunction.shape[0])]
+        columns = [f"koop_eigfunc{i}" for i in range(eval_eigenfunction.shape[0])]
         eval_eigenfunction = df_type_and_indices_from(
             indices_from=X_dict, values=X_dict, except_columns=columns
         )

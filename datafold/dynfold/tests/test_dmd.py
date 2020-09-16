@@ -319,22 +319,25 @@ class DMDTest(unittest.TestCase):
         )
 
     def test_dmd_vs_gdmd(self, plot=False):
+        # need to time embed "standing waves" to be able to reconstruct it
         from datafold.dynfold import TSCTakensEmbedding
 
         tsc_df = self._create_harmonic_tsc(100, 2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
 
-        first = DMDFull(compute_generator=True).fit(tsc_df,)
+        first = DMDFull(is_diagonalize=True, compute_generator=True).fit(tsc_df,)
         # extremely high score to get to a similar error
-        second = gDMDFull(kwargs_fd=dict(scheme="center", accuracy=15)).fit(tsc_df)
+        second = gDMDFull(
+            is_diagonalize=True, kwargs_fd=dict(scheme="center", accuracy=15)
+        ).fit(tsc_df)
 
         score_dmd = first.score(tsc_df)
         score_gdmd = second.score(tsc_df)
 
         # also fails if there are changes in the implementation that includes small
         # numerical noise
-        self.assertLessEqual(score_dmd, -2.9475169357533405e-12)
-        self.assertLessEqual(score_gdmd, -4.9367266780545945e-11)
+        self.assertLessEqual(score_dmd, -2.9474785325435627e-12)
+        self.assertLessEqual(score_gdmd, -4.936551434810456e-11)
 
         if plot:
             print(score_dmd)
