@@ -422,7 +422,7 @@ class TSCAccessor(object):
         Parameters
         ----------
         scheme
-            The finite difference scheme 'center' or 'backward'.
+            The finite difference scheme 'backward', 'center' or 'forward'.
 
         diff_order
             The order of the derivative.
@@ -433,7 +433,9 @@ class TSCAccessor(object):
         shift_index
             If True, then the time is shifted such that no future samples are included.
             For example, for the coefficients` [-1,0,1]`, the computed time derivative
-            for time 1 is then shifted to time 2.
+            for time 1 is then shifted to time 2. The option is inteded for
+            `scheme='center'`. The parameter has no effect for `scheme=backward` and is
+            discouraged for `scheme=forward`.
 
         Returns
         -------
@@ -484,7 +486,7 @@ class TSCAccessor(object):
                 h_inv = 1.0 / spacing ** self.order
                 data_dt *= h_inv
 
-                if scheme == "center" and shift_index:
+                if scheme in ["center", "forward"] and shift_index:
                     # NOTE: Only the first samples of the time values are dropped. This
                     # means that the time is shifted to the finite difference offset that
                     # lies furthest in the future.
@@ -499,7 +501,7 @@ class TSCAccessor(object):
                         columns=data.columns,
                     )
 
-        if scheme not in ["center", "backward"]:
+        if scheme not in ["backward", "center", "forward"]:
             raise ValueError(f"scheme={scheme} must be 'center' or 'backward'")
 
         self.check_const_time_delta()
