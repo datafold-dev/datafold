@@ -1169,16 +1169,22 @@ class DMDEco(DMDBase):
       .. math::
           \Psi_r = X' V \Sigma^{-1} W
 
-      .. note::
-          The eigenvectors in step 4 can also be computed with :math:`\Psi_r = U W`, which
-          is then referred to the projected reconstruction.
+      Alternatively, the eigenvectors can also be reconstructed with
+
+      .. math::
+          \Psi_r = U W ,
+
+      which refers to the 'projected' version (see parameter).
 
     ...
 
     Parameters
     ----------
-    svd_rank: int
+    svd_rank : int
         Number of eigenpairs to keep (largest eigenvalues in magnitude).
+
+    reconstruct_mode : str
+        Either 'exact' (default) or 'projected'
 
     Attributes
     ----------
@@ -1198,9 +1204,15 @@ class DMDEco(DMDBase):
 
     """
 
-    def __init__(self, svd_rank=10):
+    def __init__(self, svd_rank=10, reconstruct_mode: str = "exact"):
         self._setup_default_tsc_metric_and_score()
         self.svd_rank = svd_rank
+
+        if reconstruct_mode not in ["exact", "projected"]:
+            raise ValueError(
+                f"reconstruct_mode={reconstruct_mode} must be in {['exact', 'projected']}"
+            )
+        self.reconstruct_mode = reconstruct_mode
 
     def _compute_internals(self, X: TSCDataFrame):
         # TODO: different orientations are good for different cases:
@@ -1224,20 +1236,24 @@ class DMDEco(DMDBase):
             U.T @ shift_end @ mat_dot_diagmat(V, S_inverse)
         )  # (1.20)
 
-        self.eigenvalues_, eigenvector = np.linalg.eig(
+        self.eigenvalues_, eigenvectors_low_rank = np.linalg.eig(
             koopman_matrix_low_rank
         )  # (1.22)
 
         # As noted in the resource, there is also an alternative way
         # self.eigenvectors = U @ W
 
-        self.eigenvectors_right_ = (
-            shift_end @ V @ diagmat_dot_mat(S_inverse, eigenvector)
-        )  # (1.23)
+        if self.reconstruct_mode == "exact":
+            self.eigenvectors_right_ = (
+                shift_end @ V @ diagmat_dot_mat(S_inverse, eigenvectors_low_rank)
+            )  # (1.23)
+        else:  # self.reconstruct_mode == "projected"
+            self.eigenvectors_right_ = U @ eigenvectors_low_rank
 
         return koopman_matrix_low_rank
 
     def fit(self, X: TimePredictType, y=None, **fit_params):
+
         self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
