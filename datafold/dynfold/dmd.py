@@ -1073,24 +1073,53 @@ class DMDEco(DMDBase):
 
 
 @warn_experimental_class
-class DMDGeneratorFull(DMDBase):
+class gDMDFull(DMDBase):
     # TODO: return from DMD also the Koopman matrix --> EDMD can then decide to take
     #  the matrix-logarithm in order to provide the Generator.
 
     def __init__(self):
         pass
 
-    def fit(self, X: TimePredictType, **fit_params) -> "DMDGeneratorFull":
+    def _compute_koopman_generator(self, X: TSCDataFrame, X_grad: TSCDataFrame):
+        # both are row-wise orientation
+        X_numpy = X.to_numpy()
+        X_grad_numpy = X_grad.to_numpy()
 
-        # TODO 1. validate data
+        G = X_numpy.T @ X_numpy
+        A = X_numpy.T @ X_grad_numpy
 
-        # TODO 2: compute the time gradient of the points (parametrize later)
+        generator = np.linalg.lstsq(G, A)[0]
+        return generator.T
 
-        # TODO 3: Solve system for generator
-        #    A * M = G
-        #    A = \Psi_dot @ \Psi    G = \Psi @ \Psi
+    def fit(self, X: TimePredictType, **fit_params) -> "gDMDFull":
+        self._validate_data(
+            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
+        self._setup_features_and_time_fit(X=X)
 
-        pass
+        # TODO: parametrise accuracy
+        X_grad = X.tsc.time_derivative(
+            scheme="center", diff_order=1, accuracy=2, shift_index=False
+        )
+        X = X.loc[X_grad.index, :]
+
+        generator = self._compute_koopman_generator(X, X_grad)
+
+        self.eigenvalues_, self.eigenvectors_ = sort_eigenpairs(
+            *np.linalg.eig(generator)
+        )
+
+        return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        **predict_params,
+    ):
+        return super(gDMDFull, self)._predict(
+            X=X, time_values=time_values, system_type="differential", **predict_params
+        )
 
 
 @warn_experimental_class

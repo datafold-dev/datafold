@@ -1722,7 +1722,9 @@ class ConeKernel(TSCManifoldKernel):
         return cos_matrix, distance_matrix
 
     def _approx_dynflow(self, X):
-        timederiv = X.tsc.time_derivative(diff_order=1, accuracy=self.fd_accuracy)
+        timederiv = X.tsc.time_derivative(
+            scheme="center", diff_order=1, accuracy=self.fd_accuracy, shift_index=True
+        )
         norm_timederiv = df_type_and_indices_from(
             timederiv,
             values=np.linalg.norm(timederiv, axis=1),
