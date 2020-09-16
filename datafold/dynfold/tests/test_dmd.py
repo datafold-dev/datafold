@@ -307,11 +307,9 @@ class DMDTest(unittest.TestCase):
         generator_result = generator_system.predict(
             test_data.initial_states(), time_values
         )
-        flowmap_restult = flowmap_system.predict(
-            test_data.initial_states(), time_values
-        )
+        flowmap_result = flowmap_system.predict(test_data.initial_states(), time_values)
 
-        pdtest.assert_frame_equal(generator_result, flowmap_restult, rtol=0, atol=1e-16)
+        pdtest.assert_frame_equal(generator_result, flowmap_result, rtol=0, atol=1e-16)
 
         # check that eigenvalues are actually different
         nptest.assert_allclose(

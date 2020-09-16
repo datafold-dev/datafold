@@ -556,12 +556,12 @@ class DMDBase(TSCPredictMixin, BaseEstimator, metaclass=abc.ABCMeta):
 
         return post_map, user_set_modes, feature_columns
 
-    def _diagonalize_left_eigenvectors(self, matrix, eigenvectors_right, eigenvalues):
+    def _diagonalize_left_eigenvectors(self, matrix, eigenvalues, eigenvectors_right):
         """Compute left eigenvectors (not normed) such that
-        Koopman matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_ .
+           matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_
         """
 
-        lhs_matrix = diagmat_dot_mat(eigenvalues, eigenvectors_right)
+        lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
 
         # NOTE: the left eigenvectors are not normed (i.e. ||ev|| != 1)
         return np.linalg.solve(lhs_matrix, matrix)
@@ -940,30 +940,28 @@ class DMDFull(DMDBase):
         self._setup_features_and_time_fit(X=X)
 
         koopman_matrix_ = self._compute_koopman_matrix(X)
+        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
+            *np.linalg.eig(koopman_matrix_)
+        )
 
-        self.eigenvalues_, self.eigenvectors_right_ = np.linalg.eig(koopman_matrix_)
+        # must be computed with the Koopman eigenvalues (NOT the generator eigenvalues)
+        if self.is_diagonalize:
+            self.eigenvectors_left_ = self._diagonalize_left_eigenvectors(
+                matrix=koopman_matrix_,
+                eigenvalues=self.eigenvalues_,
+                eigenvectors_right=self.eigenvectors_right_,
+            )
 
         if self.approx_generator:
             # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
             # Eq. 3.2 and 3.3.
             self.eigenvalues_ = np.log(self.eigenvalues_.astype(np.complex)) / self.dt_
 
-            if store_koopman_matrix:
-                self.generator_matrix_ = scipy.linalg.logm(koopman_matrix_) / self.dt_
-
-        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
-            self.eigenvalues_, self.eigenvectors_right_
-        )
-
-        if self.is_diagonalize:
-            self.eigenvectors_left_ = self._diagonalize_left_eigenvectors(
-                matrix=koopman_matrix_,
-                eigenvectors_right=self.eigenvectors_right_,
-                eigenvalues=self.eigenvalues_,
-            )
-
         if store_koopman_matrix:
             self.koopman_matrix_ = koopman_matrix_
+
+            if self.approx_generator:
+                self.generator_matrix_ = scipy.linalg.logm(koopman_matrix_) / self.dt_
 
         return self
 
@@ -1101,7 +1099,7 @@ class gDMDFull(DMDBase):
         self, X: TimePredictType, store_generator_matrix=False, **fit_params
     ) -> "gDMDFull":
 
-        self._validate_data(
+        self._validate_datafold_data(
             X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
@@ -1120,8 +1118,8 @@ class gDMDFull(DMDBase):
         if self.is_diagonalize:
             self.eigenvectors_left_ = self._diagonalize_left_eigenvectors(
                 matrix=generator_matrix_,
-                eigenvectors_right=self.eigenvectors_right_,
                 eigenvalues=self.eigenvalues_,
+                eigenvectors_right=self.eigenvectors_right_,
             )
 
         if store_generator_matrix:
