@@ -984,10 +984,7 @@ class DMDFull(DMDBase):
             )
 
 
-@warn_experimental_class
 class gDMDFull(DMDBase):
-    # TODO: return from DMD also the Koopman matrix --> EDMD can then decide to take
-    #  the matrix-logarithm in order to provide the Generator.
     r"""Full Dynamic Mode Decomposition of time series data to approximate the Koopman
     generator.
 
