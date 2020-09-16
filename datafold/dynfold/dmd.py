@@ -1,4 +1,5 @@
 import abc
+import copy
 import warnings
 from typing import Dict, List, Optional, Union
 
@@ -555,6 +556,16 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
 
         return post_map, user_set_modes, feature_columns
 
+    def _diagonalize_left_eigenvectors(self, matrix, eigenvectors_right, eigenvalues):
+        """Compute left eigenvectors (not normed) such that
+        Koopman matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_ .
+        """
+
+        lhs_matrix = diagmat_dot_mat(eigenvalues, eigenvectors_right)
+
+        # NOTE: the left eigenvectors are not normed (i.e. ||ev|| != 1)
+        return np.linalg.solve(lhs_matrix, matrix)
+
     @abc.abstractmethod
     def fit(self, X: TimePredictType, **fit_params) -> "DMDBase":
         """Abstract method to train DMD model.
@@ -754,17 +765,18 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
 
 
 class DMDFull(DMDBase):
-    r"""Full Dynamic Mode Decomposition of time series data.
+    r"""Full Dynamic Mode Decomposition of time series data to approximate the Koopman
+    operator.
 
-    The model approximates the Koopman matrix with
+    The model computes the Koopman matrix :math:`K` with
 
     .. math::
-        K X &= X' \\
+        K X &= X^{+} \\
         K &= X' X^{\dagger},
 
-    where :math:`\dagger` defines the Moore–Penrose inverse and column oriented
-    snapshots in :math:`X`.
-    
+    where :math:`\dagger` defines the Moore–Penrose inverse, :math:`X^{+}` the time
+    shifted data and :math:`X` the data with column oriented snapshots.
+
     ...
 
     Parameters
@@ -776,55 +788,57 @@ class DMDFull(DMDBase):
         squares computation required for evaluating the linear dynamical
         system (see :class:`LinearDynamicalSystem`).
 
+    approx_generator
+        If True, then compute the approximate (complex) eigenvalues of the
+        Koopman generator :math:`log(\lambda) / \delta t`, with eigenvalues `\lambda`
+        of the Koopman matrix. Note, that the eigenvectors remain the same. This
+        operation can fail if :math:`lambda` is too close to zero and that the
+        operation may not well-defined. See also :cite:`dietrich_koopman_2019` (Eq.
+        3.2. and 3.3. and discussion). Currently, there are no counter measurements
+        implemented to increase numerical robustness. The :py:class:`.gDMDFull`
+        provides an alternative way to approximate the Koopman generator.
+
     rcond: Optional[float]
-        Parameter handled to :class:`numpy.linalg.lstsq`.
+        Parameter passed to :class:`numpy.linalg.lstsq`.
 
     Attributes
     ----------
 
-    eigenvalues_: numpy.ndarray
+    eigenvalues_ : numpy.ndarray
         Eigenvalues of Koopman matrix.
 
-    eigenvectors_right_: numpy.ndarray
+    eigenvectors_right_ : numpy.ndarray
         All right eigenvectors of Koopman matrix; ordered column-wise.
 
-    eigenvectors_left_: numpy.ndarray
+    eigenvectors_left_ : numpy.ndarray
         All left eigenvectors of Koopman matrix with ordered row-wise.
         Only accessible if ``is_diagonalize=True``.
 
-    koopman_matrix_: numpy.ndarray
-        Koopman matrix obtained from least squares. Only stored if
-        `store_koopman_matrix=True` during fit.
+    koopman_matrix_ : numpy.ndarray
+        Koopman matrix obtained from least squares. Only available if
+        ``store_koopman_matrix=True`` during fit.
+
+    generator_matrix_ : numpy.ndarray
+        Koopman generator matrix obtained from Koopman matrix via matrix-logarithm.
+        Only available if ``store_koopman_matrix=True`` during fit.
 
     References
     ----------
 
     :cite:`schmid_dynamic_2010`
     :cite:`kutz_dynamic_2016`
-
     """
 
     def __init__(
         self,
         is_diagonalize: bool = False,
-        compute_generator=False,
+        compute_generator: bool = False,
         rcond: Optional[float] = None,
     ):
         self._setup_default_tsc_metric_and_score()
         self.is_diagonalize = is_diagonalize
-        self.compute_generator = compute_generator
+        self.approx_generator = compute_generator
         self.rcond = rcond
-
-    def _diagonalize_left_eigenvectors(self, koopman_matrix):
-        """Compute left eigenvectors (not normed) such that
-        Koopman matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_ .
-        """
-
-        # lhs_matrix = (np.diag(self.eigenvalues_) @ self.eigenvectors_right_)
-        lhs_matrix = self.eigenvectors_right_ * self.eigenvalues_
-
-        # NOTE: the left eigenvectors are not normed (i.e. ||ev|| != 1)
-        self.eigenvectors_left_ = np.linalg.solve(lhs_matrix, koopman_matrix)
 
     def _compute_koopman_matrix(self, X: TSCDataFrame):
 
@@ -932,15 +946,24 @@ class DMDFull(DMDBase):
         )
 
         if self.is_diagonalize:
-            self._diagonalize_left_eigenvectors(koopman_matrix_)
+            self.eigenvectors_left_ = self._diagonalize_left_eigenvectors(
+                matrix=koopman_matrix_,
+                eigenvectors_right=self.eigenvectors_right_,
+                eigenvalues=self.eigenvalues_,
+            )
 
         if store_koopman_matrix:
             self.koopman_matrix_ = koopman_matrix_
 
-        if self.compute_generator:
+        if self.approx_generator:
             # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
             # Eq. 3.2 and 3.3.
             self.eigenvalues_ = np.log(self.eigenvalues_.astype(np.complex)) / self.dt_
+
+            if store_koopman_matrix:
+                self.generator_matrix_ = (
+                    scipy.linalg.logm(self.koopman_matrix_) / self.dt_
+                )
 
         return self
 
@@ -950,7 +973,7 @@ class DMDFull(DMDBase):
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:
-        if self.compute_generator:
+        if self.approx_generator:
             return super(DMDFull, self)._predict(
                 X=X,
                 time_values=time_values,
@@ -961,6 +984,161 @@ class DMDFull(DMDBase):
             return super(DMDFull, self)._predict(
                 X=X, time_values=time_values, system_type="flowmap", **predict_params
             )
+
+
+@warn_experimental_class
+class gDMDFull(DMDBase):
+    # TODO: return from DMD also the Koopman matrix --> EDMD can then decide to take
+    #  the matrix-logarithm in order to provide the Generator.
+    r"""Full Dynamic Mode Decomposition of time series data to approximate the Koopman
+    generator.
+
+    The model computes the Koopman generator matrix :math:`L` with
+
+    .. math::
+        L X &= \dot{X} \\
+        L &= \dot{X} X^{\dagger},
+
+    where :math:`\dagger` defines the Moore–Penrose inverse, :math:`\dot{X}` is the
+    time derivative and :math:`X` the data with column oriented snapshots.
+
+    .. warning::
+        The time derivative is computed with finite differences. For some systems the
+        time derivatives are known analytically (or can be computed with automatic
+        differentiation). In order to handle such cases there is additional
+        implementation required.
+
+    ...
+
+    Parameters
+    ----------
+
+    is_diagonalize
+        If True, also the left eigenvectors are computed. This is more efficient to
+        solve for initial conditions, because there is no least
+        squares computation required for evaluating the linear dynamical
+        system (see :class:`LinearDynamicalSystem`).
+
+    rcond
+        Parameter passed to :class:`numpy.linalg.lstsq`.
+
+    kwargs_fd
+        Keyword arguments, divergent to the default settings, passed to
+        :py:meth:`.TSCAccessor.time_derivative`. Note that ``diff_order`` must be 1 and
+        should not be included in the dictionary.
+
+    Attributes
+    ----------
+
+    eigenvalues_ : numpy.ndarray
+        Eigenvalues of Koopman generator matrix.
+
+    eigenvectors_right_ : numpy.ndarray
+        All right eigenvectors of Koopman generator matrix; ordered column-wise.
+
+    eigenvectors_left_ : numpy.ndarray
+        All left eigenvectors of Koopman generator matrix with ordered row-wise.
+        Only accessible if ``is_diagonalize=True``.
+
+    generator_matrix_ : numpy.ndarray
+        Koopman generator matrix obtained from least squares. Only available if
+        `store_generator_matrix=True` during fit.
+
+    References
+    ----------
+    
+    :cite:`klus_data-driven_2020`
+    
+    """
+
+    def __init__(
+        self,
+        is_diagonalize: bool = False,
+        rcond: Optional[float] = None,
+        kwargs_fd: Optional[dict] = None,
+    ):
+        self.is_diagonalize = is_diagonalize
+        self.rcond = rcond
+        self.kwargs_fd = kwargs_fd
+
+    def _compute_koopman_generator(self, X: TSCDataFrame, X_grad: TSCDataFrame):
+        # X and X_grad are both in row-wise orientation
+        X_numpy = X.to_numpy()
+        X_grad_numpy = X_grad.to_numpy()
+
+        # the maths behind it:  (X -- row-wise)
+        # L X^T = \dot{X}^T         -- rearrange to standard lstsq problem
+        # X L^T = \dot{X}           -- normal equations
+        # X^T X L^T = X^T \dot{X}   -- solve for L^T
+
+        data_sq = X_numpy.T @ X_numpy
+        data_deriv = X_numpy.T @ X_grad_numpy
+
+        generator = np.linalg.lstsq(data_sq, data_deriv, rcond=self.rcond)[0]
+
+        # transpose to get L (in standard lstsq problem setting we solve for L^T)
+        return generator.conj().T
+
+    def _generate_fd_kwargs(self):
+
+        ret_kwargs = copy.deepcopy(self.kwargs_fd) or {}
+
+        if "diff_order" in ret_kwargs.keys():
+            if self.kwargs_fd["diff_order"] != 1:
+                raise ValueError(
+                    f"'diff_order' must be 1 in kwargs_fd. "
+                    f"Got diff_order={self.kwargs_fd['diff_order']}"
+                )
+
+        ret_kwargs.setdefault("diff_order", 1)
+        ret_kwargs.setdefault("accuracy", 2)
+        ret_kwargs.setdefault("shift_index", False)
+
+        return ret_kwargs
+
+    def fit(
+        self, X: TimePredictType, store_generator_matrix=False, **fit_params
+    ) -> "gDMDFull":
+
+        self._validate_data(
+            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+        )
+        self._setup_features_and_time_fit(X=X)
+
+        kwargs_fd = self._generate_fd_kwargs()
+
+        X_grad = X.tsc.time_derivative(**kwargs_fd)
+        X = X.loc[X_grad.index, :]
+
+        generator_matrix_ = self._compute_koopman_generator(X, X_grad)
+
+        self.eigenvalues_, self.eigenvectors_right_ = sort_eigenpairs(
+            *np.linalg.eig(generator_matrix_)
+        )
+
+        if self.is_diagonalize:
+            self.eigenvectors_left_ = self._diagonalize_left_eigenvectors(
+                matrix=generator_matrix_,
+                eigenvectors_right=self.eigenvectors_right_,
+                eigenvalues=self.eigenvalues_,
+            )
+
+        if store_generator_matrix:
+            self.generator_matrix_ = generator_matrix_
+
+        return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        **predict_params,
+    ):
+        # differential, because it is the Koopman generator, not the Koopman operator
+        # itself
+        return self._predict(
+            X=X, time_values=time_values, system_type="differential", **predict_params
+        )
 
 
 class DMDEco(DMDBase):
@@ -1004,7 +1182,7 @@ class DMDEco(DMDBase):
     Parameters
     ----------
     svd_rank: int
-        Number of eigenpairs (with largest eigenvalues, in magnitude) to keep.
+        Number of eigenpairs to keep (largest eigenvalues in magnitude).
 
     Attributes
     ----------
@@ -1070,56 +1248,6 @@ class DMDEco(DMDBase):
         self._setup_features_and_time_fit(X)
         self._compute_internals(X)
         return self
-
-
-@warn_experimental_class
-class gDMDFull(DMDBase):
-    # TODO: return from DMD also the Koopman matrix --> EDMD can then decide to take
-    #  the matrix-logarithm in order to provide the Generator.
-
-    def __init__(self):
-        pass
-
-    def _compute_koopman_generator(self, X: TSCDataFrame, X_grad: TSCDataFrame):
-        # both are row-wise orientation
-        X_numpy = X.to_numpy()
-        X_grad_numpy = X_grad.to_numpy()
-
-        G = X_numpy.T @ X_numpy
-        A = X_numpy.T @ X_grad_numpy
-
-        generator = np.linalg.lstsq(G, A)[0]
-        return generator.T
-
-    def fit(self, X: TimePredictType, **fit_params) -> "gDMDFull":
-        self._validate_data(
-            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
-        )
-        self._setup_features_and_time_fit(X=X)
-
-        # TODO: parametrise accuracy
-        X_grad = X.tsc.time_derivative(
-            scheme="center", diff_order=1, accuracy=2, shift_index=False
-        )
-        X = X.loc[X_grad.index, :]
-
-        generator = self._compute_koopman_generator(X, X_grad)
-
-        self.eigenvalues_, self.eigenvectors_ = sort_eigenpairs(
-            *np.linalg.eig(generator)
-        )
-
-        return self
-
-    def predict(
-        self,
-        X: InitialConditionType,
-        time_values: Optional[np.ndarray] = None,
-        **predict_params,
-    ):
-        return super(gDMDFull, self)._predict(
-            X=X, time_values=time_values, system_type="differential", **predict_params
-        )
 
 
 @warn_experimental_class
