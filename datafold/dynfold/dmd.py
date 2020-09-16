@@ -318,7 +318,7 @@ class LinearDynamicalSystem(object):
         )
 
 
-class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
+class DMDBase(TSCPredictMixin, BaseEstimator, metaclass=abc.ABCMeta):
     r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
 
     A DMD model decomposes time series data linearly into spatial-temporal components.
@@ -645,7 +645,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
             # for DMD the number of samples per initial condition is always 1
             InitialCondition.validate(X, n_samples_ic=1)
 
-        self._validate_data(X)
+        self._validate_datafold_data(X)
 
         X, time_values = self._validate_features_and_time_values(
             X=X, time_values=time_values
@@ -703,7 +703,7 @@ class DMDBase(BaseEstimator, TSCPredictMixin, metaclass=abc.ABCMeta):
         """
 
         check_is_fitted(self)
-        X = self._validate_data(
+        X = self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._validate_feature_names(X)
@@ -934,7 +934,7 @@ class DMDFull(DMDBase):
             self
         """
 
-        self._validate_data(
+        self._validate_datafold_data(
             X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
@@ -1243,7 +1243,7 @@ class DMDEco(DMDBase):
         return koopman_matrix_low_rank
 
     def fit(self, X: TimePredictType, y=None, **fit_params):
-        self._validate_data(
+        self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X)
@@ -1332,7 +1332,7 @@ class PyDMDWrapper(DMDBase):
 
     def fit(self, X: TimePredictType, y=None, **fit_params) -> "PyDMDWrapper":
 
-        self._validate_data(
+        self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)

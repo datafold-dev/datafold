@@ -111,13 +111,29 @@ class _DmapKernelAlgorithms:
         """Transform a kernel matrix obtained from a symmetric conjugate
         transformation to the diffusion kernel matrix.
 
+        The conjugate relationship is as follows
+
+        .. math::
+            A = D^{1/2} K D^{-1/2}
+
+        , where :math:`A` is the symmetric matrix, conjugate to the "true" Markov
+        matrix :math:`K`. To recover :math:`K` the following operation is performed
+
+        .. math::
+            K = D^{-1/2} A D^{1/2}
+
+        Note, that the ``basis_change_matrix``, is already :math:`D^{-1/2}`.
+        See also reference :cite:`rabin_heterogeneous_2012` and function
+        :py:meth:`_conjugate_stochastic_kernel_matrix` in ``kernels.py`` for further
+        infos.
+
         Parameters
         ----------
         kernel_matrix
             Symmetric conjugate kernel matrix of shape `(n_samples, n_samples)`
 
         basis_change_matrix
-            diagonal elements of basis change matrix
+            Diagonal elements of basis change matrix :math:`D^{-1/2}`
 
         Returns
         -------
@@ -134,9 +150,7 @@ class _DmapKernelAlgorithms:
             np.reciprocal(basis_change_matrix.data.ravel())
         )
 
-        kernel_matrix = (
-            inv_basis_change_matrix @ kernel_matrix @ inv_basis_change_matrix
-        )
+        kernel_matrix = basis_change_matrix @ kernel_matrix @ inv_basis_change_matrix
 
         if row_idx is not None and col_idx is not None:
             kernel_matrix = TSCDataFrame(kernel_matrix, index=row_idx, columns=col_idx)
@@ -144,8 +158,9 @@ class _DmapKernelAlgorithms:
         return kernel_matrix
 
 
-class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
-    """Define diffusion process on point cloud to find meaningful geometric descriptions.
+class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
+    """Define diffusion process on point cloud to find meaningful geometric
+    descriptions.
 
     The model can be used for
 
@@ -413,7 +428,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             self
         """
 
-        X = self._validate_data(X=X, validate_array_kwargs=dict(ensure_min_samples=2))
+        X = self._validate_datafold_data(
+            X=X, validate_array_kwargs=dict(ensure_min_samples=2)
+        )
 
         self._setup_features_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
@@ -519,7 +536,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         """
         check_is_fitted(self, ("X_", "eigenvalues_", "eigenvectors_"))
 
-        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=1))
+        X = self._validate_datafold_data(
+            X, validate_array_kwargs=dict(ensure_min_samples=1)
+        )
         self._validate_feature_input(X, direction="transform")
 
         kernel_output = self.X_.compute_kernel_matrix(X, **self._cdist_kwargs)
@@ -552,7 +571,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             same type as `X` of shape `(n_samples, n_eigenpairs)`
         """
 
-        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
+        X = self._validate_datafold_data(
+            X, validate_array_kwargs=dict(ensure_min_samples=2)
+        )
         self.fit(X=X, y=y)
 
         return self._perform_dmap_embedding(self.eigenvectors_)
@@ -577,7 +598,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         """
 
         check_is_fitted(self)
-        X = self._validate_data(X)
+        X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="inverse_transform")
 
         if not hasattr(self, "inv_coeff_matrix_"):
@@ -591,7 +612,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
 
-class DiffusionMapsVariable(TSCTransformerMixin):
+class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
     """(experimental, not documented)
     .. warning::
         This class is not documented. Contributions are welcome
@@ -648,7 +669,9 @@ class DiffusionMapsVariable(TSCTransformerMixin):
 
     def fit(self, X: TransformType, y=None, **fit_params):
 
-        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_samples=2))
+        X = self._validate_datafold_data(
+            X, validate_array_kwargs=dict(ensure_min_samples=2)
+        )
 
         self._setup_features_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
@@ -722,7 +745,7 @@ class DiffusionMapsVariable(TSCTransformerMixin):
         return self._same_type_X(X, self.eigenvectors_, self.features_out_.names)
 
 
-class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
+class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
     """Automatic selection of functional independent geometric harmonic vectors for
     parsimonious data manifold embedding.
 
@@ -1011,7 +1034,9 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         # Later on not all of these columns are required because of the selection
         # performed.
 
-        X = self._validate_data(X, validate_array_kwargs=dict(ensure_min_features=2))
+        X = self._validate_datafold_data(
+            X, validate_array_kwargs=dict(ensure_min_features=2)
+        )
         num_eigenvectors = X.shape[1]
 
         self._validate_parameter(num_eigenvectors)
@@ -1061,7 +1086,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             same type as `X` of shape `(n_samples, n_evec_indices)`
         """
 
-        X = self._validate_data(X)
+        X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
         # choose eigenvectors

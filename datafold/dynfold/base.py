@@ -66,15 +66,31 @@ class TSCBaseMixin(object):
                 f"Please report bug."
             )
 
-    def _validate_data(
+    def _validate_datafold_data(
         self,
         X: Union[TSCDataFrame, np.ndarray],
         ensure_tsc: bool = False,
         validate_array_kwargs: Optional[dict] = None,
         validate_tsc_kwargs: Optional[dict] = None,
     ):
-        """Provides a general function to validate data -- can be overwritten if a
-        concrete implementation requires different checks."""
+        """Provides a general function to validate data that is input to datafold
+        functions -- it can be overwritten if a concrete implementation requires
+        different checks.
+
+        This function is very close to scikit-learn BaseEstimator._validate_data (which
+        was introduced in  0.23.1).
+
+        Parameters
+        ----------
+        X
+        ensure_feature_name_type
+        validate_array_kwargs
+        validate_tsc_kwargs
+
+        Returns
+        -------
+
+        """
 
         # defaults to empty dictionary if None
         validate_array_kwargs = validate_array_kwargs or {}
@@ -390,7 +406,7 @@ class TSCPredictMixin(TSCBaseMixin):
     def _setup_features_and_time_fit(self, X: TSCDataFrame):
 
         if not isinstance(X, TSCDataFrame):
-            raise TypeError("Only TSCDataFrame can be used for 'X'. ")
+            raise TypeError("Only TSCDataFrame can be used for 'X'.")
 
         time_values = X.time_values()
         features_in = X.columns
