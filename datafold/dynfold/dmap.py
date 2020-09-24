@@ -19,6 +19,7 @@ from datafold.pcfold.kernels import (
     GaussianKernel,
     KernelType,
     PCManifoldKernel,
+    TSCManifoldKernel,
 )
 from datafold.utils.general import (
     df_type_and_indices_from,
@@ -176,7 +177,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
     kernel
         The kernel to describe proximity between points. The kernel is passed
         as an ``internal_kernel`` to :py:class:`.DmapKernelFixed`, which describes
-        the diffusion process.
+        the diffusion process. Defaults to :py:class:`.GaussianKernel` with bandwidth 1.0.
 
     n_eigenpairs
         The number of eigenpairs to compute from kernel matrix.
@@ -248,7 +249,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        kernel: BaseManifoldKernel = GaussianKernel(epsilon=1.0),
+        kernel: Optional[Union[PCManifoldKernel, TSCManifoldKernel]] = None,
         n_eigenpairs: int = 10,
         time_exponent: float = 0,
         is_stochastic: bool = True,
@@ -325,6 +326,9 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             alpha=0.0,
             **kwargs,
         )
+
+    def _get_default_kernel(self):
+        return GaussianKernel(epsilon=1.0)
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals):
 
@@ -440,8 +444,12 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
         # Note the DmapKernel is a kernel that wraps another kernel to provides the
         # DMAP specific functionality.
+        internal_kernel = (
+            self.kernel if self.kernel is not None else self._get_default_kernel()
+        )
+
         self._dmap_kernel = DmapKernelFixed(
-            internal_kernel=self.kernel,
+            internal_kernel=internal_kernel,
             is_stochastic=self.is_stochastic,
             alpha=self.alpha,
             symmetrize_kernel=self.symmetrize_kernel,

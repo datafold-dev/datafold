@@ -25,7 +25,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     kernel
         Internal kernel to describe proximity between points. The kernel is passed
         as an `internal_kernel` to :class:`.DmapKernelFixed`, which describes
-        the diffusion process.
+        the diffusion process. Defaults to :py:class:`.GaussianKernel` with bandwidth 1.0.
 
     n_eigenpairs
         Number of eigenpairs to compute from kernel matrix.
@@ -83,7 +83,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
     def __init__(
         self,
-        kernel: PCManifoldKernel = GaussianKernel(epsilon=1.0),
+        kernel: Optional[PCManifoldKernel] = None,
         n_eigenpairs: int = 10,
         is_stochastic: bool = False,
         alpha: float = 1,
@@ -148,6 +148,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     def _get_tags(self):
         return super(GeometricHarmonicsInterpolator, self)._get_tags()
 
+    def _get_default_kernel(self):
+        return GaussianKernel(epsilon=1.0)
+
     def _setup_default_dist_kwargs(self):
         from copy import deepcopy
 
@@ -192,8 +195,12 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
         self._setup_default_dist_kwargs()
 
+        internal_kernel = (
+            self.kernel if self.kernel is not None else self._get_default_kernel()
+        )
+
         self._dmap_kernel = DmapKernelFixed(
-            internal_kernel=self.kernel,
+            internal_kernel=internal_kernel,
             is_stochastic=self.is_stochastic,
             alpha=self.alpha,
             symmetrize_kernel=self.symmetrize_kernel,
