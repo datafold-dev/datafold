@@ -1070,6 +1070,7 @@ class DMDFull(DMDBase):
 
     def __init__(
         self,
+        *,  # keyword-only
         sys_mode: str = "spectral",
         is_diagonalize: bool = False,
         approx_generator: bool = False,
@@ -1318,6 +1319,7 @@ class gDMDFull(DMDBase):
 
     def __init__(
         self,
+        *,  # keyword-only
         sys_mode="spectral",
         is_diagonalize: bool = False,
         rcond: Optional[float] = None,
@@ -1510,7 +1512,7 @@ class DMDEco(DMDBase):
 
     """
 
-    def __init__(self, svd_rank=10, reconstruct_mode: str = "exact"):
+    def __init__(self, svd_rank=10, *, reconstruct_mode: str = "exact"):
         self._setup_default_tsc_metric_and_score()
         self.svd_rank = svd_rank
 
@@ -1606,7 +1608,7 @@ class PyDMDWrapper(DMDBase):
     """
 
     def __init__(
-        self, method: str, svd_rank, tlsq_rank, exact, opt, **init_params,
+        self, method: str, *, svd_rank, tlsq_rank, exact, opt, **init_params,
     ):
 
         if not IS_IMPORTED_PYDMD:

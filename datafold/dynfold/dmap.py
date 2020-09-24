@@ -250,6 +250,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
     def __init__(
         self,
         kernel: Optional[Union[PCManifoldKernel, TSCManifoldKernel]] = None,
+        *,  # keyword-only
         n_eigenpairs: int = 10,
         time_exponent: float = 0,
         is_stochastic: bool = True,
@@ -637,6 +638,7 @@ class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
     def __init__(
         self,
         epsilon=1.0,
+        *,  # keyword-only
         n_eigenpairs=10,
         nn_bandwidth=10,
         expected_dim=2,
@@ -815,6 +817,7 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
 
     def __init__(
         self,
+        *,  # keyword-only
         eps_med_scale=3,
         n_subsample=np.inf,
         strategy="dim",

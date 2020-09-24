@@ -84,6 +84,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     def __init__(
         self,
         kernel: Optional[PCManifoldKernel] = None,
+        *,  # keyword-only
         n_eigenpairs: int = 10,
         is_stochastic: bool = False,
         alpha: float = 1,
@@ -597,6 +598,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
     def __init__(
         self,
+        *,  # keyword-only
         initial_epsilon: float = 10.0,
         mu: float = 2.0,
         residual_tol: Optional[float] = None,

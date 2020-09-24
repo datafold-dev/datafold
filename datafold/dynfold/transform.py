@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -186,7 +186,7 @@ class TSCIdentity(TSCTransformerMixin, BaseEstimator):
         True if fit has been called.
     """
 
-    def __init__(self, include_const: bool = False, rename_features: bool = False):
+    def __init__(self, *, include_const: bool = False, rename_features: bool = False):
         self.include_const = include_const
         self.rename_features = rename_features
 
@@ -299,6 +299,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
     def __init__(
         self,
         n_components=2,
+        *,
         copy=True,
         whiten=False,
         svd_solver="auto",
@@ -426,11 +427,11 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
     Parameters
     ----------
 
-    lag
-        Number of time steps to lag before embedding starts.
-
     delays
         Number for time delays to embed.
+
+    lag
+        Number of time steps to lag before embedding starts.
 
     frequency
         Time step frequency to emebd (e.g. to embed every sample or only every second
@@ -466,7 +467,7 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
     """
 
     def __init__(
-        self, lag: int = 0, delays: int = 10, frequency: int = 1, kappa: float = 0
+        self, delays: int = 10, *, lag: int = 0, frequency: int = 1, kappa: float = 0
     ):
         self.lag = lag
         self.delays = delays
@@ -729,7 +730,8 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
     ----------
 
     kernel
-        Radial basis kernel to compute the coefficients with.
+        Radial basis kernel to compute the coefficients with. Defaults to
+        :code:`MultiquadricKernel(epsilon=1.0)`.
 
     center_type
         Selection of what to take as centers during fit. 
@@ -759,7 +761,8 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        kernel: PCManifoldKernel = MultiquadricKernel(epsilon=1.0),
+        kernel: Optional[PCManifoldKernel] = None,
+        *,  # keyword-only
         center_type="all_data",
         exact_distance=True,
     ):
@@ -773,6 +776,9 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
                 f"center_type={center_type} not valid. Choose from "
                 f"{self._cls_valid_center_types} "
             )
+
+    def _get_default_kernel(self):
+        return MultiquadricKernel(epsilon=1.0)
 
     def fit(self, X: TransformType, y=None, **fit_kwargs) -> "TSCRadialBasis":
         """Set the point centers of the radial basis functions.
@@ -802,9 +808,13 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
                 raise TypeError("Data 'X' must be TSCDataFrame")
             self.centers_ = X.initial_states().to_numpy()
 
+        set_kernel = (
+            self.kernel if self.kernel is not None else self._get_default_kernel()
+        )
+
         self.centers_ = PCManifold(
             self.centers_,
-            kernel=self.kernel,
+            kernel=set_kernel,
             dist_kwargs=dict(backend="brute", exact_numeric=self.exact_distance),
         )
 
@@ -917,6 +927,7 @@ class TSCPolynomialFeatures(TSCTransformerMixin, PolynomialFeatures):
     def __init__(
         self,
         degree: int = 2,
+        *,  # keyword-only
         interaction_only: bool = False,
         include_bias: bool = False,
         include_first_order=False,
@@ -1137,7 +1148,11 @@ class TSCFiniteDifference(TSCTransformerMixin, BaseEstimator):
     """
 
     def __init__(
-        self, spacing: Union[str, float] = "dt", diff_order: int = 1, accuracy: int = 2
+        self,
+        *,  # keyword-only
+        spacing: Union[str, float] = "dt",
+        diff_order: int = 1,
+        accuracy: int = 2,
     ):
 
         self.spacing = spacing
