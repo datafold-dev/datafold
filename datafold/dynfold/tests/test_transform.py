@@ -68,11 +68,11 @@ class TestTSCTransform(unittest.TestCase):
         from sklearn.preprocessing import MinMaxScaler
 
         TEST_ESTIMATORS = (
-            TSCIdentity,
-            TSCPrincipalComponent,
+            TSCIdentity(),
+            TSCPrincipalComponent(),
             TSCFeaturePreprocess(MinMaxScaler()),
             TSCFeaturePreprocess(StandardScaler()),
-            TSCPolynomialFeatures,
+            TSCPolynomialFeatures(),
         )
 
         for test_estimator in TEST_ESTIMATORS:
