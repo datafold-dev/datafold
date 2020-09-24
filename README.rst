@@ -145,8 +145,7 @@ From source
 1. Download the git repository
 
    a. If you wish to contribute code, it is required to have
-      `git <https://git-scm.com/>`__
-      installed. Clone the repository with
+      `git <https://git-scm.com/>`__ installed. Clone the repository with
 
    .. code-block:: bash
 
@@ -180,10 +179,10 @@ Dependencies
 ============
 
 The *datafold* package dependencies are managed in the
-`setup.py <https://gitlab.com/datafold-dev/datafold/-/blob/master/setup.py>`_ file
-and install with the package manager ``pip``, if the package requirement is not already
-fulfilled. The tests and some tutorials require further dependencies which are managed in
-the `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__
+`requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
+file and install with the package manager ``pip``, if the package requirement is not
+already fulfilled. The tests and some tutorials require further dependencies which are
+managed in the `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__
 file.
 
 The *datafold* software integrates with common packages from the

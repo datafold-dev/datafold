@@ -9,6 +9,7 @@ setup:
   script:
     - python3 -m pip install --upgrade pip --user
     - python3 -m pip install --upgrade twine --user
+    - python3 -m pip install --upgrade setuptools --user
     - python3 -m pip install -r requirements-dev.txt --user
   allow_failure: false
 
