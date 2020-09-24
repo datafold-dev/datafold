@@ -194,6 +194,7 @@ class EDMD(Pipeline, TSCPredictMixin):
         self,
         dict_steps: List[Tuple[str, object]],
         dmd_model: Optional[DMDBase] = None,
+        *,
         include_id_state: bool = True,
         compute_koopman_modes: bool = True,
         memory: Optional[Union[str, object]] = None,
@@ -1220,6 +1221,7 @@ class EDMDCV(TSCPredictMixin, GridSearchCV):
     def __init__(
         self,
         estimator: EDMD,
+        *,
         param_grid: Union[Dict, List[Dict]],
         cv: TSCCrossValidationSplits,
         **kwargs,

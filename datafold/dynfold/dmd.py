@@ -1210,10 +1210,9 @@ class DMDFull(DMDBase):
         )
         self._setup_features_and_time_fit(X=X)
 
-        store_system_matrix = fit_params.pop("store_system_matrix", False)
-
-        if fit_params:
-            raise AttributeError(f"fit_params={fit_params.keys()} are invalid.")
+        store_system_matrix = self._read_fit_params(
+            attrs=[("store_system_matrix", False)], fit_params=fit_params
+        )
 
         koopman_matrix_ = self._compute_koopman_matrix(X)
 
@@ -1412,7 +1411,9 @@ class gDMDFull(DMDBase):
         )
         self._setup_features_and_time_fit(X=X)
 
-        store_generator_matrix = fit_params.pop("store_generator_matrix", False)
+        store_generator_matrix = self._read_fit_params(
+            attrs=[("store_generator_matrix", False)], fit_params=fit_params
+        )
 
         kwargs_fd = self._generate_fd_kwargs()
 
@@ -1587,6 +1588,8 @@ class DMDEco(DMDBase):
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+
         eigenvectors_right_, eigenvalues_, koopman_matrix = self._compute_internals(X)
 
         self.setup_sys_spectral(
@@ -1683,6 +1686,8 @@ class PyDMDWrapper(DMDBase):
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+
         self._setup_pydmd_model()
 
         if len(X.ids) > 1:

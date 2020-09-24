@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import List, NamedTuple, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -33,6 +33,23 @@ class TSCBaseMixin(object):
     def _has_feature_names(self, _obj):
         # True, for pandas.DataFrame or TSCDataFrame
         return isinstance(_obj, pd.DataFrame)
+
+    def _read_fit_params(self, attrs: Optional[List[Tuple[str, Any]]], fit_params):
+        return_values = []
+
+        if attrs is not None:
+            for attr in attrs:
+                return_values.append(fit_params.pop(attr[0], attr[1]))
+
+        if fit_params != {}:
+            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
+
+        if len(return_values) == 0:
+            return None
+        elif len(return_values) == 1:
+            return return_values[0]
+        else:
+            return return_values
 
     def _X_to_numpy(self, X):
         """ Returns a numpy array of the data.
@@ -315,7 +332,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 
     def _same_type_X(
         self, X: TransformType, values: np.ndarray, feature_names: pd.Index
-    ) -> TransformType:
+    ) -> Union[pd.DataFrame, TransformType]:
         """Chooses the same type for input as type of `X`.
 
         Parameters

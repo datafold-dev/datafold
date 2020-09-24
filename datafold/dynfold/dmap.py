@@ -411,9 +411,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
         return self
 
-    def fit(
-        self, X: TransformType, y=None, store_kernel_matrix=False
-    ) -> "DiffusionMaps":
+    def fit(self, X: TransformType, y=None, **fit_params,) -> "DiffusionMaps":
         """Compute diffusion kernel matrix and its' eigenpairs.
 
         Parameters
@@ -424,8 +422,9 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        store_kernel_matrix
-            If True, store the kernel matrix in attribute ``kernel_matrix_``.
+        fit_params
+            - store_kernel_matrix: bool
+                If True, store the kernel matrix in attribute ``kernel_matrix_``.
 
         Returns
         -------
@@ -439,6 +438,9 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
         self._setup_features_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
+        )
+        store_kernel_matrix = self._read_fit_params(
+            attrs=[("store_kernel_matrix", False)], fit_params=fit_params
         )
 
         self._setup_default_dist_kwargs()
@@ -574,6 +576,9 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
+        fit_params
+            See `fit` method for additional params.
+
         Returns
         -------
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
@@ -583,7 +588,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         X = self._validate_datafold_data(
             X, validate_array_kwargs=dict(ensure_min_samples=2)
         )
-        self.fit(X=X, y=y)
+        self.fit(X=X, y=y, **fit_params)
 
         return self._perform_dmap_embedding(self.eigenvectors_)
 
@@ -686,6 +691,8 @@ class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
         self._setup_features_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
         )
+
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self.dist_kwargs = self.dist_kwargs or {}
         self.dist_kwargs.setdefault("cut_off", np.inf)
@@ -1032,6 +1039,12 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
         X
             Eigenvectors of shape `(n_samples, n_eigenvectors)` to make selection on.
 
+        y: None
+            ignored
+
+        fit_params
+            ignored
+
         Returns
         -------
         LocalRegressionSelection
@@ -1051,6 +1064,8 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
         num_eigenvectors = X.shape[1]
 
         self._validate_parameter(num_eigenvectors)
+
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         if self.n_subsample is not None:
             eigvec, _ = random_subsample(X, self.n_subsample)

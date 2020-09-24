@@ -71,6 +71,9 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
+        fit_params
+            ignored
+
         Returns
         -------
         TSCFeaturePreprocess
@@ -82,6 +85,8 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
 
         X = self._validate_datafold_data(X)
         self._setup_features_fit(X, features_out="like_features_in")
+
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self.sklearn_transformer_fit_ = clone(
             estimator=self.sklearn_transformer, safe=True
@@ -201,12 +206,16 @@ class TSCIdentity(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
+        fit_params
+            ignored
+
         Returns
         -------
         TSCIdentity
             self
         """
         X = self._validate_datafold_data(X)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         if self._has_feature_names(X):
             if self.rename_features:
@@ -328,6 +337,9 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         y: None
             ignored
 
+        fit_params
+            ignored
+
         Returns
         -------
         TSCPrincipalComponent
@@ -335,6 +347,8 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         """
 
         X = self._validate_datafold_data(X)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+
         self._setup_features_fit(
             X, features_out=[f"pca{i}" for i in range(self.n_components)]
         )
@@ -571,6 +585,7 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
 
         """
         self._validate_parameter()
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self.delay_indices_ = self._setup_delay_indices_array()
         self.min_timesteps_ = max(self.delay_indices_) + 1
@@ -780,7 +795,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
     def _get_default_kernel(self):
         return MultiquadricKernel(epsilon=1.0)
 
-    def fit(self, X: TransformType, y=None, **fit_kwargs) -> "TSCRadialBasis":
+    def fit(self, X: TransformType, y=None, **fit_params) -> "TSCRadialBasis":
         """Set the point centers of the radial basis functions.
 
         Parameters
@@ -792,6 +807,9 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
+        fit_params
+            ignored
+
         Returns
         -------
         TSCRadialBasis
@@ -800,6 +818,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
 
         X = self._validate_datafold_data(X)
         self._validate_center_type(center_type=self.center_type)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         if self.center_type == "all_data":
             self.centers_ = self._X_to_numpy(X)
@@ -969,12 +988,19 @@ class TSCPolynomialFeatures(TSCTransformerMixin, PolynomialFeatures):
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
             Data of shape `(n_samples, n_features)`.
 
+        y: None
+            ignored
+
+        fit_params
+            ignored
+
         Returns
         -------
         TSCPolynomialFeatures
             self
         """
         X = self._validate_datafold_data(X)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         super(TSCPolynomialFeatures, self).fit(X, y=y)
 
@@ -1054,7 +1080,11 @@ class TSCApplyLambdas(TSCTransformerMixin, BaseEstimator):
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
             Training data.
+
         y: None
+            ignored
+
+        fit_params
             ignored
 
         Returns
@@ -1064,6 +1094,7 @@ class TSCApplyLambdas(TSCTransformerMixin, BaseEstimator):
         """
         self._not_implemented_numpy_arrays(X)
         X = self._validate_datafold_data(X, ensure_tsc=True)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         features_out = [
             f"{feature_name}_lambda{i}"
@@ -1170,6 +1201,9 @@ class TSCFiniteDifference(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
+        fit_params
+            ignored
+
         Returns
         -------
         TSCFiniteDifference
@@ -1191,6 +1225,8 @@ class TSCFiniteDifference(TSCTransformerMixin, BaseEstimator):
                 else None
             ),
         )
+
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         if self._has_feature_names(X):
             features_out = [f"{col}_dot" for col in X.columns]
