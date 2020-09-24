@@ -102,7 +102,9 @@ class DiffusionMapsTest(unittest.TestCase):
 
         for i, epsilon in enumerate(reversed(epsilons)):
             dm = DiffusionMaps(
-                GaussianKernel(epsilon), num_eigenpairs, symmetrize_kernel=False
+                GaussianKernel(epsilon),
+                n_eigenpairs=num_eigenpairs,
+                symmetrize_kernel=False,
             ).fit(downsampled_data, store_kernel_matrix=True)
 
             eigvals[i, :] = dm.eigenvalues_
