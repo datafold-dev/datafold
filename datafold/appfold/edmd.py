@@ -170,7 +170,9 @@ class EDMD(Pipeline, TSCPredictMixin):
         ``None`` if both ``include_id_state`` and ``compute_koopman_modes`` are False.
 
     koopman_eigenvalues: pandas.Series
-        The eigenvalues of the Koopman matrix of shape `(n_features_dict,)`.
+        The eigenvalues of the Koopman matrix or the Koopman generator matrix of
+        shape `(n_features_dict,)`. The attribute is not available if the set DMD model
+        does not compute the spectral components but only the system matrix.
 
     n_samples_ic_: int
         The number of time samples required for an initial condition. If the value is
@@ -191,7 +193,7 @@ class EDMD(Pipeline, TSCPredictMixin):
     def __init__(
         self,
         dict_steps: List[Tuple[str, object]],
-        dmd_model: DMDBase = DMDFull(),
+        dmd_model: Optional[DMDBase] = None,
         include_id_state: bool = True,
         compute_koopman_modes: bool = True,
         memory: Optional[Union[str, object]] = None,
@@ -199,7 +201,7 @@ class EDMD(Pipeline, TSCPredictMixin):
     ):
 
         self.dict_steps = dict_steps
-        self.dmd_model = dmd_model
+        self.dmd_model = dmd_model if dmd_model is not None else DMDFull()
         self.include_id_state = include_id_state
         self.compute_koopman_modes = compute_koopman_modes
 
@@ -234,6 +236,12 @@ class EDMD(Pipeline, TSCPredictMixin):
     @property
     def koopman_eigenvalues(self):
         check_is_fitted(self)
+        if not self._dmd_model.is_spectral_mode():
+            raise AttributeError(
+                "The DMD model was not configured to provide spectral "
+                "components for the Koopman matrix."
+            )
+
         return pd.Series(self._dmd_model.eigenvalues_, name="evals")
 
     def koopman_eigenfunction(self, X: TransformType) -> TransformType:
@@ -259,6 +267,11 @@ class EDMD(Pipeline, TSCPredictMixin):
             ``pandas.DataFrame`` if the it is not not a legal :py:class:`.TSCDataFrame`.
         """
         check_is_fitted(self)
+        if not self._dmd_model.is_spectral_mode():
+            raise AttributeError(
+                "The DMD model was not configured to provide spectral "
+                "components for the Koopman matrix."
+            )
 
         X_dict = self.transform(X)
 
@@ -448,9 +461,11 @@ class EDMD(Pipeline, TSCPredictMixin):
         if not hasattr(self, "_inverse_map"):
             raise NotImplementedError("_inverse_map not available. Please report bug. ")
 
-        if self._inverse_map is not None:
+        if self._inverse_map is not None and self._dmd_model.is_spectral_mode():
             koopman_modes = self._inverse_map.T @ self._dmd_model.eigenvectors_right_
         else:
+            # Set koopman_modes to None if there are no spectral components of the
+            # Koopman operator or its generator.
             koopman_modes = None
 
         return koopman_modes
@@ -519,7 +534,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
-            self._dmd_model.fit(X=X_dict, y=y, **fit_params)
+            self._dmd_model.fit(X=X_dict, y=y, **fit_params["dmd"])
 
         self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
         self._koopman_modes = self._compute_koopman_modes()

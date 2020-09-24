@@ -10,6 +10,7 @@ import pandas as pd
 import pandas.testing as pdtest
 import scipy.linalg
 
+from datafold.dynfold import TSCTakensEmbedding
 from datafold.dynfold.dmd import (
     DMDEco,
     DMDFull,
@@ -76,14 +77,19 @@ class LinearDynamicalSystemTest(unittest.TestCase):
                 (scipy.linalg.expm(t * self.generator_matrix) @ ic).ravel()
             )
 
-        actual = LinearDynamicalSystem(
-            system_type="flowmap", time_invariant=True
-        ).evolve_system_spectrum(
-            dynmatrix=self.eigvec_right_flowmap,
-            eigenvalues=self.eigvals_flowmap,
-            initial_conditions=self.eigvec_left @ ic,
-            time_values=time_values,
-            time_delta=self.time_delta_approx,
+        actual = (
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+            )
+            .setup_sys_spectral(
+                eigenvectors_right=self.eigvec_right_flowmap,
+                eigenvalues=self.eigvals_flowmap,
+            )
+            .evolve_linear_system(
+                initial_conditions=self.eigvec_left @ ic,
+                time_values=time_values,
+                time_delta=self.time_delta_approx,
+            )
         )
 
         nptest.assert_allclose(expected, actual.to_numpy(), atol=1e-6, rtol=1e-14)
@@ -112,14 +118,12 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         evals, evec = np.linalg.eig(self.generator_matrix)
         ic_adapted = np.linalg.lstsq(evec, ic)[0]
 
-        # time_delta None -- because it is irrelevant for
-        actual = LinearDynamicalSystem(
-            system_type="differential"
-        ).evolve_system_spectrum(
-            dynmatrix=evec,
-            eigenvalues=evals,
-            initial_conditions=ic_adapted,
-            time_values=time_values,
+        actual = (
+            LinearDynamicalSystem(sys_type="differential", sys_mode="spectral")
+            .setup_sys_spectral(eigenvectors_right=evec, eigenvalues=evals)
+            .evolve_linear_system(
+                initial_conditions=ic_adapted, time_values=time_values,
+            )
         )
 
         # errors can be introduced by the least square solution
@@ -129,15 +133,20 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         time_values = np.random.default_rng(1).uniform(size=(100)) * 100
 
-        actual = LinearDynamicalSystem(
-            system_type="flowmap", time_invariant=True
-        ).evolve_system_spectrum(
-            dynmatrix=self.eigvec_right_flowmap,
-            eigenvalues=self.eigvals_flowmap,
-            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
-            time_values=time_values,
-            # to match up the flowmap system we have to assume a time delta of 1
-            time_delta=1,
+        actual = (
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+            )
+            .setup_sys_spectral(
+                eigenvectors_right=self.eigvec_right_flowmap,
+                eigenvalues=self.eigvals_flowmap,
+            )
+            .evolve_linear_system(
+                initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
+                time_values=time_values,
+                # to match up the flowmap system we have to assume a time delta of 1
+                time_delta=1,
+            )
         )
 
         nptest.assert_array_equal(actual.time_values(), np.sort(time_values))
@@ -149,15 +158,20 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         time_values = np.linspace(0, 20, 100)
 
-        actual = LinearDynamicalSystem(
-            system_type="flowmap", time_invariant=True
-        ).evolve_system_spectrum(
-            dynmatrix=self.eigvec_right_flowmap,
-            eigenvalues=self.eigvals_flowmap,
-            initial_conditions=self.eigvec_left @ initial_conditions,
-            time_delta=1,
-            time_values=time_values,
-            feature_columns=["A", "B"],
+        actual = (
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+            )
+            .setup_sys_spectral(
+                eigenvectors_right=self.eigvec_right_flowmap,
+                eigenvalues=self.eigvals_flowmap,
+            )
+            .evolve_linear_system(
+                initial_conditions=self.eigvec_left @ initial_conditions,
+                time_delta=1,
+                time_values=time_values,
+                feature_names_out=["A", "B"],
+            )
         )
 
         self.assertEqual(actual.n_timesteps, len(time_values))
@@ -167,56 +181,74 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
     def test_feature_columns(self):
 
-        actual = LinearDynamicalSystem(
-            system_type="flowmap", time_invariant=True
-        ).evolve_system_spectrum(
-            dynmatrix=self.eigvec_right_flowmap,
-            eigenvalues=self.eigvals_flowmap,
-            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
-            time_values=np.arange(4),
-            # to match up the discrete system we have to assume a time delta of 1
-            time_delta=1,
-            feature_columns=["expectedA", "expectedB"],
+        actual = (
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+            )
+            .setup_sys_spectral(
+                eigenvectors_right=self.eigvec_right_flowmap,
+                eigenvalues=self.eigvals_flowmap,
+            )
+            .evolve_linear_system(
+                initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
+                time_values=np.arange(4),
+                # to match up the discrete system we have to assume a time delta of 1
+                time_delta=1,
+                feature_names_out=["expectedA", "expectedB"],
+            )
         )
 
         self.assertEqual(actual.columns.tolist(), ["expectedA", "expectedB"])
 
         with self.assertRaises(ValueError):
-            LinearDynamicalSystem().evolve_system_spectrum(
-                dynmatrix=self.eigvec_right_flowmap,
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="spectral"
+            ).setup_sys_spectral(
+                eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
+            ).evolve_linear_system(
                 initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
                 time_values=np.arange(4),
                 # to match up the discrete system we have to assume a time delta of 1
                 time_delta=1,
-                feature_columns=[1, 2, 3],
+                feature_names_out=[1, 2, 3],
             )
 
     def test_return_types(self):
-        actual = LinearDynamicalSystem(
-            system_type="flowmap", time_invariant=True
-        ).evolve_system_spectrum(
-            dynmatrix=self.eigvec_right_flowmap,
-            eigenvalues=self.eigvals_flowmap,
-            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
-            time_values=np.arange(1),
-            # to match up the discrete system we have to assume a time delta of 1
-            time_delta=1,
+        actual = (
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+            )
+            .setup_sys_spectral(
+                eigenvectors_right=self.eigvec_right_flowmap,
+                eigenvalues=self.eigvals_flowmap,
+            )
+            .evolve_linear_system(
+                initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
+                time_values=np.arange(1),
+                # to match up the discrete system we have to assume a time delta of 1
+                time_delta=1,
+            )
         )
 
         # Is a TSCDataFrame, also for single time steps
         self.assertIsInstance(actual, TSCDataFrame)
         self.assertTrue(actual.has_degenerate())
 
-        actual = LinearDynamicalSystem(
-            system_type="flowmap", time_invariant=True
-        ).evolve_system_spectrum(
-            dynmatrix=self.eigvec_right_flowmap,
-            eigenvalues=self.eigvals_flowmap,
-            initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
-            time_values=np.arange(2),
-            # to match up the discrete system we have to assume a time delta of 1
-            time_delta=1,
+        actual = (
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+            )
+            .setup_sys_spectral(
+                eigenvectors_right=self.eigvec_right_flowmap,
+                eigenvalues=self.eigvals_flowmap,
+            )
+            .evolve_linear_system(
+                initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
+                time_values=np.arange(2),
+                # to match up the discrete system we have to assume a time delta of 1
+                time_delta=1,
+            )
         )
 
         # is a TSCDataFrame, because more than two time values are a time series
@@ -295,18 +327,22 @@ class DMDTest(unittest.TestCase):
     def test_dmd_equivalence_generator_flowmap(self):
         test_data = self._create_random_tsc(n_samples=500, dim=30)
 
-        generator_system = DMDFull(is_diagonalize=True, compute_generator=True).fit(
+        generator_system = DMDFull(is_diagonalize=True, approx_generator=True).fit(
             test_data
         )
-        flowmap_system = DMDFull(is_diagonalize=True, compute_generator=False).fit(
+        flowmap_system = DMDFull(is_diagonalize=True, approx_generator=False).fit(
             test_data
         )
+
+        self.assertEqual(generator_system.sys_type, "differential")
+        self.assertEqual(flowmap_system.sys_type, "flowmap")
 
         time_values = np.linspace(0, 5, 20)
 
         generator_result = generator_system.predict(
             test_data.initial_states(), time_values
         )
+
         flowmap_result = flowmap_system.predict(test_data.initial_states(), time_values)
 
         pdtest.assert_frame_equal(generator_result, flowmap_result, rtol=0, atol=1e-16)
@@ -318,14 +354,48 @@ class DMDTest(unittest.TestCase):
             atol=1e-16,
         )
 
-    def test_dmd_vs_gdmd(self, plot=False):
-        # need to time embed "standing waves" to be able to reconstruct it
-        from datafold.dynfold import TSCTakensEmbedding
+    def test_mode_equivalence_dmd(self):
+        # test mode = matrix and mode = spectrum against
+        # (both should obtain similar results)
 
         tsc_df = self._create_harmonic_tsc(100, 2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
 
-        first = DMDFull(is_diagonalize=True, compute_generator=True).fit(tsc_df,)
+        # for flowmap case
+        first = DMDFull(
+            sys_mode="spectral", is_diagonalize=False, approx_generator=False
+        ).fit_predict(tsc_df)
+
+        second = DMDFull(sys_mode="matrix", approx_generator=False).fit_predict(tsc_df)
+
+        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
+
+        # for generator case
+        first = DMDFull(
+            sys_mode="spectral", is_diagonalize=False, approx_generator=True
+        ).fit_predict(tsc_df)
+        second = DMDFull(sys_mode="matrix", approx_generator=True).fit_predict(tsc_df)
+
+        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
+
+    def test_mode_equivalence_gdmd(self):
+        # test mode = matrix and mode = spectrum against
+        # (both should obtain similar results)
+
+        tsc_df = self._create_harmonic_tsc(100, 2)
+        tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
+
+        first = gDMDFull(sys_mode="spectral", is_diagonalize=False).fit_predict(tsc_df)
+        second = gDMDFull(sys_mode="matrix").fit_predict(tsc_df)
+
+        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
+
+    def test_dmd_vs_gdmd(self, plot=False):
+        # need to time embed "standing waves" to be able to reconstruct it
+        tsc_df = self._create_harmonic_tsc(100, 2)
+        tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
+
+        first = DMDFull(is_diagonalize=True, approx_generator=True).fit(tsc_df,)
         # extremely high score to get to a similar error
         second = gDMDFull(
             is_diagonalize=True, kwargs_fd=dict(scheme="center", accuracy=15)
@@ -336,7 +406,7 @@ class DMDTest(unittest.TestCase):
 
         # also fails if there are changes in the implementation that includes small
         # numerical noise
-        self.assertLessEqual(score_dmd, -2.9474785325435627e-12)
+        self.assertLessEqual(score_dmd, -2.7948873860123647e-12)
         self.assertLessEqual(score_gdmd, -4.936551434810456e-11)
 
         if plot:
@@ -360,7 +430,6 @@ class DMDTest(unittest.TestCase):
     def test_dmd_pydmd1(self):
 
         test_data = self._create_random_tsc(n_samples=500, dim=30)
-
         pydmd = PyDMDWrapper(
             method="dmd", svd_rank=1000, tlsq_rank=0, exact=True, opt=False
         ).fit(test_data)
