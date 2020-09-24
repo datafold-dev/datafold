@@ -115,12 +115,12 @@ dependencies are listed in the next section and install automatically.
 
 There are two ways to install *datafold*:
 
-* **PyPI**: installs the *datafold* core package (without tutorials and tests). To
+1. **PyPI**: installs the *datafold* core package (without tutorials and tests). To
   download the tutorial files separately please visit the
   `Tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_.
-* **Source**: downloads the entire repository. This is only recommended if you want access
-  to the latest (but potentially unstable) development, plan to contribute to *datafold*,
-  or to run the tests.
+2. **Source**: downloads the entire repository. This is only recommended if you want
+  access to the latest (but potentially unstable) development, plan to contribute to
+  *datafold*, or wish to run the tests.
 
 From PyPI
 ---------
@@ -136,7 +136,7 @@ From PyPI
 Use :code:`pip3`` if :code:`pip` is reserved for :code:`Python<3`.
 
 .. note::
-    If you installed Python with Anaconda, please also go to
+    If you use Python with Anaconda, please also go to
     `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
 
 From source
@@ -145,8 +145,7 @@ From source
 1. Download the git repository
 
    a. If you wish to contribute code, it is required to have
-      `git <https://git-scm.com/>`__
-      installed. Clone the repository with
+      `git <https://git-scm.com/>`__ installed. Clone the repository with
 
    .. code-block:: bash
 
