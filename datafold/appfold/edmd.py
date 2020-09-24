@@ -660,7 +660,7 @@ class EDMD(Pipeline, TSCPredictMixin):
 
         if isinstance(X, np.ndarray):
             # work internally only with TSCDataFrame
-            X = InitialCondition.from_array(X, columns=self.features_in_.names)
+            X = InitialCondition.from_array(X, columns=self.feature_names_in_)
         else:
             InitialCondition.validate(
                 X,
