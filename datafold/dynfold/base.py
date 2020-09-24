@@ -415,7 +415,7 @@ class TSCPredictMixin(TSCBaseMixin):
     @property
     def time_interval_(self):
         self._check_attributes_set_up(check_attributes="time_values_in_")
-        return (self.time_values_in_.values[0], self.time_values_in_.values[-1])
+        return (self.time_values_in_[0], self.time_values_in_[-1])
 
     def _setup_default_tsc_metric_and_score(self):
         self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")
@@ -430,6 +430,7 @@ class TSCPredictMixin(TSCBaseMixin):
         features_in = X.columns
 
         time_values = self._validate_time_values(time_values=time_values)
+        self.time_values_in_ = time_values
 
         self.dt_ = X.delta_time
         if isinstance(self.dt_, pd.Series) or np.isnan(
@@ -451,7 +452,6 @@ class TSCPredictMixin(TSCBaseMixin):
 
         self.n_features_in_ = len(features_in)
         self.feature_names_in_ = features_in
-        self.time_values_in_ = time_values
 
     def _validate_time_values(self, time_values: np.ndarray):
 
@@ -500,7 +500,7 @@ class TSCPredictMixin(TSCBaseMixin):
             )
 
     def _validate_feature_names(self, X: TransformType, require_all=True):
-        self._check_attributes_set_up(check_attributes=["features_in_"])
+        self._check_attributes_set_up(check_attributes=["feature_names_in_"])
 
         try:
             if require_all:

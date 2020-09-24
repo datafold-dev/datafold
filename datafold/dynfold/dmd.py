@@ -761,7 +761,7 @@ class DMDBase(
         self.is_linear_system_setup(raise_error_if_not_setup=True)
 
         if feature_columns is None:
-            feature_columns = self.features_in_.names
+            feature_columns = self.feature_names_in_
 
         # initial condition is numpy-only, from now on, and column-oriented
         initial_states_origspace = X_ic.to_numpy().T
@@ -869,7 +869,7 @@ class DMDBase(
 
         if isinstance(X, np.ndarray):
             # work internally only with DataFrames
-            X = InitialCondition.from_array(X, columns=self.features_in_.names)
+            X = InitialCondition.from_array(X, columns=self.feature_names_in_)
         else:
             # for DMD the number of samples per initial condition is always 1
             InitialCondition.validate(X, n_samples_ic=1)
