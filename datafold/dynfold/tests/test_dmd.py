@@ -489,7 +489,7 @@ class DMDTest(unittest.TestCase):
 
         self.assertIsInstance(actual, TSCDataFrame)
         self.assertEqual(actual.n_timeseries, predict_ic.shape[0])
-        self.assertEqual(actual.n_timesteps, dmd.time_values_in_.quantity)
+        self.assertEqual(actual.n_timesteps, len(dmd.time_values_in_))
         nptest.assert_array_equal(actual.ids, np.arange(predict_ic.shape[0]))
 
         # provide own time series IDs in the initial condition and own time values

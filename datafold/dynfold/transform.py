@@ -114,7 +114,7 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
         X_intern = self._X_to_numpy(X)
         values = self.sklearn_transformer_fit_.transform(X_intern)
         return self._same_type_X(
-            X=X, values=values, feature_names=self.features_out_.names
+            X=X, values=values, feature_names=self.feature_names_out_
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params):
@@ -142,7 +142,7 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
         values = self.sklearn_transformer_fit_.fit_transform(X)
 
         return self._same_type_X(
-            X=X, values=values, feature_names=self.features_out_.names
+            X=X, values=values, feature_names=self.feature_names_out_
         )
 
     def inverse_transform(self, X: TransformType):
@@ -165,7 +165,7 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
         X_intern = self._X_to_numpy(X)
         values = self.sklearn_transformer_fit_.inverse_transform(X_intern)
         return self._same_type_X(
-            X=X, values=values, feature_names=self.features_in_.names
+            X=X, values=values, feature_names=self.feature_names_in_
         )
 
 
@@ -363,7 +363,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         self._validate_feature_input(X, direction="transform")
         pca_data = super(TSCPrincipalComponent, self).transform(self._X_to_numpy(X))
         return self._same_type_X(
-            X, values=pca_data, feature_names=self.features_out_.names
+            X, values=pca_data, feature_names=self.feature_names_out_
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
@@ -392,7 +392,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
             self._X_to_numpy(X), y=y
         )
         return self._same_type_X(
-            X, values=pca_values, feature_names=self.features_out_.names
+            X, values=pca_values, feature_names=self.feature_names_out_
         )
 
     def inverse_transform(self, X: TransformType):
@@ -416,7 +416,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X_intern)
 
         return self._same_type_X(
-            X, values=data_orig_space, feature_names=self.features_in_.names
+            X, values=data_orig_space, feature_names=self.feature_names_in_
         )
 
 
@@ -692,7 +692,7 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
             df = pd.DataFrame(
                 np.hstack([original_data, delayed_data]),
                 index=df.index[max_delay:],
-                columns=self.features_out_.names,
+                columns=self.feature_names_out_,
             )
 
             delayed_timeseries[idx] = df
@@ -719,7 +719,7 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
         X = self._validate_datafold_data(X, ensure_tsc=True)
         self._validate_feature_input(X, direction="inverse_transform")
 
-        return X.loc[:, self.features_in_.names]
+        return X.loc[:, self.feature_names_in_]
 
 
 class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
@@ -834,7 +834,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
         rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
 
         return self._same_type_X(
-            X, values=rbf_coeff, feature_names=self.features_out_.names
+            X, values=rbf_coeff, feature_names=self.feature_names_out_
         )
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -865,7 +865,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
             rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
 
         return self._same_type_X(
-            X=X, values=rbf_coeff, feature_names=self.features_out_.names
+            X=X, values=rbf_coeff, feature_names=self.feature_names_out_
         )
 
     def inverse_transform(self, X: TransformType):
@@ -898,7 +898,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
 
         X_inverse = rbf_coeff @ self.inv_coeff_matrix_
         return self._same_type_X(
-            X, values=X_inverse, feature_names=self.features_in_.names
+            X, values=X_inverse, feature_names=self.feature_names_in_
         )
 
 

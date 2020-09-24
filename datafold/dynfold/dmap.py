@@ -368,7 +368,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             dmap_embedding = df_type_and_indices_from(
                 indices_from=eigenvectors,
                 values=dmap_embedding,
-                except_columns=self.features_out_.names,
+                except_columns=self.feature_names_out_,
             )
 
         return dmap_embedding
@@ -608,7 +608,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
         X_orig_space = np.asarray(X) @ self.inv_coeff_matrix_
         return self._same_type_X(
-            X, values=X_orig_space, feature_names=self.features_in_.names
+            X, values=X_orig_space, feature_names=self.feature_names_in_
         )
 
 
@@ -727,7 +727,7 @@ class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
         )
 
         self.eigenvectors_ = self._same_type_X(
-            X, values=self.eigenvectors_, feature_names=self.features_out_.names
+            X, values=self.eigenvectors_, feature_names=self.feature_names_out_
         )
 
         return self
@@ -742,7 +742,7 @@ class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
 
     def fit_transform(self, X: TransformType, y=None, **fit_params):
         self.fit(X=X, y=y, **fit_params)
-        return self._same_type_X(X, self.eigenvectors_, self.features_out_.names)
+        return self._same_type_X(X, self.eigenvectors_, self.feature_names_out_)
 
 
 class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
@@ -1093,7 +1093,7 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
         X_selected = self._same_type_X(
             X,
             np.asarray(X)[:, self.evec_indices_],
-            feature_names=self.features_out_.names,
+            feature_names=self.feature_names_out_,
         )
 
         return X_selected
