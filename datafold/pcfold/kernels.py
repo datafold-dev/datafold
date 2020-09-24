@@ -356,7 +356,7 @@ def _kth_nearest_neighbor_dist(
 
 class BaseManifoldKernel(Kernel):
     @abc.abstractmethod
-    def __call__(self, X, Y=None, dist_kwargs=None, **kernel_kwargs):
+    def __call__(self, X, Y=None, *, dist_kwargs=None, **kernel_kwargs):
         """Compute kernel matrix.
 
         If `Y=None`, then the pairwise-kernel is computed with `Y=X`. If `Y` is given,
@@ -534,6 +534,7 @@ class PCManifoldKernel(BaseManifoldKernel):
         self,
         X: np.ndarray,
         Y: Optional[np.ndarray] = None,
+        *,
         dist_kwargs: Optional[Dict[str, object]] = None,
         **kernel_kwargs,
     ):
@@ -618,6 +619,7 @@ class TSCManifoldKernel(BaseManifoldKernel):
         self,
         X: pd.DataFrame,
         Y: Optional[pd.DataFrame] = None,
+        *,
         dist_kwargs: Optional[Dict[str, object]] = None,
         **kernel_kwargs,
     ):
@@ -663,7 +665,7 @@ class TSCManifoldKernel(BaseManifoldKernel):
         raise NotImplementedError("base class")
 
 
-class RadialBasisKernel(PCManifoldKernel):
+class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
     """Abstract base class for radial basis kernels.
 
     "A radial basis function (RBF) is a real-valued function whose value depends \
@@ -691,7 +693,7 @@ class RadialBasisKernel(PCManifoldKernel):
         return float(parameter)
 
     def __call__(
-        self, X, Y=None, dist_kwargs=None, **kernel_kwargs
+        self, X, Y=None, *, dist_kwargs=None, **kernel_kwargs
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Compute kernel matrix.
 
@@ -1049,6 +1051,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         self,
         X: np.ndarray,
         Y: Optional[np.ndarray] = None,
+        *,
         dist_kwargs: Optional[Dict] = None,
         **kernel_kwargs,
     ):
@@ -1430,6 +1433,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         self,
         X: np.ndarray,
         Y: Optional[np.ndarray] = None,
+        *,
         dist_kwargs: Optional[Dict] = None,
         **kernel_kwargs,
     ) -> Tuple[
@@ -1761,6 +1765,7 @@ class ConeKernel(TSCManifoldKernel):
         self,
         X: pd.DataFrame,
         Y: Optional[pd.DataFrame] = None,
+        *,
         dist_kwargs: Optional[Dict[str, object]] = None,
         **kernel_kwargs,
     ):
@@ -2097,7 +2102,7 @@ class DmapKernelVariable(BaseManifoldKernel):
 
         return matrix_l_hat, basis_change_matrix
 
-    def __call__(self, X, Y=None, dist_kwargs=None, **kernel_kwargs):
+    def __call__(self, X, Y=None, *, dist_kwargs=None, **kernel_kwargs):
 
         dist_kwargs = dist_kwargs or {}
         cut_off = dist_kwargs.pop("cut_off", None)
