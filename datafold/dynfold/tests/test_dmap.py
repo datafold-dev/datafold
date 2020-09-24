@@ -85,7 +85,7 @@ class DiffusionMapsTest(unittest.TestCase):
         ):
             check(estimator)
 
-    def test_multiple_epsilon_values(self):
+    def test_multiple_epsilon_values(self, plot=False):
 
         num_samples = 5000
         num_maps = 10
@@ -97,8 +97,6 @@ class DiffusionMapsTest(unittest.TestCase):
 
         eigvects = np.zeros((num_maps, downsampled_data.shape[0], num_eigenpairs))
         eigvals = np.zeros((num_maps, num_eigenpairs))
-
-        logging.basicConfig(level=logging.WARNING)
 
         for i, epsilon in enumerate(reversed(epsilons)):
             dm = DiffusionMaps(
@@ -114,19 +112,26 @@ class DiffusionMapsTest(unittest.TestCase):
             rq = self._compute_rayleigh_quotients(dm.kernel_matrix_, dm.eigenvectors_)
             nptest.assert_allclose(np.abs(ew), np.abs(rq), atol=1e-16)
 
-            # plt.title('$\\epsilon$ = {:.3f}'.format(epsilon))
-            # for k in range(1, 10):
-            #     plt.subplot(2, 5, k)
-            #     plt.scatter(downsampled_data[:, 0], downsampled_data[:, 1],
-            #                 c=evs[i, k, :])
-            #     plt.xlim([self.xmin, self.xmin + self.width])
-            #     plt.ylim([self.ymin, self.ymin + self.height])
-            #     plt.tight_layout()
-            #     plt.gca().set_title('$\\psi_{}$'.format(k))
-            # plt.subplot(2, 5, 10)
-            # plt.step(range(eigvals[i, :].shape[0]), np.abs(eigvals[i, :]))
-            # plt.title('epsilon = {:.2f}'.format(epsilon))
-            # plt.show()
+            if plot:
+                plt.figure()
+                plt.title("$\\epsilon$ = {:.3f}".format(epsilon))
+                for k in range(1, 10):
+                    plt.subplot(2, 5, k)
+                    plt.scatter(
+                        downsampled_data[:, 0],
+                        downsampled_data[:, 1],
+                        c=eigvects[i, :, k],
+                    )
+                    plt.xlim([self.xmin, self.xmin + self.width])
+                    plt.ylim([self.ymin, self.ymin + self.height])
+                    plt.tight_layout()
+                    plt.gca().set_title("$\\psi_{}$".format(k))
+                plt.subplot(2, 5, 10)
+                plt.step(range(eigvals[i, :].shape[0]), np.abs(eigvals[i, :]))
+                plt.title("epsilon = {:.2f}".format(epsilon))
+
+        if plot:
+            plt.show()
 
     def test_sanity_dense_sparse(self):
 
