@@ -431,8 +431,10 @@ class TSCPredictMixin(TSCBaseMixin):
 
         time_values = self._validate_time_values(time_values=time_values)
         self.time_values_in_ = time_values
-
+        self.n_features_in_ = len(features_in)
+        self.feature_names_in_ = features_in
         self.dt_ = X.delta_time
+
         if isinstance(self.dt_, pd.Series) or np.isnan(
             self.dt_
         ):  # Series if dt_ is not the same across multiple time series.
@@ -449,9 +451,6 @@ class TSCPredictMixin(TSCBaseMixin):
             % 1
             == 0
         )
-
-        self.n_features_in_ = len(features_in)
-        self.feature_names_in_ = features_in
 
     def _validate_time_values(self, time_values: np.ndarray):
 

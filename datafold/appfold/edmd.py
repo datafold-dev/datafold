@@ -228,7 +228,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             # which feature
             modes = pd.DataFrame(
                 self._koopman_modes,
-                index=self.features_in_.names,
+                index=self.feature_names_in_,
                 columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
             )
             return modes
@@ -298,6 +298,13 @@ class EDMD(Pipeline, TSCPredictMixin):
                     "and TSCDataFrame)"
                 )
 
+    @property
+    def feature_names_in_(self):
+        # delegate to first step (which will call _check_is_fitted)
+        # NOTE: n_features_in_ is also delegated, but already included in the super
+        # class Pipeline (implementation by sklearn)
+        return self.steps[0][1].feature_names_in_
+
     def transform(self, X: TransformType) -> TransformType:
         """Perform dictionary transformations on time series data (original space).
 
@@ -355,7 +362,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             values = X.to_numpy() @ self._inverse_map
 
             X_ts = df_type_and_indices_from(
-                indices_from=X, values=values, except_columns=self.features_in_.names
+                indices_from=X, values=values, except_columns=self.feature_names_in_
             )
 
         else:
@@ -409,7 +416,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             # trivial case: we just need a projection matrix to select the
             # original full-states from the dictionary functions
             inverse_map = projection_matrix_from_features(
-                X_dict.columns, self.features_in_.names
+                X_dict.columns, self.feature_names_in_
             )
 
         elif self.compute_koopman_modes:
@@ -521,10 +528,16 @@ class EDMD(Pipeline, TSCPredictMixin):
         self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X)
+        # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
+        # n_features_in_ and n_feature_names_in_ is delegated to the first transform in
+        # the pipeline.
+        # The time values are set separately:
+        time_values = self._validate_time_values(time_values=X.time_values())
+        self.time_values_in_ = time_values
+        self.dt_ = X.delta_time
 
-        # calls internally fit_transform (!!), and stores results into cache if
-        # "self.memory is not None" (see docu)
+        # '_fit' calls internally fit_transform (!!), and stores results into cache if
+        # "self.memory is not None" (see docu):
         fit_params = self._check_fit_params(**fit_params or {})
         X_dict = self._fit(X, y, **fit_params)
 
@@ -561,7 +574,7 @@ class EDMD(Pipeline, TSCPredictMixin):
         """
 
         if qois is None:
-            feature_columns = self.features_in_.names
+            feature_columns = self.feature_names_in_
         else:
             feature_columns = qois
 
@@ -570,7 +583,7 @@ class EDMD(Pipeline, TSCPredictMixin):
                 modes = self.koopman_modes.to_numpy()
             else:
                 project_matrix = projection_matrix_from_features(
-                    self.features_in_.names, qois
+                    self.feature_names_in_, qois
                 )
                 modes = project_matrix.T @ self.koopman_modes.to_numpy()
 
