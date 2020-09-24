@@ -79,17 +79,11 @@ class DiffusionMapsTest(unittest.TestCase):
 
     def test_is_valid_sklearn_estimator(self):
         from sklearn.utils.estimator_checks import check_estimator
-        import sklearn
 
-        for estimator, check in check_estimator(DiffusionMaps, generate_only=True):
-            # TODO: because DiffusionMaps has a (callable) object in parameter, the
-            #  check_parameters_default_constructible fails -- it'd would accept
-            #  FunctionType (e.g. Lambdas) but attempts have failed
-            if (
-                check.func
-                != sklearn.utils.estimator_checks.check_parameters_default_constructible
-            ):
-                check(estimator)
+        for estimator, check in check_estimator(
+            DiffusionMaps(GaussianKernel(epsilon=1.0)), generate_only=True
+        ):
+            check(estimator)
 
     def test_multiple_epsilon_values(self):
 
@@ -376,7 +370,7 @@ class DiffusionMapsTest(unittest.TestCase):
         # it is only checked with "allclose"
 
         np.set_printoptions(precision=17)
-        print(dmap_embed_test_eval.sum(axis=0))
+        # print(dmap_embed_test_eval.sum(axis=0))
 
         nptest.assert_allclose(
             dmap_embed_test_eval.sum(axis=0),

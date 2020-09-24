@@ -78,9 +78,12 @@ class GeometricHarmonicsTest(unittest.TestCase):
         # disable check on  boston housing dataset
         # see: https://scikit-learn.org/stable/developers/develop.html#estimator-tags
         estimator = GeometricHarmonicsInterpolator(n_eigenpairs=1)
-        check_estimator(estimator)
+
+        for estimator, check in check_estimator(estimator, generate_only=True):
+            check(estimator)
 
         self.assertTrue(estimator._get_tags()["multioutput"])
+        self.assertTrue(estimator._get_tags()["requires_y"])
 
     def test_geometric_harmonics_interpolator(self, plot=False):
         logging.basicConfig(level=logging.DEBUG)
