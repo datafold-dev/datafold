@@ -932,7 +932,6 @@ class TSCDataFrame(pd.DataFrame):
         try:
             if inplace:
                 self._validate()
-                self._sort_tsc_index()
             else:
                 # calls validate and sorts result
                 result = TSCDataFrame(result)

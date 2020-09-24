@@ -116,7 +116,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             expected[i, :] = scipy.linalg.expm(self.generator_matrix * t) @ ic
 
         evals, evec = np.linalg.eig(self.generator_matrix)
-        ic_adapted = np.linalg.lstsq(evec, ic)[0]
+        ic_adapted = np.linalg.lstsq(evec, ic, rcond=None)[0]
 
         actual = (
             LinearDynamicalSystem(sys_type="differential", sys_mode="spectral")
