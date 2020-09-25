@@ -710,8 +710,8 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
             Keyword arguments passed to the distance matrix computation. See
             :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
 
-        kernel_kwargs
-            ignored
+        **kernel_kwargs
+            None
 
         Returns
         -------
@@ -1070,7 +1070,7 @@ class ContinuousNNKernel(PCManifoldKernel):
             Keyword arguments passed to the internal distance matrix computation. See
             :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
 
-        kernel_kwargs
+        **kernel_kwargs: Dict[str, object]
             - reference_dist_knn: Optional[np.ndarray]
                 Distances to the `k`-th nearest neighbor for each point in `X`. The values
                 are mandatory if `Y` is not `None`.
@@ -1454,7 +1454,7 @@ class DmapKernelFixed(BaseManifoldKernel):
             Keyword arguments passed to the internal distance matrix computation. See
             :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
         
-        kernel_kwargs
+        **kernel_kwargs: Dict[str, object]
             - internal_kernel_kwargs: Optional[Dict]
                 Keyword arguments passed to the set internal kernel.
             - row_sums_alpha_fit: Optional[np.ndarray]
@@ -1783,7 +1783,7 @@ class ConeKernel(TSCManifoldKernel):
             ignored `(The distance matrix is computed as part of the kernel evaluation.
             For now this can only be a dense matrix).`
 
-        kernel_kwargs
+        **kernel_kwargs: Dict[str, object]
             - timederiv_X
                 The time derivative from a finite difference scheme. Required for a
                 component-wise evaluation.
@@ -2014,7 +2014,7 @@ class DmapKernelVariable(BaseManifoldKernel):
             # experimental: --------------------------------------------------------------
             # paper: in var-bw paper (ref2) pdfp. 7
             # it is mentioned to IGNORE non-zero entries -- this is not detailed more.
-            # a consequence is that the NN and kernel looses symmetry, so do (K+K^T) / 2
+            # a consequence is that the NN and kernel looses symmetry, so does (K+K^T) / 2
             # This is with a cut-off rate:
             # val = 1E-2
             # distance_matrix[distance_matrix < val] = np.nan
