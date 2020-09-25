@@ -384,6 +384,89 @@ class TestTscAccessor(unittest.TestCase):
             # time is not allowed to be negative
             tsc_df.tsc.shift_time(-5)
 
+    def test_timederivative(self):
+        data = pd.DataFrame(np.arange(20).reshape(10, 2), columns=["A", "B"])
+        tsc_df = TSCDataFrame.from_single_timeseries(data)
+
+        expected = np.ones((8, 2)) * 2
+        actual = tsc_df.tsc.time_derivative(scheme="center", diff_order=1, accuracy=2)
+        nptest.assert_equal(actual, expected)
+
+        expected = np.zeros((8, 2))
+        actual = tsc_df.tsc.time_derivative(scheme="center", diff_order=2, accuracy=2)
+        nptest.assert_equal(actual, expected)
+
+        expected = np.ones((8, 2)) * 2
+        actual = tsc_df.tsc.time_derivative(scheme="backward", diff_order=1, accuracy=2)
+        nptest.assert_equal(actual, expected)
+
+        expected = np.zeros((7, 2))
+        actual = tsc_df.tsc.time_derivative(scheme="backward", diff_order=2, accuracy=2)
+        nptest.assert_allclose(actual, expected, rtol=1e-15, atol=1e-14)
+
+        expected = np.ones((8, 2)) * 2
+        actual = tsc_df.tsc.time_derivative(scheme="forward", diff_order=1, accuracy=2)
+        nptest.assert_equal(actual, expected)
+
+        expected = np.zeros((7, 2))
+        actual = tsc_df.tsc.time_derivative(scheme="forward", diff_order=2, accuracy=2)
+        nptest.assert_allclose(actual, expected, rtol=1e-15, atol=1e-14)
+
+    def test_timederivative_index_center(self):
+        data = pd.DataFrame(np.arange(20).reshape(10, 2), columns=["A", "B"])
+        tsc_df = TSCDataFrame.from_single_timeseries(data)
+
+        expected = np.arange(2, 10)
+        actual = tsc_df.tsc.time_derivative(
+            scheme="center", diff_order=1, accuracy=2, shift_index=True
+        ).time_values()
+
+        nptest.assert_equal(expected, actual)
+
+        expected = np.arange(1, 9)
+        actual = tsc_df.tsc.time_derivative(
+            scheme="center", diff_order=1, accuracy=2, shift_index=False
+        ).time_values()
+
+        nptest.assert_equal(expected, actual)
+
+    def test_timederivative_index_backward(self):
+        data = pd.DataFrame(np.arange(20).reshape(10, 2), columns=["A", "B"])
+        tsc_df = TSCDataFrame.from_single_timeseries(data)
+
+        expected = np.arange(2, 10)
+        actual = tsc_df.tsc.time_derivative(
+            scheme="backward", diff_order=1, accuracy=2, shift_index=True
+        ).time_values()
+
+        nptest.assert_equal(expected, actual)
+
+        expected = np.arange(2, 10)  # NOTE: is the same than with shift = True
+        actual = tsc_df.tsc.time_derivative(
+            scheme="backward", diff_order=1, accuracy=2, shift_index=False
+        ).time_values()
+
+        nptest.assert_equal(expected, actual)
+
+    def test_timederivative_index_forward(self):
+        data = pd.DataFrame(np.arange(20).reshape(10, 2), columns=["A", "B"])
+        tsc_df = TSCDataFrame.from_single_timeseries(data)
+
+        # shifted, even though the first derivative is  available at time 0
+        expected = np.arange(2, 10)
+        actual = tsc_df.tsc.time_derivative(
+            scheme="forward", diff_order=1, accuracy=2, shift_index=True
+        ).time_values()
+
+        nptest.assert_equal(expected, actual)
+
+        expected = np.arange(0, 8)
+        actual = tsc_df.tsc.time_derivative(
+            scheme="forward", diff_order=1, accuracy=2, shift_index=False
+        ).time_values()
+
+        nptest.assert_equal(expected, actual)
+
 
 if __name__ == "__main__":
     # test = TestErrorTimeSeries()

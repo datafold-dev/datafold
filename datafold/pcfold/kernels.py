@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numexpr as ne
 import numpy as np
@@ -356,7 +356,7 @@ def _kth_nearest_neighbor_dist(
 
 class BaseManifoldKernel(Kernel):
     @abc.abstractmethod
-    def __call__(self, X, Y=None, dist_kwargs=None, **kernel_kwargs):
+    def __call__(self, X, Y=None, *, dist_kwargs=None, **kernel_kwargs):
         """Compute kernel matrix.
 
         If `Y=None`, then the pairwise-kernel is computed with `Y=X`. If `Y` is given,
@@ -406,6 +406,26 @@ class BaseManifoldKernel(Kernel):
             [f"{name}={val}" for name, val in self.get_params().items()]
         )
         return f"{self.__class__.__name__}({param_str})"
+
+    def _read_kernel_kwargs(self, attrs: Optional[List[str]], kernel_kwargs: dict):
+
+        return_values: List[Any] = []
+
+        if attrs is not None:
+            for attr in attrs:
+                return_values.append(kernel_kwargs.pop(attr, None))
+
+        if kernel_kwargs != {}:
+            raise KeyError(
+                f"kernel_kwargs.keys = {kernel_kwargs.keys()} are not " f"supported"
+            )
+
+        if len(return_values) == 0:
+            return None
+        elif len(return_values) == 1:
+            return return_values[0]
+        else:
+            return return_values
 
     @staticmethod
     def read_kernel_output(
@@ -514,6 +534,7 @@ class PCManifoldKernel(BaseManifoldKernel):
         self,
         X: np.ndarray,
         Y: Optional[np.ndarray] = None,
+        *,
         dist_kwargs: Optional[Dict[str, object]] = None,
         **kernel_kwargs,
     ):
@@ -598,6 +619,7 @@ class TSCManifoldKernel(BaseManifoldKernel):
         self,
         X: pd.DataFrame,
         Y: Optional[pd.DataFrame] = None,
+        *,
         dist_kwargs: Optional[Dict[str, object]] = None,
         **kernel_kwargs,
     ):
@@ -643,7 +665,7 @@ class TSCManifoldKernel(BaseManifoldKernel):
         raise NotImplementedError("base class")
 
 
-class RadialBasisKernel(PCManifoldKernel):
+class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
     """Abstract base class for radial basis kernels.
 
     "A radial basis function (RBF) is a real-valued function whose value depends \
@@ -671,7 +693,7 @@ class RadialBasisKernel(PCManifoldKernel):
         return float(parameter)
 
     def __call__(
-        self, X, Y=None, dist_kwargs=None, **kernel_kwargs
+        self, X, Y=None, *, dist_kwargs=None, **kernel_kwargs
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Compute kernel matrix.
 
@@ -698,8 +720,7 @@ class RadialBasisKernel(PCManifoldKernel):
             specified in `dist_kwargs`, then the matrix is sparse.
         """
 
-        if kernel_kwargs != {}:
-            raise ValueError(f"invalid kwargs {kernel_kwargs}")
+        self._read_kernel_kwargs(attrs=None, kernel_kwargs=kernel_kwargs)
 
         X = np.atleast_2d(X)
 
@@ -1030,8 +1051,8 @@ class ContinuousNNKernel(PCManifoldKernel):
         self,
         X: np.ndarray,
         Y: Optional[np.ndarray] = None,
+        *,
         dist_kwargs: Optional[Dict] = None,
-        reference_dist_knn=None,
         **kernel_kwargs,
     ):
         """Compute (sparse) adjacency graph to describes a point neighborhood.
@@ -1049,9 +1070,10 @@ class ContinuousNNKernel(PCManifoldKernel):
             Keyword arguments passed to the internal distance matrix computation. See
             :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
 
-        reference_dist_knn
-            Distances to the `k`-th nearest neighbor for each point in `X`. The values
-            are mandatory if `Y` is not `None`.
+        kernel_kwargs
+            - reference_dist_knn: Optional[np.ndarray]
+                Distances to the `k`-th nearest neighbor for each point in `X`. The values
+                are mandatory if `Y` is not `None`.
 
         Returns
         -------
@@ -1065,10 +1087,11 @@ class ContinuousNNKernel(PCManifoldKernel):
             returned.
         """
 
-        if kernel_kwargs != {}:
-            raise ValueError(f"invalid kwargs {kernel_kwargs}")
-
         is_pdist = Y is None
+
+        reference_dist_knn = self._read_kernel_kwargs(
+            attrs=["reference_dist_knn"], kernel_kwargs=kernel_kwargs
+        )
 
         dist_kwargs = dist_kwargs or {}
         # minimum number of neighbors required in the sparse case!
@@ -1410,9 +1433,8 @@ class DmapKernelFixed(BaseManifoldKernel):
         self,
         X: np.ndarray,
         Y: Optional[np.ndarray] = None,
+        *,
         dist_kwargs: Optional[Dict] = None,
-        internal_kernel_kwargs: Optional[Dict] = None,
-        row_sums_alpha_fit: Optional[np.ndarray] = None,
         **kernel_kwargs,
     ) -> Tuple[
         Union[np.ndarray, scipy.sparse.csr_matrix], Optional[Dict], Optional[Dict]
@@ -1431,14 +1453,14 @@ class DmapKernelFixed(BaseManifoldKernel):
         dist_kwargs
             Keyword arguments passed to the internal distance matrix computation. See
             :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
-
-        internal_kernel_kwargs
-            Keyword arguments passed to the set internal kernel.
-
-        row_sums_alpha_fit
-            Row sum values during re-normalization computed during pair-wise kernel
-            computation. The parameter is mandatory for the compontent-wise kernel
-            computation and if `alpha>0`.
+        
+        kernel_kwargs
+            - internal_kernel_kwargs: Optional[Dict]
+                Keyword arguments passed to the set internal kernel.
+            - row_sums_alpha_fit: Optional[np.ndarray]
+                Row sum values during re-normalization computed during pair-wise kernel
+                computation. The parameter is mandatory for the compontent-wise kernel
+                computation and if `alpha>0`.
 
         Returns
         -------
@@ -1459,6 +1481,11 @@ class DmapKernelFixed(BaseManifoldKernel):
         """
 
         is_pdist = Y is None
+
+        internal_kernel_kwargs, row_sums_alpha_fit = self._read_kernel_kwargs(
+            attrs=["internal_kernel_kwargs", "row_sums_alpha_fit"],
+            kernel_kwargs=kernel_kwargs,
+        )
 
         kernel_output = self.internal_kernel(
             X, Y=Y, dist_kwargs=dist_kwargs or {}, **internal_kernel_kwargs or {}
@@ -1723,7 +1750,9 @@ class ConeKernel(TSCManifoldKernel):
         return cos_matrix, distance_matrix
 
     def _approx_dynflow(self, X):
-        timederiv = X.tsc.time_derivative(diff_order=1, accuracy=self.fd_accuracy)
+        timederiv = X.tsc.time_derivative(
+            scheme="center", diff_order=1, accuracy=self.fd_accuracy, shift_index=True
+        )
         norm_timederiv = df_type_and_indices_from(
             timederiv,
             values=np.linalg.norm(timederiv, axis=1),
@@ -1736,9 +1765,8 @@ class ConeKernel(TSCManifoldKernel):
         self,
         X: pd.DataFrame,
         Y: Optional[pd.DataFrame] = None,
+        *,
         dist_kwargs: Optional[Dict[str, object]] = None,
-        timederiv_X=None,
-        norm_timederiv_X=None,
         **kernel_kwargs,
     ):
         """Compute kernel matrix.
@@ -1754,16 +1782,13 @@ class ConeKernel(TSCManifoldKernel):
         dist_kwargs
             ignored `(The distance matrix is computed as part of the kernel evaluation.
             For now this can only be a dense matrix).`
-        
-        timederiv_X
-            The time derivative from a finite difference scheme. Required for a
-            component-wise evaluation.
 
-        norm_timederiv_X
-            Norm of the time derivative. Required for a component-wise evaluation.
-
-        **kernel_kwargs
-            ignored
+        kernel_kwargs
+            - timederiv_X
+                The time derivative from a finite difference scheme. Required for a
+                component-wise evaluation.
+            - norm_timederiv_X
+                Norm of the time derivative. Required for a component-wise evaluation.
             
         Returns
         -------
@@ -1773,8 +1798,9 @@ class ConeKernel(TSCManifoldKernel):
 
         delta_time = self._validate_setting(X, Y)
 
-        if kernel_kwargs != {}:
-            raise ValueError(f"kernel_kwargs={kernel_kwargs} are not supported")
+        timederiv_X, norm_timederiv_X = self._read_kernel_kwargs(
+            attrs=["timederiv_X", "norm_timederiv_X"], kernel_kwargs=kernel_kwargs
+        )
 
         is_pdist = Y is None
 
@@ -2076,12 +2102,12 @@ class DmapKernelVariable(BaseManifoldKernel):
 
         return matrix_l_hat, basis_change_matrix
 
-    def __call__(
-        self, X, Y=None, kernel_kwargs=None, dist_kwargs=None,
-    ):
+    def __call__(self, X, Y=None, *, dist_kwargs=None, **kernel_kwargs):
 
         dist_kwargs = dist_kwargs or {}
         cut_off = dist_kwargs.pop("cut_off", None)
+
+        self._read_kernel_kwargs(attrs=None, kernel_kwargs=kernel_kwargs)
 
         if cut_off is not None and not np.isinf(cut_off):
             raise NotImplementedError("Handling sparsity is currently not implemented!")

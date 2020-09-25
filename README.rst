@@ -10,11 +10,11 @@ non-linear dimension reduction. For time series data the underlying dynamical sy
 assumed to have a phase space that is a manifold. The models contained in *datafold* can
 process potentially high-dimensional data that lie close to manifolds.
 
-For a longer introduction to *datafold*, please go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`_
+For a longer introduction to *datafold*, please go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__
 and for a mathematical thorough introduction, we refer to the used
 `references <https://datafold-dev.gitlab.io/datafold/references.html>`__.
 
-The source code is distributed under the `MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`_.
+The source code is distributed under the `MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
 
 Any contribution (code/tutorials/documentation improvements) and feedback is
 very welcome. Either use the
@@ -33,7 +33,7 @@ Please also see the "Contributing" section further below.
       (e.g. :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning
       when using it.
     * There is no deprecation cycle. Backwards compatibility is indicated by the
-      package version, where we use a `semantic versioning <https://semver.org/>`_
+      package version, where we use a `semantic versioning <https://semver.org/>`__
       policy `[major].[minor].[patch]`, i.e.
 
          * `major` - making incompatible changes in the (documented) API
@@ -45,9 +45,9 @@ Please also see the "Contributing" section further below.
 Quick links
 ===========
 
-* `Project repository <https://gitlab.com/datafold-dev/datafold>`_
-* `Software documentation <https://datafold-dev.gitlab.io/datafold/>`_
-* `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_
+* `Project repository <https://gitlab.com/datafold-dev/datafold>`__
+* `Software documentation <https://datafold-dev.gitlab.io/datafold/>`__
+* `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
 * Feedback of any kind, usage questions, feature requests and bug reports
 
   * `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__,
@@ -56,7 +56,7 @@ Quick links
     requires no gitlab account (creates a confident issue via gitlab's
     `service desk <https://docs.gitlab.com/ee/user/project/service_desk.html#how-it-works>`__).
 
-* `Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`_
+* `Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__
 
 Highlights
 ==========
@@ -79,7 +79,7 @@ Highlights
   This includes scaling of heterogeneous time series features, representing the
   time series in another coordinate system (e.g. Laplace-Beltrami operator) or to
   reconstruct a diffeomorphic copy of the phase space with time delay embedding (cf.
-  `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`_).
+  `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
 * ``EDMDCV`` allows the model parameters (including the
   transformation model parameters) to be optimized with cross-validation and
   also accounts for time series splitting.
@@ -107,20 +107,20 @@ Open Source Software* (JOSS).
 How to get it?
 ==============
 
-Installation of *datafold* requires `Python>=3.6 <https://www.python.org/>`_ with
-`pip <https://pip.pypa.io/en/stable/>`_ and
-`setuptools <https://setuptools.readthedocs.io/en/latest/>`_ installed (both
+Installation of *datafold* requires `Python>=3.6 <https://www.python.org/>`__ with
+`pip <https://pip.pypa.io/en/stable/>`__ and
+`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed (both
 packages usually ship with a standard Python installation). The *datafold* package
 dependencies are listed in the next section and install automatically.
 
 There are two ways to install *datafold*:
 
 1. **PyPI**: installs the *datafold* core package (without tutorials and tests). To
-  download the tutorial files separately please visit the
-  `Tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_.
+   download the tutorial files separately please visit the
+   `Tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
 2. **Source**: downloads the entire repository. This is only recommended if you want
-  access to the latest (but potentially unstable) development, plan to contribute to
-  *datafold*, or wish to run the tests.
+   access to the latest (but potentially unstable) development, plan to contribute to
+   *datafold*, or wish to run the tests.
 
 From PyPI
 ---------
@@ -179,42 +179,42 @@ Dependencies
 ============
 
 The *datafold* package dependencies are managed in the
-`setup.py <https://gitlab.com/datafold-dev/datafold/-/blob/master/setup.py>`_ file
-and install with the package manager ``pip``, if the package requirement is not already
-fulfilled. The tests and some tutorials require further dependencies which are managed in
-the `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__
+`requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
+file and install with the package manager ``pip``, if the package requirement is not
+already fulfilled. The tests and some tutorials require further dependencies which are
+managed in the `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__
 file.
 
 The *datafold* software integrates with common packages from the
-`Python scientific computing stack <https://www.scipy.org/about.html>`_. Specifically,
+`Python scientific computing stack <https://www.scipy.org/about.html>`__. Specifically,
 this is:
 
-* `NumPy <https://numpy.org/>`_
+* `NumPy <https://numpy.org/>`__
    The data structure ``PCManifold`` in *datafold* subclasses from NumPy's ``ndarray``
    to model a point cloud sampled on a manifold. A ``PCManifold`` is
    associated with a ``PCManifoldKernel`` that describes the data locality and hence
    the geometry. NumPy is used throughout *datafold* and is the default for numerical
    data and algorithms.
 
-* `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`_
+* `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`__
    *datafold* addresses time series data in the data structure ``TSCDataFrame``
    which subclasses from Pandas' rich data structure
-   `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
+   `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__.
    Internally, this is again a NumPy array, but a data frame can index time values,
    multiple time series and multiple features. The available time series data can
    then be captured in a single object with easy data slicing and dedicated time series
    functionality.
 
-* `scikit-learn <https://scikit-learn.org/stable/>`_
+* `scikit-learn <https://scikit-learn.org/stable/>`__
    All *datafold* algorithms that are part of the "machine learning pipeline" align
-   to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`_.
+   to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`__.
    This is done by deriving the models from
-   `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`_.
+   `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
    or appropriate MixIns. *datafold* also defines own base classes
    that align with ``scikit-learn`` in a duck-typing fashion to allow processing
    time series data in a ``TSCDataFrame`` object.
 
-* `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`_
+* `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`__
    The package is used for elementary numerical algorithms and data structures in
    conjunction with NumPy. Examples in *datafold* include the (sparse) linear least
    square regression, (sparse) solving for eigenpairs and sparse matrices as optional
@@ -226,29 +226,29 @@ How does it compare to other software?
 *This section only includes other Python packages, and does not compare the size
 (e.g. active developers) of the projects.*
 
-* `scikit-learn <https://scikit-learn.org/stable/>`_
+* `scikit-learn <https://scikit-learn.org/stable/>`__
    provides algorithms for the entire machine learning pipeline. The main
    class of models in scikit-learn map feature inputs to a fixed number of target
    outputs for tasks like regression or classification. *datafold* is integrated into the
    scikit-learn API and focuses on the
-   `manifold learning algorithms <https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py>`_.
+   `manifold learning algorithms <https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py>`__.
    Furthermore, *datafold* includes a model class that can process time
    series data from dynamical systems. The number of outputs may vary: a
    user provides an initial condition (the input) and an arbitrary sampling frequency
    and prediction horizon.
 
-* `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`_
+* `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`__
    provides many \
    variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia
-   .org/wiki/Dynamic_mode_decomposition>`_. Some of the DMD models are special
+   .org/wiki/Dynamic_mode_decomposition>`__. Some of the DMD models are special
    cases of a dictionary of the `Extended Dynamic Mode Decomposition`, while other DMD
    variants are currently not covered in *datafold*. ``datafold.dynfold.dmd.py`` includes
    an (experimental) wrapper for the ``PyDMD`` package to make use of missing DMD models.
    However, a limitation of ``PyDMD`` is that it only allows single time series as
-   input (``numpy.ndarray``), see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`_.
+   input (``numpy.ndarray``), see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`__.
    *datafold* addresses this issue with the data structure ``TSCDataFrame``.
 
-* `PySINDy <https://pysindy.readthedocs.io/en/latest/>`_
+* `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__
    specializes on a *sparse* identification of dynamical systems to infer governing
    equations. `SINDy` is basically a DMD variant and not in the scope of *datafold* and
    note yet included. `PySINDy` also provides time series transformations, which
@@ -257,7 +257,7 @@ How does it compare to other software?
    multiple time series but these are managed in lists and not in a single data
    structure.
 
-* `TensorFlow <https://www.tensorflow.org/>`_
+* `TensorFlow <https://www.tensorflow.org/>`__
    allows data-driven regression/prediction with the main model type
    (deep) neural networks. For manifold learning (Variational) Auto-Encoders are
    suitable and for time series predictions there are recurrent networks such as
@@ -403,7 +403,7 @@ way, meaning each tool should only format the code once to obtain the desired fo
 None of the tool should break the code or alter its behaviour.
 
 The most convenient way to set up the tools is to install the git commit-hooks via
-`pre-commit <https://pre-commit.com/>`_ (installs with the development
+`pre-commit <https://pre-commit.com/>`__ (installs with the development
 dependencies). To install the git-hooks run from root directory:
 
 .. code-block:: bash
@@ -422,7 +422,7 @@ Run tests
 ^^^^^^^^^
 
 The tests are executed with Python package
-`nose <https://nose.readthedocs.io/en/latest/>`_ (installs with the development
+`nose <https://nose.readthedocs.io/en/latest/>`__ (installs with the development
 dependencies).
 
 To execute all *datafold* unit tests locally run from the root directory of the
@@ -456,18 +456,18 @@ introduction. *datafold*'s pipeline configuration is located in the file
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The documentation is built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ and
+The documentation is built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`__ and
 various Sphinx extensions (all install with the development dependencies). The source
 code is documented with `numpydoc <https://numpydoc.readthedocs.io/en/latest/format
-.html#overview>`_ style.
+.html#overview>`__ style.
 
 Additional dependencies for building the documentation (**not** contained in
 ``requirements-dev.txt``):
 
-* `LaTex <https://www.latex-project.org/>`_ to render maths equations,
-* `mathjax <https://www.mathjax.org/>`_ to display the LaTex equations in the browser
-* `graphviz <https://graphviz.org/>`_ to render class dependency graphs, and
-* `pandoc <https://pandoc.org/index.html>`_ to convert between formats (required by
+* `LaTex <https://www.latex-project.org/>`__ to render maths equations,
+* `mathjax <https://www.mathjax.org/>`__ to display the LaTex equations in the browser
+* `graphviz <https://graphviz.org/>`__ to render class dependency graphs, and
+* `pandoc <https://pandoc.org/index.html>`__ to convert between formats (required by
   `nbsphinx` extension that includes the tutorials into the web page documentation).
 
 In Linux, install the packages with

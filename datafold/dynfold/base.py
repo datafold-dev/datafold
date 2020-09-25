@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import List, NamedTuple, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -21,16 +21,6 @@ TimePredictType = TSCDataFrame
 InitialConditionType = Union[TSCDataFrame, np.ndarray]
 
 
-class FeatureInfo(NamedTuple):
-    quantity: int
-    names: Optional[pd.Index] = None
-
-
-class TimeValueInfo(NamedTuple):
-    quantity: int
-    values: np.ndarray
-
-
 class TSCBaseMixin(object):
     """Base class for Mixin's in *datafold*.
 
@@ -43,6 +33,23 @@ class TSCBaseMixin(object):
     def _has_feature_names(self, _obj):
         # True, for pandas.DataFrame or TSCDataFrame
         return isinstance(_obj, pd.DataFrame)
+
+    def _read_fit_params(self, attrs: Optional[List[Tuple[str, Any]]], fit_params):
+        return_values = []
+
+        if attrs is not None:
+            for attr in attrs:
+                return_values.append(fit_params.pop(attr[0], attr[1]))
+
+        if fit_params != {}:
+            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
+
+        if len(return_values) == 0:
+            return None
+        elif len(return_values) == 1:
+            return return_values[0]
+        else:
+            return return_values
 
     def _X_to_numpy(self, X):
         """ Returns a numpy array of the data.
@@ -193,21 +200,45 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
     * :class:`pandas.DataFrame` no restriction on the frame's index and column format
     * :class:`.TSCDataFrame` as a special data frame for time series collections
 
+    The parameters should be set in during `fit` in a subclass.
+
+    .. note::
+
+        The scikit-learn project heavily discusses on how to handle feature names. There
+        are many proposed solutions. The solution that datafold uses is
+        `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep007/proposal.html>`__
+
+        However, this is only a proposal and may have to be changed later.
+
+        Other resources:
+
+        * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep012/proposal.html>`__
+        * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/pull/18/>`__
+
     Parameters
     ----------
 
-    features_in_: FeatureInfo
-        Number of features during fit and corresponding feature names. The attribute
-        should be set in during `fit`. Set feature names in `inverse_transform` and
-        validate input in `transform`.
+    n_features_in_: int
+        Number of features of input during `fit`.
 
-    features_out_: FeatureInfo
-        Number of features and corresponding feature names after transformation.
-        The attribute should be set in during `fit`. Set feature names in
-        `transform` and validate input in `inverse_transform`.
+    n_features_in_: Optional[pd.Index]
+        Feature names during `fit` if the input is indexed. The feature names
+        are used as output in `inverse_transform` and for validation in `transform`.
+
+    n_features_out_: int
+        Number of features of output during `fit`.
+
+    features_out_: Optional[pd.Index]
+        Feature names during `fit` if the input is indexed. The feature names
+        are used as output in `transform` and for validation in `inverse_transform`.
     """
 
-    _feature_attrs = ["features_in_", "features_out_"]
+    _feature_attrs = [
+        "n_features_in_",
+        "n_features_out_",
+        "feature_names_in_",
+        "feature_names_out_",
+    ]
 
     def _setup_frame_input_fit(self, features_in: pd.Index, features_out: pd.Index):
 
@@ -221,17 +252,17 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         if features_in.ndim != 1 or features_out.ndim != 1:
             raise ValueError("feature names must be 1-dim.")
 
-        self.features_in_: FeatureInfo = FeatureInfo(
-            quantity=len(features_in), names=features_in
-        )
-        self.features_out_: FeatureInfo = FeatureInfo(
-            quantity=len(features_out), names=features_out
-        )
+        self.n_features_in_ = len(features_in)
+        self.n_features_out_ = len(features_out)
+        self.feature_names_in_ = features_in
+        self.feature_names_out_ = features_out
 
     def _setup_array_input_fit(self, features_in: int, features_out: int):
         # do not store names, because they are not available
-        self.features_in_ = FeatureInfo(quantity=features_in)
-        self.features_out_ = FeatureInfo(quantity=features_out)
+        self.n_features_in_ = features_in
+        self.n_features_out_ = features_out
+        self.feature_names_in_ = None
+        self.feature_names_out_ = None
 
     def _setup_features_fit(self, X, features_out):
 
@@ -271,26 +302,24 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 
         self._check_attributes_set_up(self._feature_attrs)
 
-        if not self._has_feature_names(X) or self.features_out_.names is None:
+        if not self._has_feature_names(X) or self.feature_names_out_ is None:
             # Either
             # * X has no feature names, or
             # * during fit X had no feature names given.
             # --> Only check if shape is correct and trust user with the rest
-            if self.features_in_.quantity != X.shape[1]:
+            if self.n_features_in_ != X.shape[1]:
                 raise ValueError(
-                    f"Shape mismatch: expected {self.features_out_.quantity} "
+                    f"Shape mismatch: expected {self.n_features_out_} "
                     f"features (number of columns in 'X') but got {X.shape[1]}."
                 )
         else:  # self._has_feature_names(X)
             # Now X has features and during fit features were given. So now we can
             # check if feature names of X match with data during fit:
 
-            _check_features: Tuple[int, pd.Index]
-
             if direction == "transform":
-                _check_features = self.features_in_
+                _check_features = self.feature_names_in_
             elif direction == "inverse_transform":
-                _check_features = self.features_out_
+                _check_features = self.feature_names_out_
             else:
                 raise RuntimeError(
                     f"'direction'={direction} not known. Please report bug."
@@ -299,13 +328,13 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             if isinstance(X, pd.Series):
                 # if X is a Series, then the columns of the original data are in a
                 # Series this usually happens if X.iloc[0, :] --> returns a Series
-                pdtest.assert_index_equal(right=_check_features[1], left=X.index)
+                pdtest.assert_index_equal(right=_check_features, left=X.index)
             else:
-                pdtest.assert_index_equal(right=_check_features[1], left=X.columns)
+                pdtest.assert_index_equal(right=_check_features, left=X.columns)
 
     def _same_type_X(
         self, X: TransformType, values: np.ndarray, feature_names: pd.Index
-    ) -> TransformType:
+    ) -> Union[pd.DataFrame, TransformType]:
         """Chooses the same type for input as type of `X`.
 
         Parameters
@@ -358,7 +387,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         y : None
             ignored
 
-        **fit_params : dict
+        **fit_params: Dict[str, object]
             Additional fit parameters.
 
         Returns
@@ -374,30 +403,38 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 class TSCPredictMixin(TSCBaseMixin):
     """Mixin to provide functionality for models that train on time series data.
 
+    The attribute should be set during `fit` and used to validate during `predict`.
+
     Parameters
     ----------
 
-    features_in_: Tuple[int, pandas.Index]
-        Number of features during fit and corresponding feature names. The attribute
-        should be set during `fit` and used to validate during `predict`.
+    n_features_in_: int
+        Number of features during `fit`.
 
-    time_values_in_: Tuple[int, numpy.ndarray]
-        Number of time values and array with all time values during `fit`. Note
-        because in a time seres collection not all time series share the same time
-        samples, a time value has to appear in at least one time series to be listed in
-        `time_values_in_`. The attribute should be set during `fit`, can be used for
-        default time values and allows reasonable prediction intervals to be validated.
+    feature_names_in_: pd.Index
+        The feature names during `fit`.
 
-    dt_
-        Time sampling in the data during fit.
+    time_values_in_: numpy.ndarray
+        Time values with all time values observed during `fit`. Note, that because in a
+        time series collection not all time series must share the same time
+        values, a time value to be recorded in `time_values_in_` must at least appear
+        in one time series.
+
+    dt_: Union[float, pd.Series]
+        Time sampling rate in the time series data during `fit`.
     """
 
-    _cls_feature_attrs = ["features_in_", "time_values_in_", "dt_"]
+    _cls_feature_attrs = [
+        "n_features_in_",
+        "feature_names_in_",
+        "time_values_in_",
+        "dt_",
+    ]
 
     @property
     def time_interval_(self):
         self._check_attributes_set_up(check_attributes="time_values_in_")
-        return (self.time_values_in_.values[0], self.time_values_in_.values[-1])
+        return (self.time_values_in_[0], self.time_values_in_[-1])
 
     def _setup_default_tsc_metric_and_score(self):
         self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")
@@ -412,11 +449,11 @@ class TSCPredictMixin(TSCBaseMixin):
         features_in = X.columns
 
         time_values = self._validate_time_values(time_values=time_values)
-        self.time_values_in_: TimeValueInfo = TimeValueInfo(
-            len(time_values), time_values
-        )
-
+        self.time_values_in_ = time_values
+        self.n_features_in_ = len(features_in)
+        self.feature_names_in_ = features_in
         self.dt_ = X.delta_time
+
         if isinstance(self.dt_, pd.Series) or np.isnan(
             self.dt_
         ):  # Series if dt_ is not the same across multiple time series.
@@ -432,10 +469,6 @@ class TSCPredictMixin(TSCBaseMixin):
             )
             % 1
             == 0
-        )
-
-        self.features_in_: FeatureInfo = FeatureInfo(
-            quantity=len(features_in), names=features_in
         )
 
     def _validate_time_values(self, time_values: np.ndarray):
@@ -485,18 +518,18 @@ class TSCPredictMixin(TSCBaseMixin):
             )
 
     def _validate_feature_names(self, X: TransformType, require_all=True):
-        self._check_attributes_set_up(check_attributes=["features_in_"])
+        self._check_attributes_set_up(check_attributes=["feature_names_in_"])
 
         try:
             if require_all:
                 pdtest.assert_index_equal(
-                    right=self.features_in_.names, left=X.columns, check_names=False
+                    right=self.feature_names_in_, left=X.columns, check_names=False
                 )
             else:
-                if not np.isin(X.columns, self.features_in_.names).all():
+                if not np.isin(X.columns, self.feature_names_in_).all():
                     raise AssertionError(
                         f"feature names in X are invalid "
-                        f"{X.columns[np.isin(self.features_in_.names,X.columns)]}"
+                        f"{X.columns[np.isin(self.feature_names_in_,X.columns)]}"
                     )
         except AssertionError as e:
             raise ValueError(e.args[0])
@@ -508,7 +541,7 @@ class TSCPredictMixin(TSCBaseMixin):
         self._check_attributes_set_up(check_attributes=["time_values_in_"])
 
         if time_values is None:
-            time_values = self.time_values_in_.values
+            time_values = self.time_values_in_
 
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")

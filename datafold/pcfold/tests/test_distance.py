@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
 import unittest
+import warnings
 
 import numpy as np
 import numpy.testing as nptest
 import scipy
 import scipy.sparse
+from scipy.sparse.base import SparseEfficiencyWarning
 from scipy.spatial.distance import cdist, pdist, squareform
 
 from datafold.pcfold.distance import (
@@ -154,11 +156,13 @@ class TestDistAlgorithms(unittest.TestCase):
         expected = squareform(pdist(self.data_X))
         cut_off = float(np.median(expected))
 
-        expected[expected > cut_off] = 0
-        expected = scipy.sparse.csr_matrix(expected)
-        expected.eliminate_zeros()
-        expected.setdiag(0)
-        expected.sort_indices()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SparseEfficiencyWarning)
+            expected[expected > cut_off] = 0
+            expected = scipy.sparse.csr_matrix(expected)
+            expected.eliminate_zeros()
+            expected.setdiag(0)
+            expected.sort_indices()
 
         for metric in ["euclidean", "sqeuclidean"]:
 
@@ -195,11 +199,14 @@ class TestDistAlgorithms(unittest.TestCase):
         cut_off = float(np.median(expected))
         expected[expected > cut_off] = 0
 
-        expected = scipy.sparse.csr_matrix(expected)
-        expected[0, 0] = 0
-        expected[1, 1] = 0
-        expected[2, 2] = 0
-        expected.sort_indices()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SparseEfficiencyWarning)
+
+            expected = scipy.sparse.csr_matrix(expected)
+            expected[0, 0] = 0
+            expected[1, 1] = 0
+            expected[2, 2] = 0
+            expected.sort_indices()
 
         for metric in ["euclidean", "sqeuclidean"]:
 
@@ -228,6 +235,9 @@ class TestDistAlgorithms(unittest.TestCase):
                     raise e
 
     def test_ensure_kmin_nearest_neighbours_pdist(self):
+
+        print("SUPRESSED SPARSITY WARNINGS. TODO: See #93")
+        warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
 
@@ -266,6 +276,9 @@ class TestDistAlgorithms(unittest.TestCase):
 
     def test_ensure_kmin_nearest_neighbours_cdist(self):
 
+        print("SUPRESSED SPARSITY WARNINGS. TODO: See #93")
+        warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
+
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
 
             for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int):
@@ -276,6 +289,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     self.data_X, Y=self.data_Y, cut_off=cut_off
                 )
 
+                # TODO: resolve SparsityWarning, see issue #93
                 distance_matrix = _ensure_kmin_nearest_neighbor(
                     self.data_X,
                     Y=self.data_Y,
