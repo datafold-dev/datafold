@@ -948,7 +948,7 @@ def compute_distance_matrix(
 
         if X.shape[1] != Y.shape[1]:
             raise ValueError(
-                "mismatch of point dimension: "
+                "Mismatch in point dimension: "
                 f"X.shape[1]={X.shape[1]} != Y.shape[1]={Y.shape[1]} "
             )
 

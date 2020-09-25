@@ -68,11 +68,11 @@ class TestTSCTransform(unittest.TestCase):
         from sklearn.preprocessing import MinMaxScaler
 
         TEST_ESTIMATORS = (
-            TSCIdentity,
-            TSCPrincipalComponent,
+            TSCIdentity(),
+            TSCPrincipalComponent(),
             TSCFeaturePreprocess(MinMaxScaler()),
             TSCFeaturePreprocess(StandardScaler()),
-            TSCPolynomialFeatures,
+            TSCPolynomialFeatures(),
         )
 
         for test_estimator in TEST_ESTIMATORS:
@@ -322,7 +322,7 @@ class TestTSCTransform(unittest.TestCase):
         simple_df = self.takens_df_short.drop("B", axis=1)
         tsc_df = TSCDataFrame(simple_df)
 
-        takens = TSCTakensEmbedding(lag=0, delays=1, frequency=1,)
+        takens = TSCTakensEmbedding(delays=1, lag=0, frequency=1,)
         actual = takens.fit_transform(tsc_df)
 
         self.assertIsInstance(actual, TSCDataFrame)
@@ -374,14 +374,14 @@ class TestTSCTransform(unittest.TestCase):
         tsc_long = TSCDataFrame(self.takens_df_long)
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=1, frequency=1)
+            TSCTakensEmbedding(delays=1, lag=0, frequency=1)
             .fit(tsc_short)
             .delay_indices_,
             np.array([1]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=0, delays=2, frequency=1)
+            TSCTakensEmbedding(delays=2, lag=0, frequency=1)
             .fit(tsc_long)
             .delay_indices_,
             np.array([1, 2]),
@@ -389,38 +389,38 @@ class TestTSCTransform(unittest.TestCase):
 
         with self.assertRaises(TSCException):
             # Data too short
-            TSCTakensEmbedding(lag=0, delays=5, frequency=1).fit(tsc_short)
+            TSCTakensEmbedding(delays=5, lag=0, frequency=1).fit(tsc_short)
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=1, delays=1, frequency=1)
+            TSCTakensEmbedding(delays=1, lag=1, frequency=1)
             .fit(tsc_long)
             .delay_indices_,
             np.array([2]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=1, delays=5, frequency=1)
+            TSCTakensEmbedding(delays=5, lag=1, frequency=1)
             .fit(tsc_long)
             .delay_indices_,
             np.array([2, 3, 4, 5, 6]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=2, delays=2, frequency=2)
+            TSCTakensEmbedding(delays=2, lag=2, frequency=2)
             .fit(tsc_long)
             .delay_indices_,
             np.array([3, 5]),
         )
 
         nptest.assert_array_equal(
-            TSCTakensEmbedding(lag=2, delays=4, frequency=2)
+            TSCTakensEmbedding(delays=4, lag=2, frequency=2)
             .fit(tsc_long)
             .delay_indices_,
             np.array([3, 5, 7, 9]),
         )
 
         with self.assertRaises(ValueError):
-            TSCTakensEmbedding(lag=0, delays=1, frequency=2).fit(tsc_short)
+            TSCTakensEmbedding(delays=1, lag=0, frequency=2).fit(tsc_short)
 
     def test_rbf_1d(self):
         func = lambda x: np.exp(x * np.cos(3 * np.pi * x)) - 1
