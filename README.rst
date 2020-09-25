@@ -116,11 +116,11 @@ dependencies are listed in the next section and install automatically.
 There are two ways to install *datafold*:
 
 1. **PyPI**: installs the *datafold* core package (without tutorials and tests). To
-  download the tutorial files separately please visit the
-  `Tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`_.
+   download the tutorial files separately please visit the
+   `Tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
 2. **Source**: downloads the entire repository. This is only recommended if you want
-  access to the latest (but potentially unstable) development, plan to contribute to
-  *datafold*, or wish to run the tests.
+   access to the latest (but potentially unstable) development, plan to contribute to
+   *datafold*, or wish to run the tests.
 
 From PyPI
 ---------

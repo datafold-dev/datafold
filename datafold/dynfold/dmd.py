@@ -1599,19 +1599,64 @@ class DMDEco(DMDBase):
         return self
 
 
-@warn_experimental_class
 class PyDMDWrapper(DMDBase):
-    """
+    """A wrapper for dynamic mode decompositions models of Python package *PyDMD*.
+
+    For further details of the underlying models please go to
+    `PyDMD documentation <https://mathlab.github.io/PyDMD/>`__
+
     .. warning::
-        This class is not documented and is classified as experimental.
-        Contributions are welcome:
-            * documentation
-            * write unit tests
-            * improve code
+
+        The models provided by *PyDMD* can only deal with single time series. See also
+        `github issue #86 <https://github.com/mathLab/PyDMD/issues/86>`__.
+
+    Parameters
+    ----------
+
+    method
+        Choose a method by string.
+
+        - "dmd" - standard DMD
+        - "hodmd" - higher order DMD
+        - "fbdmd" - forwards backwards DMD
+        - "mrdmd" - multi resolution DMD
+        - "cdmd" - compressed DMD
+
+    svd_rank
+        The rank of the singular value decomposition.
+            - If `-1`: no truncation is performed (NOTE: the SVD is still performed)
+            - If `0`: compute optimal rank.
+            - A positive integer defines the actual rank.
+            - A float between 0 and 1 defines the 'energy' of biggest singular value.
+
+    tlsq_rank
+        The rank of the total least squares. If 0, then no total least squares is applied.
+
+    exact
+        If True, perform the 'exact DMD', else a 'projected DMD'.
+
+    opt
+        If True, compute optimal amplitudes.
+
+    init_params
+        All further keyword arguments will be passed to the underlying model.
+
+    References
+    ----------
+
+    :cite:`demo_pydmd_2018`
+
     """
 
     def __init__(
-        self, method: str, *, svd_rank, tlsq_rank, exact, opt, **init_params,
+        self,
+        method: str,
+        *,
+        svd_rank: Union[int, float] = 0,
+        tlsq_rank=0,
+        exact: bool = False,
+        opt: bool = False,
+        **init_params,
     ):
 
         if not IS_IMPORTED_PYDMD:
@@ -1681,6 +1726,24 @@ class PyDMDWrapper(DMDBase):
             raise ValueError(f"method={self.method} not known")
 
     def fit(self, X: TimePredictType, y=None, **fit_params) -> "PyDMDWrapper":
+        """Compute Dynamic Mode Decomposition from data.
+
+        Parameters
+        ----------
+        X
+            Training time series data.
+
+        y: None
+            ignored
+
+        fit_params
+            ignored
+
+        Returns
+        -------
+        PyDMDWrapper
+            self
+        """
 
         self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
