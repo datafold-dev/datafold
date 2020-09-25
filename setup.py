@@ -2,6 +2,7 @@
 
 import importlib.util
 import os
+from pathlib import Path
 
 from setuptools import find_packages, setup
 
@@ -33,6 +34,14 @@ long_description = (
     "systems on these manifolds."
 )
 
+path_to_pkg_requirements = os.path.join(
+    Path(__file__).absolute().parent, "requirements.txt"
+)
+
+with open(path_to_pkg_requirements, "r") as f:
+    install_requires = f.readlines()
+install_requires = [req.replace("\n", "") for req in install_requires]
+
 setup(
     name="datafold",
     author=AUTHOR,
@@ -51,18 +60,9 @@ setup(
     package_dir={"datafold": "datafold"},
     package_data={"": ["LICENSE"]},
     python_requires=">=3.6",  # uses f-strings
-    install_requires=[
-        "numpy>=0.18.0",
-        "scikit-learn>=0.22.1,<0.23.0",
-        "scipy>=1.4.0",
-        "pandas>=1.0.0",
-        "numexpr>=2.7.1,<3.0.0",
-        "matplotlib>=3.2.0",
-        "findiff>=0.8.0",
-    ],
+    install_requires=install_requires,
     test_suite="nose.collector",
     tests_require=["nose>=1.3.7,<1.4"],
-    extras_require={"pydmd": ["pydmd"],},
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",

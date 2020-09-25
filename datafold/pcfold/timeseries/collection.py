@@ -40,7 +40,7 @@ class TSCException(Exception):
 
     @classmethod
     def not_const_delta_time(cls, actual_delta_time=None):
-        msg = "the time sampling ('delta_time') is not constant"
+        msg = "The time sampling ('delta_time') is not constant."
 
         if actual_delta_time is not None:
             msg += f"\n {actual_delta_time}"
@@ -56,11 +56,11 @@ class TSCException(Exception):
 
     @classmethod
     def not_same_time_values(cls):
-        return cls("Time series have not the same time values.")
+        return cls("The time series have not the same time values.")
 
     @classmethod
     def not_normalized_time(cls):
-        return cls("Time values are not normalized.")
+        return cls("The time values are not normalized.")
 
     @classmethod
     def not_required_n_timeseries(cls, required_n_timeseries, actual_n_timeseries):
@@ -185,7 +185,7 @@ class TSCDataFrame(pd.DataFrame):
         Because Pandas provides a large variety of functionality of its data
         structures, not all methods are tested to check if they comply with
         `TSCDataFrame`. Please report unexpected behavior, bugs or inconsistencies by
-        `<opening an issue <https://gitlab.com/datafold-dev/datafold/-/issues>`_.
+        `opening an issue <https://gitlab.com/datafold-dev/datafold/-/issues>`__.
 
     .. warning::
         Currently, there is no `TSCSeries`, which results in inconsistencies when
@@ -196,7 +196,7 @@ class TSCDataFrame(pd.DataFrame):
     --------
 
     A data frame structure with four time series with two features (columns). The first
-    three share the same time values (rows) . The fourth time series is a so-called
+    three share the same time values (rows). The fourth time series is a so-called
     degenerated time series because it only consists of a single sample.
 
     +-------------+---------------+-----------+-----------+
@@ -251,8 +251,8 @@ class TSCDataFrame(pd.DataFrame):
     kernel
         The kernel to describe the locality between samples. A
         :py:class:`.PCManifoldKernel` takes the samples independently, whereas a
-        :py:class:`.TSCManifoldKernel` can include the time information of samples in a
-        kernel.
+        :py:class:`.TSCManifoldKernel` can include the time information from the
+        collection in a kernel to describe the proximity.
     """
 
     tsc_id_idx_name = "ID"  # name used in index of (unique) time series
@@ -352,7 +352,7 @@ class TSCDataFrame(pd.DataFrame):
 
         data = tensor.reshape(n_timeseries * n_timesteps, n_feature)
 
-        # sorting index handles cases where time values are provided in sorted order
+        # Sorting index here, handles cases where time values are not sorted in the input.
         data = pd.DataFrame(data=data, index=idx, columns=columns)
         data.sort_index(axis=0, level=0, inplace=True)
         return cls(data)
@@ -806,7 +806,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def kernel(self):
-        """The kernel to describe the proximity between .
+        """The kernel to describe the proximity between samples.
 
         Returns
         -------
@@ -843,12 +843,13 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def dist_kwargs(self) -> dict:
-        """The kernel to describe the proximity between .
+        """Keyword arguments passed to the internal distance matrix computation.
+
+        See :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
 
         Returns
         -------
 
-        :py:class:`.BaseManifoldKernel`
         """
         if "dist_kwargs" not in self.attrs:
             self.attrs["dist_kwargs"] = dict()
@@ -888,18 +889,11 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def loc(self):
-        """Overwrites label based access to provide fall back types in case the result
-        is not a valid ``TSCDataFrame`` anymore.
+        """Label-based indexing.
 
-        The following types are returned:
-
-        * ``TSCDataFrame`` if the slice is still valid
-        * ``pandas.DataFrame`` fallback if slice is not a valid ``TSCDataFrame`` anymore\
-         and contains multiple features
-        * ``pandas.Series`` if slice is not a valid ``TSCDataFrame`` anymore and contains\
-         a single feature.
-
-        All other rules of `.loc` slicing apply.
+        Please visit
+        `pd.DataFrame.loc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.loc.html#pandas.DataFrame.loc>`_
+        for full documentation.
 
         Returns
         -------
@@ -909,6 +903,19 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def iloc(self):
+        """Index-based indexing.
+
+        Please visit
+        `pd.DataFrame.iloc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.iloc.html#pandas.DataFrame.iloc>`_
+        for full documentation.
+
+        .. warning::
+            For single column slices, currently, the type changes to ``pandas.Series``.
+
+        Returns
+        -------
+
+        """
         return _iLocTSCIndexer("iloc", self)
 
     def set_index(
@@ -925,7 +932,6 @@ class TSCDataFrame(pd.DataFrame):
         try:
             if inplace:
                 self._validate()
-                self._sort_tsc_index()
             else:
                 # calls validate and sorts result
                 result = TSCDataFrame(result)
@@ -1062,7 +1068,7 @@ class TSCDataFrame(pd.DataFrame):
         """
         return np.isfinite(self).all().all()
 
-    def degenerate_ts_ids(self) -> Optional[pd.Index]:
+    def degenerate_ids(self) -> Optional[pd.Index]:
         """Return the degenerate time series IDs.
 
         Degenerate time series consist only of a single sample.
@@ -1084,13 +1090,13 @@ class TSCDataFrame(pd.DataFrame):
 
         return _ids
 
-    def has_degenerate_ts(self) -> bool:
+    def has_degenerate(self) -> bool:
         """Indicates whether degenerate time series are present in the collection.
 
         Returns
         -------
         """
-        return self.degenerate_ts_ids() is not None
+        return self.degenerate_ids() is not None
 
     def compute_distance_matrix(
         self, Y: Optional[Union["TSCDataFrame", np.ndarray]] = None, metric="euclidean"

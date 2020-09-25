@@ -705,60 +705,6 @@ class GuessOptimalDist(DistanceAlgorithm):
         )
 
 
-def _k_smallest_element_value(
-    distance_matrix, k: int, ignore_zeros: bool = True, fill_value: float = 0.0
-):
-    """Compute the k-th smallest element of distance matrix, i.e. the element where only
-    k-1 elements are smaller. If `ignore_zeros=True` only positive distances are
-    considered.
-    """
-
-    if k > distance_matrix.shape[1] or k < 0:
-        raise ValueError(
-            f"ValueError: kth(={k} out of bounds ({distance_matrix.shape[1]})"
-        )
-
-    if scipy.sparse.issparse(distance_matrix):
-        k_smallest_values = np.zeros(distance_matrix.shape[0])
-
-        # TODO: This loop is likely slow, improve speed if required
-        for row_idx in range(distance_matrix.shape[0]):
-            row = distance_matrix.getrow(row_idx).data
-
-            if ignore_zeros:
-                # there could still be stored zeros (e.g. on the diagonal of a pdist
-                # matrix)
-                row = row[row != 0]
-
-                if row.shape[0] <= k:
-                    k_smallest_values[row_idx] = fill_value
-                else:
-                    k_smallest_values[row_idx] = np.partition(row, k)[k]
-            else:
-                nr_not_stored_zeros = distance_matrix.shape[1] - row.shape[0]
-                if k <= nr_not_stored_zeros:
-                    k_smallest_values[row_idx] = 0
-                else:
-                    # if there are still zeros, can still be stored
-                    k_smallest_values[row_idx] = np.partition(row, k)[k]
-    else:  # dense case
-        if ignore_zeros:
-            assert not np.isinf(distance_matrix).any()
-
-            # set zeros to inf such that they are ignored in np.partition
-            distance_matrix[distance_matrix == 0] = np.inf
-
-            k_smallest_values = np.partition(distance_matrix, k, axis=1)[:, k]
-            k_smallest_values[np.isinf(k_smallest_values)] = fill_value
-
-            # set inf values back to zero
-            distance_matrix[np.isinf(distance_matrix)] = 0
-        else:
-            k_smallest_values = np.partition(distance_matrix, k, axis=1)[:, k]
-
-    return k_smallest_values
-
-
 def _ensure_kmin_nearest_neighbor(
     X: np.ndarray,
     Y: Optional[np.ndarray],
@@ -966,8 +912,8 @@ def compute_distance_matrix(
         Distance metric. Needs to be supported by backend.
 
     cut_off
-        Distances larger than `cut_off` are set to zero and controls the degree of
-        sparsity in the distance matrix.
+        Distances larger than `cut_off` are set to zero. The parameter controls the
+        degree of sparsity in the distance matrix.
 
         .. note::
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
@@ -1002,7 +948,7 @@ def compute_distance_matrix(
 
         if X.shape[1] != Y.shape[1]:
             raise ValueError(
-                "mismatch of point dimension: "
+                "Mismatch in point dimension: "
                 f"X.shape[1]={X.shape[1]} != Y.shape[1]={Y.shape[1]} "
             )
 

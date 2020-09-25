@@ -108,8 +108,8 @@ class EDMD(Pipeline, TSCPredictMixin):
 
     The two options ``include_id_state`` and ``compute_koopman_modes`` set the
     attribute ``koopman_modes`` after calling `fit`. If both options are disabled the
-    ``inverse_transform`` is performed via the dictionary transformations in reverse
-    order.
+    ``inverse_transform`` is performed via the dictionary transformations functions in
+    reverse order (Note, that this can include non-linear inverse mappings).
 
     ...
 
@@ -121,21 +121,22 @@ class EDMD(Pipeline, TSCPredictMixin):
         the list must be able to handle :class:`.TSCDataFrame` as input and output.
 
     dmd_model
-        A DMD variant as the The final estimator to approximate the Koopman operator
-        with a matrix. The model predicts time series in the dictionary space that then
-        need to be transformed to the original space.
+        A DMD variant that represents the final estimator. The DMD approximates either
+        the Koopman operator or the generator of it with a matrix. The DMD model performs
+        time series predictions in the dictionary space that are then ultimately
+        transformed back to the original space.
 
     include_id_state
         If True, the original time series samples are added to the dictionary (without
         any transformations), after the time series are transformed to dictionary space.
         The mapping from the dictionary space back to the full-state original space
         is then much easier, and accessible through the attribute ``koopman_modes``.
-        The cost is a larger dictionary dimension, which can become problematic for
-        large feature dimensions.
+        This comes at the cost of a larger dictionary dimension, and can become
+        inveasible for large feature dimensions.
 
         .. note::
-            The final dictionary :class:`.TSCDataFrame` must not contain any feature names
-            of the original feature names to avoid duplicates.
+            The final dictionary :py:class:`.TSCDataFrame` must not contain any feature
+            names of the original feature names to avoid duplicates.
 
     compute_koopman_modes
         If True, a matrix that contains the Koopman modes is computed. It linearly maps
@@ -167,11 +168,12 @@ class EDMD(Pipeline, TSCPredictMixin):
         A matrix of shape `(n_features_original_space, n_features_dict_space)` which
         stores the weights to map from the dictionary states to the original full-state
         (see Eq. 16 in :cite:`williams_datadriven_2015`). The attribute remains
-        ``None`` if both ``include_id_state`` and ``compute_koopman_modes`` are set to
-        False.
+        ``None`` if both ``include_id_state`` and ``compute_koopman_modes`` are False.
 
     koopman_eigenvalues: pandas.Series
-        The computed eigenvalues from the Koopman matrix of shape `(n_features_dict,)`.
+        The eigenvalues of the Koopman matrix or the Koopman generator matrix of
+        shape `(n_features_dict,)`. The attribute is not available if the set DMD model
+        does only compute the system matrix and not the its spectral components.
 
     n_samples_ic_: int
         The number of time samples required for an initial condition. If the value is
@@ -192,7 +194,8 @@ class EDMD(Pipeline, TSCPredictMixin):
     def __init__(
         self,
         dict_steps: List[Tuple[str, object]],
-        dmd_model: DMDBase = DMDFull(),
+        dmd_model: Optional[DMDBase] = None,
+        *,
         include_id_state: bool = True,
         compute_koopman_modes: bool = True,
         memory: Optional[Union[str, object]] = None,
@@ -200,7 +203,7 @@ class EDMD(Pipeline, TSCPredictMixin):
     ):
 
         self.dict_steps = dict_steps
-        self.dmd_model = dmd_model
+        self.dmd_model = dmd_model if dmd_model is not None else DMDFull()
         self.include_id_state = include_id_state
         self.compute_koopman_modes = compute_koopman_modes
 
@@ -227,7 +230,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             # which feature
             modes = pd.DataFrame(
                 self._koopman_modes,
-                index=self.features_in_.names,
+                index=self.feature_names_in_,
                 columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
             )
             return modes
@@ -235,6 +238,12 @@ class EDMD(Pipeline, TSCPredictMixin):
     @property
     def koopman_eigenvalues(self):
         check_is_fitted(self)
+        if not self._dmd_model.is_spectral_mode():
+            raise AttributeError(
+                "The DMD model was not configured to provide spectral "
+                "components for the Koopman matrix."
+            )
+
         return pd.Series(self._dmd_model.eigenvalues_, name="evals")
 
     def koopman_eigenfunction(self, X: TransformType) -> TransformType:
@@ -244,34 +253,37 @@ class EDMD(Pipeline, TSCPredictMixin):
 
         Parameters
         ----------
+
         X : TSCDataFrame, pandas.DataFrame
             The points of the original space at which to evaluate the Koopman
             eigenfunctions. If `n_samples_ic_ > 1`, then the input must be a
-            `TSCDataFrame` where each time series must have at least `n_samples_ic_`
-            samples, with the same time delta as during fit. The input must fulfill
-            the first step in the pipeline.
+            :py:class:`.TSCDataFrame` where each time series must have at least
+            ``n_samples_ic_`` samples, with the same time delta as during fit. The input
+            must fulfill the first step in the pipeline.
 
         Returns
         -------
         Union[TSCDataFrame, pandas.DataFrame]
             The evaluated Koopman eigenfunctions. The number of samples are reduced
-            accordingly if `n_samples_ic_ > 1` with fallback to `pandas.DataFrame` if
-            the it is not not a legal `TSCDataFrame`.
+            accordingly if :code:`n_samples_ic_ > 1` with fallback to
+            ``pandas.DataFrame`` if the it is not not a legal :py:class:`.TSCDataFrame`.
         """
         check_is_fitted(self)
+        if not self._dmd_model.is_spectral_mode():
+            raise AttributeError(
+                "The DMD model was not configured to provide spectral "
+                "components for the Koopman matrix."
+            )
 
         X_dict = self.transform(X)
 
         # transform of X_dict matrix
         #   -> note that in the DMD model, there are column-oriented features
-        eval_eigenfunction = self._dmd_model._compute_spectral_system_states(
+        eval_eigenfunction = self._dmd_model.compute_spectral_system_states(
             X_dict.to_numpy().T
         )
 
-        # TODO: if merge request !51 is merged, there is a utils functions that handles
-        #  the following much easier:
-
-        columns = [f"evec{i}" for i in range(eval_eigenfunction.shape[0])]
+        columns = [f"koop_eigfunc{i}" for i in range(eval_eigenfunction.shape[0])]
         eval_eigenfunction = df_type_and_indices_from(
             indices_from=X_dict, values=X_dict, except_columns=columns
         )
@@ -287,6 +299,13 @@ class EDMD(Pipeline, TSCPredictMixin):
                     "that can handle indexed data structures (pd.DataFrame "
                     "and TSCDataFrame)"
                 )
+
+    @property
+    def feature_names_in_(self):
+        # delegate to first step (which will call _check_is_fitted)
+        # NOTE: n_features_in_ is also delegated, but already included in the super
+        # class Pipeline (implementation by sklearn)
+        return self.steps[0][1].feature_names_in_
 
     def transform(self, X: TransformType) -> TransformType:
         """Perform dictionary transformations on time series data (original space).
@@ -345,7 +364,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             values = X.to_numpy() @ self._inverse_map
 
             X_ts = df_type_and_indices_from(
-                indices_from=X, values=values, except_columns=self.features_in_.names
+                indices_from=X, values=values, except_columns=self.feature_names_in_
             )
 
         else:
@@ -379,15 +398,15 @@ class EDMD(Pipeline, TSCPredictMixin):
         This is equivalent to matrix :math:`B`, Eq. 16 in
         :cite:`williams_datadriven_2015`.
 
-        See also _compute_koopman_modes for further details.
+        See also `_compute_koopman_modes` for further details.
 
         Parameters
         ----------
         X_dict
-            Dictionary states of data, which are the result of a transform.
+            Dictionary data.
 
         X
-            original full-state data
+            Original full-state data.
 
         Returns
         -------
@@ -399,7 +418,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             # trivial case: we just need a projection matrix to select the
             # original full-states from the dictionary functions
             inverse_map = projection_matrix_from_features(
-                X_dict.columns, self.features_in_.names
+                X_dict.columns, self.feature_names_in_
             )
 
         elif self.compute_koopman_modes:
@@ -418,7 +437,7 @@ class EDMD(Pipeline, TSCPredictMixin):
     def _compute_koopman_modes(self) -> Optional[np.ndarray]:
         """Compute the Koopman modes based on the user settings.
 
-        The Koopman modes :math;`V` are a computed with
+        The Koopman modes :math:`V` are a computed with
 
         .. math::
             V = B \cdot \Psi_{DMD}
@@ -451,9 +470,11 @@ class EDMD(Pipeline, TSCPredictMixin):
         if not hasattr(self, "_inverse_map"):
             raise NotImplementedError("_inverse_map not available. Please report bug. ")
 
-        if self._inverse_map is not None:
+        if self._inverse_map is not None and self._dmd_model.is_spectral_mode():
             koopman_modes = self._inverse_map.T @ self._dmd_model.eigenvectors_right_
         else:
+            # Set koopman_modes to None if there are no spectral components of the
+            # Koopman operator or its generator.
             koopman_modes = None
 
         return koopman_modes
@@ -493,7 +514,8 @@ class EDMD(Pipeline, TSCPredictMixin):
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
             each parameter name is prefixed such that parameter ``p`` for step
-            ``s`` has key ``s__p``.
+            ``s`` has key ``s__p``. To add parameters for the  DMD model use
+            ``s=dmd``, e.g. ``dmd__param``.
             
         Returns
         -------
@@ -506,14 +528,20 @@ class EDMD(Pipeline, TSCPredictMixin):
             Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all values must be finite (no `NaN` or `inf`)
         """
-        self._validate_data(
+        self._validate_datafold_data(
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X)
+        # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
+        # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
+        # the pipeline. The time values are set separately here:
+        time_values = self._validate_time_values(time_values=X.time_values())
+        self.time_values_in_ = time_values
+        self.dt_ = X.delta_time
 
-        # calls internally fit_transform (!!), and stores results into cache if
-        # "self.memory is not None" (see docu)
-        X_dict, fit_params = self._fit(X, y, **fit_params)
+        # '_fit' calls internally fit_transform (!!), and stores results into cache if
+        # "self.memory is not None" (see docu):
+        fit_params = self._check_fit_params(**fit_params or {})
+        X_dict = self._fit(X, y, **fit_params)
 
         self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 
@@ -521,7 +549,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
-            self._dmd_model.fit(X=X_dict, y=y, **fit_params)
+            self._dmd_model.fit(X=X_dict, y=y, **fit_params["dmd"])
 
         self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
         self._koopman_modes = self._compute_koopman_modes()
@@ -540,7 +568,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             The future time values to evaluate the system at.
 
         qois
-            A subselection of quantities of interest (must be part of  
+            A subselection of quantities of interest (must be part of the dictionary).
 
         Returns
         -------
@@ -548,7 +576,7 @@ class EDMD(Pipeline, TSCPredictMixin):
         """
 
         if qois is None:
-            feature_columns = self.features_in_.names
+            feature_columns = self.feature_names_in_
         else:
             feature_columns = qois
 
@@ -557,7 +585,7 @@ class EDMD(Pipeline, TSCPredictMixin):
                 modes = self.koopman_modes.to_numpy()
             else:
                 project_matrix = projection_matrix_from_features(
-                    self.features_in_.names, qois
+                    self.feature_names_in_, qois
                 )
                 modes = project_matrix.T @ self.koopman_modes.to_numpy()
 
@@ -597,10 +625,10 @@ class EDMD(Pipeline, TSCPredictMixin):
         ----------
         X: TSCDataFrame, numpy.ndarray
             Initial conditions states for prediction. The preferred input type is
-            :py:class:`TSCDataFrame`. If only a single sample is required
-            to define an initial condition (``n_samples_ic_ = 1``), then an ``ndarray``
-            with row-wise initial conditions is also sufficient. The input must fulfill
-            the input requirements of first step of the pipeline.
+            :py:class:`TSCDataFrame`. If an initial condition only requires a
+            single samples (``n_samples_ic_ = 1``), then an :class:`numpy.ndarray`
+            is also sufficient (row-wise ordered). Each initial condition must
+            fulfill the input requirements of first step of the pipeline.
 
         time_values
             Time values to evaluate the model for each initial condition.
@@ -608,11 +636,11 @@ class EDMD(Pipeline, TSCPredictMixin):
             values should be ascending and non-negative numeric values.
 
         qois
-            List of feature names of interest to be include in the returned results. If
-            ``include_id_state=True``, the time series are only computed for the selected
-            features in the dictionary space (via Koopman modes), which decreases the
-            memory requirements. Otherwise, the features are selected afterwards. Note
-            that the input ``X`` must still contain all features used during fit.
+            A list of feature names of interest to be include in the returned
+            predictions. If ``include_id_state=True``, the time series are only
+            computed for the selected features in the dictionary space (via Koopman
+            modes), which decreases the memory requirements. Otherwise, the features
+            are selected afterwards.
 
         **predict_params: Dict[str, object]
             Keyword arguments passed to the ``predict`` method of the DMD model.
@@ -634,7 +662,7 @@ class EDMD(Pipeline, TSCPredictMixin):
 
         if isinstance(X, np.ndarray):
             # work internally only with TSCDataFrame
-            X = InitialCondition.from_array(X, columns=self.features_in_.names)
+            X = InitialCondition.from_array(X, columns=self.feature_names_in_)
         else:
             InitialCondition.validate(
                 X,
@@ -646,7 +674,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             X=X, time_values=time_values
         )
 
-        self._validate_data(
+        self._validate_datafold_data(
             X, ensure_tsc=True,
         )
 
@@ -673,8 +701,8 @@ class EDMD(Pipeline, TSCPredictMixin):
             The time series collection to reconstruct.
 
         qois
-            List of feature names of interest to be include in the return object.
-            Handed to :py:meth:`.predict`.
+            A list of feature names of interest to be include in the returned
+            predictions. Passed to :py:meth:`.predict`.
 
         Returns
         -------
@@ -690,7 +718,7 @@ class EDMD(Pipeline, TSCPredictMixin):
         """
         check_is_fitted(self)
 
-        X = self._validate_data(
+        X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
             # Note: no const_delta_time required here. The required const samples for
@@ -738,8 +766,8 @@ class EDMD(Pipeline, TSCPredictMixin):
             ignored
 
         qois
-            List of feature names of interest to be include in the return object.
-            Handed to :py:meth:`.predict`.
+            A list of feature names of interest to be include in the returned
+            predictions. Passed to :py:meth:`.predict`.
 
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
@@ -970,7 +998,7 @@ def _fit_and_score_edmd(
     return ret
 
 
-class EDMDCV(GridSearchCV, TSCPredictMixin):
+class EDMDCV(TSCPredictMixin, GridSearchCV):
     """Exhaustive parameter search over specified grid for a :class:`EDMD` model with
     cross-validation.
 
@@ -1194,6 +1222,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
     def __init__(
         self,
         estimator: EDMD,
+        *,
         param_grid: Union[Dict, List[Dict]],
         cv: TSCCrossValidationSplits,
         **kwargs,
@@ -1261,7 +1290,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
             Parameters passed to the ``fit`` method of the estimator.
         """
         self._validate_settings_edmd()
-        X = self._validate_data(X)
+        X = self._validate_datafold_data(X)
 
         cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
 

@@ -79,19 +79,13 @@ class DiffusionMapsTest(unittest.TestCase):
 
     def test_is_valid_sklearn_estimator(self):
         from sklearn.utils.estimator_checks import check_estimator
-        import sklearn
 
-        for estimator, check in check_estimator(DiffusionMaps, generate_only=True):
-            # TODO: because DiffusionMaps has a (callable) object in parameter, the
-            #  check_parameters_default_constructible fails -- it'd would accept
-            #  FunctionType (e.g. Lambdas) but attempts have failed
-            if (
-                check.func
-                != sklearn.utils.estimator_checks.check_parameters_default_constructible
-            ):
-                check(estimator)
+        for estimator, check in check_estimator(
+            DiffusionMaps(GaussianKernel(epsilon=1.0)), generate_only=True
+        ):
+            check(estimator)
 
-    def test_multiple_epsilon_values(self):
+    def test_multiple_epsilon_values(self, plot=False):
 
         num_samples = 5000
         num_maps = 10
@@ -104,11 +98,11 @@ class DiffusionMapsTest(unittest.TestCase):
         eigvects = np.zeros((num_maps, downsampled_data.shape[0], num_eigenpairs))
         eigvals = np.zeros((num_maps, num_eigenpairs))
 
-        logging.basicConfig(level=logging.WARNING)
-
         for i, epsilon in enumerate(reversed(epsilons)):
             dm = DiffusionMaps(
-                GaussianKernel(epsilon), num_eigenpairs, symmetrize_kernel=False
+                GaussianKernel(epsilon),
+                n_eigenpairs=num_eigenpairs,
+                symmetrize_kernel=False,
             ).fit(downsampled_data, store_kernel_matrix=True)
 
             eigvals[i, :] = dm.eigenvalues_
@@ -118,19 +112,26 @@ class DiffusionMapsTest(unittest.TestCase):
             rq = self._compute_rayleigh_quotients(dm.kernel_matrix_, dm.eigenvectors_)
             nptest.assert_allclose(np.abs(ew), np.abs(rq), atol=1e-16)
 
-            # plt.title('$\\epsilon$ = {:.3f}'.format(epsilon))
-            # for k in range(1, 10):
-            #     plt.subplot(2, 5, k)
-            #     plt.scatter(downsampled_data[:, 0], downsampled_data[:, 1],
-            #                 c=evs[i, k, :])
-            #     plt.xlim([self.xmin, self.xmin + self.width])
-            #     plt.ylim([self.ymin, self.ymin + self.height])
-            #     plt.tight_layout()
-            #     plt.gca().set_title('$\\psi_{}$'.format(k))
-            # plt.subplot(2, 5, 10)
-            # plt.step(range(eigvals[i, :].shape[0]), np.abs(eigvals[i, :]))
-            # plt.title('epsilon = {:.2f}'.format(epsilon))
-            # plt.show()
+            if plot:
+                plt.figure()
+                plt.title("$\\epsilon$ = {:.3f}".format(epsilon))
+                for k in range(1, 10):
+                    plt.subplot(2, 5, k)
+                    plt.scatter(
+                        downsampled_data[:, 0],
+                        downsampled_data[:, 1],
+                        c=eigvects[i, :, k],
+                    )
+                    plt.xlim([self.xmin, self.xmin + self.width])
+                    plt.ylim([self.ymin, self.ymin + self.height])
+                    plt.tight_layout()
+                    plt.gca().set_title("$\\psi_{}$".format(k))
+                plt.subplot(2, 5, 10)
+                plt.step(range(eigvals[i, :].shape[0]), np.abs(eigvals[i, :]))
+                plt.title("epsilon = {:.2f}".format(epsilon))
+
+        if plot:
+            plt.show()
 
     def test_sanity_dense_sparse(self):
 
@@ -376,7 +377,7 @@ class DiffusionMapsTest(unittest.TestCase):
         # it is only checked with "allclose"
 
         np.set_printoptions(precision=17)
-        print(dmap_embed_test_eval.sum(axis=0))
+        # print(dmap_embed_test_eval.sum(axis=0))
 
         nptest.assert_allclose(
             dmap_embed_test_eval.sum(axis=0),
@@ -418,6 +419,27 @@ class DiffusionMapsTest(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             dmap.transform(tsc_data.iloc[:10].to_numpy())
+
+    def test_kernel_symmetric_conjugate(self):
+        X = make_swiss_roll(1000)[0]
+
+        # The expected kernel is the one where no conjugate transform is performed
+        expected = DiffusionMaps(
+            kernel=GaussianKernel(epsilon=lambda K: np.median(K)),
+            n_eigenpairs=3,
+            symmetrize_kernel=False,
+        ).fit(X, store_kernel_matrix=True)
+
+        # It is checked if the true kernel matrix is recovered
+        actual = DiffusionMaps(
+            kernel=GaussianKernel(lambda K: np.median(K)),
+            n_eigenpairs=3,
+            symmetrize_kernel=True,
+        ).fit(X, store_kernel_matrix=True)
+
+        nptest.assert_allclose(
+            expected.kernel_matrix_, actual.kernel_matrix_, atol=1e-15, rtol=1e-15
+        )
 
     def test_types_tsc(self):
 

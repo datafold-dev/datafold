@@ -10,6 +10,7 @@ import pandas.testing as pdtest
 from sklearn.model_selection import GridSearchCV
 
 from datafold.appfold.edmd import EDMD, EDMDCV
+from datafold.dynfold import gDMDFull
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
     TSCIdentity,
@@ -290,8 +291,8 @@ class EDMDTest(unittest.TestCase):
                 self.multi_waves.initial_states(_edmd.n_samples_ic_ - 1)
             )
 
-    def test_edmd_dict_sine_wave(self, plot=False):
-        _edmd_dict = EDMD(
+    def test_edmd_dict_sine_wave(self, plot=True):
+        _edmd = EDMD(
             dict_steps=[
                 ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
                 ("delays", TSCTakensEmbedding(delays=10)),
@@ -299,10 +300,10 @@ class EDMDTest(unittest.TestCase):
             ]
         )
 
-        forward_dict = _edmd_dict.fit_transform(X=self.sine_wave_tsc)
+        forward_dict = _edmd.fit_transform(X=self.sine_wave_tsc)
         self.assertIsInstance(forward_dict, TSCDataFrame)
 
-        inverse_dict = _edmd_dict.inverse_transform(X=forward_dict)
+        inverse_dict = _edmd.inverse_transform(X=forward_dict)
         self.assertIsInstance(inverse_dict, TSCDataFrame)
 
         # index not the same because of Takens, so only check column
@@ -317,6 +318,57 @@ class EDMDTest(unittest.TestCase):
         if plot:
             ax = self.sine_wave_tsc.plot()
             inverse_dict.plot(ax=ax)
+
+            from datafold.utils.plot import plot_eigenvalues
+
+            f, ax = plt.subplots()
+            plot_eigenvalues(eigenvalues=_edmd.dmd_model.eigenvalues_, ax=ax)
+
+            plt.show()
+
+    def test_edmd_dict_sine_wave_generator(self, plot=False):
+        # Use a DMD model that approximates the generator matrix and not the Koopman
+        # operator
+
+        _edmd = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            dmd_model=gDMDFull(),
+        )
+
+        forward_dict = _edmd.fit_transform(
+            X=self.sine_wave_tsc, **dict(dmd__store_generator_matrix=True)
+        )
+        self.assertIsInstance(forward_dict, TSCDataFrame)
+
+        inverse_dict = _edmd.inverse_transform(X=forward_dict)
+        self.assertIsInstance(inverse_dict, TSCDataFrame)
+
+        # index not the same because of Takens, so only check column
+        pdtest.assert_index_equal(
+            self.sine_wave_tsc.columns, inverse_dict.columns,
+        )
+
+        diff = inverse_dict - self.sine_wave_tsc
+        # sort out the removed rows from Takens (NaN values)
+        self.assertTrue((diff.dropna() < 1e-14).all().all())
+
+        # test that the fit_param dmd__store_generator_matrix was really passed to the
+        # DMD model.
+        self.assertTrue(hasattr(_edmd.dmd_model, "generator_matrix_"))
+
+        if plot:
+            ax = self.sine_wave_tsc.plot()
+            inverse_dict.plot(ax=ax)
+
+            from datafold.utils.plot import plot_eigenvalues
+
+            f, ax = plt.subplots()
+            plot_eigenvalues(eigenvalues=_edmd.dmd_model.eigenvalues_, ax=ax)
+
             plt.show()
 
     def test_edmd_sine_wave(self):
