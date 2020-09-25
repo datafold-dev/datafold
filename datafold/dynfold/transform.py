@@ -71,8 +71,8 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            `None`
 
         Returns
         -------
@@ -206,8 +206,8 @@ class TSCIdentity(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------
@@ -337,8 +337,8 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------
@@ -807,8 +807,8 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------
@@ -991,8 +991,8 @@ class TSCPolynomialFeatures(TSCTransformerMixin, PolynomialFeatures):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------
@@ -1084,8 +1084,8 @@ class TSCApplyLambdas(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------
@@ -1201,8 +1201,8 @@ class TSCFiniteDifference(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------

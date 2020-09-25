@@ -1588,8 +1588,8 @@ class DMDEco(DMDBase):
         y
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------
@@ -1748,8 +1748,8 @@ class PyDMDWrapper(DMDBase):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------

@@ -422,8 +422,8 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
-            - store_kernel_matrix: bool
+        **fit_params: Dict[str, object]
+            - store_kernel_matrix: ``bool``
                 If True, store the kernel matrix in attribute ``kernel_matrix_``.
 
         Returns
@@ -576,7 +576,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
+        **fit_params: Dict[str, object]
             See `fit` method for additional parameter.
 
         Returns
@@ -1042,8 +1042,8 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
         y: None
             ignored
 
-        fit_params
-            ignored
+        **fit_params: Dict[str, object]
+            None
 
         Returns
         -------

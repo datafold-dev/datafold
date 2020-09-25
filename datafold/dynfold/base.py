@@ -387,7 +387,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         y : None
             ignored
 
-        **fit_params : dict
+        **fit_params: Dict[str, object]
             Additional fit parameters.
 
         Returns

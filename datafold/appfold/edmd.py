@@ -514,7 +514,8 @@ class EDMD(Pipeline, TSCPredictMixin):
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
             each parameter name is prefixed such that parameter ``p`` for step
-            ``s`` has key ``s__p``.
+            ``s`` has key ``s__p``. To add parameters for the  DMD model use
+            ``s=dmd``, e.g. ``dmd__param``.
             
         Returns
         -------
