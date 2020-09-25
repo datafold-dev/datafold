@@ -406,24 +406,36 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def time_derivative(
-        self, diff_order: int = 1, accuracy: int = 2
+        self,
+        scheme="center",
+        diff_order: int = 1,
+        accuracy: int = 2,
+        shift_index: bool = False,
     ) -> Union[pd.DataFrame, TSCDataFrame]:
         """Compute finite differences in time for each time series.
 
-        .. warning::
-            The time values are shifted in the return object to the offset (of a
-            centered finite difference scheme) that lies furthest in the future. This
-            is because we cannot include samples of future. Disabling this behaviour
-            for other use-cases (e.g. descriptive analysis) requires
+        .. note::
+            The boundary samples are dropped at which no finite difference scheme of
+            the set accuracy is possible. To apply lower accuracy schemes requires
             implementation.
 
         Parameters
         ----------
+        scheme
+            The finite difference scheme 'backward', 'center' or 'forward'.
+
         diff_order
             The order of the derivative.
 
         accuracy
-            The accuracy level of the central derivative.
+            The accuracy level of the derivative scheme.
+
+        shift_index
+            If True, then the time is shifted such that no future samples are included.
+            For example, for the coefficients` [-1,0,1]`, the computed time derivative
+            for time 1 is then shifted to time 2. The option is inteded for
+            `scheme='center'`. The parameter has no effect for `scheme=backward` and is
+            discouraged for `scheme=forward`.
 
         Returns
         -------
@@ -433,7 +445,7 @@ class TSCAccessor(object):
         """
 
         class InternalDiff(findiff.diff.Diff):
-            """Overwrite the behaviour of the findiff superclass."""
+            """Overwrites the behaviour of the findiff superclass."""
 
             def diff(
                 self,
@@ -444,8 +456,8 @@ class TSCAccessor(object):
                 n_samples = data.shape[self.axis]
                 coeff_dict = findiff.coefficients(self.order, accuracy)
 
-                weights = coeff_dict["center"]["coefficients"]
-                offsets = coeff_dict["center"]["offsets"]
+                weights = coeff_dict[scheme]["coefficients"]
+                offsets = coeff_dict[scheme]["offsets"]
 
                 # only select samples where we can compute the centered difference
                 # scheme (i.e. we drop samples at the time series boundary)
@@ -458,7 +470,7 @@ class TSCAccessor(object):
                     for k in range(len(offsets))
                 ]
 
-                data_dt = np.zeros_like(data)
+                data_dt = np.zeros_like(data, dtype=np.float)
 
                 if isinstance(data, pd.DataFrame):
                     data_numpy = data.to_numpy()
@@ -474,16 +486,23 @@ class TSCAccessor(object):
                 h_inv = 1.0 / spacing ** self.order
                 data_dt *= h_inv
 
-                if isinstance(data, pd.DataFrame):
+                if scheme in ["center", "forward"] and shift_index:
                     # NOTE: Only the first samples of the time values are dropped. This
                     # means that the time is shifted to the finite difference offset that
                     # lies furthest in the future.
                     lost_samples = data.shape[0] - data_dt.shape[0]
                     return pd.DataFrame(
-                        data_dt, data.index[lost_samples:], columns=data.columns
+                        data_dt, index=data.index[lost_samples:], columns=data.columns
                     )
                 else:
-                    return data_dt
+                    return pd.DataFrame(
+                        data_dt,
+                        index=data.index[start_sample:end_sample],
+                        columns=data.columns,
+                    )
+
+        if scheme not in ["backward", "center", "forward"]:
+            raise ValueError(f"scheme={scheme} must be 'center' or 'backward'")
 
         self.check_const_time_delta()
         spacing = self._tsc_df.delta_time
@@ -501,21 +520,9 @@ class TSCAccessor(object):
 
             time_derivative.append(time_series_dt)
 
-        # Construct the return value
-        if min_samples > 1:
-            time_derivative = TSCDataFrame.from_frame_list(
-                time_derivative, ts_ids=self._tsc_df.ids
-            )
-        else:
-            # if not a legal time series collection, then fall back to pandas.DataFrame
-            time_derivative = pd.concat(time_derivative, axis=0)
-            assert isinstance(time_derivative, pd.DataFrame)  # mypy check
-
-            time_derivative = time_derivative.set_index(
-                pd.MultiIndex.from_arrays([self._tsc_df.ids, time_derivative.index]),
-                drop=True,
-            )
-
+        time_derivative = TSCDataFrame.from_frame_list(
+            time_derivative, ts_ids=self._tsc_df.ids
+        )
         return time_derivative
 
     def assign_ids_sequential(self) -> TSCDataFrame:

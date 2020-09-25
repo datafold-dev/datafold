@@ -185,7 +185,7 @@ class TSCDataFrame(pd.DataFrame):
         Because Pandas provides a large variety of functionality of its data
         structures, not all methods are tested to check if they comply with
         `TSCDataFrame`. Please report unexpected behavior, bugs or inconsistencies by
-        `<opening an issue <https://gitlab.com/datafold-dev/datafold/-/issues>`_.
+        `opening an issue <https://gitlab.com/datafold-dev/datafold/-/issues>`__.
 
     .. warning::
         Currently, there is no `TSCSeries`, which results in inconsistencies when
@@ -932,7 +932,6 @@ class TSCDataFrame(pd.DataFrame):
         try:
             if inplace:
                 self._validate()
-                self._sort_tsc_index()
             else:
                 # calls validate and sorts result
                 result = TSCDataFrame(result)
