@@ -98,8 +98,7 @@ def scipy_eigsolver(
             "tol": 1e-14,
         }
 
-        # The selection of sigma is a result of the microbenchmark_kernel_eigvect.py
-        # which checks solution quality and convergence speed.
+        # The selection of sigma is a result of a microbenchmark
         if is_symmetric and is_stochastic:
             # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
             # setting sigma=1 resulted into a slower computation.
@@ -166,15 +165,16 @@ def compute_kernel_eigenpairs(
             f"Got kernel_matrix.shape={kernel_matrix.shape}"
         )
 
+    err_nonfinite = ValueError(
+        "kernel_matrix must only contain finite values (no np.nan " "or np.inf)"
+    )
     if (
         isinstance(kernel_matrix, scipy.sparse.spmatrix)
         and not np.isfinite(kernel_matrix.data).all()
-    ) or (
-        isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all()
     ):
-        raise ValueError(
-            "kernel_matrix must only contain finite values (no np.nan or np.inf)"
-        )
+        raise err_nonfinite
+    elif isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all():
+        raise err_nonfinite
 
     assert not is_symmetric or (is_symmetric and is_symmetric_matrix(kernel_matrix))
 

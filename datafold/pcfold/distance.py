@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
 import abc
-import warnings
 from typing import Optional, Sequence, Type, Union
 
-import numexpr as ne
 import numpy as np
 import scipy.sparse
 import scipy.spatial
@@ -12,8 +10,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import BallTree, NearestNeighbors
 
-from datafold.decorators import warn_experimental_function
-from datafold.utils.general import if1dim_colvec, if1dim_rowvec, is_symmetric_matrix
+from datafold.utils.general import if1dim_colvec, if1dim_rowvec
 
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only
@@ -708,60 +705,6 @@ class GuessOptimalDist(DistanceAlgorithm):
         )
 
 
-def _k_smallest_element_value(
-    distance_matrix, k: int, ignore_zeros: bool = True, fill_value: float = 0.0
-):
-    """Compute the k-th smallest element of distance matrix, i.e. the element where only
-    k-1 elements are smaller. If `ignore_zeros=True` only positive distances are
-    considered.
-    """
-
-    if k > distance_matrix.shape[1] or k < 0:
-        raise ValueError(
-            f"ValueError: kth(={k} out of bounds ({distance_matrix.shape[1]})"
-        )
-
-    if scipy.sparse.issparse(distance_matrix):
-        k_smallest_values = np.zeros(distance_matrix.shape[0])
-
-        # TODO: This loop is likely slow, improve speed if required
-        for row_idx in range(distance_matrix.shape[0]):
-            row = distance_matrix.getrow(row_idx).data
-
-            if ignore_zeros:
-                # there could still be stored zeros (e.g. on the diagonal of a pdist
-                # matrix)
-                row = row[row != 0]
-
-                if row.shape[0] <= k:
-                    k_smallest_values[row_idx] = fill_value
-                else:
-                    k_smallest_values[row_idx] = np.partition(row, k)[k]
-            else:
-                nr_not_stored_zeros = distance_matrix.shape[1] - row.shape[0]
-                if k <= nr_not_stored_zeros:
-                    k_smallest_values[row_idx] = 0
-                else:
-                    # if there are still zeros, can still be stored
-                    k_smallest_values[row_idx] = np.partition(row, k)[k]
-    else:  # dense case
-        if ignore_zeros:
-            assert not np.isinf(distance_matrix).any()
-
-            # set zeros to inf such that they are ignored in np.partition
-            distance_matrix[distance_matrix == 0] = np.inf
-
-            k_smallest_values = np.partition(distance_matrix, k, axis=1)[:, k]
-            k_smallest_values[np.isinf(k_smallest_values)] = fill_value
-
-            # set inf values back to zero
-            distance_matrix[np.isinf(distance_matrix)] = 0
-        else:
-            k_smallest_values = np.partition(distance_matrix, k, axis=1)[:, k]
-
-    return k_smallest_values
-
-
 def _ensure_kmin_nearest_neighbor(
     X: np.ndarray,
     Y: Optional[np.ndarray],
@@ -912,42 +855,6 @@ def _all_available_distance_algorithm():
     return return_backends
 
 
-@DeprecationWarning
-def apply_continuous_nearest_neighbor(distance_matrix, kmin, tol):
-
-    if tol == 0:
-        # TODO: check if what are valid tol values and what the tolerance is exactly
-        #  used for...
-        raise ZeroDivisionError("tol cannot be zero.")
-
-    k_smallest_element_values = _k_smallest_element_value(
-        distance_matrix, kmin, ignore_zeros=True, fill_value=1 / tol
-    )
-    xk = np.reciprocal(k_smallest_element_values)
-
-    epsilon = 0.25  # TODO: magic number, parametrize?
-
-    if scipy.sparse.issparse(distance_matrix):
-
-        xk_inv_sp = scipy.sparse.dia_matrix((xk, 0), (xk.shape[0], xk.shape[0]))
-        distance_matrix.data = np.square(distance_matrix.data)
-        distance_matrix = xk_inv_sp @ distance_matrix @ xk_inv_sp
-        distance_matrix.data = np.sqrt(distance_matrix.data)
-
-        # TODO: 4 is magic number, and the product is currently always 1
-        distance_matrix.data[distance_matrix.data > 4 * epsilon] = 0
-        # TODO: maybe for pdist matrices need to set the diagonal with zeros again
-        distance_matrix.eliminate_zeros()
-    else:  # dense case
-        xk_inv = np.diag(xk)
-        distance_matrix = np.square(distance_matrix)
-        distance_matrix = xk_inv @ distance_matrix @ xk_inv
-        distance_matrix = np.sqrt(distance_matrix)
-        distance_matrix[distance_matrix > 4 * epsilon] = 0  # TODO: see above
-
-    return distance_matrix
-
-
 def get_backend_distance_algorithm(backend):
     """Selects and validates the backend class for distance matrix computation.
 
@@ -1005,8 +912,8 @@ def compute_distance_matrix(
         Distance metric. Needs to be supported by backend.
 
     cut_off
-        Distances larger than `cut_off` are set to zero and controls the degree of
-        sparsity in the distance matrix.
+        Distances larger than `cut_off` are set to zero. The parameter controls the
+        degree of sparsity in the distance matrix.
 
         .. note::
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
@@ -1041,7 +948,7 @@ def compute_distance_matrix(
 
         if X.shape[1] != Y.shape[1]:
             raise ValueError(
-                "mismatch of point dimension: "
+                "Mismatch in point dimension: "
                 f"X.shape[1]={X.shape[1]} != Y.shape[1]={Y.shape[1]} "
             )
 

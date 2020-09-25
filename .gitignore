@@ -1,4 +1,4 @@
-# IDE 
+# IDE related files
 .idea/
 
 # Install files (package and documentation with Sphinx)
@@ -6,7 +6,18 @@ dist/
 build/
 datafold.egg-info/
 
-# files and dirs related to documentation
+# Python and Jupyter related files
+*.p
+*.pyc
+__pycache__/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Files for testing
+.coverage
+coverage/
+
+# Files and directories related to documentation
 *.nblink
 doc/source/tutorial_index.rst
 doc/source/_apidoc/
@@ -14,24 +25,13 @@ doc/source/api/
 doc/build/
 public/
 
-# Python files
-*.p
-*.pyc
-__pycache__/
-.mypy_cache/
-.ipynb_checkpoints/
-.coverage
-cover/
+# Virtual environments
 venv/
+.venv/
 
 # General files and folders
-*.mat
-*.zip
 *.csv
-*.pdf
 *.jar
-tutorials/untracked/
-
-# Local scripts
-sync_minimuc.sh
-login_sync_minimuc.sh
+*.mat
+*.pdf
+*.zip

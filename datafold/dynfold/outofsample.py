@@ -17,7 +17,7 @@ from datafold.pcfold.kernels import DmapKernelFixed, GaussianKernel, PCManifoldK
 from datafold.utils.general import mat_dot_diagmat
 
 
-class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
+class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstimator):
     """Interpolation of function values on high dimensional data with manifold assumption.
 
     Parameters
@@ -25,7 +25,7 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
     kernel
         Internal kernel to describe proximity between points. The kernel is passed
         as an `internal_kernel` to :class:`.DmapKernelFixed`, which describes
-        the diffusion process.
+        the diffusion process. Defaults to :py:class:`.GaussianKernel` with bandwidth 1.0.
 
     n_eigenpairs
         Number of eigenpairs to compute from kernel matrix.
@@ -44,9 +44,10 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         for (sparse) Hermitian matrices to be used. If the kernel matrix is symmetric
         already (`is_stochastic=False`), then the parameter has no effect.
 
-    dist_kwargs,
+    dist_kwargs
         Keyword arguments passed to the internal distance matrix computation. See
-        :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
+        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
+        arguments.
 
     Attributes
     ----------
@@ -77,11 +78,13 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
     --------
 
     :class:`.LaplacianPyramidsInterpolator`
+
     """
 
     def __init__(
         self,
-        kernel: PCManifoldKernel = GaussianKernel(epsilon=1.0),
+        kernel: Optional[PCManifoldKernel] = None,
+        *,  # keyword-only
         n_eigenpairs: int = 10,
         is_stochastic: bool = False,
         alpha: float = 1,
@@ -111,18 +114,13 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
             self.eigenvectors_, np.reciprocal(self.eigenvalues_)
         ) @ (self.eigenvectors_.T @ self.y_)
 
-    def _validate(
-        self, X: np.ndarray, y: np.ndarray = None, ensure_min_samples=1
-    ) -> Union[np.ndarray, np.ndarray]:
-
-        check_consistent_length(X, y)
-
+    def _validate_kwargs(self, X, ensure_min_samples, during_fit):
         if isinstance(X, np.memmap):
             copy = True
         else:
             copy = False
 
-        kwargs = {
+        validate_kwargs = {
             "accept_sparse": False,
             "copy": copy,
             "accept_large_sparse": False,
@@ -134,22 +132,25 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
             "ensure_min_features": 1,
         }
 
-        if y is None:
-            X = check_array(X, **kwargs)
-        else:
-            if isinstance(y, np.ndarray) and y.ndim == 1:
-                y = y[:, np.newaxis]
+        if during_fit:
+            validate_kwargs["multi_output"] = True
+            validate_kwargs["y_numeric"] = True
 
-            kwargs["multi_output"] = True
-            kwargs["y_numeric"] = True
-            X, y = check_X_y(X, y, **kwargs)
+        return validate_kwargs
 
-        return X, y
+    def _more_tags(self):
+        # poor_score=True disables a regression test on a Boston Housing dataset
+        # see "check_regressors_train" in sklearn/estimator_checks.py
+        # GHI computes the negated root mean squared error and therefore would
+        # always fail because of this assert in the test:
+        #     regressor.score(X, y_) > 0.5
+        return {"requires_y": True, "multioutput": True, "poor_score": True}
 
     def _get_tags(self):
-        # _tags = super(GeometricHarmonicsInterpolator, self)._get_tags()
-        self._more_tags()["multioutput"] = True
         return super(GeometricHarmonicsInterpolator, self)._get_tags()
+
+    def _get_default_kernel(self):
+        return GaussianKernel(epsilon=1.0)
 
     def _setup_default_dist_kwargs(self):
         from copy import deepcopy
@@ -158,31 +159,6 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         self.dist_kwargs_.setdefault("cut_off", np.inf)
         self.dist_kwargs_.setdefault("kmin", 0)
         self.dist_kwargs_.setdefault("backend", "guess_optimal")
-
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        """Evaluate model for out-of-sample points.
-
-        Parameters
-        ----------
-        X
-            Points of shape `(n_samples, n_features)`.
-
-        Returns
-        -------
-        numpy.ndarray
-            The interpolated function values of shape `(n_samples, n_targets)`.
-        """
-
-        check_is_fitted(self)
-
-        X, _ = self._validate(X, ensure_min_samples=1)
-
-        kernel_output = self.X_.compute_kernel_matrix(Y=X, **self._cdist_kwargs)
-        kernel_matrix_, _, _ = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
-
-        return np.squeeze(kernel_matrix_ @ self._aux)
 
     def fit(
         self, X: np.ndarray, y: np.ndarray, store_kernel_matrix: bool = False
@@ -205,12 +181,28 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         GeometricHarmonicsInterpolator
             self
         """
-        X, y = self._validate(X, y=y, ensure_min_samples=2)
+
+        # function provided by sklearn
+        # internally sets attribute n_features_in_
+        X, y = self._validate_data(
+            X=X,
+            y=y,
+            reset=True,
+            validate_separately=False,
+            **self._validate_kwargs(X, ensure_min_samples=2, during_fit=True),
+        )
+        if isinstance(y, np.ndarray) and y.ndim == 1:
+            y = y[:, np.newaxis]
+        check_consistent_length(X, y)
 
         self._setup_default_dist_kwargs()
 
+        internal_kernel = (
+            self.kernel if self.kernel is not None else self._get_default_kernel()
+        )
+
         self._dmap_kernel = DmapKernelFixed(
-            internal_kernel=self.kernel,
+            internal_kernel=internal_kernel,
             is_stochastic=self.is_stochastic,
             alpha=self.alpha,
             symmetrize_kernel=self.symmetrize_kernel,
@@ -251,7 +243,7 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         self._precompute_aux()
 
         if store_kernel_matrix:
-            if self._dmap_kernel.is_symmetric_transform(is_pdist=True):
+            if self._dmap_kernel.is_symmetric_transform():
                 self.kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
                     kernel_matrix=kernel_matrix_,
                     basis_change_matrix=basis_change_matrix,
@@ -260,6 +252,32 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
                 self.kernel_matrix_ = kernel_matrix_
 
         return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Evaluate model for out-of-sample points.
+
+        Parameters
+        ----------
+        X
+            Points of shape `(n_samples, n_features)`.
+
+        Returns
+        -------
+        numpy.ndarray
+            The interpolated function values of shape `(n_samples, n_targets)`.
+        """
+
+        check_is_fitted(self)
+        X = check_array(
+            X, **self._validate_kwargs(X, ensure_min_samples=1, during_fit=False)
+        )
+
+        kernel_output = self.X_.compute_kernel_matrix(Y=X, **self._cdist_kwargs)
+        kernel_matrix_, _, _ = PCManifoldKernel.read_kernel_output(
+            kernel_output=kernel_output
+        )
+
+        return np.squeeze(kernel_matrix_ @ self._aux)
 
     @warn_known_bug(gitlab_issue=16)
     def gradient(self, X: np.ndarray, vcol: Optional[int] = None) -> np.ndarray:
@@ -287,7 +305,11 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         # TODO: generalize to all columns (if required...). Note that this will be a
         #  tensor then.
 
-        X, _ = self._validate(X, ensure_min_samples=1)
+        from sklearn.utils.validation import check_array
+
+        X = check_array(
+            X, self._validate_kwargs(X, ensure_min_samples=1, during_fit=False)
+        )
 
         assert self.X_ is not None and self.y_ is not None  # prevents mypy warnings
 
@@ -326,8 +348,6 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         # Gradient computation
         ki_psis = kernel_matrix * values
 
-        # NOTE: see also file misc/microbenchmark_gradient.py, using numexpr can squeeze
-        # out some computation speed for large numbers of xi.shape[0]
         grad = np.zeros_like(X)
         v = np.empty_like(self.X_)
         for p in range(X.shape[0]):
@@ -376,7 +396,15 @@ class GeometricHarmonicsInterpolator(BaseEstimator, RegressorMixin, MultiOutputM
         float
             score
         """
-        X, y = self._validate(X, y=y, ensure_min_samples=1)
+        # during_fit enforces the check on y
+        X, y = check_X_y(
+            X, y=y, **self._validate_kwargs(X, ensure_min_samples=1, during_fit=True)
+        )
+
+        if isinstance(y, np.ndarray) and y.ndim == 1:
+            y = y[:, np.newaxis]
+        check_consistent_length(X, y)
+
         y_pred = self.predict(X)
 
         score = mean_squared_error(
@@ -481,7 +509,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         self._aux = phi_l_ @ diagmat_dot_mat(np.reciprocal(mu_l_), phi_l_.T) @ y
 
     def __call__(self, X):
-        X, _ = self._validate(X=X, y=None, ensure_min_samples=1)
+        X, _ = self._validate(X=X, y=None, during_fit=False, ensure_min_samples=1)
 
         kernel_matrix = self.X.compute_kernel_matrix(
             Y=X, row_sums_alpha_fit=self._row_sums_alpha
@@ -492,7 +520,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
     def fit(
         self, X: np.ndarray, y=None, store_kernel_matrix=False, **fit_params
     ) -> "MultiScaleGeometricHarmonicsInterpolator":
-        X, y = self._validate(X, y=y, ensure_min_samples=2)
+        X, y = self._validate(X, y=y, during_fit=True, ensure_min_samples=2)
 
         self._multi_scale_optimize(X, y)
         # self._precompute_aux()
@@ -509,48 +537,49 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         )
 
 
-class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMixin):
+class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstimator):
     """Laplacian pyramids interpolation of function values on data manifold using
     kernels with different scales.
 
-    The model implementation is generalized to vector valued targets: the kernel scales
+    The model implementation is generalized to vector valued targets: The kernel scales
     are decreased (i.e. a new kernel with lower scale is computed) until for each target
-    function the corresponding stopping criteria is reached (based on residual).
+    function the corresponding stopping criteria is reached (based on the residual).
 
     Parameters
     ----------
 
     initial_epsilon
-        Scale of kernel in first iteration.
+        The scale of kernel in first iteration.
 
     mu
-        Factor by which epsilon is decreased in every iteration
-        :code:`(new_epsilon = old_epsilon / mu)`. Must be strictly larger than 1.
+        The factor by which epsilon is decreased in every iteration
+        :code:`(new_epsilon = old_epsilon / mu)`. Must be a strictly larger than one.
 
     residual_tol
-        Decreasing kernel scale terminates if interpolation residual gets
-        smaller than tolerance. If ``auto_adaptive=False`` a parameter must be provided.
+        The tolerance at which the iteration (i.e. decreasing kernel scales) is
+        terminated. If ``auto_adaptive=False`` a value must be provided.
 
     auto_adaptive
         If True, decreasing the kernel scale terminates based on LOOCV (leave
         one out cross validation) estimation in each iteration.
 
     alpha
-        Parameter handled to the diffusion maps kernel used (see
-        :class:`DmapKernelFixed`).
+        A parameter handled to the diffusion maps kernel that in internally used
+        (see :py:class:`DmapKernelFixed`).
 
     Attributes
     ----------
 
     X_: numpy.ndarray
-        Point cloud during fit.
+        The point cloud during fit. Must be stored into memory to be able to perform
+        out-of-sample interpolations.
 
     level_: int
         The number of levels and kernels used in the model.
 
     n_targets_: int
-        The number of target functions during fit. (Note: the target values are not hold
-        in the model).
+        The number of target functions during fit. (Note, the target values are not
+        stored in the model).
 
     References
     ----------
@@ -570,6 +599,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
 
     def __init__(
         self,
+        *,  # keyword-only
         initial_epsilon: float = 10.0,
         mu: float = 2.0,
         residual_tol: Optional[float] = None,
@@ -587,12 +617,12 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
     def level_(self):
         return 0 if self._level_tracker == {} else max(self._level_tracker.keys())
 
-    def _validate(self, X, y=None, ensure_min_samples=1):
+    def _validate(self, X, y, ensure_y, ensure_min_samples):
 
         if self.residual_tol is None and not self.auto_adaptive:
             raise ValueError(
                 "Need to specify a stopping criteria by either providing a "
-                "residual tolerance or auto_adaptive=True"
+                "residual tolerance or enabling auto adaptive termination."
             )
 
         if self.residual_tol is not None:
@@ -617,7 +647,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         else:
             copy = False
 
-        kwargs = {
+        check_params = {
             "accept_sparse": False,
             "copy": copy,
             "force_all_finite": True,
@@ -629,16 +659,15 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
             "ensure_min_features": 1,
         }
 
-        if y is not None:
-            kwargs["multi_output"] = True
-            kwargs["y_numeric"] = True
-            X, y = check_X_y(X, y, **kwargs)
-
+        if ensure_y:
+            check_params["multi_output"] = True
+            check_params["y_numeric"] = True
+            X, y = self._validate_data(X=X, y=y, reset=True, **check_params)
             if y.ndim == 1:
                 y = y[:, np.newaxis]
 
         else:
-            X = check_array(X, **kwargs)
+            X = check_array(X, **check_params)
 
         return X, y
 
@@ -668,11 +697,11 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         ):
             signal = self._LoopCond.BELOW_RES_TOL
 
-        MAGIC_TINY_RESIDUAL = 1e-15
+        TINY_RESIDUAL = 1e-15
 
         if (
             signal == self._LoopCond.NO_TERMINATION
-            and current_residual_norm < MAGIC_TINY_RESIDUAL
+            and current_residual_norm < TINY_RESIDUAL
         ):
             # Stop in any configuration, below this threshold
             signal = self._LoopCond.TINY_RES
@@ -921,7 +950,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
         LaplacianPyramidsInterpolator
             self
         """
-        self.X_, y = self._validate(X, y, ensure_min_samples=2)
+        self.X_, y = self._validate(X, y, ensure_y=True, ensure_min_samples=2)
         self._setup()
 
         self.n_targets_ = y.shape[1]
@@ -943,7 +972,7 @@ class LaplacianPyramidsInterpolator(BaseEstimator, RegressorMixin, MultiOutputMi
             Predicted function values of shape `(n_samples, n_targets_)`.
         """
 
-        X, _ = self._validate(X)
+        X, _ = self._validate(X, y=None, ensure_y=False, ensure_min_samples=1)
 
         check_is_fitted(self)
 

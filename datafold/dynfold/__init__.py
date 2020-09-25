@@ -5,20 +5,20 @@ The models implemented at this layer can be used in meta-models in the
 :class:`datafold.appfold` layer, but can also be used on their own for analysis tasks.
 There are three types of models in this layer:
 
-1. Models subclassing :class:`.TSCTransformMixIn`:
+1. Models subclassing :py:class:`.TSCTransformMixin`:
    Broadly speaking these models transform data into another representation. However, the
    complexity of and reason for a data transformation can be quite different. The `TSC`
    prefix in the mix-in indicates that the model can also handle time series data  in
    :class:`TSCDataFrame`.
 
     * One type of data transformation is to compute a new coordinate basis of either point
-      cloud or time series data. In this category is the :class:`.DiffusionMaps` model,
+      cloud or time series data. In this category is the :py:class:`.DiffusionMaps` model,
       which can be used for manifold learning to non-linearly reduce the dimension of a
       dataset or to approximate the eigenfunctions of the Laplace-Beltrami operator
       (among others).
 
     * Another type of model transforms a collection of time series. Examples include
-      time delay embedding :class:`.TSCTakensEmbedding`,
+      time delay embedding :py:class:`.TSCTakensEmbedding`,
       scikit-learn wrappers for feature scaling or :class:`TSCPrincipalComponent` which
       are contained in *datafold* to generalize the processing to time series data.
 
@@ -28,7 +28,7 @@ There are three types of models in this layer:
    non-linear manifold learning methods. An example model is the
    :class:`LaplacianPyramidsInterpolator`.
 
-2. Models subclassing :class:`.TSCPredictMixIn`:
+2. Models subclassing :py:class:`.TSCPredictMixin`:
    On this level this tpye of model are mainly variants of the Dynamic Mode
    Decomposition algorithm (:class:`.DMDBase`). These models fit time series data,
    meaning the input is restricted to :class:`TSCDataFrame` input. A fitted model
@@ -36,7 +36,7 @@ There are three types of models in this layer:
 """
 
 from datafold.dynfold.dmap import DiffusionMaps, LocalRegressionSelection
-from datafold.dynfold.dmd import DMDBase, DMDEco, DMDFull
+from datafold.dynfold.dmd import DMDBase, DMDEco, DMDFull, PyDMDWrapper, gDMDFull
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
