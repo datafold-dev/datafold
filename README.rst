@@ -4,11 +4,10 @@ What is *datafold*?
 *datafold* is a Python package that provides **data**-driven models for point clouds to
 find an *explicit* mani-**fold** parametrization and to identify non-linear
 dynamical systems on these manifolds. Informally, a manifold is an usually unknown
-geometrical structure on which data is sampled. For point clouds a typical
-use case is to parametrize the manifold with an intrinsic lower dimension to enable
-non-linear dimension reduction. For time series data the underlying dynamical system is
-assumed to have a phase space that is a manifold. The models contained in *datafold* can
-process potentially high-dimensional data that lie close to manifolds.
+geometrical structure on which data is sampled. For high-dimensional point clouds a
+typical use case is to parametrize an intrinsic low-dimension manifold, with
+non-linear dimension reduction. For time series data, the underlying dynamical system is
+assumed to have a phase space that is a manifold.
 
 For a longer introduction to *datafold*, please go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__
 and for a mathematical thorough introduction, we refer to the used
@@ -87,8 +86,9 @@ Highlights
 Cite
 ====
 
-If you use *datafold* in your research, please cite the paper published in the *Journal of
-Open Source Software* (JOSS).
+If you use *datafold* in your research, please cite
+`the paper <https://joss.theoj.org/papers/10.21105/joss.02283>`__ published in the
+*Journal of Open Source Software* (JOSS).
 
 .. code-block:: latex
 
@@ -246,7 +246,7 @@ How does it compare to other software?
    an (experimental) wrapper for the ``PyDMD`` package to make use of missing DMD models.
    However, a limitation of ``PyDMD`` is that it only allows single time series as
    input (``numpy.ndarray``), see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`__.
-   *datafold* addresses this issue with the data structure ``TSCDataFrame``.
+   *datafold* addresses this with the data structure ``TSCDataFrame``.
 
 * `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__
    specializes on a *sparse* identification of dynamical systems to infer governing
