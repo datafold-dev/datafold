@@ -34,7 +34,6 @@ long_description = (
     "systems on these manifolds."
 )
 
-
 path_to_pkg_requirements = os.path.join(
     Path(__file__).absolute().parent, "requirements.txt"
 )
@@ -64,7 +63,6 @@ setup(
     install_requires=install_requires,
     test_suite="nose.collector",
     tests_require=["nose>=1.3.7,<1.4"],
-    extras_require={"pydmd": ["pydmd==0.2.1"]},
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",

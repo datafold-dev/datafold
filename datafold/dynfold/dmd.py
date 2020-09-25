@@ -1673,7 +1673,9 @@ class PyDMDWrapper(DMDBase):
 
         if not IS_IMPORTED_PYDMD:
             raise ImportError(
-                "Python package pydmd could not be imported. Check installation."
+                "The optional Python package 'pydmd' (https://github.com/mathLab/PyDMD) "
+                "could not be imported. Please check your installation or install "
+                "with 'pip install pydmd'."
             )
         else:
             assert pydmd is not None  # mypy
@@ -1686,6 +1688,8 @@ class PyDMDWrapper(DMDBase):
         self.opt = opt
         self.init_params = init_params
 
+        # TODO: pydmd also provides the Koopman operator --> sys_mode="matrix" is also
+        #  possible but requires implementation.
         super().__init__(sys_type="flowmap", sys_mode="spectral", time_invariant=True)
 
     def _setup_pydmd_model(self):
