@@ -577,7 +577,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             ignored
 
         fit_params
-            See `fit` method for additional params.
+            See `fit` method for additional parameter.
 
         Returns
         -------

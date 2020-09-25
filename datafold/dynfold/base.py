@@ -204,9 +204,11 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 
     .. note::
 
-        The scikit-learn project heavvily discusses on how to pass feature names. There
-        are many proposed solutions. The solution of datafold uses
+        The scikit-learn project heavily discusses on how to handle feature names. There
+        are many proposed solutions. The solution that datafold uses is
         `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep007/proposal.html>`__
+
+        However, this is only a proposal and may have to be changed later.
 
         Other resources:
 
@@ -419,7 +421,7 @@ class TSCPredictMixin(TSCBaseMixin):
         in one time series.
 
     dt_: Union[float, pd.Series]
-        Time sampling tate in the data during `fit`.
+        Time sampling rate in the time series data during `fit`.
     """
 
     _cls_feature_attrs = [

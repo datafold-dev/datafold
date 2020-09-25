@@ -63,8 +63,8 @@ class LinearDynamicalSystem(object):
     sys_mode
         Whether the system is evaluted with
 
-        * "matrix" (i.e. :math:`A` or :math:`\mathcal{A}`)
-        * "spectral" (i.e. eigenpairs of :math:`A` or :math:`\mathcal{A}`)
+        * "matrix" (i.e. :math:`A` or :math:`\mathcal{A}` are given)
+        * "spectral" (i.e. eigenpairs of :math:`A` or :math:`\mathcal{A}` are given)
 
     time_invariant
         If True, the system internally always starts with `time=0`. \
@@ -144,12 +144,13 @@ class LinearDynamicalSystem(object):
 
         if initial_condition.ndim != 2:
             raise ValueError(  # in case ndim > 2
-                f"Parameter 'ic' must have 2 dimensions. Got ic.ndim={initial_condition.ndim}"
+                f"Initial conditions 'ic' must have 2 dimensions. "
+                f"Got ic.ndim={initial_condition.ndim}."
             )
 
         if initial_condition.shape[0] != state_length:
             raise ValueError(
-                f"Mismatch in dimensions between initial condition and dynamics matrix. "
+                f"Mismatch in dimensions between initial condition and system matrix. "
                 f"ic.shape[0]={initial_condition.shape[0]} is not dynmatrix.shape[1]={state_length}."
             )
 
@@ -215,66 +216,7 @@ class LinearDynamicalSystem(object):
             feature_names_out,
         )
 
-    def _compute_spectral_system_states(self, states) -> np.ndarray:
-        r"""Compute the spectral states of the system.
-
-        If the linear system is written in its spectral form:
-
-        .. math::
-            \Psi_r \Lambda^n \Psi_l x_0 &= x_n \\
-            \Psi_r \Lambda^n b_0 &= x_n \\
-
-        then `b_0` is the spectral state that is computed in this function. It does
-        not necessarily need to be an initial condition but can also be arbitrary states.
-
-        In the context of dynamic mode decomposition, the spectral state is also often
-        referred to as "amplitudes". E.g., see :cite:`kutz_dynamic_2016`, page 8. In
-        the conext of EDMD, where the DMD model acts on a dictionary space, then the
-        spectral states are the evaluation of the Koopman eigenfunctions. E.g.,
-        see :cite:`williams_datadriven_2015` Eq. 3 or 6.
-
-        Parameters
-        ----------
-        states
-            The states of original data space in column-orientation.
-
-        Returns
-        -------
-        numpy.ndarray
-            Transformed states.
-        """
-
-        if not self.is_spectral_mode():
-            raise AttributeError(
-                f"To compute the spectral system states sys_mode='spectral' is required. "
-                f"Got self.sys_mode={self.sys_mode}"
-            )
-
-        # Choose alternative of how to evolve the linear system:
-        if hasattr(self, "eigenvectors_left_") and (
-            self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
-        ):
-            # uses both eigenvectors (left and right).
-            # this is Eq. 18 in :cite:`williams_datadriven_2015` (note that in the
-            # paper the Koopman matrix is transposed, therefore here left and right
-            # eigenvectors are exchanged.
-            states = self.eigenvectors_left_ @ states
-        elif (
-            hasattr(self, "eigenvectors_right_")
-            and self.eigenvectors_right_ is not None
-        ):
-            # represent the initial condition in terms of right eigenvectors (by solving a
-            # least-squares problem)
-            # -- in this case only the right eigenvectors are required
-            states = np.linalg.lstsq(self.eigenvectors_right_, states, rcond=None)[0]
-        else:
-            raise ValueError(
-                f"Attribute 'eigenvectors_right_ is None'. Please report bug."
-            )
-
-        return states
-
-    def _compute_system_timevalues(
+    def _compute_specified_system_states(
         self,
         time_series_tensor: np.ndarray,
         sys_matrix: np.ndarray,
@@ -346,6 +288,81 @@ class LinearDynamicalSystem(object):
             self._check_system_mode()
 
         return time_series_tensor
+
+    def compute_spectral_system_states(self, states) -> np.ndarray:
+        r"""Compute the spectral states of the system.
+
+        If the linear system is written in its spectral form:
+
+        .. math::
+            \Psi_r \Lambda^n \Psi_l x_0 &= x_n \\
+            \Psi_r \Lambda^n b_0 &= x_n \\
+
+        then `b_0` is the spectral state, which is computed in this function. It does
+        not necessarily need to be an initial state but instead can be arbitrary states.
+
+        In the context of dynamic mode decomposition, the spectral state is also often
+        referred to as "amplitudes". E.g., see :cite:`kutz_dynamic_2016`, page 8. In
+        the context of `EDMD`, where the DMD model acts on a dictionary space, then the
+        spectral states are the evaluation of the Koopman eigenfunctions. See e.g.,
+        :cite:`williams_datadriven_2015` Eq. 3 or 6.
+
+        There are two alternatives in how to compute the states.
+
+        1. By using the right eigenvectors and solving in a least square sense
+
+            .. math::
+                \Psi_r b_0 = x_0
+
+        2. , or by using the left eigenvectors and computing the matrix-vector
+          product
+
+            .. math::
+                \Psi_l x_0 = b_0
+
+        If the left eigenvectors where set during :py:meth:`.setup_sys_spectral`,
+        then alternative 2 is used always and otherwise alternative 1.
+
+        Parameters
+        ----------
+        states
+            The states of original data space in column-orientation.
+
+        Returns
+        -------
+        numpy.ndarray
+            Transformed states.
+        """
+
+        if not self.is_spectral_mode():
+            raise AttributeError(
+                f"To compute the spectral system states sys_mode='spectral' is required. "
+                f"Got self.sys_mode={self.sys_mode}"
+            )
+
+        # Choose between two alternatives:
+        if hasattr(self, "eigenvectors_left_") and (
+            self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
+        ):
+            # uses both eigenvectors (left and right).
+            # this is Eq. 18 in :cite:`williams_datadriven_2015` (note that in the
+            # paper the Koopman matrix is transposed, therefore here left and right
+            # eigenvectors are exchanged.
+            states = self.eigenvectors_left_ @ states
+        elif (
+            hasattr(self, "eigenvectors_right_")
+            and self.eigenvectors_right_ is not None
+        ):
+            # represent the initial condition in terms of right eigenvectors (by solving a
+            # least-squares problem)
+            # -- in this case only the right eigenvectors are required
+            states = np.linalg.lstsq(self.eigenvectors_right_, states, rcond=None)[0]
+        else:
+            raise ValueError(
+                f"Attribute 'eigenvectors_right_ is None'. Please report bug."
+            )
+
+        return states
 
     def is_matrix_mode(self) -> bool:
         r"""Whether the set up linear system is in "matrix" mode.
@@ -431,8 +448,10 @@ class LinearDynamicalSystem(object):
         ----------
         eigenvectors_right
             The right eigenvectors :math:`\Psi_r` of system matrix.
+
         eigenvalues
             The eigenvalues :math:`\Lambda` of system matrix.
+
         eigenvectors_left
             The left eigenvectors :math:`\Psi_l` of system matrix.
 
@@ -485,7 +504,7 @@ class LinearDynamicalSystem(object):
         time_series_ids: Optional[np.ndarray] = None,
         feature_names_out: Optional[Union[pd.Index, list]] = None,
     ):
-        r"""Evolve specified dynamical system.
+        r"""Evolve specified linear dynamical system.
 
         The system evolves depending on the system mode (matrix or spectral) and
         depending on the system type (differential or flowmap). In all cases the time
@@ -531,18 +550,7 @@ class LinearDynamicalSystem(object):
           .. note::
               Contrasting to the `matrix` case, the initial condition states
               :math:`x_0` of the original system need to be aligned to the right
-              eigenvectors beforehand:
-
-              * By using the right eigenvectors and solving in a least square sense
-
-                    .. math::
-                        \Psi_r b_0 = x_0
-
-              * , or by using the left eigenvectors and computing the matrix-vector
-                product
-
-                    .. math::
-                        \Psi_l x_0 = b_0
+              eigenvectors beforehand. See :py:meth:`.compute_spectral_system_states`
 
         Parameters
         ----------
@@ -601,7 +609,7 @@ class LinearDynamicalSystem(object):
             n_feature=n_features,
         )
 
-        time_series_tensor = self._compute_system_timevalues(
+        time_series_tensor = self._compute_specified_system_states(
             time_series_tensor=time_series_tensor,
             sys_matrix=sys_matrix,
             initial_conditions=initial_conditions,
@@ -668,8 +676,8 @@ class DMDBase(
     The DMD modes :math:`\Psi_r` remain constant.
 
     All subclasses of ``DMDBase`` are also subclasses of
-    :py:class:`.LinearDynamicalSystem` and must therefore set up and classify the
-    linear system (see system modes and types).
+    :py:class:`.LinearDynamicalSystem` and must therefore set up and specify the system
+    (see :py:meth:`setup_sys_spectral` and :py:meth:`setup_sys_matrix`).
 
     References
     ----------
@@ -718,13 +726,17 @@ class DMDBase(
     def _compute_left_eigenvectors(
         self, system_matrix, eigenvalues, eigenvectors_right
     ):
-        """Compute left eigenvectors (not normed) such that
-           system_matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_
-        """
+        """Compute left eigenvectors such that
+        system_matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_
 
+        .. note::
+             The eigenvectors are
+
+             * not normed
+             * row-wise in the matrix
+
+         """
         lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
-
-        # NOTE: the left eigenvectors are not normed (i.e. ||ev|| != 1)
         return np.linalg.solve(lhs_matrix, system_matrix)
 
     @abc.abstractmethod
@@ -778,7 +790,7 @@ class DMDBase(
             # no adaptation required
             initial_states_dmd = initial_states_origspace
         else:  # self.is_spectral_mode()
-            initial_states_dmd = self._compute_spectral_system_states(
+            initial_states_dmd = self.compute_spectral_system_states(
                 states=initial_states_origspace
             )
 
@@ -1055,11 +1067,11 @@ class DMDFull(DMDBase):
 
     koopman_matrix_ : numpy.ndarray
         Koopman matrix obtained from least squares. Only available if
-        ``store_koopman_matrix=True`` during fit.
+        ``store_system_matrix=True`` during fit.
 
     generator_matrix_ : numpy.ndarray
         Koopman generator matrix obtained from Koopman matrix via matrix-logarithm.
-        Only available if ``store_koopman_matrix=True`` during fit.
+        Only available if ``store_system_matrix=True`` during fit.
 
     References
     ----------
@@ -1262,7 +1274,7 @@ class gDMDFull(DMDBase):
         The time derivative is currently computed with finite differences (using the
         `findiff` package. For some systems the time derivatives is also available in
         analytical form (or can be computed with automatic differentiation). These
-        cases are currently not supported and require further implementation work.
+        cases are currently not supported and require further implementation.
 
     ...
 
@@ -1493,7 +1505,7 @@ class DMDEco(DMDBase):
         Number of eigenpairs to keep (largest eigenvalues in magnitude).
 
     reconstruct_mode : str
-        Either 'exact' (default) or 'projected'
+        Either 'exact' (default) or 'projected'.
 
     Attributes
     ----------

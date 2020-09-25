@@ -182,6 +182,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             self
         """
 
+        # function provided by sklearn
         # internally sets attribute n_features_in_
         X, y = self._validate_data(
             X=X,

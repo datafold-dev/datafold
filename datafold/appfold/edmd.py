@@ -121,9 +121,10 @@ class EDMD(Pipeline, TSCPredictMixin):
         the list must be able to handle :class:`.TSCDataFrame` as input and output.
 
     dmd_model
-        A DMD variant as the The final estimator to approximate the Koopman operator
-        with a matrix. The model predicts time series in the dictionary space that then
-        need to be transformed to the original space.
+        A DMD variant that represents the final estimator. The DMD approximates either
+        the Koopman operator or the generator of it with a matrix. The DMD model performs
+        time series predictions in the dictionary space that are then ultimately
+        transformed back to the original space.
 
     include_id_state
         If True, the original time series samples are added to the dictionary (without
@@ -172,7 +173,7 @@ class EDMD(Pipeline, TSCPredictMixin):
     koopman_eigenvalues: pandas.Series
         The eigenvalues of the Koopman matrix or the Koopman generator matrix of
         shape `(n_features_dict,)`. The attribute is not available if the set DMD model
-        does not compute the spectral components but only the system matrix.
+        does only compute the system matrix and not the its spectral components.
 
     n_samples_ic_: int
         The number of time samples required for an initial condition. If the value is
@@ -278,7 +279,7 @@ class EDMD(Pipeline, TSCPredictMixin):
 
         # transform of X_dict matrix
         #   -> note that in the DMD model, there are column-oriented features
-        eval_eigenfunction = self._dmd_model._compute_spectral_system_states(
+        eval_eigenfunction = self._dmd_model.compute_spectral_system_states(
             X_dict.to_numpy().T
         )
 
@@ -530,9 +531,8 @@ class EDMD(Pipeline, TSCPredictMixin):
             X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
-        # n_features_in_ and n_feature_names_in_ is delegated to the first transform in
-        # the pipeline.
-        # The time values are set separately:
+        # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
+        # the pipeline. The time values are set separately here:
         time_values = self._validate_time_values(time_values=X.time_values())
         self.time_values_in_ = time_values
         self.dt_ = X.delta_time
