@@ -1033,12 +1033,12 @@ class ContinuousNNKernel(PCManifoldKernel):
 
         if self.k_neighbor < 1:
             raise ValueError(
-                f"'parameter 'k_neighbor={self.k_neighbor}' must be a positive integer"
+                f"parameter 'k_neighbor={self.k_neighbor}' must be a positive integer"
             )
 
         if self.delta <= 0.0:
             raise ValueError(
-                f"'parameter 'delta={self.delta}' must be a positive float"
+                f"parrameter 'delta={self.delta}' must be a positive float"
             )
 
         super(ContinuousNNKernel, self).__init__()
@@ -1072,8 +1072,8 @@ class ContinuousNNKernel(PCManifoldKernel):
 
         **kernel_kwargs: Dict[str, object]
             - reference_dist_knn: Optional[np.ndarray]
-                Distances to the `k`-th nearest neighbor for each point in `X`. The values
-                are mandatory if `Y` is not `None`.
+                Distances to the `k`-th nearest neighbor for each point in `X`. The
+                parameter is mandatory if `Y` is not `None`.
 
         Returns
         -------
@@ -1082,8 +1082,8 @@ class ContinuousNNKernel(PCManifoldKernel):
             nearest neighbor graph.
 
         Optional[Dict[str, numpy.ndarray]]
-            For a pair-wise kernel evaluation, a Dictionary with key
-            `reference_dist_knn` with the `k`-the nearest neighbors for each point are
+            For a pair-wise kernel evaluation, a dictionary with key
+            `reference_dist_knn` with the `k`-the nearest neighbors for each point is
             returned.
         """
 
@@ -1114,8 +1114,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         if is_pdist:
             if n_samples_Y != n_samples_X:
                 raise ValueError(
-                    "if is_pdist=True, the distance matrix must be square "
-                    "and symmetric"
+                    "If is_pdist=True, the distance matrix must be square and symmetric."
                 )
 
             if isinstance(distance_matrix, np.ndarray):
@@ -1125,12 +1124,12 @@ class ContinuousNNKernel(PCManifoldKernel):
 
             if (diagonal != 0).all():
                 raise ValueError(
-                    "if is_pdist=True, distance_matrix must have zeros on diagonal "
+                    "If is_pdist=True, distance_matrix must have zeros on diagonal."
                 )
         else:
             if reference_dist_knn is None:
                 raise ValueError(
-                    "if is_pdist=False, 'reference_dist_knn' (=None) must be provided."
+                    "If is_pdist=False, 'reference_dist_knn' (=None) must be provided."
                 )
 
             if not isinstance(reference_dist_knn, np.ndarray):
@@ -1147,7 +1146,7 @@ class ContinuousNNKernel(PCManifoldKernel):
 
             if self.k_neighbor < 1 or self.k_neighbor > n_samples_X - 1:
                 raise ValueError(
-                    "n_neighbors must be in the range 1 to number of samples"
+                    "'n_neighbors' must be in a range between 1 to the number of samples."
                 )
 
     def eval(
