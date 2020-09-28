@@ -266,6 +266,16 @@ class LinearDynamicalSystem(object):
                 self._check_system_type()
 
         elif self.is_matrix_mode():
+            # TODO: computational aspects:
+            #  - treat equidistant sampling differently? Then the system can be
+            #    iterated more efficiently, bc. scipy.linalg.expm(sys_matrix *
+            #    time_delta) has to be only computed once, and can be iterated given
+            #    the previous solution.
+            #  - how is the fractional_matrix_power implemented? It computes internally
+            #    singular values, so it'd be better to avoid calling it too often, if
+            #    possible
+            #    see: https://github.com/scipy/scipy/blob/c1372d8aa90a73d8a52f135529293ff4edb98fc8/scipy/linalg/_matfuncs_inv_ssq.py
+
             if self.is_differential_system():
                 for idx, time in enumerate(time_values):
                     time_series_tensor[:, idx, :] = (
