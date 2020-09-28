@@ -1214,12 +1214,13 @@ class ContinuousNNKernel(PCManifoldKernel):
 
 class MahalanobisKernel(PCManifoldKernel):
     """
+    # TODO - description
+    # TODO - citations
+
     Parameters
     ----------
-    verbosity_level
-        if >0, prints some log statements
     epsilon
-        the kernel bandwidth. If "None" (default), it will be estimated from the
+        The kernel bandwidth. If "None" (default), it will be estimated from the
         mahalanobis distance matrix, using the median of 10-th nearest neighbor distances.
     distance_metric
         distance metric to use in the pre-computation of the neighborhoods.
@@ -1229,14 +1230,12 @@ class MahalanobisKernel(PCManifoldKernel):
     """
 
     def __init__(
-        self,
-        verbosity_level=0,
-        epsilon=None,
-        distance_metric="euclidean",
-        cov_matrices=None,
+        self, epsilon=None, distance_metric="euclidean", cov_matrices=None,
     ):
-        self.__verbosity_level = verbosity_level
-        self.__cov_matrices = cov_matrices
+        # TODO: the cov_matrices have to be part of kernel_kwargs in __call__
+        self.cov_matrices = cov_matrices
+
+        # TODO: the distance_metric should be part of dist_kwargs
         self.distance_metric = distance_metric
         self.epsilon = epsilon
 
@@ -1276,75 +1275,83 @@ class MahalanobisKernel(PCManifoldKernel):
         if Y is not None:
             Y = np.atleast_2d(Y)
 
-        self.__log(f"MahalanobisKernel dist_kwargs: {dist_kwargs}")
-
         distance_matrix = compute_distance_matrix(
             X, Y, metric=self.distance_metric, **dist_kwargs or {},
         )
 
-        kernel_matrix = self.eval(X, distance_matrix, self.__cov_matrices, dist_kwargs)
+        # TODO: the kernel can not handle the out-of-sample case Y is not None
+        kernel_matrix = self.eval(distance_matrix, X, self.cov_matrices, dist_kwargs)
 
         return kernel_matrix
 
-    def __log(self, string):
-        if self.__verbosity_level > 0:
-            print(string)
-
     def eval(
-        self, points, distance_matrix, covariance_matrices, dist_kwargs
+        self, distance_matrix, X, covariance_matrices, dist_kwargs
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """
         Replace the given distance_matrix with the mahalanobis kernel matrix.
         """
 
-        point_indices = np.arange(points.shape[0])
+        # point_indices = np.arange(points.shape[0])
 
+        # TODO: avoid to *always* transform to csr_matrix -> make it a case distinction
+        #  - between dense and sparse
         distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
 
-        for row in range(distance_matrix.shape[0]):
-            r = distance_matrix.getrow(row)
+        for row_idx in range(distance_matrix.shape[0]):
+            row = distance_matrix.getrow(row_idx)
 
-            p1 = points[row, :]
-            c1 = covariance_matrices[row, :, :]
-            for d_index in range(len(r.data)):
-                col = r.indices[d_index]
-                if col != row:
-                    p2 = points[col, :]
-                    c2 = covariance_matrices[col, :, :]
-                    diff = p1 - p2
-                    M_distance = np.sqrt(1 / 2 * diff.T @ (c1 + c2) @ diff)
+            row_point = X[row_idx, :]
+            row_cov_matrix = covariance_matrices[row_idx, :, :]
+
+            # iterate through non-zero entries in data
+            for data_index in range(len(row.data)):
+                col_idx = row.indices[data_index]
+                if col_idx != row_idx:
+                    col_point = X[col_idx, :]
+                    col_cov_matrix = covariance_matrices[col_idx, :, :]
+
+                    point_diff = row_point - col_point
+
+                    # dist = np.sqrt(0.5 * ||x-y|| @ (V_x + V_y) @ ||x-y||)
+                    mahalanobis_distance = np.sqrt(
+                        0.5
+                        * point_diff.T
+                        @ (row_cov_matrix + col_cov_matrix)
+                        @ point_diff
+                    )
 
                     distance_matrix.data[
-                        distance_matrix.indptr[row] : distance_matrix.indptr[row + 1]
-                    ][d_index] = M_distance
+                        distance_matrix.indptr[row_idx] : distance_matrix.indptr[
+                            row_idx + 1
+                        ]
+                    ][data_index] = mahalanobis_distance
 
-        self.__log("Mahalanobis metric ready.")
-
-        if dist_kwargs is None:
-            dist_kwargs = {}
+        dist_kwargs = dist_kwargs or {}
 
         _epsilon = self.epsilon
+        # TODO: need to standardize this procedure (also for GaussianKernel)
         if _epsilon is None:
-            cut_off = datafold.pcfold.estimators.estimate_cutoff(
-                points, k=dist_kwargs.get("kmin", 25), distance_matrix=distance_matrix
+            cut_off = datafold.pcfold.estimate_cutoff(
+                X, k=dist_kwargs.get("kmin", 25), distance_matrix=distance_matrix
             )
-            _epsilon = datafold.pcfold.estimators.estimate_scale(
-                points, cut_off=cut_off
-            )
-        self.__log(f"Using epsilon {_epsilon}")
+            _epsilon = datafold.pcfold.estimate_scale(X, cut_off=cut_off)
 
         # convert distance to kernel
-        distance_matrix.data = np.exp(
-            -np.power(distance_matrix.data, 2) / (2 * _epsilon)
+        # distance_matrix.data = np.exp(-np.square(distance_matrix.data) / (2 * _epsilon))
+        # TODO: check: above we have sqrt around the mahalanobis_distance, here we have
+        #  a square -- shouldn't this cancel out?
+        kernel_matrix = _apply_kernel_function_numexpr(
+            distance_matrix=np.square(distance_matrix),
+            expr="exp((- 1 / (2*eps)) * D)",
+            expr_dict={"eps": _epsilon},
         )
 
+        # TODO: this operation fails for a k-NN sparse matrix (one that is not symmetric)
         # make it symmetric
-        distance_matrix = scipy.sparse.lil_matrix(distance_matrix)
-        distance_matrix = scipy.sparse.csr_matrix(
-            0.5 * (distance_matrix + distance_matrix.T)
-        )
+        kernel_matrix = scipy.sparse.lil_matrix(kernel_matrix)
+        kernel_matrix = scipy.sparse.csr_matrix(0.5 * (kernel_matrix + kernel_matrix.T))
 
-        return distance_matrix
+        return kernel_matrix
 
 
 class DmapKernelFixed(BaseManifoldKernel):
