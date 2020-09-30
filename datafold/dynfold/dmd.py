@@ -1040,22 +1040,22 @@ class DMDFull(DMDBase):
         system.
 
     approx_generator
-        If True, then approximate the generator of the system
+        If True, approximate the generator of the system
 
         * `mode=spectral` compute (complex) eigenvalues of the
           Koopman generator :math:`log(\lambda) / \delta t`, with eigenvalues `\lambda`
           of the Koopman matrix. Note, that the left and right eigenvectors remain the
           same.
-        * `mode=matrix` compute generator with
+        * `mode=matrix` compute generator matrix with
           :math:`logm(K) / \delta t` (where :math:`logm` is the matrix logarithm.
 
         .. warning::
 
-            This operation can fail if the eigenvalues of the matrix are too close to
-            zero or the logarithm is not well-defined function because of
-            non-uniqueness issues. For details see :cite:`dietrich_koopman_2019` (Eq.
+            This operation can fail if the eigenvalues of the matrix :math:`K` are too
+            close to zero or the matrix logarithm is not well-defined because because of
+            non-uniqueness. For details see :cite:`dietrich_koopman_2019` (Eq.
             3.2. and 3.3. and discussion). Currently, there are no counter measurements
-            implemented to increase numerical robustness. Work is needed here. Consider
+            implemented to increase numerical robustness (work is needed). Consider
             also :py:class:`.gDMDFull`, which provides an alternative way to
             approximate the Koopman generator by using finite differences.
 
