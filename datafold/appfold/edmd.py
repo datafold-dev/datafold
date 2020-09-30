@@ -285,7 +285,7 @@ class EDMD(Pipeline, TSCPredictMixin):
 
         columns = [f"koop_eigfunc{i}" for i in range(eval_eigenfunction.shape[0])]
         eval_eigenfunction = df_type_and_indices_from(
-            indices_from=X_dict, values=X_dict, except_columns=columns
+            indices_from=X_dict, values=eval_eigenfunction.T, except_columns=columns
         )
 
         return eval_eigenfunction
