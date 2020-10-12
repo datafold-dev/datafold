@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
+import tempfile
 import unittest
+import webbrowser
 
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 from sklearn.pipeline import Pipeline
+from sklearn.utils import estimator_html_repr
 
 from datafold.dynfold import (
+    TSCFeaturePreprocess,
     TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCTakensEmbedding,
@@ -144,7 +148,6 @@ class TestTSCTransform(unittest.TestCase):
         self.assertTrue(actual_result.n_timesteps, X.n_timesteps - 2)
 
     def test_pipeline_with_column_transform(self, display_html=False):
-        from sklearn.utils import estimator_html_repr
 
         X = TSCDataFrame.from_single_timeseries(
             pd.DataFrame(
@@ -170,9 +173,6 @@ class TestTSCTransform(unittest.TestCase):
         actual_result = actual_transform.fit_transform(X)
 
         if display_html:
-            import webbrowser
-            import tempfile
-
             with tempfile.NamedTemporaryFile("w", suffix=".html") as fp:
                 fp.write(estimator_html_repr(actual_transform))
                 fp.flush()
@@ -187,10 +187,56 @@ class TestTSCTransform(unittest.TestCase):
         # -2 for the dropped samples from the takens embedding
         self.assertTrue(actual_result.n_timesteps, X.n_timesteps - 2)
 
-    def test_complicated_pipeline_with_pipeline_transform(self):
-        # TODO.
+    def test_complicated_pipeline_with_pipeline_transform(self, display_html=True):
+
+        X = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(
+                np.random.default_rng(1).uniform(low=0, high=1, size=(100, 5)),
+                columns=["a", "b", "c", "d", "e"],
+            )
+        )
+
         #  Start with FeatureScaling
         #     1.way Poly  2.way PCA
         #     1.way PCA   2.way Poly
         #     combine the two ways and perform embedding
-        self.assertFalse(True)
+
+        transform1 = TSCFeaturePreprocess.from_name("min-max")
+
+        way_1_pipeline = Pipeline(
+            steps=[
+                ("poly", TSCPolynomialFeatures(degree=2)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ]
+        )
+
+        way_2_pipeline = Pipeline(
+            steps=[
+                ("pca", TSCPrincipalComponent(n_components=1),),
+                ("poly", TSCPolynomialFeatures(degree=2),),
+            ]
+        )
+
+        transform2 = TSCColumnTransformer(
+            transformers=[
+                ("data_mode1", way_1_pipeline, ["a", "b", "c"]),
+                ("data_mode2", way_2_pipeline, ["d", "e"]),
+            ],
+        )
+
+        actual_transform = Pipeline(
+            steps=[
+                ("pre", transform1),
+                ("divide", transform2),
+                ("delay", TSCTakensEmbedding(delays=2)),
+            ]
+        )
+
+        print(actual_transform.fit_transform(X))
+
+        if display_html:
+            with tempfile.NamedTemporaryFile("w", suffix=".html") as fp:
+                fp.write(estimator_html_repr(actual_transform))
+                fp.flush()
+                webbrowser.open_new_tab(fp.name)
+                input("Press Enter to continue...")
