@@ -187,7 +187,7 @@ class TestTSCTransform(unittest.TestCase):
         # -2 for the dropped samples from the takens embedding
         self.assertTrue(actual_result.n_timesteps, X.n_timesteps - 2)
 
-    def test_complicated_pipeline_with_pipeline_transform(self, display_html=True):
+    def test_complicated_pipeline_with_pipeline_transform(self, display_html=False):
 
         X = TSCDataFrame.from_single_timeseries(
             pd.DataFrame(
@@ -232,11 +232,30 @@ class TestTSCTransform(unittest.TestCase):
             ]
         )
 
-        print(actual_transform.fit_transform(X))
-
         if display_html:
             with tempfile.NamedTemporaryFile("w", suffix=".html") as fp:
                 fp.write(estimator_html_repr(actual_transform))
                 fp.flush()
                 webbrowser.open_new_tab(fp.name)
                 input("Press Enter to continue...")
+
+        expected_columns = pd.Index(
+            [
+                "pca0",  # from way 1
+                "pca1",  # from way 1
+                "pca0^2",  # from way 2
+                "pca0:d1",  # from Takens (and rest)
+                "pca1:d1",
+                "pca0^2:d1",
+                "pca0:d2",
+                "pca1:d2",
+                "pca0^2:d2",
+            ],
+            name="features",
+        )
+        actual_result = actual_transform.fit_transform(X)
+
+        nptest.assert_array_equal(actual_result.columns, expected_columns)
+
+        # 2 features dropped from Takens
+        self.assertEqual(actual_result.n_timesteps, X.n_timesteps - 2)
