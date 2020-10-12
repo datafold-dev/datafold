@@ -252,10 +252,10 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         if features_in.ndim != 1 or features_out.ndim != 1:
             raise ValueError("feature names must be 1-dim.")
 
-        self.n_features_in_ = len(features_in)
-        self.n_features_out_ = len(features_out)
-        self.feature_names_in_ = features_in
-        self.feature_names_out_ = features_out
+        self.n_features_in_: int = len(features_in)
+        self.n_features_out_: int = len(features_out)
+        self.feature_names_in_: Optional[pd.Index] = features_in
+        self.feature_names_out_: Optional[pd.Index] = features_out
 
     def _setup_array_input_fit(self, features_in: int, features_out: int):
         # do not store names, because they are not available
@@ -372,6 +372,10 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 raise TypeError(f"input type {type(X)} is not supported.")
             else:
                 return values
+
+    # def get_feature_names(self):
+    #     check_is_fitted(self, "feature_names_in_")
+    #     return self.feature_names_in_
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
         """Fit to data, then transform it.
