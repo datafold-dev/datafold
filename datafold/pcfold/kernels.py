@@ -1894,6 +1894,10 @@ class ConeKernel(TSCManifoldKernel):
                 scalar=(delta_time ** 2) * self.epsilon,
             )
 
+        # TODO: quick fix, requires better handling
+        factor_matrix[np.isnan(factor_matrix)] = 1
+        factor_matrix[np.isinf(factor_matrix)] = 1
+
         kernel_matrix = _apply_kernel_function_numexpr(
             distance_matrix=distance_matrix,
             expr="exp(-1.0 * D * factor_matrix)",

@@ -473,6 +473,12 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             ret_extra,
         ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
 
+        if kernel_matrix_.shape[0] != self.X_.shape[0]:
+            # For time series data the kernel can drop samples (e.g. when computing a
+            #  time derivative -- align the data X_
+            assert isinstance(kernel_matrix_, TSCDataFrame)
+            self.X_ = self.X_.loc[kernel_matrix_.index]
+
         # if key is not present, this is a bug. The value for the key can also be None.
         basis_change_matrix = ret_extra["basis_change_matrix"]
 
