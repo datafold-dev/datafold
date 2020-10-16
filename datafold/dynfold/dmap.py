@@ -1,4 +1,5 @@
 import sys
+import warnings
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -331,20 +332,28 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
     def _get_default_kernel(self):
         return GaussianKernel(epsilon=1.0)
 
-    def _nystrom(self, kernel_cdist, eigvec, eigvals):
+    def _nystrom(self, kernel_cdist, eigvec, eigvals, index_from):
 
         if isinstance(kernel_cdist, pd.DataFrame):
             _kernel_cdist = kernel_cdist.to_numpy()
         else:
             _kernel_cdist = kernel_cdist
 
+        _magic_tol = 1e-14  # need to adapt if not sufficient
+        if (np.abs(eigvals) < _magic_tol).any():
+            warnings.warn(
+                "Diffusion map eigenvalues are close to zero, which can cause "
+                "numerical instability when applying the Nystroem extension."
+            )
+
+        # Nyström approximation
         approx_eigenvectors = _kernel_cdist @ mat_dot_diagmat(
             eigvec, np.reciprocal(eigvals)
         )
 
-        if isinstance(kernel_cdist, pd.DataFrame):
+        if index_from is not None:
             approx_eigenvectors = df_type_and_indices_from(
-                kernel_cdist,
+                index_from,
                 values=approx_eigenvectors,
                 except_columns=[f"ev{i}" for i in range(self.n_eigenpairs)],
             )
@@ -473,12 +482,6 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             ret_extra,
         ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
 
-        if kernel_matrix_.shape[0] != self.X_.shape[0]:
-            # For time series data the kernel can drop samples (e.g. when computing a
-            #  time derivative -- align the data X_
-            assert isinstance(kernel_matrix_, TSCDataFrame)
-            self.X_ = self.X_.loc[kernel_matrix_.index]
-
         # if key is not present, this is a bug. The value for the key can also be None.
         basis_change_matrix = ret_extra["basis_change_matrix"]
 
@@ -488,7 +491,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             # dynamics-adapted kernels can drop samples from X)
             index_from: Optional[TSCDataFrame] = kernel_matrix_
         elif (
-            isinstance(kernel_matrix_, TSCDataFrame)
+            isinstance(self.X_, TSCDataFrame)
             and kernel_matrix_.shape[0] == self.X_.shape[0]
         ):
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_ is a time
@@ -563,10 +566,24 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             kernel_output=kernel_output
         )
 
+        # choose object to copy time information from, if applicable
+        if isinstance(kernel_matrix_cdist, TSCDataFrame):
+            # if possible take time index from kernel_matrix (especially
+            # dynamics-adapted kernels can drop samples from X)
+            index_from: Optional[TSCDataFrame] = kernel_matrix_cdist
+        elif isinstance(X, TSCDataFrame) and kernel_matrix_cdist.shape[0] == X.shape[0]:
+            # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_ is a time
+            # series, then take incides from X_ -- this only works if no samples are
+            # dropped in the kernel computation.
+            index_from = X
+        else:
+            index_from = None
+
         eigvec_nystroem = self._nystrom(
             kernel_matrix_cdist,
             eigvec=np.asarray(self.eigenvectors_),
             eigvals=self.eigenvalues_,
+            index_from=index_from,
         )
 
         return self._perform_dmap_embedding(eigvec_nystroem)
@@ -622,8 +639,11 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         self._validate_feature_input(X, direction="inverse_transform")
 
         if not hasattr(self, "inv_coeff_matrix_"):
+            # happens if samples were dropped during kernel fit
+            _X = self.X_.loc[self.eigenvectors_.index, :]
+
             self.inv_coeff_matrix_ = scipy.linalg.lstsq(
-                np.asarray(self.eigenvectors_), self.X_, cond=None
+                np.asarray(self.eigenvectors_), _X, cond=None
             )[0]
 
         X_orig_space = np.asarray(X) @ self.inv_coeff_matrix_

@@ -36,7 +36,6 @@ from datafold.pcfold.kernels import (
     MultiquadricKernel,
     PCManifoldKernel,
     QuinticKernel,
-    ThinPlateKernel,
 )
 from datafold.pcfold.pointcloud import (
     PCManifold,

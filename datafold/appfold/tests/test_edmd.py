@@ -29,7 +29,7 @@ class EDMDTest(unittest.TestCase):
         return TSCDataFrame.from_single_timeseries(df)
 
     def _setup_multi_sine_wave_data(self) -> TSCDataFrame:
-        time = np.linspace(0, 2 * np.pi, 100)
+        time = np.linspace(0, 4 * np.pi, 100)
 
         omega = 1.5
 
@@ -290,6 +290,50 @@ class EDMDTest(unittest.TestCase):
             _edmd.koopman_eigenfunction(
                 self.multi_waves.initial_states(_edmd.n_samples_ic_ - 1)
             )
+
+    def test_dmap_kernels(self, plot=False):
+        X = self._setup_multi_sine_wave_data2()
+
+        from datafold.pcfold import (
+            GaussianKernel,
+            ConeKernel,
+            ContinuousNNKernel,
+            MultiquadricKernel,
+            InverseMultiquadricKernel,
+        )
+
+        from datafold.dynfold import DiffusionMaps
+
+        kernels = [
+            ConeKernel(zeta=0.0, epsilon=0.5),
+            ConeKernel(zeta=0.9, epsilon=0.1),
+            GaussianKernel(epsilon=0.1),
+            ContinuousNNKernel(k_neighbor=20, delta=0.9),
+            # MultiquadricKernel(epsilon=1),
+            InverseMultiquadricKernel(epsilon=0.5),
+        ]
+
+        f, ax = plt.subplots(nrows=len(kernels) + 1, ncols=1, sharex=True)
+        X.plot(ax=ax[0])
+        ax[0].set_title("original data")
+
+        for i, kernel in enumerate(kernels):
+            try:
+                X_predict = EDMD(
+                    [
+                        ("takens", TSCTakensEmbedding(delays=20)),
+                        ("dmap", DiffusionMaps(kernel, n_eigenpairs=220)),
+                    ]
+                ).fit_predict(X)
+                X_predict.plot(ax=ax[i + 1])
+                ax[i + 1].set_title(f"kernel={kernel}")
+
+            except Exception as e:
+                print(f"kernel={kernel} failed")
+                raise e
+
+        if plot:
+            plt.show()
 
     def test_edmd_dict_sine_wave(self, plot=True):
         _edmd = EDMD(

@@ -60,7 +60,10 @@ def _symmetric_matrix_division(
     vec: np.ndarray,
     vec_right: Optional[np.ndarray] = None,
     scalar: float = 1.0,
-) -> np.ndarray:
+    value_zero_division: Union[str, float] = "raise",
+) -> Union[
+    np.ndarray, scipy.sparse.csr_matrix,
+]:
     r"""Symmetric division, which often appears in kernels.
 
     .. math::
@@ -95,7 +98,7 @@ def _symmetric_matrix_division(
 
     Returns
     -------
-    numpy.ndarray
+
     """
 
     if matrix.ndim != 2:
@@ -103,14 +106,35 @@ def _symmetric_matrix_division(
 
     if matrix.shape[0] != matrix.shape[1] and vec_right is None:
         raise ValueError(
-            "If 'matrix' has rectangular shape, then 'vec_right' must be provided."
+            "If 'matrix' is non-square, then 'vec_right' must be provided."
         )
 
-    vec_inv_left = np.reciprocal(vec.astype(np.float64))
+    vec = vec.astype(np.float64)
+
+    if (vec == 0.0).any():
+        if value_zero_division == "raise":
+            raise ZeroDivisionError(
+                f"Encountered zero values in division in {(vec == 0).sum()}"
+            )
+        else:
+            # division results into 'nan' without ZeroDivisionWarning and will
+            # be repaced later
+            vec[vec == 0.0] = np.nan
+
+    vec_inv_left = np.reciprocal(vec)
 
     if vec_right is None:
         vec_inv_right = vec_inv_left.view()
     else:
+        vec_right = vec_right.astype(np.float64)
+        if (vec_right == 0.0).any():
+            if value_zero_division == "raise":
+                raise ZeroDivisionError(
+                    f"Encountered zero values in division in {(vec == 0).sum()}"
+                )
+            else:
+                vec_right[vec_right == 0.0] = np.inf
+
         vec_inv_right = np.reciprocal(vec_right.astype(np.float64))
 
     if vec_inv_left.ndim != 1 or vec_inv_left.shape[0] != matrix.shape[0]:
@@ -138,14 +162,25 @@ def _symmetric_matrix_division(
 
         # The zeros are removed in the matrix multiplication, but because 'matrix' is
         # usually a distance matrix we need to preserve the "true zeros"!
-        matrix.data[matrix.data == 0] = np.nan
+        matrix.data[matrix.data == 0] = np.inf
         matrix = left_inv_diag_sparse @ matrix @ right_inv_diag_sparse
-        matrix.data[np.isnan(matrix.data)] = 0
+
+        matrix.data[np.isinf(matrix.data)] = 0
+
+        # this imposes precedence order
+        #    --> np.inf/np.nan -> np.nan
+        # i.e. for cases with 0/0, set 'value_zero_division'
+        if isinstance(value_zero_division, (int, float)):
+            matrix.data[np.isnan(matrix.data)] = value_zero_division
+
     else:
         # Solves efficiently:
         # np.diag(1/vector_elements) @ matrix @ np.diag(1/vector_elements)
         matrix = diagmat_dot_mat(vec_inv_left, matrix, out=matrix)
         matrix = mat_dot_diagmat(matrix, vec_inv_right, out=matrix)
+
+        if isinstance(value_zero_division, (int, float)):
+            matrix[np.isnan(matrix)] = value_zero_division
 
     # sparse and dense
     if vec_right is None:
@@ -797,7 +832,7 @@ class MultiquadricKernel(RadialBasisKernel):
     r"""Multiquadric radial basis kernel.
 
     .. math::
-        K = \sqrt(\frac{1}{2\varepsilon} \cdot D + 1)
+        K = \sqrt(\frac{1}{2 \varepsilon} \cdot D + 1)
 
     where :math:`D` is the squared euclidean distance matrix.
 
@@ -957,37 +992,37 @@ class QuinticKernel(RadialBasisKernel):
         return _apply_kernel_function_numexpr(distance_matrix, "D ** 5")
 
 
-class ThinPlateKernel(RadialBasisKernel):
-    r"""Thin plate radial basis kernel.
-
-    .. math::
-        K = xlogy(D^2, D)
-
-
-    where :math:`D` is the Euclidean distance matrix and argument for
-    :class:`scipy.special.xlogy`.
-
-    See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-    for more functionality and documentation.
-    """
-
-    def __init__(self):
-        super(ThinPlateKernel, self).__init__(distance_metric="euclidean")
-
-    def eval(self, distance_matrix: np.ndarray) -> np.ndarray:
-        """Evaluate the kernel on pre-computed distance matrix.
-
-        Parameters
-        ----------
-        distance_matrix
-            Matrix of pairwise distances of shape `(n_samples_Y, n_samples_X)`.
-
-        Returns
-        -------
-        Union[np.ndarray, scipy.sparse.csr_matrix]
-            Kernel matrix of same shape and type as `distance_matrix`.
-        """
-        return xlogy(np.square(distance_matrix), distance_matrix)
+# class ThinPlateKernel(RadialBasisKernel):
+#     r"""Thin plate radial basis kernel.
+#
+#     .. math::
+#         K = xlogy(D^2, D)
+#
+#
+#     where :math:`D` is the Euclidean distance matrix and argument for
+#     :class:`scipy.special.xlogy`.
+#
+#     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
+#     for more functionality and documentation.
+#     """
+#
+#     def __init__(self):
+#         super(ThinPlateKernel, self).__init__(distance_metric="euclidean")
+#
+#     def eval(self, distance_matrix: np.ndarray) -> np.ndarray:
+#         """Evaluate the kernel on pre-computed distance matrix.
+#
+#         Parameters
+#         ----------
+#         distance_matrix
+#             Matrix of pairwise distances of shape `(n_samples_Y, n_samples_X)`.
+#
+#         Returns
+#         -------
+#         Union[np.ndarray, scipy.sparse.csr_matrix]
+#             Kernel matrix of same shape and type as `distance_matrix`.
+#         """
+#         return xlogy(np.square(distance_matrix), distance_matrix)
 
 
 class ContinuousNNKernel(PCManifoldKernel):
@@ -1330,7 +1365,10 @@ class DmapKernelFixed(BaseManifoldKernel):
         return normalized_kernel, row_sums_alpha
 
     def _normalize(
-        self, rbf_kernel: KernelType, row_sums_alpha_fit: np.ndarray, is_pdist: bool
+        self,
+        internal_kernel: KernelType,
+        row_sums_alpha_fit: np.ndarray,
+        is_pdist: bool,
     ):
 
         # only required for symmetric kernel, return None if not used
@@ -1345,10 +1383,10 @@ class DmapKernelFixed(BaseManifoldKernel):
             if self.alpha > 0:
                 # if pdist: kernel is still symmetric after this function call
                 (
-                    rbf_kernel,
+                    internal_kernel,
                     row_sums_alpha,
                 ) = self._normalize_sampling_density_kernel_matrix(
-                    rbf_kernel, row_sums_alpha_fit
+                    internal_kernel, row_sums_alpha_fit
                 )
 
             if is_pdist and self.is_symmetric_transform():
@@ -1359,11 +1397,12 @@ class DmapKernelFixed(BaseManifoldKernel):
                 #        (for cdist, there is no symmetric kernel in the first place,
                 #        because it is generally rectangular and does not include self
                 #        points)
-                rbf_kernel, basis_change_matrix = _conjugate_stochastic_kernel_matrix(
-                    rbf_kernel
-                )
+                (
+                    internal_kernel,
+                    basis_change_matrix,
+                ) = _conjugate_stochastic_kernel_matrix(internal_kernel)
             else:
-                rbf_kernel = _stochastic_kernel_matrix(rbf_kernel)
+                internal_kernel = _stochastic_kernel_matrix(internal_kernel)
 
             assert (
                 (is_pdist and self.is_symmetric_transform())
@@ -1374,9 +1413,9 @@ class DmapKernelFixed(BaseManifoldKernel):
             )
 
         if is_pdist and self.is_symmetric:
-            assert is_symmetric_matrix(rbf_kernel)
+            assert is_symmetric_matrix(internal_kernel)
 
-        return rbf_kernel, basis_change_matrix, row_sums_alpha
+        return internal_kernel, basis_change_matrix, row_sums_alpha
 
     def _validate_row_alpha_fit(self, is_pdist, row_sums_alpha_fit):
         if (
@@ -1844,6 +1883,7 @@ class ConeKernel(TSCManifoldKernel):
                 vec=norm_timederiv_X.to_numpy().ravel(),
                 vec_right=None,
                 scalar=(delta_time ** 2) * self.epsilon,
+                value_zero_division=0,
             )
 
         else:
@@ -1892,11 +1932,10 @@ class ConeKernel(TSCManifoldKernel):
                 vec=norm_timederiv_Y.to_numpy().ravel(),
                 vec_right=norm_timederiv_X.to_numpy().ravel(),
                 scalar=(delta_time ** 2) * self.epsilon,
+                value_zero_division=0,
             )
 
-        # TODO: quick fix, requires better handling
-        factor_matrix[np.isnan(factor_matrix)] = 1
-        factor_matrix[np.isinf(factor_matrix)] = 1
+        assert np.isfinite(factor_matrix).all()
 
         kernel_matrix = _apply_kernel_function_numexpr(
             distance_matrix=distance_matrix,

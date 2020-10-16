@@ -16,6 +16,7 @@ from datafold.dynfold import LocalRegressionSelection
 from datafold.dynfold.dmap import DiffusionMapsVariable
 from datafold.dynfold.tests.helper import *
 from datafold.pcfold import GaussianKernel, TSCDataFrame
+from datafold.pcfold.kernels import ConeKernel
 from datafold.utils.general import random_subsample
 
 try:
@@ -401,8 +402,6 @@ class DiffusionMapsTest(unittest.TestCase):
 
     def test_dynamic_kernel(self):
 
-        from datafold.pcfold.kernels import ConeKernel
-
         _x = np.linspace(0, 2 * np.pi, 20)
         df = pd.DataFrame(
             np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
@@ -413,9 +412,11 @@ class DiffusionMapsTest(unittest.TestCase):
 
         self.assertIsInstance(dmap.eigenvectors_, TSCDataFrame)
 
-        actual = dmap.transform(tsc_data.iloc[:10])
+        actual_forward = dmap.transform(tsc_data.iloc[:10])
+        self.assertIsInstance(actual_forward, TSCDataFrame)
 
-        self.assertIsInstance(actual, TSCDataFrame)
+        actual_inverse = dmap.inverse_transform(actual_forward)
+        self.assertIsInstance(actual_inverse, TSCDataFrame)
 
         with self.assertRaises(TypeError):
             dmap.transform(tsc_data.iloc[:10].to_numpy())
