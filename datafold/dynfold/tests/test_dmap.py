@@ -421,6 +421,20 @@ class DiffusionMapsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             dmap.transform(tsc_data.iloc[:10].to_numpy())
 
+    def test_dist_kwargs(self):
+        _x = np.linspace(0, 2 * np.pi, 20)
+        df = pd.DataFrame(
+            np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
+        )
+        tsc_data = TSCDataFrame.from_single_timeseries(df=df)
+
+        dmap = DiffusionMaps(kernel=GaussianKernel(), dist_kwargs=dict(cut_off=2)).fit(
+            tsc_data, store_kernel_matrix=True
+        )
+
+        self.assertEqual(dmap.X_.dist_kwargs["cut_off"], 2)
+        self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
+
     def test_kernel_symmetric_conjugate(self):
         X = make_swiss_roll(1000)[0]
 
