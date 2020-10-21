@@ -160,6 +160,20 @@ class EDMD(Pipeline, TSCPredictMixin):
     Attributes
     ----------
 
+    n_features_in_
+        The number of features in data passed to `fit`.
+
+    feature_names_in_
+        The features names in data passed to `fit`.
+
+    n_features_out_
+        The number of features in data in dictionary space. An EDMD model prediction
+        returns ``n_features_in_`` by default.
+
+    feature_names_out_
+        The feature names in data in dictionary space. An EDMD model prediction
+        returns data with features equal to ``feature_names_in_`` by default.
+
     named_steps: :class:`Dict[str, object]`
         Read-only attribute to access any step parameter by user given name. Keys are
         step names and values are steps parameters.
@@ -306,6 +320,18 @@ class EDMD(Pipeline, TSCPredictMixin):
         # NOTE: n_features_in_ is also delegated, but already included in the super
         # class Pipeline (implementation by sklearn)
         return self.steps[0][1].feature_names_in_
+
+    @property
+    def n_features_out_(self):
+        # Important note: this returns the number of features by the dictionary,
+        # NOT from a EDMD prediction
+        return self._dmd_model.n_features_in_
+
+    @property
+    def feature_names_out_(self):
+        # Important note: this returns the number of features by the dictionary,
+        # NOT from a EDMD prediction
+        return self._dmd_model.feature_names_in_
 
     def transform(self, X: TransformType) -> TransformType:
         """Perform dictionary transformations on time series data (original space).
