@@ -343,7 +343,11 @@ class TestTSCTransform(unittest.TestCase):
         # test kappa = 1
 
         tsc_df = TSCDataFrame.from_single_timeseries(
-            pd.DataFrame([0, 1, 2, 3, 4, 5], columns=["A"], dtype=np.float)
+            pd.DataFrame(
+                np.column_stack([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]]),
+                columns=["A", "B"],
+                dtype=np.float,
+            )
         )
 
         takens = TSCTakensEmbedding(lag=0, delays=5, frequency=1, kappa=1)
@@ -361,6 +365,7 @@ class TestTSCTransform(unittest.TestCase):
         expected = np.array([[5, 4, 3, 2, 1, 0]], dtype=float) * np.exp(
             -1.0 * np.array([0, 1, 2, 3, 4, 5])
         )
+        expected = np.repeat(expected, 2, axis=1)
 
         nptest.assert_equal(actual_numerics, expected)
 
