@@ -401,6 +401,7 @@ class DiffusionMapsTest(unittest.TestCase):
         )
 
     def test_dynamic_kernel(self):
+
         _x = np.linspace(0, 2 * np.pi, 20)
         df = pd.DataFrame(
             np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
@@ -411,9 +412,11 @@ class DiffusionMapsTest(unittest.TestCase):
 
         self.assertIsInstance(dmap.eigenvectors_, TSCDataFrame)
 
-        actual = dmap.transform(tsc_data.iloc[:10])
+        actual_forward = dmap.transform(tsc_data.iloc[:10])
+        self.assertIsInstance(actual_forward, TSCDataFrame)
 
-        self.assertIsInstance(actual, TSCDataFrame)
+        actual_inverse = dmap.inverse_transform(actual_forward)
+        self.assertIsInstance(actual_inverse, TSCDataFrame)
 
         with self.assertRaises(TypeError):
             dmap.transform(tsc_data.iloc[:10].to_numpy())
@@ -474,11 +477,6 @@ class DiffusionMapsTest(unittest.TestCase):
         actual_tsc = dmap.transform(tsc_data.iloc[:10, :])
         self.assertIsInstance(actual_tsc, TSCDataFrame)
 
-        # insert pd.DataFrame -> output pd.DataFrame
-        single_sample = pd.DataFrame(tsc_data.iloc[0, :]).T
-        actual_df = dmap.transform(single_sample)
-        self.assertIsInstance(actual_df, pd.DataFrame)
-
         # insert np.ndarray -> output np.ndarray
         actual_nd = dmap.transform(tsc_data.iloc[:10, :].to_numpy())
         self.assertIsInstance(actual_nd, np.ndarray)
@@ -505,16 +503,16 @@ class DiffusionMapsTest(unittest.TestCase):
         actual_nd = dmap.transform(pcm_data[:10, :])
         self.assertIsInstance(actual_nd, np.ndarray)
 
-        # insert TSCDataFrame -> time information is lost because no TSCDataFrame was
-        # used during fit
+        # insert TSCDataFrame -> time information is returned, even when during fit no
+        # time series data was returned
         actual_tsc = dmap.transform(tsc_data.iloc[:10, :])
-        self.assertIsInstance(actual_tsc, np.ndarray)
+        self.assertIsInstance(actual_tsc, TSCDataFrame)
 
         nptest.assert_array_equal(actual_nd, actual_tsc)
 
-        single_sample = pd.DataFrame(tsc_data.iloc[0, :]).T
+        single_sample = tsc_data.iloc[[0], :]
         actual = dmap.transform(single_sample)
-        self.assertIsInstance(actual, np.ndarray)
+        self.assertIsInstance(actual, TSCDataFrame)
 
     @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
     def test_cknn_kernel(self):

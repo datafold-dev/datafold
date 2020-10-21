@@ -254,11 +254,13 @@ class LinearDynamicalSystem(object):
                 # --> evolve system with, using `float_power`
                 #               ev^(t / time_delta)
 
+                _eigenvalues = self.eigenvalues_.astype(np.complex)
+
                 for idx, time in enumerate(time_values):
                     time_series_tensor[:, idx, :] = np.real(
                         sys_matrix
                         @ diagmat_dot_mat(
-                            np.float_power(self.eigenvalues_, time / time_delta),
+                            np.float_power(_eigenvalues, time / time_delta),
                             initial_conditions,
                         )
                     ).T

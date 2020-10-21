@@ -19,4 +19,4 @@ sphinx-autodoc-typehints==1.11.0
 sphinx-automodapi>=0.12
 sphinxcontrib-bibtex>=1.0.0
 sphinx_rtd_theme>=0.4.3
-git+git://github.com/elDan101/diffusion-maps@master
+git+git://github.com/jmbr/diffusion-maps@master
