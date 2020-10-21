@@ -459,8 +459,9 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         )
 
         if isinstance(X, TSCDataFrame):
-            X.kernel = self._dmap_kernel
-            self.X_ = X
+            self.X_ = TSCDataFrame(
+                X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_
+            )
         elif isinstance(X, (np.ndarray, pd.DataFrame)):
             self.X_ = PCManifold(
                 X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_,
