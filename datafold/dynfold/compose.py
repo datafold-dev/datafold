@@ -42,7 +42,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         super(TSCColumnTransformer, self).__init__(
             transformers=transformers,
             remainder=remainder,
-            sparse_threshold=0.3,
+            sparse_threshold=0.3,  # default value, will be ignored
             transformer_weights=transformer_weights,
             n_jobs=n_jobs,
             verbose=verbose,
@@ -79,6 +79,14 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
             raise NotImplementedError(
                 "Currently there is no support for sparse output in TSCColumnsTransformer"
             )
+
+        all_columns = pd.Index(np.array([df.columns for df in Xs]).ravel())
+
+        # handle feature name conflict
+        if all_columns.has_duplicates:
+            for i in range(len(self.transformers_)):
+                Xs[i] = Xs[i].add_prefix(self.transformers_[i][0] + "__")
+
         # dropna(axis=0) removes all rows that were dropped during transform
         # (i.e. transformations that require multiple timesteps).
         return pd.concat(Xs, axis=1).dropna(axis=0)
