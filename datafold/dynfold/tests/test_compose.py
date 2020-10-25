@@ -17,28 +17,28 @@ from datafold.dynfold import (
     TSCPrincipalComponent,
     TSCTakensEmbedding,
 )
-from datafold.dynfold.compose import TSCColumnTransformer, TSCFeatureUnion
+from datafold.dynfold.compose import TSCColumnTransformer
 from datafold.pcfold import TSCDataFrame
 
 
-class TestTSCTransform(unittest.TestCase):
-    @unittest.skip("Currently TSCFeatureUnion is not implemented")
-    def test_tsc_union(self):
-
-        X = TSCDataFrame.from_single_timeseries(
-            pd.DataFrame(np.random.default_rng(1).uniform(low=0, high=1, size=(100, 2)))
-        )
-
-        transform1 = TSCPrincipalComponent(n_components=2)
-        transform2 = TSCPolynomialFeatures(degree=2)
-
-        union = TSCFeatureUnion(
-            [("pca", transform1), ("poly", transform2)], n_jobs=1,
-        ).fit(X)
-
-        actual = union.transform(X)
-
-        print(actual)
+class TestTSCCompose(unittest.TestCase):
+    # @unittest.skip("Currently TSCFeatureUnion is not implemented")
+    # def test_tsc_union(self):
+    #
+    #     X = TSCDataFrame.from_single_timeseries(
+    #         pd.DataFrame(np.random.default_rng(1).uniform(low=0, high=1, size=(100, 2)))
+    #     )
+    #
+    #     transform1 = TSCPrincipalComponent(n_components=2)
+    #     transform2 = TSCPolynomialFeatures(degree=2)
+    #
+    #     union = TSCFeatureUnion(
+    #         [("pca", transform1), ("poly", transform2)], n_jobs=1,
+    #     ).fit(X)
+    #
+    #     actual = union.transform(X)
+    #
+    #     print(actual)
 
     def test_pipeline(self):
         X = TSCDataFrame.from_single_timeseries(

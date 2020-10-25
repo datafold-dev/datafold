@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
-from datafold.decorators import warn_experimental_function
+from datafold._decorators import warn_experimental_function
 
 
 def plot_eigenvalues(

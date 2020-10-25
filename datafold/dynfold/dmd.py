@@ -10,7 +10,7 @@ from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
-from datafold.decorators import warn_experimental_class
+from datafold._decorators import warn_experimental_class
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (

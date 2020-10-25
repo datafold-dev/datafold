@@ -9,7 +9,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.decorators import warn_experimental_class, warn_known_bug
+from datafold._decorators import warn_known_bug
 from datafold.dynfold.dmap import _DmapKernelAlgorithms
 from datafold.pcfold import PCManifold
 from datafold.pcfold.distance import compute_distance_matrix

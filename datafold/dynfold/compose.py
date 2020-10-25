@@ -1,31 +1,61 @@
 #!/usr/bin/env python3
 
+from typing import List, Tuple
+
 import numpy as np
 import pandas as pd
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import FeatureUnion, Pipeline
+import sklearn.compose as compose
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
 
 
-class TSCColumnTransformer(TSCTransformerMixin, ColumnTransformer):
-    def _hstack(self, Xs):
-        if self.sparse_output_:
-            raise NotImplementedError(
-                "Currently there is only dense output for " "TSCColumnsTransformer"
-            )
-        # dropna(axis=0) removes all rows that were dropped during transform
-        # (i.e. transformations that require multiple timesteps).
-        return pd.concat(Xs, axis=1).dropna(axis=0)
+class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
+    """A column transformer for time series data.
 
-    # @property  # NOTE this one is handled by the super class
+    This class is a wrapper and dedicated for data in :py:class:`TSCDataFrame`.
+
+
+    For undocumented attributes please go to the base class documentation
+    `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html>`__
+
+    .. note::
+        The parameter ``sparse_threshold`` of the super class is supported this class.
+
+    Parameters
+    ----------
+    transformers
+        See base class for detailed documentation. Note that all transformers inlcuded
+        must be able to process :py:class:`TSCDataFrame`.
+
+    """
+
+    def __init__(
+        self,
+        transformers: List[Tuple],
+        *,
+        remainder="drop",
+        n_jobs=None,
+        transformer_weights=None,
+        verbose=False
+    ):
+        super(TSCColumnTransformer, self).__init__(
+            transformers=transformers,
+            remainder=remainder,
+            sparse_threshold=0.3,
+            transformer_weights=transformer_weights,
+            n_jobs=n_jobs,
+            verbose=verbose,
+        )
+
+    # @property
     # def n_features_in_(self):
-    #     return self.transformers_[0][1].n_features_in_
+    #     # this is only to make it explicit that this is already handled by the super class
+    #     return super(TSCColumnTransformer, self).n_features_in_
 
     @property
     def feature_names_in_(self):
-        check_is_fitted(self, "named_transformers_")
+        check_is_fitted(self, "transformers_")
         return self.transformers_[0][1].feature_names_in_
 
     @property
@@ -44,43 +74,52 @@ class TSCColumnTransformer(TSCTransformerMixin, ColumnTransformer):
 
         return indices[0]
 
+    def _hstack(self, Xs):
+        if self.sparse_output_:
+            raise NotImplementedError(
+                "Currently there is no support for sparse output in TSCColumnsTransformer"
+            )
+        # dropna(axis=0) removes all rows that were dropped during transform
+        # (i.e. transformations that require multiple timesteps).
+        return pd.concat(Xs, axis=1).dropna(axis=0)
+
     def fit(self, X: TransformType, y=None, **fit_params):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
         return super(TSCColumnTransformer, self).fit(X)
 
 
-@NotImplementedError
-class TSCFeatureUnion(TSCTransformerMixin, FeatureUnion):
-    def n_features_in_(self):
-        pass
-
-    @property
-    def n_features_out_(self):
-        # TODO: this is wrong, need to collect all feature names...
-        return self.transformer_list[0][1].n_features_out_
-
-    @property
-    def feature_names_in_(self):
-        return self.transformer_list[0][1].feature_names_in_
-
-    @property
-    def feature_names_out_(self):
-        # TODO: this is wrong, need to collect all feature names...
-        return self.transformer_list[0][1].feature_names_out_
-
-    def fit(self, X: TransformType, y=None, **fit_params):
-        X = self._validate_datafold_data(X)
-        self._read_fit_params(attrs=None, fit_params=fit_params)
-
-        super(TSCFeatureUnion, self).fit(X, y=y)
-
-        self._setup_features_fit(X, features_out=[])
-
-        return self
-
-    def transform(self, X: TransformType):
-        pass
-
-    def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
-        pass
+# @NotImplementedError
+# class TSCFeatureUnion(TSCTransformerMixin, FeatureUnion):
+#     def n_features_in_(self):
+#         pass
+#
+#     @property
+#     def n_features_out_(self):
+#         # TODO: this is wrong, need to collect all feature names...
+#         return self.transformer_list[0][1].n_features_out_
+#
+#     @property
+#     def feature_names_in_(self):
+#         return self.transformer_list[0][1].feature_names_in_
+#
+#     @property
+#     def feature_names_out_(self):
+#         # TODO: this is wrong, need to collect all feature names...
+#         return self.transformer_list[0][1].feature_names_out_
+#
+#     def fit(self, X: TransformType, y=None, **fit_params):
+#         X = self._validate_datafold_data(X)
+#         self._read_fit_params(attrs=None, fit_params=fit_params)
+#
+#         super(TSCFeatureUnion, self).fit(X, y=y)
+#
+#         self._setup_features_fit(X, features_out=[])
+#
+#         return self
+#
+#     def transform(self, X: TransformType):
+#         pass
+#
+#     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
+#         pass
