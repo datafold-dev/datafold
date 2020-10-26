@@ -80,10 +80,10 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
                 "Currently there is no support for sparse output in TSCColumnsTransformer"
             )
 
-        all_columns = pd.Index(np.array([df.columns for df in Xs]).ravel())
+        all_columns = pd.Index(np.hstack([df.columns.to_numpy() for df in Xs]))
 
-        # handle feature name conflict
         if all_columns.has_duplicates:
+            # handle feature names in case of conflict
             for i in range(len(self.transformers_)):
                 Xs[i] = Xs[i].add_prefix(self.transformers_[i][0] + "__")
 
