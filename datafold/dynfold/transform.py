@@ -679,6 +679,10 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
         if self.kappa > 0:
             # only the delayed coordinates are multiplied with the exp factor
             kappa_vec = np.exp(-self.kappa * np.arange(1, self.delays + 1))
+
+            # the np.repeat assumes the following pattern:
+            # (a,b), (a:d1, b:d1), (a:d2, b:d2), ...
+            kappa_vec = np.repeat(kappa_vec, self.n_features_in_)
         else:
             kappa_vec = None
 
