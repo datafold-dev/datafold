@@ -249,16 +249,27 @@ class EDMDTest(unittest.TestCase):
             include_id_state=True,
         ).fit(X=self.multi_waves)
 
+        eval_waves = self.multi_waves.loc[pd.IndexSlice[0:1], :]
+
         actual_modes = _edmd.koopman_modes
         actual_eigvals = _edmd.koopman_eigenvalues
-        actual_eigfunc = _edmd.koopman_eigenfunction(X=self.multi_waves)
+        actual_eigfunc = _edmd.koopman_eigenfunction(X=eval_waves)
 
         # 2 original states
         # 4 eigenvectors in dictionary space (2 ID states + 2 PCA states)
         expected = (2, 4)
-        self.assertTrue(actual_modes.shape, expected)
-        self.assertTrue(actual_eigvals.shape, expected[1])
-        self.assertTrue(actual_eigfunc.shape, (self.multi_waves.shape[0], expected[1]))
+        self.assertEqual(actual_modes.shape, expected)
+        self.assertEqual(actual_eigvals.shape[0], expected[1])
+        self.assertEqual(
+            actual_eigfunc.shape,
+            (
+                eval_waves.shape[0]
+                # correct the output samples by number of samples required for
+                # initial condition
+                - eval_waves.n_timeseries * (_edmd.n_samples_ic_ - 1),
+                expected[1],
+            ),
+        )
 
         self.assertIsInstance(actual_modes, pd.DataFrame)
         self.assertIsInstance(actual_eigvals, pd.Series)

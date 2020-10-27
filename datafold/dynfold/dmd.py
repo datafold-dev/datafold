@@ -708,7 +708,10 @@ class DMDBase(
     @property
     def dmd_modes(self):
         if not self.is_spectral_mode():
-            raise AttributeError()
+            raise AttributeError(
+                "The DMD modes are not available because the system is "
+                "not set up in spectral mode."
+            )
         if self.is_linear_system_setup(raise_error_if_not_setup=True):
             return self.eigenvectors_right_
 

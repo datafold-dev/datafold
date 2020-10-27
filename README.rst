@@ -87,8 +87,13 @@ Cite
 ====
 
 If you use *datafold* in your research, please cite
-`the paper <https://joss.theoj.org/papers/10.21105/joss.02283>`__ published in the
-*Journal of Open Source Software* (JOSS).
+`this paper <https://joss.theoj.org/papers/10.21105/joss.02283>`__ published in the
+*Journal of Open Source Software* (`JOSS <https://joss.theoj.org/>`__).
+
+*Lehmberg et al., (2020). datafold: data-driven models for point clouds and time series on
+manifolds. Journal of Open Source Software, 5(51), 2283,* https://doi.org/10.21105/joss.02283
+
+BibTeX:
 
 .. code-block:: latex
 
