@@ -10,7 +10,7 @@ class TestTimeSeriesCollectionPlots(unittest.TestCase):
 
     """NOTE: plotting tests only check if the methods run without error. A proper unit-testing is too difficult.
     To look at a plot for an example, simply run the specific test method and call plt.show() after the
-    respective test. """
+    respective test."""
 
     def test_plot_density2d(self):
         number_ts = 100

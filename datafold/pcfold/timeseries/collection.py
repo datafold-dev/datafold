@@ -244,7 +244,7 @@ class TSCDataFrame(pd.DataFrame):
 
     tsc_time_idx_name
         The index name of second index to select time.
-    
+
     tsc_feature_col_name
         The name of feature axis (columns).
 
@@ -320,7 +320,11 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         # depth=time series, row = time, col = feature
-        (n_timeseries, n_timesteps, n_feature,) = tensor.shape
+        (
+            n_timeseries,
+            n_timesteps,
+            n_feature,
+        ) = tensor.shape
 
         if time_series_ids is None:
             time_series_ids = np.arange(n_timeseries).repeat(n_timesteps)
@@ -378,7 +382,7 @@ class TSCDataFrame(pd.DataFrame):
         snapshot_orientation
             Indicate whether the snapshots (states) are in rows ("row") or columns
             ("col").
-            
+
         columns
             Feature names of shape `(n_feature,)`. Defaults to
             `feature[0,1,2,..., n_feature]`.
@@ -697,20 +701,17 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def n_timeseries(self) -> int:
-        """Number of time series in the collection.
-        """
+        """Number of time series in the collection."""
         return len(self.ids)
 
     @property
     def n_features(self) -> int:
-        """Number of features in the collection.
-        """
+        """Number of features in the collection."""
         return self.shape[1]
 
     @property
     def ids(self) -> pd.Index:
-        """The time series IDs in the collection.
-        """
+        """The time series IDs in the collection."""
         # update index by removing potentially unused levels
         self.index = self.index.remove_unused_levels()
         return self.index.levels[0]
@@ -919,7 +920,12 @@ class TSCDataFrame(pd.DataFrame):
         return _iLocTSCIndexer("iloc", self)
 
     def set_index(
-        self, keys, drop=True, append=False, inplace=False, verify_integrity=False,
+        self,
+        keys,
+        drop=True,
+        append=False,
+        inplace=False,
+        verify_integrity=False,
     ):
         result = super(TSCDataFrame, self).set_index(
             keys=keys,
@@ -988,8 +994,7 @@ class TSCDataFrame(pd.DataFrame):
         return _slice
 
     def is_datetime_index(self) -> bool:
-        """Indicates whether 'time' index is datetime format.
-        """
+        """Indicates whether 'time' index is datetime format."""
         return self.index.get_level_values(self.tsc_time_idx_name).dtype.kind == "M"
 
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
@@ -1014,8 +1019,7 @@ class TSCDataFrame(pd.DataFrame):
         return len(np.unique(self.n_timesteps)) == 1
 
     def is_const_delta_time(self) -> bool:
-        """Indicates if all time series in the collection have the same time delta.
-        """
+        """Indicates if all time series in the collection have the same time delta."""
 
         # If dt is a Series it means it shows "dt per ID" (because it is not constant).
         _dt = self.delta_time
@@ -1028,8 +1032,7 @@ class TSCDataFrame(pd.DataFrame):
         return not pd.isnull(_dt)
 
     def is_same_time_values(self) -> bool:
-        """Indicates if all time series in the collection share the same time values.
-        """
+        """Indicates if all time series in the collection share the same time values."""
 
         if self.n_timeseries == 1:
             # trivial case early
@@ -1064,8 +1067,7 @@ class TSCDataFrame(pd.DataFrame):
         return self.time_interval()[0] == 0 and self.delta_time == 1
 
     def is_finite(self) -> bool:
-        """Indicates if all feature values are finite (i.e. neither NaN nor inf).
-        """
+        """Indicates if all feature values are finite (i.e. neither NaN nor inf)."""
         return np.isfinite(self).all().all()
 
     def degenerate_ids(self) -> Optional[pd.Index]:
@@ -1134,7 +1136,10 @@ class TSCDataFrame(pd.DataFrame):
             is_attach_time = True
 
         distance_matrix = compute_distance_matrix(
-            X=self, Y=Y, metric=metric, **self.dist_kwargs,
+            X=self,
+            Y=Y,
+            metric=metric,
+            **self.dist_kwargs,
         )
 
         if is_attach_time and not isinstance(distance_matrix, scipy.sparse.spmatrix):
@@ -1188,7 +1193,10 @@ class TSCDataFrame(pd.DataFrame):
             is_attach_time = True
 
         kernel_output = self.kernel(
-            X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs,
+            X=self,
+            Y=Y,
+            dist_kwargs=self.dist_kwargs,
+            **kernel_kwargs,
         )
 
         if isinstance(kernel_output, (tuple, list)):
@@ -1324,11 +1332,11 @@ class TSCDataFrame(pd.DataFrame):
         feature
             Name of feature to turn into array. The feature name must be provided if
             multiple features are present.
-        
+
         as_frame
             If True, return pandas with time series IDs as index and time values as
             column indices.
-        
+
         Returns
         -------
         numpy.ndarray
@@ -1568,7 +1576,7 @@ class InitialCondition(object):
         have identical time values.
 
         This iterator is particulary usefule to reconstruct time series.
-        
+
         Parameters
         ----------
         X

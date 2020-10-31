@@ -61,9 +61,7 @@ def _symmetric_matrix_division(
     vec_right: Optional[np.ndarray] = None,
     scalar: float = 1.0,
     value_zero_division: Union[str, float] = "raise",
-) -> Union[
-    np.ndarray, scipy.sparse.csr_matrix,
-]:
+) -> Union[np.ndarray, scipy.sparse.csr_matrix,]:
     r"""Symmetric division, which often appears in kernels.
 
     .. math::
@@ -87,7 +85,7 @@ def _symmetric_matrix_division(
     vec
         Vector of shape `(n_rows,)` in the denominator (Note, the reciprocal
         is is internal of the function).
-        
+
     vec_right
         Vector of shape `(n_columns,)`. If matrix is non-square or matrix input is
         not symmetric, then this input is required. If None, it is set
@@ -361,7 +359,10 @@ def _kth_nearest_neighbor_dist(
         # sparse case
 
         def _get_kth_largest_elements_sparse(
-            data: np.ndarray, indptr: np.ndarray, row_nnz, k_neighbor: int,
+            data: np.ndarray,
+            indptr: np.ndarray,
+            row_nnz,
+            k_neighbor: int,
         ):
             dist_knn = np.zeros(len(row_nnz))
             for i in range(len(row_nnz)):
@@ -381,7 +382,10 @@ def _kth_nearest_neighbor_dist(
             )
 
         dist_knn = _get_kth_largest_elements_sparse(
-            distance_matrix.data, distance_matrix.indptr, row_nnz, k,
+            distance_matrix.data,
+            distance_matrix.indptr,
+            row_nnz,
+            k,
         )
     else:
         raise TypeError(f"type {type(distance_matrix)} not supported")
@@ -601,7 +605,7 @@ class PCManifoldKernel(BaseManifoldKernel):
             that can be included as `**kernel_kwargs` to a follow-up ``__call__``. Note
             that if a kernel has no such values, this is empty (i.e. not even `None` is
             returned).
-        
+
         Optional[Dict]
             If the kernel computes quantities of interest, then these quantities can be
             included in this dictionary. If this is returned, then this
@@ -633,7 +637,7 @@ class PCManifoldKernel(BaseManifoldKernel):
             that the kernel acts only on stored data, i.e. distance values with
             exactly zero (duplicates and self distance) must be stored explicitly in the
             matrix. Only large distance values exceeding a cut-off should not be stored.
-        
+
         Returns
         -------
 
@@ -763,7 +767,10 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
             Y = np.atleast_2d(Y)
 
         distance_matrix = compute_distance_matrix(
-            X, Y, metric=self.distance_metric, **dist_kwargs or {},
+            X,
+            Y,
+            metric=self.distance_metric,
+            **dist_kwargs or {},
         )
 
         kernel_matrix = self.eval(distance_matrix)
@@ -1335,7 +1342,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         row_sums_alpha_fit: np.ndarray,
     ) -> Tuple[Union[np.ndarray, scipy.sparse.csr_matrix], Optional[np.ndarray]]:
         """Normalize (sparse/dense) kernels with positive `alpha` value. This is also
-        referred to a 'renormalization' of sampling density. """
+        referred to a 'renormalization' of sampling density."""
 
         if row_sums_alpha_fit is None:
             assert is_symmetric_matrix(kernel_matrix)
@@ -1354,7 +1361,9 @@ class DmapKernelFixed(BaseManifoldKernel):
             row_sums_alpha = row_sums
 
         normalized_kernel = _symmetric_matrix_division(
-            matrix=kernel_matrix, vec=row_sums_alpha, vec_right=row_sums_alpha_fit,
+            matrix=kernel_matrix,
+            vec=row_sums_alpha,
+            vec_right=row_sums_alpha_fit,
         )
 
         if row_sums_alpha_fit is not None:
@@ -1448,7 +1457,9 @@ class DmapKernelFixed(BaseManifoldKernel):
             _type, rows_idx, columns_idx = None, None, None
 
         kernel_matrix, basis_change_matrix, row_sums_alpha = self._normalize(
-            kernel_matrix, row_sums_alpha_fit=row_sums_alpha_fit, is_pdist=is_pdist,
+            kernel_matrix,
+            row_sums_alpha_fit=row_sums_alpha_fit,
+            is_pdist=is_pdist,
         )
 
         if rows_idx is not None and columns_idx is not None:
@@ -1491,7 +1502,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         dist_kwargs
             Keyword arguments passed to the internal distance matrix computation. See
             :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
-        
+
         **kernel_kwargs: Dict[str, object]
             - internal_kernel_kwargs: Optional[Dict]
                 Keyword arguments passed to the set internal kernel.
@@ -1505,7 +1516,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         numpy.ndarray`, `scipy.sparse.csr_matrix`
             kernel matrix (or conjugate of it) with same type and shape as
             `distance_matrix`
-        
+
         Optional[Dict[str, numpy.ndarray]]
             Row sums from re-normalization in key 'row_sums_alpha_fit', only returned for
             pairwise computations. The values are required for follow up out-of-sample
@@ -1767,7 +1778,9 @@ class ConeKernel(TSCManifoldKernel):
             # nominator of cos: scalar product (time_derivative, differences)
             # in paper: (\xi, \omega)
             cos_matrix[row_idx, :] = np.dot(
-                timederiv_Y[row_idx, :], diff_matrix.T, out=cos_matrix[row_idx, :],
+                timederiv_Y[row_idx, :],
+                diff_matrix.T,
+                out=cos_matrix[row_idx, :],
             )
 
             # special handling of duplicates -> division by zero leads to nan
@@ -1827,7 +1840,7 @@ class ConeKernel(TSCManifoldKernel):
                 component-wise evaluation.
             - norm_timederiv_X
                 Norm of the time derivative. Required for a component-wise evaluation.
-            
+
         Returns
         -------
         TSCDataFrame
@@ -2164,7 +2177,10 @@ class DmapKernelVariable(BaseManifoldKernel):
             )
 
         distance_matrix = compute_distance_matrix(
-            X, Y, metric="sqeuclidean", **dist_kwargs,
+            X,
+            Y,
+            metric="sqeuclidean",
+            **dist_kwargs,
         )
 
         operator_l_matrix, basis_change_matrix, rho0, rho, q0, q_eps_s = self.eval(

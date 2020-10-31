@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import tempfile
 import unittest
+import webbrowser
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
@@ -8,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
 from sklearn.model_selection import GridSearchCV
+from sklearn.utils import estimator_html_repr
 
 from datafold.appfold.edmd import EDMD, EDMDCV
 from datafold.dynfold import gDMDFull
@@ -360,7 +363,7 @@ class EDMDTest(unittest.TestCase):
         if plot:
             plt.show()
 
-    def test_edmd_dict_sine_wave(self, plot=True):
+    def test_edmd_dict_sine_wave(self, plot=False):
         _edmd = EDMD(
             dict_steps=[
                 ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
@@ -377,7 +380,8 @@ class EDMDTest(unittest.TestCase):
 
         # index not the same because of Takens, so only check column
         pdtest.assert_index_equal(
-            self.sine_wave_tsc.columns, inverse_dict.columns,
+            self.sine_wave_tsc.columns,
+            inverse_dict.columns,
         )
 
         diff = inverse_dict - self.sine_wave_tsc
@@ -418,7 +422,8 @@ class EDMDTest(unittest.TestCase):
 
         # index not the same because of Takens, so only check column
         pdtest.assert_index_equal(
-            self.sine_wave_tsc.columns, inverse_dict.columns,
+            self.sine_wave_tsc.columns,
+            inverse_dict.columns,
         )
 
         diff = inverse_dict - self.sine_wave_tsc
@@ -438,6 +443,43 @@ class EDMDTest(unittest.TestCase):
             f, ax = plt.subplots()
             plot_eigenvalues(eigenvalues=_edmd.dmd_model.eigenvalues_, ax=ax)
 
+            plt.show()
+
+    def test_edmd_with_composed_dict(self, display_html=False, plot=False):
+
+        from datafold.dynfold import TSCColumnTransformer
+        from sklearn.compose import make_column_selector
+
+        selector_sin = make_column_selector(pattern="sin")
+        selector_cos = make_column_selector(pattern="cos")
+
+        separate_transform = TSCColumnTransformer(
+            transformers=[
+                ("sin_path", TSCPrincipalComponent(n_components=10), selector_sin),
+                ("cos_path", TSCPrincipalComponent(n_components=10), selector_cos),
+            ]
+        )
+
+        edmd = EDMD(
+            dict_steps=[
+                ("delays", TSCTakensEmbedding(delays=15)),
+                ("pca", separate_transform),
+            ],
+            include_id_state=True,
+        ).fit(self.multi_waves)
+
+        if display_html:
+            with tempfile.NamedTemporaryFile("w", suffix=".html") as fp:
+                fp.write(estimator_html_repr(edmd))
+                fp.flush()
+                webbrowser.open_new_tab(fp.name)
+                input("Press Enter to continue...")
+
+        f, ax = plt.subplots(nrows=2, sharex=True)
+        self.multi_waves.plot(ax=ax[0])
+        edmd.reconstruct(self.multi_waves).plot(ax=ax[1])
+
+        if plot:
             plt.show()
 
     def test_edmd_sine_wave(self):

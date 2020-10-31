@@ -184,7 +184,7 @@ class BruteForceDist(DistanceAlgorithm):
         **backend_options,
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Pair-wise distance matrix computation.
-        
+
         Parameters
         ----------
         X
@@ -202,7 +202,7 @@ class BruteForceDist(DistanceAlgorithm):
             If False, computes Euclidean distances more efficiently
             at the cost of introducing numerical noise. Empirically `~1e-14` for
             "sqeuclidean" and `~1e-7` for "euclidean" metric.
-            
+
         **backend_options
             Keyword arguments handled to the executing backend.
 
@@ -406,7 +406,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
     ----------
     metric
         "euclidean" or "sqeuclidean"
-        
+
     References
     ----------
 
@@ -668,7 +668,7 @@ class GuessOptimalDist(DistanceAlgorithm):
 
         **backend_options
             Keyword arguments passed to :meth:`DistanceAlgorithm.pdist`
-        
+
         Returns
         -------
         scipy.sparse.csr_matrix
@@ -1008,7 +1008,11 @@ def compute_distance_matrix(
         if (kmin > 0 and not is_pdist) or (kmin > 1 and is_pdist):
             # kmin == 1 and is_pdist does not need treatment because the diagonal is set.
             distance_matrix = _ensure_kmin_nearest_neighbor(
-                X, Y, metric=metric, kmin=kmin, distance_matrix=distance_matrix,
+                X,
+                Y,
+                metric=metric,
+                kmin=kmin,
+                distance_matrix=distance_matrix,
             )
 
         # sort_indices returns immediately if indices are already sorted.

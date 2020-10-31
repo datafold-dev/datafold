@@ -10,7 +10,7 @@ from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
-from datafold.decorators import warn_experimental_class
+from datafold._decorators import warn_experimental_class
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (
@@ -750,7 +750,7 @@ class DMDBase(
              * not normed
              * row-wise in the matrix
 
-         """
+        """
         lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
         return np.linalg.solve(lhs_matrix, system_matrix)
 
@@ -949,7 +949,9 @@ class DMDBase(
 
         check_is_fitted(self)
         X = self._validate_datafold_data(
-            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._validate_feature_names(X)
 
@@ -1233,7 +1235,9 @@ class DMDFull(DMDBase):
         """
 
         self._validate_datafold_data(
-            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X=X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
 
@@ -1434,7 +1438,9 @@ class gDMDFull(DMDBase):
         """
 
         self._validate_datafold_data(
-            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X=X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
 
@@ -1612,7 +1618,9 @@ class DMDEco(DMDBase):
             self
         """
         self._validate_datafold_data(
-            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -1777,7 +1785,9 @@ class PyDMDWrapper(DMDBase):
         """
 
         self._validate_datafold_data(
-            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._setup_features_and_time_fit(X=X)
         self._read_fit_params(attrs=None, fit_params=fit_params)

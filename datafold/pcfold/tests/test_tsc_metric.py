@@ -75,7 +75,11 @@ class TestTSCMetric(unittest.TestCase):
                 for scale in TSCMetric._cls_valid_scaling:
                     for multioutput in ["uniform_average", "raw_values"]:
 
-                        tsc_metric = TSCMetric(metric=metric, mode=mode, scaling=scale,)
+                        tsc_metric = TSCMetric(
+                            metric=metric,
+                            mode=mode,
+                            scaling=scale,
+                        )
 
                         try:
                             if metric != "max":  # max does not support multi-output
@@ -347,7 +351,10 @@ class TestTSCCV(unittest.TestCase):
 
     def _single_id_tsc(self):
         idx = pd.MultiIndex.from_arrays(
-            [[0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2, 3, 4, 5, 6, 7],]
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 1, 2, 3, 4, 5, 6, 7],
+            ]
         )
         col = ["A", "B"]
         data = np.arange(len(idx) * 2).reshape([len(idx), 2])

@@ -108,7 +108,8 @@ class _DmapKernelAlgorithms:
 
     @staticmethod
     def unsymmetric_kernel_matrix(
-        kernel_matrix: KernelType, basis_change_matrix,
+        kernel_matrix: KernelType,
+        basis_change_matrix,
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
         """Transform a kernel matrix obtained from a symmetric conjugate
         transformation to the diffusion kernel matrix.
@@ -274,7 +275,10 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
     @classmethod
     def laplace_beltrami(
-        cls, kernel=GaussianKernel(epsilon=1.0), n_eigenpairs=10, **kwargs,
+        cls,
+        kernel=GaussianKernel(epsilon=1.0),
+        n_eigenpairs=10,
+        **kwargs,
     ) -> "DiffusionMaps":
         """Instantiate new model to approximate Laplace-Beltrami operator.
 
@@ -293,7 +297,10 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
     @classmethod
     def fokker_planck(
-        cls, kernel=GaussianKernel(epsilon=1.0), n_eigenpairs=10, **kwargs,
+        cls,
+        kernel=GaussianKernel(epsilon=1.0),
+        n_eigenpairs=10,
+        **kwargs,
     ) -> "DiffusionMaps":
         """Instantiate new model to approximate Fokker-Planck operator.
 
@@ -312,7 +319,10 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
     @classmethod
     def graph_laplacian(
-        cls, kernel=GaussianKernel(epsilon=1.0), n_eigenpairs=10, **kwargs,
+        cls,
+        kernel=GaussianKernel(epsilon=1.0),
+        n_eigenpairs=10,
+        **kwargs,
     ) -> "DiffusionMaps":
         """Instantiate new model to approximate graph Laplacian.
 
@@ -420,14 +430,19 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
         return self
 
-    def fit(self, X: TransformType, y=None, **fit_params,) -> "DiffusionMaps":
+    def fit(
+        self,
+        X: TransformType,
+        y=None,
+        **fit_params,
+    ) -> "DiffusionMaps":
         """Compute diffusion kernel matrix and its' eigenpairs.
 
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
             Training data of shape `(n_samples, n_features)`.
-        
+
         y: None
             ignored
 
@@ -473,7 +488,9 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             )
         elif isinstance(X, (np.ndarray, pd.DataFrame)):
             self.X_ = PCManifold(
-                X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_,
+                X,
+                kernel=self._dmap_kernel,
+                dist_kwargs=self.dist_kwargs_,
             )
 
         kernel_output = self.X_.compute_kernel_matrix()
@@ -516,7 +533,8 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
 
         if self._dmap_kernel.is_symmetric_transform() and store_kernel_matrix:
             kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
-                kernel_matrix=kernel_matrix_, basis_change_matrix=basis_change_matrix,
+                kernel_matrix=kernel_matrix_,
+                basis_change_matrix=basis_change_matrix,
             )
 
         if store_kernel_matrix:
@@ -726,7 +744,11 @@ class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
         self.dist_kwargs.setdefault("kmin", self.nn_bandwidth)
         self.dist_kwargs.setdefault("backend", "guess_optimal")
 
-        pcm = PCManifold(X, kernel=self.dmap_kernel_, dist_kwargs=self.dist_kwargs,)
+        pcm = PCManifold(
+            X,
+            kernel=self.dmap_kernel_,
+            dist_kwargs=self.dist_kwargs,
+        )
 
         # basis_change_matrix is None if not required
         (
@@ -1115,7 +1137,8 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
         # are partially selected.
         if self._has_feature_names(X):
             self._setup_frame_input_fit(
-                features_in=X.columns, features_out=X.columns[self.evec_indices_],
+                features_in=X.columns,
+                features_out=X.columns[self.evec_indices_],
             )
         else:
             self._setup_array_input_fit(

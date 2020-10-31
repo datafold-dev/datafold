@@ -229,7 +229,9 @@ class DiffusionMapsTest(unittest.TestCase):
             from datafold.utils.plot import plot_pairwise_eigenvector
 
             plot_pairwise_eigenvector(
-                eigenvectors=dmap_embed.transform(X_swiss_all).T, n=1, colors=color_all,
+                eigenvectors=dmap_embed.transform(X_swiss_all).T,
+                n=1,
+                colors=color_all,
             )
 
         dmap_embed_eval_expected = dmap_embed.eigenvectors_[:, [1, 5]]

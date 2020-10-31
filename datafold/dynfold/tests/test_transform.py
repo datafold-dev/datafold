@@ -236,7 +236,8 @@ class TestTSCTransform(unittest.TestCase):
         ).fit_transform(tsc)
 
         pdtest.assert_index_equal(
-            actual.columns, pd.Index(["1", "A^2", "A B", "B^2"], name="feature"),
+            actual.columns,
+            pd.Index(["1", "A^2", "A B", "B^2"], name="feature"),
         )
 
         actual = TSCPolynomialFeatures(
@@ -244,7 +245,8 @@ class TestTSCTransform(unittest.TestCase):
         ).fit_transform(tsc)
 
         pdtest.assert_index_equal(
-            actual.columns, pd.Index(["A^2", "A B", "B^2"], name="feature"),
+            actual.columns,
+            pd.Index(["A^2", "A B", "B^2"], name="feature"),
         )
 
     def test_apply_lambda_transform01(self):
@@ -322,7 +324,11 @@ class TestTSCTransform(unittest.TestCase):
         simple_df = self.takens_df_short.drop("B", axis=1)
         tsc_df = TSCDataFrame(simple_df)
 
-        takens = TSCTakensEmbedding(delays=1, lag=0, frequency=1,)
+        takens = TSCTakensEmbedding(
+            delays=1,
+            lag=0,
+            frequency=1,
+        )
         actual = takens.fit_transform(tsc_df)
 
         self.assertIsInstance(actual, TSCDataFrame)
@@ -330,7 +336,13 @@ class TestTSCTransform(unittest.TestCase):
         # First test
         actual_numerics = actual.to_numpy()  # only compare the numeric values
         expected = np.array(
-            [[2.0, 0.0], [6.0, 4.0], [10.0, 8.0], [14.0, 12.0], [16.0, 14.0],]
+            [
+                [2.0, 0.0],
+                [6.0, 4.0],
+                [10.0, 8.0],
+                [14.0, 12.0],
+                [16.0, 14.0],
+            ]
         )
 
         nptest.assert_equal(actual_numerics, expected)
