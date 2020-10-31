@@ -17,7 +17,7 @@ def plot_eigenvalues(
     subplot_kwargs: Optional[Dict[str, object]] = None,
 ) -> None:
     """Plots eigenvalue distribution.
-    
+
     Parameters
     ----------
     eigenvalues
@@ -211,7 +211,7 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), n_scale_tests=20) -> None:
 
     scale_range
         lower and upper limit of scale
-        
+
     n_scale_tests
         number of points
     """

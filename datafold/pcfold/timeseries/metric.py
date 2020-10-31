@@ -132,8 +132,7 @@ class TSCMetric(object):
     def _rrmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-        """Metric from :cite:`le_clainche_higher_2017`
-        """
+        """Metric from :cite:`le_clainche_higher_2017`"""
 
         if multioutput == "uniform_average":
             norm_ = np.sum(np.square(np.linalg.norm(y_true, axis=1)))
@@ -241,7 +240,9 @@ class TSCMetric(object):
             )
         else:
             error_per_timeseries = pd.DataFrame(
-                np.nan, index=y_true.ids, columns=y_true.columns.to_list(),
+                np.nan,
+                index=y_true.ids,
+                columns=y_true.columns.to_list(),
             )
 
         for i, y_true_single in y_true.itertimeseries():
@@ -281,7 +282,10 @@ class TSCMetric(object):
             multioutput="raw_values",  # raw_values to tread every feature separately
         )
 
-        metric_per_feature = pd.Series(metric_per_feature, index=y_true.columns,)
+        metric_per_feature = pd.Series(
+            metric_per_feature,
+            index=y_true.columns,
+        )
         return metric_per_feature
 
     def _metric_per_timestep(

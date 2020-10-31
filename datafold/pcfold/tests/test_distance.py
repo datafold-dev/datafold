@@ -263,12 +263,16 @@ class TestDistAlgorithms(unittest.TestCase):
 
                     rows, columns = distance_matrix.nonzero()
                     actual = scipy.sparse.csr_matrix(
-                        (pdist_distance_matrix[rows, columns].A1, (rows, columns),),
+                        (
+                            pdist_distance_matrix[rows, columns].A1,
+                            (rows, columns),
+                        ),
                         shape=distance_matrix.shape,
                     )
                     self.assertTrue(is_symmetric_matrix(actual))
                     nptest.assert_array_equal(
-                        actual.toarray(), distance_matrix.toarray(),
+                        actual.toarray(),
+                        distance_matrix.toarray(),
                     )
                 except AssertionError as e:
                     print(f"Failed for quantile={quantile} and kmin={kmin}")
@@ -302,7 +306,10 @@ class TestDistAlgorithms(unittest.TestCase):
 
                     rows, columns = distance_matrix.nonzero()
                     actual = scipy.sparse.csr_matrix(
-                        (cdist_distance_matrix[rows, columns].A1, (rows, columns),),
+                        (
+                            cdist_distance_matrix[rows, columns].A1,
+                            (rows, columns),
+                        ),
                         shape=distance_matrix.shape,
                     )
                     nptest.assert_array_equal(

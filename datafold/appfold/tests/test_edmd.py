@@ -380,7 +380,8 @@ class EDMDTest(unittest.TestCase):
 
         # index not the same because of Takens, so only check column
         pdtest.assert_index_equal(
-            self.sine_wave_tsc.columns, inverse_dict.columns,
+            self.sine_wave_tsc.columns,
+            inverse_dict.columns,
         )
 
         diff = inverse_dict - self.sine_wave_tsc
@@ -421,7 +422,8 @@ class EDMDTest(unittest.TestCase):
 
         # index not the same because of Takens, so only check column
         pdtest.assert_index_equal(
-            self.sine_wave_tsc.columns, inverse_dict.columns,
+            self.sine_wave_tsc.columns,
+            inverse_dict.columns,
         )
 
         diff = inverse_dict - self.sine_wave_tsc

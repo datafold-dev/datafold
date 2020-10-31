@@ -52,8 +52,7 @@ class TSCBaseMixin(object):
             return return_values
 
     def _X_to_numpy(self, X):
-        """ Returns a numpy array of the data.
-        """
+        """Returns a numpy array of the data."""
         if self._has_feature_names(X):
             X = X.to_numpy()
             # a row in a df is always a single sample (which requires to be
@@ -65,7 +64,8 @@ class TSCBaseMixin(object):
     def _check_attributes_set_up(self, check_attributes):
         try:
             check_is_fitted(
-                self, attributes=check_attributes,
+                self,
+                attributes=check_attributes,
             )
         except NotFittedError:
             raise RuntimeError(
@@ -278,7 +278,9 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 # For convenience features_out can be given as a list
                 # (better code readability than pd.Index)
                 features_out = pd.Index(
-                    features_out, dtype=np.str, name=TSCDataFrame.tsc_feature_col_name,
+                    features_out,
+                    dtype=np.str,
+                    name=TSCDataFrame.tsc_feature_col_name,
                 )
 
             self._setup_frame_input_fit(

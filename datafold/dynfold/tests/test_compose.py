@@ -212,8 +212,14 @@ class TestTSCCompose(unittest.TestCase):
 
         way_2_pipeline = Pipeline(
             steps=[
-                ("pca", TSCPrincipalComponent(n_components=1),),
-                ("poly", TSCPolynomialFeatures(degree=2),),
+                (
+                    "pca",
+                    TSCPrincipalComponent(n_components=1),
+                ),
+                (
+                    "poly",
+                    TSCPolynomialFeatures(degree=2),
+                ),
             ]
         )
 

@@ -133,28 +133,24 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def check_finite(self) -> None:
-        """Check if all values are finite (i.e. does not contain `nan` or `inf`).
-        """
+        """Check if all values are finite (i.e. does not contain `nan` or `inf`)."""
         if not self._tsc_df.is_finite():
             raise TSCException.not_finite()
 
     def check_timeseries_same_length(self) -> None:
-        """Check if time series in the collection have the same length.
-        """
+        """Check if time series in the collection have the same length."""
         if not self._tsc_df.is_equal_length():
             raise TSCException.not_same_length(
                 actual_lengths=self._tsc_df.is_equal_length()
             )
 
     def check_const_time_delta(self) -> None:
-        """Check if all time series have the same time-delta.
-        """
+        """Check if all time series have the same time-delta."""
         if not self._tsc_df.is_const_delta_time():
             raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
 
     def check_timeseries_same_timevalues(self) -> None:
-        """Check if all time series in the collection share the same time values.
-        """
+        """Check if all time series in the collection share the same time values."""
         if not self._tsc_df.is_same_time_values():
             raise TSCException.not_same_time_values()
 
@@ -514,7 +510,9 @@ class TSCAccessor(object):
 
         for ts_id, time_series in self._tsc_df.itertimeseries():
             time_series_dt = dt_func.diff(
-                data=time_series, spacing=spacing, accuracy=accuracy,
+                data=time_series,
+                spacing=spacing,
+                accuracy=accuracy,
             )
             min_samples = min(min_samples, time_series_dt.shape[0])
 
@@ -626,7 +624,8 @@ class TSCAccessor(object):
 
         # cumulative sum of on or the other change and reassign IDs
         id_cum_sum_mask = np.logical_or(
-            np.logical_or(change_fold_indicator, change_id_indicator), mask_dropped,
+            np.logical_or(change_fold_indicator, change_id_indicator),
+            mask_dropped,
         )
         new_ids = np.cumsum(id_cum_sum_mask)
 

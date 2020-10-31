@@ -209,7 +209,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         )
 
         self.X_ = PCManifold(
-            X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_,
+            X,
+            kernel=self._dmap_kernel,
+            dist_kwargs=self.dist_kwargs_,
         )
         self.y_ = y
 
@@ -291,7 +293,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         ----------
         X
             Out-of-sample points to compute the gradient at.
-            
+
         vcol
             Column index of the corresponding function value to compute the gradient of.
             Has to be given for multivariate interpolation.
@@ -995,8 +997,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         return y_hat
 
     def plot_eps_vs_residual(self) -> None:
-        """Plot residuals versus kernel scales (epsilon) from model fit.
-        """
+        """Plot residuals versus kernel scales (epsilon) from model fit."""
 
         check_is_fitted(self)
 

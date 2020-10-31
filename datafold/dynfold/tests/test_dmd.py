@@ -122,7 +122,8 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             LinearDynamicalSystem(sys_type="differential", sys_mode="spectral")
             .setup_sys_spectral(eigenvectors_right=evec, eigenvalues=evals)
             .evolve_linear_system(
-                initial_conditions=ic_adapted, time_values=time_values,
+                initial_conditions=ic_adapted,
+                time_values=time_values,
             )
         )
 
@@ -395,7 +396,9 @@ class DMDTest(unittest.TestCase):
         tsc_df = self._create_harmonic_tsc(100, 2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
 
-        first = DMDFull(is_diagonalize=True, approx_generator=True).fit(tsc_df,)
+        first = DMDFull(is_diagonalize=True, approx_generator=True).fit(
+            tsc_df,
+        )
         # extremely high score to get to a similar error
         second = gDMDFull(
             is_diagonalize=True, kwargs_fd=dict(scheme="center", accuracy=15)
@@ -444,7 +447,10 @@ class DMDTest(unittest.TestCase):
         actual = dmd.dmd_modes
 
         nptest.assert_allclose(
-            dmd.eigenvalues_, expected_eigenvalues, atol=1e-4, rtol=0,
+            dmd.eigenvalues_,
+            expected_eigenvalues,
+            atol=1e-4,
+            rtol=0,
         )
 
         assert_equal_eigenvectors(expected_modes, actual, tol=1e-15)
@@ -499,7 +505,10 @@ class DMDTest(unittest.TestCase):
         predict_ic = TSCDataFrame(
             predict_ic,
             index=pd.MultiIndex.from_arrays(
-                [expected_ids, np.zeros(predict_ic.shape[0]),]
+                [
+                    expected_ids,
+                    np.zeros(predict_ic.shape[0]),
+                ]
             ),
             columns=tsc_df_fit.columns,
         )

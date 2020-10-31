@@ -368,7 +368,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
             Training data of shape `(n_samples, n_features)`.
-            
+
         y: None
             ignored
 
@@ -590,7 +590,8 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
         features_out = self._expand_all_delay_columns(X.columns)
 
         self._setup_frame_input_fit(
-            features_in=X.columns, features_out=features_out,
+            features_in=X.columns,
+            features_out=features_out,
         )
         return self
 
@@ -735,7 +736,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
         :code:`MultiquadricKernel(epsilon=1.0)`.
 
     center_type
-        Selection of what to take as centers during fit. 
+        Selection of what to take as centers during fit.
 
         * `all_data` - all data points during fit are used as centers
         * `initial_condition` - take the initial condition states as centers.
@@ -746,7 +747,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
         An inexact distance computation increases the performance at the cost of
         numerical inaccuracies (~1e-7 for Euclidean distance, and ~1 e-14 for squared
         Eucledian distance).
-    
+
     Attributes
     ----------
 
@@ -993,7 +994,8 @@ class TSCPolynomialFeatures(TSCTransformerMixin, PolynomialFeatures):
         super(TSCPolynomialFeatures, self).fit(X, y=y)
 
         self._setup_features_fit(
-            X, features_out=self._get_poly_feature_names(X),
+            X,
+            features_out=self._get_poly_feature_names(X),
         )
 
         return self
