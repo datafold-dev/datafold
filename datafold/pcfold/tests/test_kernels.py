@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import unittest
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +17,7 @@ from datafold.pcfold.kernels import (
     DmapKernelFixed,
     GaussianKernel,
     _kth_nearest_neighbor_dist,
+    _symmetric_matrix_division,
 )
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
 
@@ -64,9 +66,69 @@ def generate_circle_data(n_large, n_small, seed):
 
 
 class TestKernelUtils(unittest.TestCase):
-    def test_symmetric_division_sparse_dense01(self):
-        from datafold.pcfold.kernels import _symmetric_matrix_division
+    def test_symmetric_division_raise_zero_division(self):
+        data = generate_circle_data(100, 100, 100)
+        distance_matrix = compute_distance_matrix(data)
 
+        vec_left = np.arange(0, distance_matrix.shape[0])
+        vec_right = np.arange(distance_matrix.shape[0] - 1, -1, -1)
+
+        with self.assertRaises(ZeroDivisionError):
+            _symmetric_matrix_division(
+                matrix=distance_matrix, vec=vec_left, value_zero_division="raise"
+            )
+
+        with self.assertRaises(ZeroDivisionError):
+            _symmetric_matrix_division(
+                matrix=distance_matrix,
+                vec=np.arange(1, distance_matrix.shape[0] + 1),
+                vec_right=vec_right,
+                value_zero_division="raise",
+            )
+
+    def test_symmetric_division_fill_value(self):
+        data = generate_circle_data(100, 100, 100)
+        distance_matrix = compute_distance_matrix(data)
+
+        vec_left = np.arange(0, distance_matrix.shape[0]).astype(np.float64)
+
+        value_zero_division = -1
+
+        actual_dense = _symmetric_matrix_division(
+            matrix=np.copy(distance_matrix),
+            vec=np.copy(vec_left),
+            value_zero_division=value_zero_division,
+        )
+
+        # dense case
+        with warnings.catch_warnings():
+            warnings.simplefilter(action="ignore", category=RuntimeWarning)
+            expected = (
+                np.diag(np.reciprocal(vec_left))
+                @ distance_matrix
+                @ np.diag(np.reciprocal(vec_left))
+            )
+            expected[~np.isfinite(expected)] = value_zero_division
+
+        self.assertIsInstance(actual_dense, np.ndarray)
+        nptest.assert_allclose(actual_dense, expected, atol=1e-16, rtol=1e-17)
+
+        # sparse
+        distance_matrix[distance_matrix == 0] = np.nan
+        distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
+        distance_matrix.data[np.isnan(distance_matrix.data)] = 0
+        actual_sparse = _symmetric_matrix_division(
+            matrix=distance_matrix,
+            vec=np.copy(vec_left),
+            value_zero_division=value_zero_division,
+        )
+
+        self.assertTrue(scipy.sparse.isspmatrix_csr(actual_sparse))
+        nptest.assert_allclose(
+            actual_sparse.toarray(), expected, atol=1e-16, rtol=1e-17
+        )
+
+    def test_symmetric_division_sparse_dense01(self):
         data = generate_circle_data(100, 100, 100)
         distance_matrix = compute_distance_matrix(data)
 
@@ -82,7 +144,6 @@ class TestKernelUtils(unittest.TestCase):
         nptest.assert_array_equal(actual.toarray(), expected)
 
     def test_symmetric_division_sparse_dense02(self):
-        from datafold.pcfold.kernels import _symmetric_matrix_division
 
         data = generate_circle_data(100, 100, 100)
         distance_matrix = compute_distance_matrix(data)
@@ -102,7 +163,6 @@ class TestKernelUtils(unittest.TestCase):
         nptest.assert_array_equal(actual.toarray(), expected)
 
     def test_symmetric_division_sparse_dense03(self):
-        from datafold.pcfold.kernels import _symmetric_matrix_division
 
         data_ref = generate_circle_data(100, 100, 100)
         data_query = generate_circle_data(50, 50, 100)

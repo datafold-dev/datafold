@@ -32,7 +32,7 @@ class EDMDTest(unittest.TestCase):
         return TSCDataFrame.from_single_timeseries(df)
 
     def _setup_multi_sine_wave_data(self) -> TSCDataFrame:
-        time = np.linspace(0, 2 * np.pi, 100)
+        time = np.linspace(0, 4 * np.pi, 100)
 
         omega = 1.5
 
@@ -71,55 +71,69 @@ class EDMDTest(unittest.TestCase):
         self.multi_waves = self._setup_multi_sine_wave_data2()
 
     def test_id_dict1(self):
-        _edmd_dict = EDMD(
+        _edmd = EDMD(
             dict_steps=[("id", TSCIdentity())],
             include_id_state=False,
             compute_koopman_modes=True,
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
-            _edmd_dict.transform(self.sine_wave_tsc), self.sine_wave_tsc
+            _edmd.transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
 
-        actual = _edmd_dict.inverse_transform(_edmd_dict.transform(self.sine_wave_tsc))
+        actual = _edmd.inverse_transform(_edmd.transform(self.sine_wave_tsc))
         expected = self.sine_wave_tsc
         pdtest.assert_frame_equal(actual, expected)
 
-        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        expected = _edmd.reconstruct(self.sine_wave_tsc)
         is_df_same_index(expected, self.sine_wave_tsc)
 
+        self.assertEqual(_edmd.feature_names_in_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.feature_names_out_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.n_features_in_, self.sine_wave_tsc.shape[1])
+        self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1])
+
     def test_id_dict2(self):
-        _edmd_dict = EDMD(
+        _edmd = EDMD(
             dict_steps=[("id", TSCIdentity())],
             include_id_state=False,
             compute_koopman_modes=False,  # different to test_id_dict1
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
-            _edmd_dict.transform(self.sine_wave_tsc), self.sine_wave_tsc
+            _edmd.transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
 
         pdtest.assert_frame_equal(
-            _edmd_dict.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
+            _edmd.inverse_transform(self.sine_wave_tsc), self.sine_wave_tsc
         )
 
-        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        expected = _edmd.reconstruct(self.sine_wave_tsc)
         is_df_same_index(expected, self.sine_wave_tsc)
 
+        self.assertEqual(_edmd.feature_names_in_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.feature_names_out_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.n_features_in_, self.sine_wave_tsc.shape[1])
+        self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1])
+
     def test_id_dict3(self):
-        _edmd_dict = EDMD(
+        _edmd = EDMD(
             dict_steps=[("id", TSCIdentity(include_const=True))],
             include_id_state=False,
             compute_koopman_modes=True,
         ).fit(self.sine_wave_tsc)
 
-        actual = _edmd_dict.inverse_transform(_edmd_dict.transform(self.sine_wave_tsc))
+        actual = _edmd.inverse_transform(_edmd.transform(self.sine_wave_tsc))
         expected = self.sine_wave_tsc
 
         pdtest.assert_frame_equal(actual, expected)
 
-        expected = _edmd_dict.reconstruct(self.sine_wave_tsc)
+        expected = _edmd.reconstruct(self.sine_wave_tsc)
         is_df_same_index(expected, self.sine_wave_tsc)
+
+        self.assertEqual(_edmd.feature_names_in_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.n_features_in_, self.sine_wave_tsc.shape[1])
+        self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1] + 1)
 
     def test_qoi_selection1(self):
         tsc = self.multi_waves
@@ -240,7 +254,7 @@ class EDMDTest(unittest.TestCase):
         with self.assertRaises(TSCException):
             _edmd.predict(initial_condition)
 
-    def test_access_koopman_system_triplet(self):
+    def test_access_koopman_triplet(self):
         # triplet = eigenvalues, Koopman modes and eigenfunctions
 
         _edmd = EDMD(
@@ -304,6 +318,50 @@ class EDMDTest(unittest.TestCase):
             _edmd.koopman_eigenfunction(
                 self.multi_waves.initial_states(_edmd.n_samples_ic_ - 1)
             )
+
+    def test_dmap_kernels(self, plot=False):
+        X = self._setup_multi_sine_wave_data2()
+
+        from datafold.pcfold import (
+            GaussianKernel,
+            ConeKernel,
+            ContinuousNNKernel,
+            MultiquadricKernel,
+            InverseMultiquadricKernel,
+        )
+
+        from datafold.dynfold import DiffusionMaps
+
+        kernels = [
+            ConeKernel(zeta=0.0, epsilon=0.5),
+            ConeKernel(zeta=0.9, epsilon=0.1),
+            GaussianKernel(epsilon=0.1),
+            ContinuousNNKernel(k_neighbor=20, delta=0.9),
+            # MultiquadricKernel(epsilon=1),
+            InverseMultiquadricKernel(epsilon=0.5),
+        ]
+
+        f, ax = plt.subplots(nrows=len(kernels) + 1, ncols=1, sharex=True)
+        X.plot(ax=ax[0])
+        ax[0].set_title("original data")
+
+        for i, kernel in enumerate(kernels):
+            try:
+                X_predict = EDMD(
+                    [
+                        ("takens", TSCTakensEmbedding(delays=20)),
+                        ("dmap", DiffusionMaps(kernel, n_eigenpairs=220)),
+                    ]
+                ).fit_predict(X)
+                X_predict.plot(ax=ax[i + 1])
+                ax[i + 1].set_title(f"kernel={kernel}")
+
+            except Exception as e:
+                print(f"kernel={kernel} failed")
+                raise e
+
+        if plot:
+            plt.show()
 
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd = EDMD(
