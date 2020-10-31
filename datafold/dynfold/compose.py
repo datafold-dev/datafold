@@ -13,10 +13,10 @@ from datafold.dynfold.base import TransformType, TSCTransformerMixin
 class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     """A column transformer for time series data.
 
-    This class is a wrapper and dedicated for data in :py:class:`TSCDataFrame`.
+    This class is a wrapper class of scikit-learn's ColumnTransformer and adopted for
+    :py:class:`TSCDataFrame` in the pipeline.
 
-
-    For undocumented attributes please go to the base class documentation
+    For the undocumented attributes please go to the base class documentation
     `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html>`__
 
     .. note::
@@ -25,9 +25,9 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     Parameters
     ----------
     transformers
-        See base class for detailed documentation. Note that all transformers inlcuded
-        must be able to process :py:class:`TSCDataFrame`.
-
+        All transformers included in the list must be able to process
+        :py:class:`TSCDataFrame`. See base class for the detailed specification of
+        the tuple.
     """
 
     def __init__(
