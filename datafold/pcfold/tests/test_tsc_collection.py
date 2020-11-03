@@ -68,6 +68,19 @@ class TestTSCDataFrame(unittest.TestCase):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.n_features, 2)
 
+    def test_empty_tsc(self):
+        df = pd.DataFrame(
+            index=pd.MultiIndex.from_arrays(
+                [[], []],
+                names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
+            )
+        )
+
+        self.assertTrue(df.empty)
+
+        with self.assertRaises(AttributeError):
+            TSCDataFrame(df)
+
     def test_shape(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))
