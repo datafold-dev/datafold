@@ -430,7 +430,11 @@ def random_subsample(
         indices in the subsample from the original array
     """
 
-    data = check_array(data, force_all_finite=False, ensure_min_samples=2,)
+    data = check_array(
+        data,
+        force_all_finite=False,
+        ensure_min_samples=2,
+    )
     assert isinstance(data, np.ndarray)  # for mypy
 
     n_samples_data = data.shape[0]

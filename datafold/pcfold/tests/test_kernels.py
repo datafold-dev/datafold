@@ -138,7 +138,8 @@ class TestKernelUtils(unittest.TestCase):
         )
 
         expected = _symmetric_matrix_division(
-            matrix=distance_matrix, vec=np.arange(1, distance_matrix.shape[0] + 1),
+            matrix=distance_matrix,
+            vec=np.arange(1, distance_matrix.shape[0] + 1),
         )
 
         nptest.assert_array_equal(actual.toarray(), expected)

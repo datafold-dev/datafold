@@ -486,7 +486,9 @@ class TestTSCDataFrame(unittest.TestCase):
             np.arange(n_values), index=np.linspace(1, 100, n_values), columns=["A"]
         )
         df2 = pd.DataFrame(
-            np.arange(n_values), index=np.linspace(101, 200, n_values), columns=["A"],
+            np.arange(n_values),
+            index=np.linspace(101, 200, n_values),
+            columns=["A"],
         )
 
         tsc = TSCDataFrame.from_frame_list([df1, df2])
@@ -1080,7 +1082,7 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_time_not_disappear_initial_state(self):
         """One observation was that a feature-column named 'time' disappears because the
         index is set to a regular column. This is tested here, such a 'time'
-        feature-column does not disappear. """
+        feature-column does not disappear."""
 
         tsc = TSCDataFrame(self.simple_df)
         tsc[TSCDataFrame.tsc_time_idx_name] = 1

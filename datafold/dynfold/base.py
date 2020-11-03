@@ -52,8 +52,7 @@ class TSCBaseMixin(object):
             return return_values
 
     def _X_to_numpy(self, X):
-        """ Returns a numpy array of the data.
-        """
+        """Returns a numpy array of the data."""
         if self._has_feature_names(X):
             X = X.to_numpy()
             # a row in a df is always a single sample (which requires to be
@@ -65,7 +64,8 @@ class TSCBaseMixin(object):
     def _check_attributes_set_up(self, check_attributes):
         try:
             check_is_fitted(
-                self, attributes=check_attributes,
+                self,
+                attributes=check_attributes,
             )
         except NotFittedError:
             raise RuntimeError(
@@ -252,10 +252,10 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         if features_in.ndim != 1 or features_out.ndim != 1:
             raise ValueError("feature names must be 1-dim.")
 
-        self.n_features_in_ = len(features_in)
-        self.n_features_out_ = len(features_out)
-        self.feature_names_in_ = features_in
-        self.feature_names_out_ = features_out
+        self.n_features_in_: int = len(features_in)
+        self.n_features_out_: int = len(features_out)
+        self.feature_names_in_: Optional[pd.Index] = features_in
+        self.feature_names_out_: Optional[pd.Index] = features_out
 
     def _setup_array_input_fit(self, features_in: int, features_out: int):
         # do not store names, because they are not available
@@ -278,7 +278,9 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 # For convenience features_out can be given as a list
                 # (better code readability than pd.Index)
                 features_out = pd.Index(
-                    features_out, dtype=np.str, name=TSCDataFrame.tsc_feature_col_name,
+                    features_out,
+                    dtype=np.str,
+                    name=TSCDataFrame.tsc_feature_col_name,
                 )
 
             self._setup_frame_input_fit(
@@ -372,6 +374,10 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 raise TypeError(f"input type {type(X)} is not supported.")
             else:
                 return values
+
+    # def get_feature_names(self):
+    #     check_is_fitted(self, "feature_names_in_")
+    #     return self.feature_names_in_
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
         """Fit to data, then transform it.

@@ -100,7 +100,9 @@ class TestPCMEstimation(unittest.TestCase):
                 pcm.optimize_parameters(random_state=random_state, tol=tol)
 
                 result.append([np.exp(-pcm.cut_off ** 2 / pcm.kernel.epsilon) - tol])
-            result_expected = np.zeros(len(result),)
+            result_expected = np.zeros(
+                len(result),
+            )
 
             nptest.assert_allclose(
                 result_expected, np.asarray(result).ravel(), rtol=tol, atol=1e-15
