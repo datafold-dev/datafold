@@ -607,11 +607,6 @@ class TSCDataFrame(pd.DataFrame):
 
     def _validate(self) -> bool:
 
-        if self.empty:
-            # If this makes trouble and we need to allow empty frames, then the
-            # validation tests below must be adapted to handle this special case
-            raise AttributeError("The TSCDataFrame must be non-empty")
-
         if self.index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(

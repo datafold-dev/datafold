@@ -71,15 +71,13 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_empty_tsc(self):
         df = pd.DataFrame(
             index=pd.MultiIndex.from_arrays(
-                [[], []],
+                [[1], [1]],  # set 1's to set the types of the index
                 names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
             )
         )
 
         self.assertTrue(df.empty)
-
-        with self.assertRaises(AttributeError):
-            TSCDataFrame(df)
+        self.assertTrue(TSCDataFrame(df).empty)
 
     def test_shape(self):
         tc = TSCDataFrame(self.simple_df)
