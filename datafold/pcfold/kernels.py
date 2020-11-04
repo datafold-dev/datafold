@@ -251,7 +251,10 @@ def _conjugate_stochastic_kernel_matrix(
         # to np.ndarray in case it is depricated format np.matrix
         left_vec = left_vec.A1
 
-    left_vec = np.sqrt(left_vec, out=left_vec.astype(np.float))
+    if left_vec.dtype.kind != "f":
+        left_vec = left_vec.astype(np.float)
+
+    left_vec = np.sqrt(left_vec, out=left_vec)
 
     kernel_matrix = _symmetric_matrix_division(
         kernel_matrix, vec=left_vec, vec_right=None
@@ -1356,12 +1359,12 @@ class DmapKernelFixed(BaseManifoldKernel):
             row_sums = row_sums.A1
 
         if self.alpha < 1:
-            # the astype(np.float) is required for case when 'row_sums' contains
-            # integer values --> because of the inplace operation the type has to be
-            # the same
-            row_sums_alpha = np.power(
-                row_sums, self.alpha, out=row_sums.astype(np.float)
-            )
+            if row_sums.dtype.kind != "f":
+                # This is required for case when 'row_sums' contains boolean or integer
+                # values; for inplace operations the type has to be the same
+                row_sums = row_sums.astype(np.float)
+
+            row_sums_alpha = np.power(row_sums, self.alpha, out=row_sums)
         else:  # no need to power with 1
             row_sums_alpha = row_sums
 

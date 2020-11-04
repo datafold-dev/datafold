@@ -108,6 +108,13 @@ def scipy_eigsolver(
         else:
             solver_kwargs["sigma"] = None
 
+    if kernel_matrix.data.dtype.kind not in ["fdFD"]:
+        # the scipy solvers only work on floating points
+        if scipy.sparse.issparse(kernel_matrix):
+            kernel_matrix = kernel_matrix.asfptype()
+        else:
+            kernel_matrix = kernel_matrix.astype(np.float)
+
     eigvals, eigvects = scipy_eigvec_solver(kernel_matrix, **solver_kwargs)
 
     return eigvals, eigvects
