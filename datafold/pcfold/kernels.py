@@ -251,7 +251,7 @@ def _conjugate_stochastic_kernel_matrix(
         # to np.ndarray in case it is depricated format np.matrix
         left_vec = left_vec.A1
 
-    left_vec = np.sqrt(left_vec, out=left_vec)
+    left_vec = np.sqrt(left_vec, out=left_vec.astype(np.float))
 
     kernel_matrix = _symmetric_matrix_division(
         kernel_matrix, vec=left_vec, vec_right=None
