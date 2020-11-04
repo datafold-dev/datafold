@@ -645,8 +645,8 @@ class TSCDataFrame(pd.DataFrame):
             else:
                 # The ids have to be integer values
                 raise AttributeError(
-                    "Time series IDs must be of integer value. Got "
-                    f"dtype={self.index.get_level_values(0).dtype}"
+                    "Time series IDs must be of integer value. "
+                    f"Got dtype={self.index.get_level_values(0).dtype}"
                 )
 
         if (ids_index < 0).any():
