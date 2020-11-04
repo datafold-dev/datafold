@@ -64,8 +64,8 @@ class TestTSCTransform(unittest.TestCase):
         self._setUp_takens_df()
 
     def test_is_valid_sklearn_estimator(self):
-        from sklearn.utils.estimator_checks import check_estimator
         from sklearn.preprocessing import MinMaxScaler
+        from sklearn.utils.estimator_checks import check_estimator
 
         TEST_ESTIMATORS = (
             TSCIdentity(),

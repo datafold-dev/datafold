@@ -518,8 +518,9 @@ class DiffusionMapsTest(unittest.TestCase):
 
     @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
     def test_cknn_kernel(self):
-        import datafold.pcfold as pfold
         from time import time
+
+        import datafold.pcfold as pfold
         import datafold.utils
 
         k_neighbor = 15
@@ -557,8 +558,9 @@ class DiffusionMapsTest(unittest.TestCase):
 
     @unittest.skip(reason="Temporarily, remove skip")
     def test_speed(self):
-        import datafold.pcfold as pfold
         from time import time
+
+        import datafold.pcfold as pfold
         import datafold.utils
 
         num_samples = 15000
