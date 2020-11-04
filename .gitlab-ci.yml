@@ -43,6 +43,7 @@ isort_check:
   script:
     - python3 -m isort --version
     - python3 -m isort -c -rc ./datafold/
+  allow_failure: true
 
 mypy_check:
   stage: code_analysis
