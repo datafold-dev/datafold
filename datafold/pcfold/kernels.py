@@ -1356,7 +1356,12 @@ class DmapKernelFixed(BaseManifoldKernel):
             row_sums = row_sums.A1
 
         if self.alpha < 1:
-            row_sums_alpha = np.power(row_sums, self.alpha, out=row_sums)
+            # the astype(np.float) is required for case when 'row_sums' contains
+            # integer values --> because of the inplace operation the type has to be
+            # the same
+            row_sums_alpha = np.power(
+                row_sums, self.alpha, out=row_sums.astype(np.float)
+            )
         else:  # no need to power with 1
             row_sums_alpha = row_sums
 
