@@ -9,6 +9,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
 from sklearn.base import BaseEstimator
+from sklearn.utils import resample
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
@@ -1117,8 +1118,13 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
 
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        if self.n_subsample is not None:
-            eigvec, _ = random_subsample(X, self.n_subsample)
+        if not np.isinf(self.n_subsample):
+            eigvec = resample(
+                X,
+                replace=False,
+                n_samples=self.n_subsample,
+                random_state=None,
+            )
         else:
             eigvec = np.asarray(X)
 

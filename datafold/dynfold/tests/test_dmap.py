@@ -866,9 +866,22 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
 
 class LocalRegressionSelectionTest(unittest.TestCase):
+    def test_n_subsample(self):
+        X = np.random.default_rng(1).uniform(size=(100, 10))
+        dmaps = DiffusionMaps(
+            GaussianKernel(epsilon=2.1), n_eigenpairs=6
+        ).fit_transform(X)
+
+        # no error
+        LocalRegressionSelection(n_subsample=np.inf).fit_transform(dmaps)
+        LocalRegressionSelection(n_subsample=20).fit_transform(dmaps)
+
+        with self.assertRaises(ValueError):
+            LocalRegressionSelection(n_subsample=1000).fit_transform(dmaps)
+
     def test_automatic_eigendirection_selection_swiss_roll(self):
-        points, color = make_swiss_roll(n_samples=5000, noise=0.01, random_state=1)
-        dm = DiffusionMaps(GaussianKernel(epsilon=2.1), n_eigenpairs=6).fit(points)
+        X, color = make_swiss_roll(n_samples=5000, noise=0.01, random_state=1)
+        dm = DiffusionMaps(GaussianKernel(epsilon=2.1), n_eigenpairs=6).fit(X)
 
         loc_regress = LocalRegressionSelection(n_subsample=1000)
         loc_regress = loc_regress.fit(dm.eigenvectors_)
@@ -897,9 +910,9 @@ class LocalRegressionSelectionTest(unittest.TestCase):
         for xlen in x_length_values:
             x_direction = np.random.uniform(0, xlen, size=(n_samples, 1))
             y_direction = np.random.uniform(0, 1, size=(n_samples, 1))
-            data = np.hstack([x_direction, y_direction])
+            X = np.hstack([x_direction, y_direction])
 
-            dmap = DiffusionMaps(kernel=GaussianKernel(0.1), n_eigenpairs=10).fit(data)
+            dmap = DiffusionMaps(kernel=GaussianKernel(0.1), n_eigenpairs=10).fit(X)
 
             loc_regress = LocalRegressionSelection(n_subsample=n_subsample)
             loc_regress.fit(dmap.eigenvectors_)
