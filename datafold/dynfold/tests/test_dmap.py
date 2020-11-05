@@ -15,7 +15,7 @@ from sklearn.metrics import mean_squared_error
 from datafold.dynfold import LocalRegressionSelection
 from datafold.dynfold.dmap import DiffusionMapsVariable
 from datafold.dynfold.tests.helper import *
-from datafold.pcfold import GaussianKernel, TSCDataFrame
+from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
 from datafold.pcfold.kernels import ConeKernel
 from datafold.utils.general import random_subsample
 
@@ -401,6 +401,18 @@ class DiffusionMapsTest(unittest.TestCase):
             (0.02598525783966298, 0.03529902485787183),
             atol=1e-15,
         )
+
+    def test_cknn_kernel(self):
+        # Check that no errors are raised, for non-floating point kernels
+
+        data = np.random.default_rng(1).random(size=(100, 100))
+
+        for alpha in [0, 0.5, 1]:
+            DiffusionMaps(ContinuousNNKernel(k_neighbor=4, delta=2), alpha=alpha).fit(
+                data
+            )
+
+        self.assertTrue(True)
 
     def test_dynamic_kernel(self):
 
