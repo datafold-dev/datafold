@@ -901,13 +901,14 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
             max_val=np.inf,
         )
 
-        check_scalar(
-            self.n_subsample,
-            name="n_subsample",
-            target_type=(int, np.integer),
-            min_val=100,
-            max_val=np.inf,
-        )
+        if not np.isinf(self.n_subsample):
+            check_scalar(
+                self.n_subsample,
+                name="n_subsample",
+                target_type=(int, np.integer),
+                min_val=1,
+                max_val=np.inf,
+            )
 
         if self.strategy not in self._cls_valid_strategy:
             raise ValueError(f"strategy={self.strategy} is invalid.")
