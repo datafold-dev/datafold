@@ -387,7 +387,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             dmap_embedding = eigenvectors
         else:
             eigvals_time = np.power(self.eigenvalues_, self.time_exponent)
-            dmap_embedding = diagmat_dot_mat(eigvals_time, np.asarray(eigenvectors))
+            dmap_embedding = mat_dot_diagmat(np.asarray(eigenvectors), eigvals_time)
 
         if isinstance(eigenvectors, (pd.DataFrame, TSCDataFrame)):
             dmap_embedding = df_type_and_indices_from(

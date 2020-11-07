@@ -159,6 +159,21 @@ class DiffusionMapsTest(unittest.TestCase):
 
         assert_equal_eigenvectors(dense_case.eigenvectors_, sparse_case.eigenvectors_)
 
+    def test_time_exponent(self):
+        data, _ = make_swiss_roll(2000, random_state=1)
+
+        actual1 = DiffusionMaps(
+            GaussianKernel(epsilon=1.5), n_eigenpairs=5, time_exponent=0
+        ).fit_transform(data)
+
+        # With small positive time_exponent goes into a different routine, but has to
+        # be approximately the same.
+        actual2 = DiffusionMaps(
+            GaussianKernel(epsilon=1.5), n_eigenpairs=5, time_exponent=1e-12
+        ).fit_transform(data)
+
+        nptest.assert_allclose(actual1, actual2, rtol=0, atol=1e-15)
+
     def test_symmetric_dense(self):
         data, _ = make_swiss_roll(2000, random_state=1)
 
