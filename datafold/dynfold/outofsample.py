@@ -466,10 +466,11 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         scale = self.initial_scale
         error_not_in_range = True
 
+        from scipy.sparse.linalg import eigsh
+
         from datafold.pcfold import PCManifold
         from datafold.pcfold.kernels import GaussianKernel
         from datafold.utils.general import diagmat_dot_mat, sort_eigenpairs
-        from scipy.sparse.linalg import eigsh
 
         mu_l_ = None
         phi_l_ = None

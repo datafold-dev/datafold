@@ -322,15 +322,14 @@ class EDMDTest(unittest.TestCase):
     def test_dmap_kernels(self, plot=False):
         X = self._setup_multi_sine_wave_data2()
 
+        from datafold.dynfold import DiffusionMaps
         from datafold.pcfold import (
-            GaussianKernel,
             ConeKernel,
             ContinuousNNKernel,
-            MultiquadricKernel,
+            GaussianKernel,
             InverseMultiquadricKernel,
+            MultiquadricKernel,
         )
-
-        from datafold.dynfold import DiffusionMaps
 
         kernels = [
             ConeKernel(zeta=0.0, epsilon=0.5),
@@ -447,8 +446,9 @@ class EDMDTest(unittest.TestCase):
 
     def test_edmd_with_composed_dict(self, display_html=False, plot=False):
 
-        from datafold.dynfold import TSCColumnTransformer
         from sklearn.compose import make_column_selector
+
+        from datafold.dynfold import TSCColumnTransformer
 
         selector_sin = make_column_selector(pattern="sin")
         selector_cos = make_column_selector(pattern="cos")

@@ -9,6 +9,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import scipy.spatial
 from sklearn.base import BaseEstimator
+from sklearn.utils import resample
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
@@ -386,7 +387,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             dmap_embedding = eigenvectors
         else:
             eigvals_time = np.power(self.eigenvalues_, self.time_exponent)
-            dmap_embedding = diagmat_dot_mat(eigvals_time, np.asarray(eigenvectors))
+            dmap_embedding = mat_dot_diagmat(np.asarray(eigenvectors), eigvals_time)
 
         if isinstance(eigenvectors, (pd.DataFrame, TSCDataFrame)):
             dmap_embedding = df_type_and_indices_from(
@@ -901,13 +902,14 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
             max_val=np.inf,
         )
 
-        check_scalar(
-            self.n_subsample,
-            name="n_subsample",
-            target_type=(int, np.integer),
-            min_val=100,
-            max_val=np.inf,
-        )
+        if not np.isinf(self.n_subsample):
+            check_scalar(
+                self.n_subsample,
+                name="n_subsample",
+                target_type=(int, np.integer),
+                min_val=1,
+                max_val=np.inf,
+            )
 
         if self.strategy not in self._cls_valid_strategy:
             raise ValueError(f"strategy={self.strategy} is invalid.")
@@ -1116,8 +1118,13 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
 
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        if self.n_subsample is not None:
-            eigvec, _ = random_subsample(X, self.n_subsample)
+        if not np.isinf(self.n_subsample):
+            eigvec = resample(
+                X,
+                replace=False,
+                n_samples=self.n_subsample,
+                random_state=None,
+            )
         else:
             eigvec = np.asarray(X)
 

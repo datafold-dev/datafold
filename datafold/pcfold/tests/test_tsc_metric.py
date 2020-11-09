@@ -382,13 +382,13 @@ class TestTSCCV(unittest.TestCase):
 
     def test_sklearn_check_cv(self):
 
-        from sklearn.model_selection import check_cv
-        from datafold.appfold.edmd import EDMD
-
         # NOTE: this is an import from internal module _split
         #  -- there is no guarantee for backwards compatibility and there is no
         #  deprecation cycle
+        from sklearn.model_selection import check_cv
         from sklearn.model_selection._validation import is_classifier
+
+        from datafold.appfold.edmd import EDMD
 
         check_cv(TSCKFoldTime, y=self.single_id_tsc, classifier=is_classifier(EDMD))
         check_cv(TSCKfoldSeries, y=self.single_id_tsc, classifier=is_classifier(EDMD))
