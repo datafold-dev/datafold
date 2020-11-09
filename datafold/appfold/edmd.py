@@ -91,7 +91,11 @@ from datafold.utils.general import (
 )
 
 
-class EDMD(Pipeline, TSCPredictMixin):
+class EDMD(
+    Pipeline,
+    TSCTransformerMixin,
+    TSCPredictMixin,
+):
     """Extended Dynamic Mode Decomposition (EDMD) model to approximate the Koopman
     operator with a matrix.
 
@@ -1029,7 +1033,7 @@ def _fit_and_score_edmd(
     return ret
 
 
-class EDMDCV(TSCPredictMixin, GridSearchCV):
+class EDMDCV(GridSearchCV, TSCPredictMixin):
     """Exhaustive parameter search over specified grid for a :class:`EDMD` model with
     cross-validation.
 
