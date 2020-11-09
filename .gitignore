@@ -25,8 +25,7 @@ doc/source/api/
 doc/build/
 public/
 
-# Virtual environments
-venv/
+# Virtual environment folder as from README
 .venv/
 
 # General files and folders
