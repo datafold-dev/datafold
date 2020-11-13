@@ -45,9 +45,7 @@ def plot_scatter(points: np.ndarray, values: np.ndarray, **kwargs) -> None:
 
 
 def f(points: np.ndarray) -> np.ndarray:
-    """Function to interpolate.
-
-    """
+    """Function to interpolate."""
     # return np.ones(points.shape[0])
     # return np.arange(points.shape[0])
     return np.sin(np.linalg.norm(points, axis=-1))
@@ -104,7 +102,7 @@ class GeometricHarmonicsTest(unittest.TestCase):
         residual = values - f(points)
         self.assertLess(np.max(np.abs(residual)), 7.5e-2)
 
-        print(f"Original function={f(points)}",)
+        print(f"Original function={f(points)}")
         print(f"Sampled points={self.values}")
         print(f"Reconstructed function={values}")
         print(f"Residual={residual}")
@@ -595,7 +593,9 @@ class GeometricHarmonicsTest(unittest.TestCase):
             is_stochastic=True,
             alpha=1,
             symmetrize_kernel=True,
-            dist_kwargs=dict(cut_off=np.inf,),
+            dist_kwargs=dict(
+                cut_off=np.inf,
+            ),
         ).fit(data, values)
 
         data_interp = np.linspace(0, 2 * np.pi, 100)[:, np.newaxis]
@@ -1062,7 +1062,9 @@ class LaplacianPyramidsTest(unittest.TestCase):
     def test_synthetic_example_fernandez(self, plot=False):
 
         lp = LaplacianPyramidsInterpolator(
-            initial_epsilon=10 * np.pi, mu=2, auto_adaptive=True,
+            initial_epsilon=10 * np.pi,
+            mu=2,
+            auto_adaptive=True,
         )
         lp = lp.fit(self.X_fern, self.y_fern)
 
@@ -1090,7 +1092,10 @@ class LaplacianPyramidsTest(unittest.TestCase):
     def test_synthetic_example_fernandez_residualtol(self, plot=False):
 
         lp = LaplacianPyramidsInterpolator(
-            initial_epsilon=10 * np.pi, mu=2, residual_tol=1e-1, auto_adaptive=False,
+            initial_epsilon=10 * np.pi,
+            mu=2,
+            residual_tol=1e-1,
+            auto_adaptive=False,
         )
         lp = lp.fit(self.X_fern, self.y_fern)
 
@@ -1117,7 +1122,10 @@ class LaplacianPyramidsTest(unittest.TestCase):
     def test_synthetic_example_fernandez_multifunc(self, plot=False):
 
         lp = LaplacianPyramidsInterpolator(
-            initial_epsilon=10 * np.pi, mu=2, residual_tol=1e-1, auto_adaptive=True,
+            initial_epsilon=10 * np.pi,
+            mu=2,
+            residual_tol=1e-1,
+            auto_adaptive=True,
         )
 
         y_train = np.hstack([self.y_fern, self.y_fern2])

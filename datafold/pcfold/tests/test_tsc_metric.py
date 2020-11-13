@@ -75,7 +75,11 @@ class TestTSCMetric(unittest.TestCase):
                 for scale in TSCMetric._cls_valid_scaling:
                     for multioutput in ["uniform_average", "raw_values"]:
 
-                        tsc_metric = TSCMetric(metric=metric, mode=mode, scaling=scale,)
+                        tsc_metric = TSCMetric(
+                            metric=metric,
+                            mode=mode,
+                            scaling=scale,
+                        )
 
                         try:
                             if metric != "max":  # max does not support multi-output
@@ -347,7 +351,10 @@ class TestTSCCV(unittest.TestCase):
 
     def _single_id_tsc(self):
         idx = pd.MultiIndex.from_arrays(
-            [[0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2, 3, 4, 5, 6, 7],]
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 1, 2, 3, 4, 5, 6, 7],
+            ]
         )
         col = ["A", "B"]
         data = np.arange(len(idx) * 2).reshape([len(idx), 2])
@@ -375,13 +382,13 @@ class TestTSCCV(unittest.TestCase):
 
     def test_sklearn_check_cv(self):
 
-        from sklearn.model_selection import check_cv
-        from datafold.appfold.edmd import EDMD
-
         # NOTE: this is an import from internal module _split
         #  -- there is no guarantee for backwards compatibility and there is no
         #  deprecation cycle
+        from sklearn.model_selection import check_cv
         from sklearn.model_selection._validation import is_classifier
+
+        from datafold.appfold.edmd import EDMD
 
         check_cv(TSCKFoldTime, y=self.single_id_tsc, classifier=is_classifier(EDMD))
         check_cv(TSCKfoldSeries, y=self.single_id_tsc, classifier=is_classifier(EDMD))

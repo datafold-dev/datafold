@@ -124,7 +124,7 @@ There are two ways to install *datafold*:
    download the tutorial files separately please visit the
    `Tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
 2. **Source**: downloads the entire repository. This is only recommended if you want
-   access to the latest (but potentially unstable) development, plan to contribute to
+   access to the latest (but potentially unstable) development, want to contribute to
    *datafold*, or wish to run the tests.
 
 From PyPI

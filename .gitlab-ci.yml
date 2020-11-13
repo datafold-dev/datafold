@@ -34,7 +34,15 @@ functional_tests:
 black_check:
   stage: code_analysis
   script:
-    - black ./datafold/ --check --diff
+    - python3 -m black --version
+    - python3 -m black ./datafold/ --check --diff
+  allow_failure: true
+
+isort_check:
+  stage: code_analysis
+  script:
+    - python3 -m isort --version
+    - python3 -m isort -c -rc ./datafold/
   allow_failure: true
 
 mypy_check:

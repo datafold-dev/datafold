@@ -109,7 +109,7 @@ def estimate_scale(
 
     tol
         Tolerance where the cut_off should be made.
-        
+
     cut_off
         The `tol` parameter is ignored and the cut-off is used directly
 

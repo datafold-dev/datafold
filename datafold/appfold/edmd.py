@@ -91,7 +91,11 @@ from datafold.utils.general import (
 )
 
 
-class EDMD(Pipeline, TSCPredictMixin):
+class EDMD(
+    Pipeline,
+    TSCTransformerMixin,
+    TSCPredictMixin,
+):
     """Extended Dynamic Mode Decomposition (EDMD) model to approximate the Koopman
     operator with a matrix.
 
@@ -159,6 +163,20 @@ class EDMD(Pipeline, TSCPredictMixin):
 
     Attributes
     ----------
+
+    n_features_in_
+        The number of features in data passed to `fit`.
+
+    feature_names_in_
+        The features names in data passed to `fit`.
+
+    n_features_out_
+        The number of features in data in dictionary space. An EDMD model prediction
+        returns ``n_features_in_`` by default.
+
+    feature_names_out_
+        The feature names in data in dictionary space. An EDMD model prediction
+        returns data with features equal to ``feature_names_in_`` by default.
 
     named_steps: :class:`Dict[str, object]`
         Read-only attribute to access any step parameter by user given name. Keys are
@@ -306,6 +324,18 @@ class EDMD(Pipeline, TSCPredictMixin):
         # NOTE: n_features_in_ is also delegated, but already included in the super
         # class Pipeline (implementation by sklearn)
         return self.steps[0][1].feature_names_in_
+
+    @property
+    def n_features_out_(self):
+        # Important note: this returns the number of features by the dictionary,
+        # NOT from a EDMD prediction
+        return self._dmd_model.n_features_in_
+
+    @property
+    def feature_names_out_(self):
+        # Important note: this returns the number of features by the dictionary,
+        # NOT from a EDMD prediction
+        return self._dmd_model.feature_names_in_
 
     def transform(self, X: TransformType) -> TransformType:
         """Perform dictionary transformations on time series data (original space).
@@ -516,7 +546,7 @@ class EDMD(Pipeline, TSCPredictMixin):
             each parameter name is prefixed such that parameter ``p`` for step
             ``s`` has key ``s__p``. To add parameters for the  DMD model use
             ``s=dmd``, e.g. ``dmd__param``.
-            
+
         Returns
         -------
         EDMD
@@ -529,7 +559,9 @@ class EDMD(Pipeline, TSCPredictMixin):
             (2) all values must be finite (no `NaN` or `inf`)
         """
         self._validate_datafold_data(
-            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
@@ -675,7 +707,8 @@ class EDMD(Pipeline, TSCPredictMixin):
         )
 
         self._validate_datafold_data(
-            X, ensure_tsc=True,
+            X,
+            ensure_tsc=True,
         )
 
         X_dict = self.transform(X)
@@ -684,7 +717,9 @@ class EDMD(Pipeline, TSCPredictMixin):
         return X_ts
 
     def reconstruct(
-        self, X: TSCDataFrame, qois: Optional[Union[pd.Index, List[str]]] = None,
+        self,
+        X: TSCDataFrame,
+        qois: Optional[Union[pd.Index, List[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct existing time series collection.
 
@@ -998,7 +1033,7 @@ def _fit_and_score_edmd(
     return ret
 
 
-class EDMDCV(TSCPredictMixin, GridSearchCV):
+class EDMDCV(GridSearchCV, TSCPredictMixin):
     """Exhaustive parameter search over specified grid for a :class:`EDMD` model with
     cross-validation.
 
@@ -1426,8 +1461,7 @@ class EDMDCV(TSCPredictMixin, GridSearchCV):
     def reconstruct(
         self, X: TSCDataFrame, qois: Optional[Union[pd.Index, List[str]]] = None
     ):
-        """Delegated to :py:meth:`.EDMD.reconstruct` of ``best_estimator_``.
-        """
+        """Delegated to :py:meth:`.EDMD.reconstruct` of ``best_estimator_``."""
         return self.__getattr__(name="reconstruct", X=X)
 
     def predict(
@@ -1437,8 +1471,7 @@ class EDMDCV(TSCPredictMixin, GridSearchCV):
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
         **predict_params,
     ):
-        """Delegated to :py:meth:`.EDMD.predict` of ``best_estimator_``.
-        """
+        """Delegated to :py:meth:`.EDMD.predict` of ``best_estimator_``."""
         return self.__getattr__(
             name="predict", X=X, time_values=time_values, qois=qois, **predict_params
         )

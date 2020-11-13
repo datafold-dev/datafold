@@ -9,7 +9,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.decorators import warn_experimental_class, warn_known_bug
+from datafold._decorators import warn_known_bug
 from datafold.dynfold.dmap import _DmapKernelAlgorithms
 from datafold.pcfold import PCManifold
 from datafold.pcfold.distance import compute_distance_matrix
@@ -209,7 +209,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         )
 
         self.X_ = PCManifold(
-            X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_,
+            X,
+            kernel=self._dmap_kernel,
+            dist_kwargs=self.dist_kwargs_,
         )
         self.y_ = y
 
@@ -291,7 +293,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         ----------
         X
             Out-of-sample points to compute the gradient at.
-            
+
         vcol
             Column index of the corresponding function value to compute the gradient of.
             Has to be given for multivariate interpolation.
@@ -464,10 +466,11 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         scale = self.initial_scale
         error_not_in_range = True
 
+        from scipy.sparse.linalg import eigsh
+
         from datafold.pcfold import PCManifold
         from datafold.pcfold.kernels import GaussianKernel
         from datafold.utils.general import diagmat_dot_mat, sort_eigenpairs
-        from scipy.sparse.linalg import eigsh
 
         mu_l_ = None
         phi_l_ = None
@@ -995,8 +998,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         return y_hat
 
     def plot_eps_vs_residual(self) -> None:
-        """Plot residuals versus kernel scales (epsilon) from model fit.
-        """
+        """Plot residuals versus kernel scales (epsilon) from model fit."""
 
         check_is_fitted(self)
 

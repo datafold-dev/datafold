@@ -113,7 +113,10 @@ def solve_hopf_system(initial_conditions, t_eval, ic_type="xx"):
 
     for _id, ic in enumerate(initial_conditions):
         solution = solve_ivp(
-            hopf_system, t_span=(t_eval[0], t_eval[-1]), y0=ic, t_eval=t_eval,
+            hopf_system,
+            t_span=(t_eval[0], t_eval[-1]),
+            y0=ic,
+            t_eval=t_eval,
         )
         current_solution = solution["y"].T
         theta = np.arctan2(current_solution[:, 1], current_solution[:, 0])

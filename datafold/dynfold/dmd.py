@@ -10,7 +10,7 @@ from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
-from datafold.decorators import warn_experimental_class
+from datafold._decorators import warn_experimental_class
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (
@@ -254,11 +254,13 @@ class LinearDynamicalSystem(object):
                 # --> evolve system with, using `float_power`
                 #               ev^(t / time_delta)
 
+                _eigenvalues = self.eigenvalues_.astype(np.complex)
+
                 for idx, time in enumerate(time_values):
                     time_series_tensor[:, idx, :] = np.real(
                         sys_matrix
                         @ diagmat_dot_mat(
-                            np.float_power(self.eigenvalues_, time / time_delta),
+                            np.float_power(_eigenvalues, time / time_delta),
                             initial_conditions,
                         )
                     ).T
@@ -748,7 +750,7 @@ class DMDBase(
              * not normed
              * row-wise in the matrix
 
-         """
+        """
         lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
         return np.linalg.solve(lhs_matrix, system_matrix)
 
@@ -947,7 +949,9 @@ class DMDBase(
 
         check_is_fitted(self)
         X = self._validate_datafold_data(
-            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._validate_feature_names(X)
 
@@ -1231,9 +1235,11 @@ class DMDFull(DMDBase):
         """
 
         self._validate_datafold_data(
-            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X=X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X=X)
+        self._setup_features_and_time_attrs_fit(X=X)
 
         store_system_matrix = self._read_fit_params(
             attrs=[("store_system_matrix", False)], fit_params=fit_params
@@ -1432,9 +1438,11 @@ class gDMDFull(DMDBase):
         """
 
         self._validate_datafold_data(
-            X=X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X=X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X=X)
+        self._setup_features_and_time_attrs_fit(X=X)
 
         store_generator_matrix = self._read_fit_params(
             attrs=[("store_generator_matrix", False)], fit_params=fit_params
@@ -1610,9 +1618,11 @@ class DMDEco(DMDBase):
             self
         """
         self._validate_datafold_data(
-            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X)
+        self._setup_features_and_time_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         eigenvectors_right_, eigenvalues_, koopman_matrix = self._compute_internals(X)
@@ -1775,9 +1785,11 @@ class PyDMDWrapper(DMDBase):
         """
 
         self._validate_datafold_data(
-            X, ensure_tsc=True, validate_tsc_kwargs={"ensure_const_delta_time": True},
+            X,
+            ensure_tsc=True,
+            validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X=X)
+        self._setup_features_and_time_attrs_fit(X=X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self._setup_pydmd_model()
