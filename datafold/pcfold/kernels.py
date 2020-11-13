@@ -1339,7 +1339,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         # is set to True, then apply the the symmetry transformation
         return self.is_stochastic and self.is_symmetric
 
-    def _normalize_sampling_density_kernel_matrix(
+    def _normalize_sampling_density(
         self,
         kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
         row_sums_alpha_fit: np.ndarray,
@@ -1399,10 +1399,7 @@ class DmapKernelFixed(BaseManifoldKernel):
 
             if self.alpha > 0:
                 # if pdist: kernel is still symmetric after this function call
-                (
-                    internal_kernel,
-                    row_sums_alpha,
-                ) = self._normalize_sampling_density_kernel_matrix(
+                (internal_kernel, row_sums_alpha,) = self._normalize_sampling_density(
                     internal_kernel, row_sums_alpha_fit
                 )
 

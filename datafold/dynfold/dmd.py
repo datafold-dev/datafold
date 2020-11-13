@@ -1239,7 +1239,7 @@ class DMDFull(DMDBase):
             ensure_tsc=True,
             validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X=X)
+        self._setup_features_and_time_attrs_fit(X=X)
 
         store_system_matrix = self._read_fit_params(
             attrs=[("store_system_matrix", False)], fit_params=fit_params
@@ -1442,7 +1442,7 @@ class gDMDFull(DMDBase):
             ensure_tsc=True,
             validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X=X)
+        self._setup_features_and_time_attrs_fit(X=X)
 
         store_generator_matrix = self._read_fit_params(
             attrs=[("store_generator_matrix", False)], fit_params=fit_params
@@ -1622,7 +1622,7 @@ class DMDEco(DMDBase):
             ensure_tsc=True,
             validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X)
+        self._setup_features_and_time_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         eigenvectors_right_, eigenvalues_, koopman_matrix = self._compute_internals(X)
@@ -1789,7 +1789,7 @@ class PyDMDWrapper(DMDBase):
             ensure_tsc=True,
             validate_tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self._setup_features_and_time_fit(X=X)
+        self._setup_features_and_time_attrs_fit(X=X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self._setup_pydmd_model()

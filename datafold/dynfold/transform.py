@@ -84,7 +84,7 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
             raise AttributeError("sklearn object has no 'transform' attribute")
 
         X = self._validate_datafold_data(X)
-        self._setup_features_fit(X, features_out="like_features_in")
+        self._setup_feature_attrs_fit(X, features_out="like_features_in")
 
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
@@ -141,7 +141,7 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
 
         X = self._validate_datafold_data(X)
 
-        self._setup_features_fit(X, features_out="like_features_in")
+        self._setup_feature_attrs_fit(X, features_out="like_features_in")
 
         self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
         values = self.sklearn_transformer_fit_.fit_transform(X)
@@ -228,7 +228,7 @@ class TSCIdentity(TSCTransformerMixin, BaseEstimator):
         else:
             features_out = "like_features_in"
 
-        self._setup_features_fit(X, features_out=features_out)
+        self._setup_feature_attrs_fit(X, features_out=features_out)
 
         # Dummy attribute to indicate that fit was called
         self.is_fit_ = True
@@ -331,7 +331,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         # validation happens here:
         super(TSCPrincipalComponent, self).fit(self._X_to_numpy(X), y=y)
 
-        self._setup_features_fit(
+        self._setup_feature_attrs_fit(
             X, features_out=[f"pca{i}" for i in range(self.n_components_)]
         )
 
@@ -384,7 +384,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
             self._X_to_numpy(X), y=y
         )
 
-        self._setup_features_fit(
+        self._setup_feature_attrs_fit(
             X, features_out=[f"pca{i}" for i in range(self.n_components_)]
         )
 
@@ -589,7 +589,7 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
 
         features_out = self._expand_all_delay_columns(X.columns)
 
-        self._setup_frame_input_fit(
+        self._setup_frame_feature_attrs_fit(
             features_in=X.columns,
             features_out=features_out,
         )
@@ -825,7 +825,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
         )
 
         n_centers = self.centers_.shape[0]
-        self._setup_features_fit(X, [f"rbf{i}" for i in range(n_centers)])
+        self._setup_feature_attrs_fit(X, [f"rbf{i}" for i in range(n_centers)])
 
         return self
 
@@ -993,7 +993,7 @@ class TSCPolynomialFeatures(TSCTransformerMixin, PolynomialFeatures):
 
         super(TSCPolynomialFeatures, self).fit(X, y=y)
 
-        self._setup_features_fit(
+        self._setup_feature_attrs_fit(
             X,
             features_out=self._get_poly_feature_names(X),
         )
@@ -1092,7 +1092,7 @@ class TSCApplyLambdas(TSCTransformerMixin, BaseEstimator):
             for i in range(len(self.lambdas))
         ]
 
-        self._setup_features_fit(X, features_out=features_out)
+        self._setup_feature_attrs_fit(X, features_out=features_out)
         return self
 
     def transform(self, X: TransformType) -> TransformType:
@@ -1223,7 +1223,7 @@ class TSCFiniteDifference(TSCTransformerMixin, BaseEstimator):
         else:
             features_out = X.shape[1]
 
-        self._setup_features_fit(X=X, features_out=features_out)
+        self._setup_feature_attrs_fit(X=X, features_out=features_out)
 
         if self.spacing == "dt":
             if not isinstance(X, TSCDataFrame):

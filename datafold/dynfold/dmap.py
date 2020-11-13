@@ -162,7 +162,7 @@ class _DmapKernelAlgorithms:
         return kernel_matrix
 
 
-class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
+class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     """Define diffusion process on point cloud to find meaningful geometric
     descriptions.
 
@@ -461,7 +461,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
             X=X, validate_array_kwargs=dict(ensure_min_samples=2)
         )
 
-        self._setup_features_fit(
+        self._setup_feature_attrs_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
         )
         store_kernel_matrix = self._read_fit_params(
@@ -672,7 +672,7 @@ class DiffusionMaps(TSCTransformerMixin, BaseEstimator):
         )
 
 
-class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
+class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):
     """(experimental, not documented)
     .. warning::
         This class is not documented. Contributions are welcome
@@ -734,7 +734,7 @@ class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
             X, validate_array_kwargs=dict(ensure_min_samples=2)
         )
 
-        self._setup_features_fit(
+        self._setup_feature_attrs_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
         )
 
@@ -812,7 +812,7 @@ class DiffusionMapsVariable(TSCTransformerMixin, BaseEstimator):
         return self._same_type_X(X, self.eigenvectors_, self.feature_names_out_)
 
 
-class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
+class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
     """Automatic selection of functional independent geometric harmonic vectors for
     parsimonious data manifold embedding.
 
@@ -1143,12 +1143,12 @@ class LocalRegressionSelection(TSCTransformerMixin, BaseEstimator):
         # Cannot use self._setup_features_fit here because the columns (if they exist)
         # are partially selected.
         if self._has_feature_names(X):
-            self._setup_frame_input_fit(
+            self._setup_frame_feature_attrs_fit(
                 features_in=X.columns,
                 features_out=X.columns[self.evec_indices_],
             )
         else:
-            self._setup_array_input_fit(
+            self._setup_array_feature_attrs_fit(
                 features_in=X.shape[1], features_out=len(self.evec_indices_)
             )
 

@@ -240,7 +240,9 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         "feature_names_out_",
     ]
 
-    def _setup_frame_input_fit(self, features_in: pd.Index, features_out: pd.Index):
+    def _setup_frame_feature_attrs_fit(
+        self, features_in: pd.Index, features_out: pd.Index
+    ):
 
         if features_in.has_duplicates or features_out.has_duplicates:
             raise ValueError(
@@ -257,14 +259,14 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         self.feature_names_in_: Optional[pd.Index] = features_in
         self.feature_names_out_: Optional[pd.Index] = features_out
 
-    def _setup_array_input_fit(self, features_in: int, features_out: int):
+    def _setup_array_feature_attrs_fit(self, features_in: int, features_out: int):
         # do not store names, because they are not available
         self.n_features_in_ = features_in
         self.n_features_out_ = features_out
         self.feature_names_in_ = None
         self.feature_names_out_ = None
 
-    def _setup_features_fit(self, X, features_out):
+    def _setup_feature_attrs_fit(self, X, features_out):
 
         if isinstance(features_out, str):
             assert features_out == "like_features_in"
@@ -283,7 +285,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                     name=TSCDataFrame.tsc_feature_col_name,
                 )
 
-            self._setup_frame_input_fit(
+            self._setup_frame_feature_attrs_fit(
                 features_in=X.columns, features_out=features_out
             )
         else:
@@ -296,7 +298,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 # if list or pd.Index use the number of features out
                 features_out = len(features_out)
 
-            self._setup_array_input_fit(
+            self._setup_array_feature_attrs_fit(
                 features_in=X.shape[1], features_out=features_out
             )
 
@@ -446,7 +448,7 @@ class TSCPredictMixin(TSCBaseMixin):
         self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")
         self._score_eval = TSCScoring(self.metric_eval)
 
-    def _setup_features_and_time_fit(self, X: TSCDataFrame):
+    def _setup_features_and_time_attrs_fit(self, X: TSCDataFrame):
 
         if not isinstance(X, TSCDataFrame):
             raise TypeError("Only TSCDataFrame can be used for 'X'.")
@@ -560,17 +562,17 @@ class TSCPredictMixin(TSCBaseMixin):
     def fit(self, X: TimePredictType, **fit_params):
         raise NotImplementedError("method not implemented")
 
-    def reconstruct(
-        self,
-        X: TSCDataFrame,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
-    ):
-        raise NotImplementedError("method not implemented")
-
     def predict(
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
+    ):
+        raise NotImplementedError("method not implemented")
+
+    def reconstruct(
+        self,
+        X: TSCDataFrame,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
     ):
         raise NotImplementedError("method not implemented")
