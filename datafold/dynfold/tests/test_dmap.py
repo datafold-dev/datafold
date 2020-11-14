@@ -7,6 +7,7 @@ import unittest
 import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
 import pandas as pd
+import pandas.testing as pdtest
 import scipy.sparse.linalg.eigen.arpack
 from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
@@ -224,6 +225,71 @@ class DiffusionMapsTest(unittest.TestCase):
 
         assert_equal_eigenvectors(dmap1.eigenvectors_, dmap2.eigenvectors_, tol=1e-13)
 
+    def test_set_target_coords1(self):
+        X_swiss_all, _ = make_swiss_roll(n_samples=2000, noise=0, random_state=5)
+
+        actual_dmap = DiffusionMaps(
+            GaussianKernel(epsilon=2.0), n_eigenpairs=6
+        ).set_target_coords([1, 5])
+        actual = actual_dmap.fit_transform(X_swiss_all)
+
+        actual_dmap2 = DiffusionMaps(GaussianKernel(epsilon=2.0), n_eigenpairs=6)
+        actual2 = (
+            actual_dmap2.fit(X_swiss_all)
+            .set_target_coords([1, 5])
+            .transform(X_swiss_all)
+        )
+
+        expected = DiffusionMaps(
+            GaussianKernel(epsilon=2.0), n_eigenpairs=6
+        ).fit_transform(X_swiss_all)
+
+        nptest.assert_array_equal(actual, expected[:, [1, 5]])
+        # because of the additional computation in transform the results are slightly
+        # different
+        nptest.assert_allclose(actual2, expected[:, [1, 5]], rtol=0, atol=1e-16)
+        nptest.assert_array_equal(actual_dmap.eigenvectors_, expected)
+        nptest.assert_array_equal(actual_dmap2.eigenvectors_, expected)
+
+        self.assertEqual(actual_dmap.n_features_out_, 2)
+        self.assertEqual(actual_dmap.feature_names_out_, None)
+
+        self.assertEqual(actual_dmap2.n_features_out_, 2)
+        self.assertEqual(actual_dmap2.feature_names_out_, None)
+
+    def test_set_target_coords2(self):
+        X_swiss_all, _ = make_swiss_roll(n_samples=2000, noise=0, random_state=5)
+
+        actual_dmap = (
+            DiffusionMaps(GaussianKernel(epsilon=2.0), n_eigenpairs=6)
+            .set_target_coords([1, 5])
+            .fit(X_swiss_all)
+        )
+        actual = actual_dmap.inverse_transform(actual_dmap.eigenvectors_[:, [1, 5]])
+        self.assertEqual(actual.shape[1], actual_dmap.n_features_in_)
+
+        with self.assertRaises(ValueError):
+            # It is expected that only only reduced points map back
+            actual_dmap.inverse_transform(actual_dmap.eigenvectors_)
+
+    def test_set_target_coords3(self):
+        X_swiss_all, _ = make_swiss_roll(n_samples=500, noise=0, random_state=5)
+
+        actual_dmap = DiffusionMaps(GaussianKernel(epsilon=2.0), n_eigenpairs=6).fit(
+            X_swiss_all
+        )
+        actual_dmap.set_target_coords(indices=[0, 1])
+
+        with self.assertRaises(TypeError):
+            actual_dmap.set_target_coords(indices=[0.0, 1.5])
+
+        with self.assertRaises(ValueError):
+            actual_dmap.set_target_coords(indices=[-1, 2])
+
+        actual_dmap.set_target_coords(indices=[0, 5])
+        with self.assertRaises(ValueError):
+            actual_dmap.set_target_coords(indices=[0, 6])
+
     def test_nystrom_out_of_sample_swiss_roll(self, plot=False):
 
         X_swiss_all, color_all = make_swiss_roll(
@@ -250,9 +316,13 @@ class DiffusionMapsTest(unittest.TestCase):
             )
 
         dmap_embed_eval_expected = dmap_embed.eigenvectors_[:, [1, 5]]
-        dmap_embed_eval_actual = dmap_embed.set_coords(indices=[1, 5]).transform(
+        dmap_embed_eval_actual = dmap_embed.set_target_coords(indices=[1, 5]).transform(
             X=X_swiss_all
         )
+
+        # even though the target_coords were set, still all eigenvectors must be
+        # accessible
+        self.assertEqual(dmap_embed.eigenvectors_.shape[1], 7)
 
         nptest.assert_allclose(
             dmap_embed_eval_actual, dmap_embed_eval_expected, atol=1e-15
@@ -347,7 +417,7 @@ class DiffusionMapsTest(unittest.TestCase):
             dmap_embed.eigenvectors_[:-1, 1] + dmap_embed.eigenvectors_[1:, 1]
         ) / 2
 
-        actual_oos = dmap_embed.set_coords(indices=[1]).transform(X_oos)
+        actual_oos = dmap_embed.set_target_coords(indices=[1]).transform(X_oos)
 
         self.assertLessEqual(
             mean_squared_error(expected_oos, actual_oos.ravel()), 6.559405995567413e-09
@@ -386,7 +456,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
         dmap_embed = DiffusionMaps(**setting).fit(X_swiss_train)
 
-        dmap_embed_test_eval = dmap_embed.set_coords(indices=[1, 5]).transform(
+        dmap_embed_test_eval = dmap_embed.set_target_coords(indices=[1, 5]).transform(
             X_swiss_test
         )
 
@@ -588,7 +658,6 @@ class DiffusionMapsTest(unittest.TestCase):
         from time import time
 
         import datafold.pcfold as pfold
-        import datafold.utils
 
         num_samples = 15000
         xmin, ymin = -2, -1
@@ -620,7 +689,7 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap_embed = DiffusionMaps(**setting)
 
         t1 = time()
-        dmap_embed.fit(data)
+        dmap_embed.fit(data, store_kernel_matrix=True)
         t2 = time()
         (
             kernel_matrix_,

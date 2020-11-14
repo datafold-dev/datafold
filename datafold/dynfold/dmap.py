@@ -228,6 +228,12 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     eigenvectors_: TSCDataFrame, pandas.DataFrame, numpy.ndarray
         The eigenvectors of the kernel matrix to parametrize the data manifold.
 
+    target_coords_: numpy.ndarray
+        The indices to map to when transforming the data. The target point dimension
+        equals to the number of indices included in `target_coords_`. Note that the
+        attributes `eigenvectors_` and `eigenvalues_` sill contain *all* computed
+        eigenpairs.
+
     inv_coeff_matrix_: numpy.ndarray
         The coefficient matrix to map points from embedding space back to original space.\
         The computation and setting the attribute is delayed until `inverse_transform` is
@@ -398,6 +404,20 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         return dmap_embedding
 
+    def _feature_names(self):
+        if hasattr(self, "target_coords_"):
+            feature_names = pd.Index(
+                [f"dmap{i}" for i in self.target_coords_],
+                name=TSCDataFrame.tsc_feature_col_name,
+            )
+        else:
+            feature_names = pd.Index(
+                [f"dmap{i}" for i in range(self.n_eigenpairs)],
+                name=TSCDataFrame.tsc_feature_col_name,
+            )
+
+        return feature_names
+
     def _setup_default_dist_kwargs(self):
         from copy import deepcopy
 
@@ -406,14 +426,35 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         self.dist_kwargs_.setdefault("kmin", 0)
         self.dist_kwargs_.setdefault("backend", "guess_optimal")
 
-    def set_coords(self, indices: Union[np.ndarray, List[int]]) -> "DiffusionMaps":
+    def _select_target_coords_eigenpairs(self):
+        """Returns either
+        * all eigenpairs, or
+        * the ones that were selected during set_target_coordds
+
+        It is assumed that the model is already fit.
+        """
+
+        if hasattr(self, "target_coords_"):
+            if isinstance(self.eigenvectors_, pd.DataFrame):
+                eigvec = self.eigenvectors_.iloc[:, self.target_coords_]
+            else:
+                eigvec = self.eigenvectors_[:, self.target_coords_]
+
+            eigvals = self.eigenvalues_[self.target_coords_]
+        else:
+            eigvec, eigvals = self.eigenvectors_, self.eigenvalues_
+        return eigvec, eigvals
+
+    def set_target_coords(
+        self, indices: Union[np.ndarray, List[int]]
+    ) -> "DiffusionMaps":
         """Set eigenvector coordinates for parsimonious mapping.
 
         Parameters
         ----------
         indices
-            Index values of ``eigenvalues_`` and respective ``eigenvectors_`` to keep in
-            the model.
+            Index values of eigenparirs (``eigenvalues_`` and ``eigenvectors_``) to map
+            new points to.
 
         Returns
         -------
@@ -421,13 +462,23 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             self
         """
 
-        check_is_fitted(self, attributes=["eigenvectors_", "eigenvalues_"])
-
         indices = np.asarray(indices)
+        indices = np.sort(indices)
 
-        # type hints for mypy
-        self.eigenvectors_ = if1dim_colvec(self.eigenvectors_[:, indices])
-        self.eigenvalues_ = self.eigenvalues_[indices]
+        if indices.dtype != np.int:
+            raise TypeError(f"The indices must be integers. Got type {indices.dtype}.")
+
+        if indices[0] < 0 or indices[-1] >= self.n_eigenpairs:
+            raise ValueError(
+                f"Indices {indices} are out of bound. Only integer values "
+                f"in [0, {self.n_eigenpairs}] are allowed."
+            )
+
+        self.target_coords_ = indices
+
+        self.n_features_out_ = len(self.target_coords_)
+        if hasattr(self, "feature_names_out_") and self.feature_names_out_ is not None:
+            self.feature_names_out_ = self._feature_names()
 
         return self
 
@@ -461,9 +512,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             X=X, validate_array_kwargs=dict(ensure_min_samples=2)
         )
 
-        self._setup_feature_attrs_fit(
-            X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
-        )
+        self._setup_feature_attrs_fit(X, features_out=self._feature_names())
         store_kernel_matrix = self._read_fit_params(
             attrs=[("store_kernel_matrix", False)], fit_params=fit_params
         )
@@ -599,10 +648,12 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         else:
             index_from = None
 
+        eigvec, eigvals = self._select_target_coords_eigenpairs()
+
         eigvec_nystroem = self._nystrom(
             kernel_matrix_cdist,
-            eigvec=np.asarray(self.eigenvectors_),
-            eigvals=self.eigenvalues_,
+            eigvec=np.asarray(eigvec),
+            eigvals=eigvals,
             index_from=index_from,
         )
 
@@ -633,7 +684,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
         self.fit(X=X, y=y, **fit_params)
 
-        return self._perform_dmap_embedding(self.eigenvectors_)
+        eigvec, _ = self._select_target_coords_eigenpairs()
+
+        return self._perform_dmap_embedding(eigvec)
 
     def inverse_transform(self, X: TransformType) -> TransformType:
         """Pre-image from embedding space back to original (ambient) space.
@@ -659,11 +712,16 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         self._validate_feature_input(X, direction="inverse_transform")
 
         if not hasattr(self, "inv_coeff_matrix_"):
-            # happens if samples were dropped during kernel fit
-            _X = self.X_.loc[self.eigenvectors_.index, :]
+            if isinstance(self.X_, pd.DataFrame):
+                # happens if samples were dropped during kernel fit
+                _X = self.X_.loc[self.eigenvectors_.index, :]
+            else:
+                _X = self.X_
+
+            eigvec, _ = self._select_target_coords_eigenpairs()
 
             self.inv_coeff_matrix_ = scipy.linalg.lstsq(
-                np.asarray(self.eigenvectors_), _X, cond=None
+                np.asarray(eigvec), _X, cond=None
             )[0]
 
         X_orig_space = np.asarray(X) @ self.inv_coeff_matrix_
