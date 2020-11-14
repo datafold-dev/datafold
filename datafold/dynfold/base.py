@@ -311,7 +311,13 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             # * X has no feature names, or
             # * during fit X had no feature names given.
             # --> Only check if shape is correct and trust user with the rest
-            if self.n_features_in_ != X.shape[1]:
+
+            if direction == "transform":
+                _check_shape = self.n_features_in_
+            else:  # direction == "inverse_transform"
+                _check_shape = self.n_features_out_
+
+            if _check_shape != X.shape[1]:
                 raise ValueError(
                     f"Shape mismatch: expected {self.n_features_out_} "
                     f"features (number of columns in 'X') but got {X.shape[1]}."
