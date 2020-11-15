@@ -638,7 +638,7 @@ class LinearDynamicalSystem(object):
 
 
 class DMDBase(
-    LinearDynamicalSystem, TSCPredictMixin, BaseEstimator, metaclass=abc.ABCMeta
+    BaseEstimator, LinearDynamicalSystem, TSCPredictMixin, metaclass=abc.ABCMeta
 ):
     r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
 
@@ -682,7 +682,7 @@ class DMDBase(
 
     The vector :math:`b_0` contains the initial state (adapted from :math:`x_0` to the
     spectral system state). In the Koopman analysis this corresponds to the initial
-    Koopman eigenfunctions, whereas in a pure DMD settings this is often referred to the
+    Koopman eigenfunctions, whereas in a 'pure' DMD setting this is often referred to the
     initial amplitudes.
 
     The DMD modes :math:`\Psi_r` remain constant.
