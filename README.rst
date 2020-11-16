@@ -228,51 +228,36 @@ this is:
 How does it compare to other software?
 ======================================
 
-*This section only includes other Python packages, and does not compare the size
-(e.g. active developers) of the projects.*
+*Note: the selection only includes other Python packages.*
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
-   provides algorithms for the entire machine learning pipeline. The main
-   class of models in scikit-learn map feature inputs to a fixed number of target
-   outputs for tasks like regression or classification. *datafold* is integrated into the
-   scikit-learn API and focuses on the
-   `manifold learning algorithms <https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py>`__.
-   Furthermore, *datafold* includes a model class that can process time
-   series data from dynamical systems. The number of outputs may vary: a
-   user provides an initial condition (the input) and an arbitrary sampling frequency
-   and prediction horizon.
+   provides algorithms and models along the entire machine learning pipeline, with a
+   strong focus on static data (i.e. without temporal context). *datafold* integrates
+   into scikit-learn' API and all data-driven models are subclasses of
+   `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
+   An important contribution of *datafold* is the ``DiffusionMaps`` model as popular
+   framework for manifold learning that is not contained in scikit-learn's `set of
+   algorithms <https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods
+   .html#sphx-glr-auto-examples-manifold-plot-compare-methods-py>`__.
+   Furthermore, *datafold* includes dynamical systems as a new model class that is
+   operable with scikit-learn - the attributes align to supervised learning tasks,
+   such as classification or regression. The key differences are that the models only
+   process data of type ``TSCDataFrame`` and instead of a one-to-one relation for model
+   input/output, a dynamical system model can return arbitrarily many time samples for a
+   single initial condition.
 
 * `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`__
-   provides many \
-   variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia
-   .org/wiki/Dynamic_mode_decomposition>`__. Some of the DMD models are special
-   cases of a dictionary of the `Extended Dynamic Mode Decomposition`, while other DMD
-   variants are currently not covered in *datafold*. ``datafold.dynfold.dmd.py`` includes
-   an (experimental) wrapper for the ``PyDMD`` package to make use of missing DMD models.
-   However, a limitation of ``PyDMD`` is that it only allows single time series as
-   input (``numpy.ndarray``), see `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`__.
-   *datafold* addresses this with the data structure ``TSCDataFrame``.
+   provides many variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia.org/wiki/Dynamic_mode_decomposition>`__.
+   *datafold* provides a wrapper to make models of ``PyDMD`` accessible. However, a
+   limitation of ``PyDMD`` is that it only processes single coherent time series, see
+   `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`__. The DMD models that
+   are directly included in *datafold* utilize the functionality of the data
+   structure ``TSCDataFrame`` and can therefore process an arbitrary number of time
+   series - in an extreme case only snapshot pairs.
 
-* `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__
-   specializes on a *sparse* identification of dynamical systems to infer governing
-   equations. `SINDy` is basically a DMD variant and not in the scope of *datafold* and
-   note yet included. `PySINDy` also provides time series transformations, which
-   are referred to as `library`. This matches the definition of
-   `dictionary` in  the `Extended Dynamic Mode Decomposition`). `PySINDy` also supports
-   multiple time series but these are managed in lists and not in a single data
-   structure.
-
-* `TensorFlow <https://www.tensorflow.org/>`__
-   allows data-driven regression/prediction with the main model type
-   (deep) neural networks. For manifold learning (Variational) Auto-Encoders are
-   suitable and for time series predictions there are recurrent networks such as
-   the `Long Short-Term Memory` (LSTM) are a good choice. In general neural networks
-   lack a mathematical background theory and are black-box models with a
-   non-deterministic learning process that require medium to large sized datasets.
-   Nonetheless, for many applications the models are very successful. The models in
-   *datafold*, in contrast, have a strong mathematical background, can often be used as
-   part of the analysis, have deterministic results and are capable to handle smaller data
-   sets.
+* `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__ specializes on a *sparse*
+   identification of dynamical systems to infer governing
+   equations.
 
 
 Contributing
