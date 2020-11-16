@@ -280,7 +280,7 @@ class LinearDynamicalSystem(object):
 
             if self.is_differential_system():
                 for idx, time in enumerate(time_values):
-                    time_series_tensor[:, idx, :] = (
+                    time_series_tensor[:, idx, :] = np.real(
                         scipy.linalg.expm(sys_matrix * time) @ initial_conditions
                     ).T
 
@@ -288,7 +288,7 @@ class LinearDynamicalSystem(object):
                 for idx, time in enumerate(time_values):
                     # TODO: this is really expensive -- can also store intermediate
                     #  results and only add the incremental fraction?
-                    time_series_tensor[:, idx, :] = (
+                    time_series_tensor[:, idx, :] = np.real(
                         scipy.linalg.fractional_matrix_power(sys_matrix, time)
                         @ initial_conditions
                     ).T
