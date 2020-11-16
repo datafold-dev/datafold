@@ -449,7 +449,7 @@ class LinearDynamicalSystem(object):
         else:
             return is_setup
 
-    def setup_sys_spectral(
+    def setup_spectral_system(
         self, eigenvectors_right, eigenvalues, eigenvectors_left=None
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with spectral components of system matrix.
@@ -489,7 +489,7 @@ class LinearDynamicalSystem(object):
         self.eigenvectors_left_ = eigenvectors_left
         return self
 
-    def setup_sys_matrix(self, system_matrix):
+    def setup_matrix_system(self, system_matrix):
         r"""Set up linear system with system matrix.
 
         Parameters
@@ -509,7 +509,7 @@ class LinearDynamicalSystem(object):
         self.sys_matrix_ = system_matrix
         return self
 
-    def evolve_linear_system(
+    def evolve_system(
         self,
         initial_conditions: np.ndarray,
         time_values: np.ndarray,
@@ -822,7 +822,7 @@ class DMDBase(
 
         norm_time_samples = time_values - shift
 
-        tsc_df = self.evolve_linear_system(
+        tsc_df = self.evolve_system(
             time_delta=self.dt_,
             initial_conditions=initial_states_dmd,
             overwrite_sys_matrix=overwrite_sys_matrix,
@@ -1255,7 +1255,7 @@ class DMDFull(DMDBase):
                 eigenvalues_,
                 eigenvectors_left_,
             ) = self._compute_spectal_components(koopman_matrix_)
-            self.setup_sys_spectral(
+            self.setup_spectral_system(
                 eigenvectors_right=eigenvectors_right_,
                 eigenvalues=eigenvalues_,
                 eigenvectors_left=eigenvectors_left_,
@@ -1271,9 +1271,9 @@ class DMDFull(DMDBase):
         else:  # self.is_matrix_mode()
             if self.approx_generator:
                 generator_matrix_ = scipy.linalg.logm(koopman_matrix_) / self.dt_
-                self.setup_sys_matrix(system_matrix=generator_matrix_)
+                self.setup_matrix_system(system_matrix=generator_matrix_)
             else:
-                self.setup_sys_matrix(system_matrix=koopman_matrix_)
+                self.setup_matrix_system(system_matrix=koopman_matrix_)
 
         return self
 
@@ -1464,7 +1464,7 @@ class gDMDFull(DMDBase):
                 eigenvectors_left_,
             ) = self._compute_spectral_components(generator_matrix_=generator_matrix_)
 
-            self.setup_sys_spectral(
+            self.setup_spectral_system(
                 eigenvectors_right=eigenvectors_right_,
                 eigenvalues=eigenvalues_,
                 eigenvectors_left=eigenvectors_left_,
@@ -1476,7 +1476,7 @@ class gDMDFull(DMDBase):
                 self.generator_matrix_ = generator_matrix_
 
         else:  # self.is_matrix_mode()
-            self.setup_sys_matrix(system_matrix=generator_matrix_)
+            self.setup_matrix_system(system_matrix=generator_matrix_)
 
         return self
 
@@ -1629,7 +1629,7 @@ class DMDEco(DMDBase):
 
         eigenvectors_right_, eigenvalues_, koopman_matrix = self._compute_internals(X)
 
-        self.setup_sys_spectral(
+        self.setup_spectral_system(
             eigenvectors_right=eigenvectors_right_, eigenvalues=eigenvalues_
         )
 
@@ -1804,7 +1804,7 @@ class PyDMDWrapper(DMDBase):
         # data is column major
         self.dmd_.fit(X=X.to_numpy().T)
 
-        self.setup_sys_spectral(
+        self.setup_spectral_system(
             eigenvectors_right=self.dmd_.modes, eigenvalues=self.dmd_.eigs
         )
 

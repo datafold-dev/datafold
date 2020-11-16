@@ -81,11 +81,11 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral", time_invariant=True
             )
-            .setup_sys_spectral(
+            .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
             )
-            .evolve_linear_system(
+            .evolve_system(
                 initial_conditions=self.eigvec_left @ ic,
                 time_values=time_values,
                 time_delta=self.time_delta_approx,
@@ -120,8 +120,8 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         actual = (
             LinearDynamicalSystem(sys_type="differential", sys_mode="spectral")
-            .setup_sys_spectral(eigenvectors_right=evec, eigenvalues=evals)
-            .evolve_linear_system(
+            .setup_spectral_system(eigenvectors_right=evec, eigenvalues=evals)
+            .evolve_system(
                 initial_conditions=ic_adapted,
                 time_values=time_values,
             )
@@ -138,11 +138,11 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral", time_invariant=True
             )
-            .setup_sys_spectral(
+            .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
             )
-            .evolve_linear_system(
+            .evolve_system(
                 initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
                 time_values=time_values,
                 # to match up the flowmap system we have to assume a time delta of 1
@@ -163,11 +163,11 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral", time_invariant=True
             )
-            .setup_sys_spectral(
+            .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
             )
-            .evolve_linear_system(
+            .evolve_system(
                 initial_conditions=self.eigvec_left @ initial_conditions,
                 time_delta=1,
                 time_values=time_values,
@@ -186,11 +186,11 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral", time_invariant=True
             )
-            .setup_sys_spectral(
+            .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
             )
-            .evolve_linear_system(
+            .evolve_system(
                 initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
                 time_values=np.arange(4),
                 # to match up the discrete system we have to assume a time delta of 1
@@ -204,10 +204,10 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral"
-            ).setup_sys_spectral(
+            ).setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
-            ).evolve_linear_system(
+            ).evolve_system(
                 initial_conditions=self.eigvec_left @ np.ones(shape=[2, 1]),
                 time_values=np.arange(4),
                 # to match up the discrete system we have to assume a time delta of 1
@@ -220,11 +220,11 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral", time_invariant=True
             )
-            .setup_sys_spectral(
+            .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
             )
-            .evolve_linear_system(
+            .evolve_system(
                 initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
                 time_values=np.arange(1),
                 # to match up the discrete system we have to assume a time delta of 1
@@ -240,11 +240,11 @@ class LinearDynamicalSystemTest(unittest.TestCase):
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral", time_invariant=True
             )
-            .setup_sys_spectral(
+            .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
                 eigenvalues=self.eigvals_flowmap,
             )
-            .evolve_linear_system(
+            .evolve_system(
                 initial_conditions=self.eigvec_left @ np.ones(shape=[2, 2]),
                 time_values=np.arange(2),
                 # to match up the discrete system we have to assume a time delta of 1
