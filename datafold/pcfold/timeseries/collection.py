@@ -1166,7 +1166,6 @@ class TSCDataFrame(pd.DataFrame):
             the kernel matrix component-wise, else `Y=self` for a pair-wise kernel
             matrix.
 
-
         kernel_kwargs
             Keyword arguments passed passed to the kernel.
 

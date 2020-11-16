@@ -16,9 +16,9 @@ Classes
    .. automethod:: is_differential_system
    .. automethod:: is_flowmap_system
    .. automethod:: is_linear_system_setup
-   .. automethod:: setup_sys_spectral
-   .. automethod:: setup_sys_matrix
-   .. automethod:: evolve_linear_system
+   .. automethod:: setup_spectral_system
+   .. automethod:: setup_matrix_system
+   .. automethod:: evolve_system
 
 .. autoclass:: datafold.pcfold.timeseries.accessor.TSCAccessor
 
