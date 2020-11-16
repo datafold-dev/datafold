@@ -289,7 +289,9 @@ class LinearDynamicalSystem(object):
                     # TODO: this is really expensive -- can also store intermediate
                     #  results and only add the incremental fraction?
                     time_series_tensor[:, idx, :] = np.real(
-                        scipy.linalg.fractional_matrix_power(sys_matrix, time)
+                        scipy.linalg.fractional_matrix_power(
+                            sys_matrix, time / time_delta
+                        )
                         @ initial_conditions
                     ).T
             else:
