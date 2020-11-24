@@ -1198,17 +1198,12 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         self._set_indices()
 
-        # Cannot use self._setup_features_fit here because the columns (if they exist)
-        # are partially selected.
-        if self._has_feature_names(X):
-            self._setup_frame_feature_attrs_fit(
-                features_in=X.columns,
-                features_out=X.columns[self.evec_indices_],
-            )
-        else:
-            self._setup_array_feature_attrs_fit(
-                features_in=X.shape[1], features_out=len(self.evec_indices_)
-            )
+        self._setup_feature_attrs_fit(
+            X,
+            features_out=X.columns[self.evec_indices_]
+            if isinstance(X, pd.DataFrame)
+            else len(self.evec_indices_),
+        )
 
         return self
 

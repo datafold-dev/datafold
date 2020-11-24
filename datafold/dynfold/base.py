@@ -240,31 +240,31 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         "feature_names_out_",
     ]
 
-    def _setup_frame_feature_attrs_fit(
-        self, features_in: pd.Index, features_out: pd.Index
-    ):
+    # def _setup_frame_feature_attrs_fit(
+    #     self, features_in: pd.Index, features_out: pd.Index
+    # ):
+    #
+    #     if features_in.has_duplicates or features_out.has_duplicates:
+    #         raise ValueError(
+    #             "duplicated indices detected. \n"
+    #             f"features_in={features_in.duplicated()} \n"
+    #             f"features_out={features_out.duplicated()}"
+    #         )
+    #
+    #     if features_in.ndim != 1 or features_out.ndim != 1:
+    #         raise ValueError("feature names must be 1-dim.")
+    #
+    #     self.n_features_in_: int = len(features_in)
+    #     self.n_features_out_: int = len(features_out)
+    #     self.feature_names_in_: Optional[pd.Index] = features_in
+    #     self.feature_names_out_: Optional[pd.Index] = features_out
 
-        if features_in.has_duplicates or features_out.has_duplicates:
-            raise ValueError(
-                "duplicated indices detected. \n"
-                f"features_in={features_in.duplicated()} \n"
-                f"features_out={features_out.duplicated()}"
-            )
-
-        if features_in.ndim != 1 or features_out.ndim != 1:
-            raise ValueError("feature names must be 1-dim.")
-
-        self.n_features_in_: int = len(features_in)
-        self.n_features_out_: int = len(features_out)
-        self.feature_names_in_: Optional[pd.Index] = features_in
-        self.feature_names_out_: Optional[pd.Index] = features_out
-
-    def _setup_array_feature_attrs_fit(self, features_in: int, features_out: int):
-        # do not store names, because they are not available
-        self.n_features_in_ = features_in
-        self.n_features_out_ = features_out
-        self.feature_names_in_ = None
-        self.feature_names_out_ = None
+    # def _setup_array_feature_attrs_fit(self, features_in: int, features_out: int):
+    #     # do not store names, because they are not available
+    #     self.n_features_in_ = features_in
+    #     self.n_features_out_ = features_out
+    #     self.feature_names_in_ = None
+    #     self.feature_names_out_ = None
 
     def _setup_feature_attrs_fit(self, X, features_out):
 
@@ -285,9 +285,25 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                     name=TSCDataFrame.tsc_feature_col_name,
                 )
 
-            self._setup_frame_feature_attrs_fit(
-                features_in=X.columns, features_out=features_out
-            )
+            # self._setup_frame_feature_attrs_fit(
+            #     features_in=X.columns, features_out=features_out
+            # )
+
+            if X.columns.has_duplicates or features_out.has_duplicates:
+                raise ValueError(
+                    "duplicated indices detected. \n"
+                    f"features_in={X.columns.duplicated()} \n"
+                    f"features_out={features_out.duplicated()}"
+                )
+
+            if X.columns.ndim != 1 or features_out.ndim != 1:
+                raise ValueError("feature names must be 1-dim.")
+
+            self.n_features_in_: int = len(X.columns)
+            self.n_features_out_: int = len(features_out)
+            self.feature_names_in_: Optional[pd.Index] = X.columns
+            self.feature_names_out_: Optional[pd.Index] = features_out
+
         else:
 
             if isinstance(features_out, str) and features_out == "like_features_in":
@@ -298,9 +314,15 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 # if list or pd.Index use the number of features out
                 features_out = len(features_out)
 
-            self._setup_array_feature_attrs_fit(
-                features_in=X.shape[1], features_out=features_out
-            )
+            # self._setup_array_feature_attrs_fit(
+            #     features_in=X.shape[1], features_out=features_out
+            # )
+
+            # do not store names, because they are not available
+            self.n_features_in_ = X.shape[1]
+            self.n_features_out_ = features_out
+            self.feature_names_in_ = None
+            self.feature_names_out_ = None
 
     def _validate_feature_input(self, X: TransformType, direction):
 

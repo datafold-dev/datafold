@@ -588,11 +588,8 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
         self.delta_time_fit_ = X.delta_time
 
         features_out = self._expand_all_delay_columns(X.columns)
+        self._setup_feature_attrs_fit(X, features_out=features_out)
 
-        self._setup_frame_feature_attrs_fit(
-            features_in=X.columns,
-            features_out=features_out,
-        )
         return self
 
     def transform(self, X: TSCDataFrame) -> TSCDataFrame:
