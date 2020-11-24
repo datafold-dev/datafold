@@ -95,39 +95,3 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
         return super(TSCColumnTransformer, self).fit(X)
-
-
-# @NotImplementedError
-# class TSCFeatureUnion(TSCTransformerMixin, FeatureUnion):
-#     def n_features_in_(self):
-#         pass
-#
-#     @property
-#     def n_features_out_(self):
-#         # TODO: this is wrong, need to collect all feature names...
-#         return self.transformer_list[0][1].n_features_out_
-#
-#     @property
-#     def feature_names_in_(self):
-#         return self.transformer_list[0][1].feature_names_in_
-#
-#     @property
-#     def feature_names_out_(self):
-#         # TODO: this is wrong, need to collect all feature names...
-#         return self.transformer_list[0][1].feature_names_out_
-#
-#     def fit(self, X: TransformType, y=None, **fit_params):
-#         X = self._validate_datafold_data(X)
-#         self._read_fit_params(attrs=None, fit_params=fit_params)
-#
-#         super(TSCFeatureUnion, self).fit(X, y=y)
-#
-#         self._setup_features_fit(X, features_out=[])
-#
-#         return self
-#
-#     def transform(self, X: TransformType):
-#         pass
-#
-#     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
-#         pass
