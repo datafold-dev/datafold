@@ -453,7 +453,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         Parameters
         ----------
         indices
-            Index values of eigenparirs (``eigenvalues_`` and ``eigenvectors_``) to map
+            Index values of eigenpairs (``eigenvalues_`` and ``eigenvectors_``) to map
             new points to.
 
         Returns
