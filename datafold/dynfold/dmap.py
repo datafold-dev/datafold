@@ -103,7 +103,7 @@ class _DmapKernelAlgorithms:
                 except_columns=
                 # If kernel matrix shape was smaller than eigenpairs were
                 # requested, then use actual max. possible n_eigenpairs
-                [f"ev{i}" for i in range(min(eigvals.shape[0]), n_eigenpairs)],
+                [f"ev{i}" for i in range(min(eigvals.shape[0], n_eigenpairs))],
             )
 
         return eigvals, eigvect
