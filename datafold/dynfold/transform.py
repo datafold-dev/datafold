@@ -574,7 +574,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(
             X,
-            validate_tsc_kwargs={
+            tsc_kwargs={
                 "ensure_const_delta_time": True,
                 "ensure_min_timesteps": self.min_timesteps_,
             },
@@ -618,7 +618,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(
             X,
-            validate_tsc_kwargs={
+            tsc_kwargs={
                 # must be same time delta as during fit
                 "ensure_delta_time": self.delta_time_fit_,
                 "ensure_min_timesteps": self.min_timesteps_,
@@ -1206,7 +1206,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(
             X,
             ensure_tsc=False,
-            validate_tsc_kwargs=dict(
+            tsc_kwargs=dict(
                 ensure_delta_time=self.spacing
                 if isinstance(self.spacing, float)
                 else None
@@ -1293,7 +1293,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            validate_tsc_kwargs=dict(ensure_delta_time=self.spacing_),
+            tsc_kwargs=dict(ensure_delta_time=self.spacing_),
         )
 
         self._validate_feature_input(X=X, direction="transform")

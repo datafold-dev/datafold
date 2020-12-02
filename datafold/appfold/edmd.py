@@ -561,7 +561,7 @@ class EDMD(
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            validate_tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs={"ensure_const_delta_time": True},
         )
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in

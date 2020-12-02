@@ -25,7 +25,11 @@ class TSCException(Exception):
 
     @classmethod
     def not_finite(cls):
-        return cls(f"values are not finite (nan or inf values present)")
+        return cls(f"Numeric values are not finite (nan or inf values present).")
+
+    @classmethod
+    def not_min_samples(cls, min_samples):
+        return cls(f"A minimum number of {min_samples} is required.")
 
     @classmethod
     def not_same_length(cls, actual_lengths):

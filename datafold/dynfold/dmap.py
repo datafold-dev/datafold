@@ -529,7 +529,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(
             X=X,
-            validate_array_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
+            array_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
+            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
         )
 
         self._setup_feature_attrs_fit(X, features_out=self._feature_names())
@@ -648,9 +649,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         """
         check_is_fitted(self, ("X_", "eigenvalues_", "eigenvectors_"))
 
-        X = self._validate_datafold_data(
-            X, validate_array_kwargs=dict(ensure_min_samples=1)
-        )
+        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=1))
         self._validate_feature_input(X, direction="transform")
 
         kernel_output = self.X_.compute_kernel_matrix(X, **self._cdist_kwargs)
@@ -702,9 +701,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             same type as `X` of shape `(n_samples, n_eigenpairs)`
         """
 
-        X = self._validate_datafold_data(
-            X, validate_array_kwargs=dict(ensure_min_samples=2)
-        )
+        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
         self.fit(X=X, y=y, **fit_params)
 
         eigvec, _ = self._select_target_coords_eigenpairs()
@@ -811,9 +808,7 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):
 
     def fit(self, X: TransformType, y=None, **fit_params):
 
-        X = self._validate_datafold_data(
-            X, validate_array_kwargs=dict(ensure_min_samples=2)
-        )
+        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
 
         self._setup_feature_attrs_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
@@ -1190,9 +1185,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         # Later on not all of these columns are required because of the selection
         # performed.
 
-        X = self._validate_datafold_data(
-            X, validate_array_kwargs=dict(ensure_min_features=2)
-        )
+        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_features=2))
         num_eigenvectors = X.shape[1]
 
         self._validate_parameter(num_eigenvectors)

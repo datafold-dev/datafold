@@ -77,8 +77,8 @@ class TSCBaseMixin(object):
         self,
         X: Union[TSCDataFrame, np.ndarray],
         ensure_tsc: bool = False,
-        validate_array_kwargs: Optional[dict] = None,
-        validate_tsc_kwargs: Optional[dict] = None,
+        array_kwargs: Optional[dict] = None,
+        tsc_kwargs: Optional[dict] = None,
     ):
         """Provides a general function to validate data that is input to datafold
         functions -- it can be overwritten if a concrete implementation requires
@@ -91,8 +91,8 @@ class TSCBaseMixin(object):
         ----------
         X
         ensure_feature_name_type
-        validate_array_kwargs
-        validate_tsc_kwargs
+        array_kwargs
+        tsc_kwargs
 
         Returns
         -------
@@ -100,8 +100,8 @@ class TSCBaseMixin(object):
         """
 
         # defaults to empty dictionary if None
-        validate_array_kwargs = validate_array_kwargs or {}
-        validate_tsc_kwargs = validate_tsc_kwargs or {}
+        array_kwargs = array_kwargs or {}
+        tsc_kwargs = tsc_kwargs or {}
 
         if ensure_tsc and not isinstance(X, TSCDataFrame):
             raise TypeError(
@@ -117,7 +117,7 @@ class TSCBaseMixin(object):
             #  * pandas.DataFrame (Note a TSCDataFrame is also a pandas.DataFrame,
             #                      but not strictly)
 
-            validate_tsc_kwargs = {}  # no need to check -> overwrite to empty dict
+            tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
             if type(X) == pd.DataFrame:
                 # special handling of pandas.DataFrame (strictly, not including
@@ -131,18 +131,16 @@ class TSCBaseMixin(object):
 
             X = check_array(
                 X,
-                accept_sparse=validate_array_kwargs.pop("accept_sparse", False),
-                accept_large_sparse=validate_array_kwargs.pop(
-                    "accept_large_sparse", False
-                ),
-                dtype=validate_array_kwargs.pop("dtype", "numeric"),
-                order=validate_array_kwargs.pop("order", None),
-                copy=validate_array_kwargs.pop("copy", False),
-                force_all_finite=validate_array_kwargs.pop("force_all_finite", True),
-                ensure_2d=validate_array_kwargs.pop("ensure_2d", True),
-                allow_nd=validate_array_kwargs.pop("allow_nd", False),
-                ensure_min_samples=validate_array_kwargs.pop("ensure_min_samples", 1),
-                ensure_min_features=validate_array_kwargs.pop("ensure_min_features", 1),
+                accept_sparse=array_kwargs.pop("accept_sparse", False),
+                accept_large_sparse=array_kwargs.pop("accept_large_sparse", False),
+                dtype=array_kwargs.pop("dtype", "numeric"),
+                order=array_kwargs.pop("order", None),
+                copy=array_kwargs.pop("copy", False),
+                force_all_finite=array_kwargs.pop("force_all_finite", True),
+                ensure_2d=array_kwargs.pop("ensure_2d", True),
+                allow_nd=array_kwargs.pop("allow_nd", False),
+                ensure_min_samples=array_kwargs.pop("ensure_min_samples", 1),
+                ensure_min_features=array_kwargs.pop("ensure_min_features", 1),
                 estimator=self,
             )
 
@@ -151,39 +149,32 @@ class TSCBaseMixin(object):
 
         else:
 
-            validate_array_kwargs = {}  # no need to check -> overwrite to empty dict
+            array_kwargs = {}  # no need to check -> overwrite to empty dict
 
             X = X.tsc.check_tsc(
-                ensure_all_finite=validate_tsc_kwargs.pop("ensure_all_finite", True),
-                ensure_same_length=validate_tsc_kwargs.pop("ensure_same_length", False),
-                ensure_const_delta_time=validate_tsc_kwargs.pop(
+                ensure_all_finite=tsc_kwargs.pop("ensure_all_finite", True),
+                ensure_min_samples=tsc_kwargs.pop("ensure_min_samples", None),
+                ensure_same_length=tsc_kwargs.pop("ensure_same_length", False),
+                ensure_const_delta_time=tsc_kwargs.pop(
                     "ensure_const_delta_time", False
                 ),
-                ensure_delta_time=validate_tsc_kwargs.pop("ensure_delta_time", None),
-                ensure_same_time_values=validate_tsc_kwargs.pop(
+                ensure_delta_time=tsc_kwargs.pop("ensure_delta_time", None),
+                ensure_same_time_values=tsc_kwargs.pop(
                     "ensure_same_time_values", False
                 ),
-                ensure_normalized_time=validate_tsc_kwargs.pop(
-                    "ensure_normalized_time", False
-                ),
-                ensure_n_timeseries=validate_tsc_kwargs.pop(
-                    "ensure_n_timeseries", None
-                ),
-                ensure_min_timesteps=validate_tsc_kwargs.pop(
-                    "ensure_min_timesteps", None
-                ),
-                ensure_no_degenerate_ts=validate_tsc_kwargs.pop(
+                ensure_normalized_time=tsc_kwargs.pop("ensure_normalized_time", False),
+                ensure_n_timeseries=tsc_kwargs.pop("ensure_n_timeseries", None),
+                ensure_min_timesteps=tsc_kwargs.pop("ensure_min_timesteps", None),
+                ensure_no_degenerate_ts=tsc_kwargs.pop(
                     "ensure_no_degenerate_ts", False
                 ),
             )
 
-        if validate_array_kwargs != {} or validate_tsc_kwargs != {}:
+        if array_kwargs != {} or tsc_kwargs != {}:
             # validate_kwargs have to be empty and must only contain key-values that can
             # be handled to check_array / check_tsc
 
-            left_over_keys = list(validate_array_kwargs.keys()) + list(
-                validate_tsc_kwargs.keys()
-            )
+            left_over_keys = list(array_kwargs.keys()) + list(tsc_kwargs.keys())
             raise ValueError(
                 f"{left_over_keys} are no valid validation keys. Please report bug."
             )

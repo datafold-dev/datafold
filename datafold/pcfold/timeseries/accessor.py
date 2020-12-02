@@ -42,7 +42,9 @@ class TSCAccessor(object):
 
     def check_tsc(
         self,
+        *,
         ensure_all_finite: bool = True,
+        ensure_min_samples: Optional[int] = None,
         ensure_same_length: bool = False,
         ensure_const_delta_time: bool = True,
         ensure_delta_time: Optional[float] = None,
@@ -61,6 +63,9 @@ class TSCAccessor(object):
         ----------
         ensure_all_finite
             If True, check if all values are finite (no 'nan' or 'inf' values).
+
+        ensure_min_samples
+            If provided, check that the frame has at least required samples.
 
         ensure_same_length
             If True, check if all time series have the same length.
@@ -103,6 +108,9 @@ class TSCAccessor(object):
         if ensure_all_finite:
             self.check_finite()
 
+        if ensure_min_samples is not None:
+            self.check_min_samples(min_samples=ensure_min_samples)
+
         if ensure_same_length:
             self.check_timeseries_same_length()
 
@@ -136,6 +144,11 @@ class TSCAccessor(object):
         """Check if all values are finite (i.e. does not contain `nan` or `inf`)."""
         if not self._tsc_df.is_finite():
             raise TSCException.not_finite()
+
+    def check_min_samples(self, min_samples) -> None:
+        """Check if there is a minimum number of samples included."""
+        if self._tsc_df.shape[0] < min_samples:
+            raise TSCException.not_min_samples(min_samples=min_samples)
 
     def check_timeseries_same_length(self) -> None:
         """Check if time series in the collection have the same length."""
