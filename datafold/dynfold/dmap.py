@@ -55,13 +55,11 @@ class _DmapKernelAlgorithms:
     ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame]]:
 
         if isinstance(kernel_matrix, pd.DataFrame):
-            _kernel_matrix = kernel_matrix.to_numpy()
-        else:
-            _kernel_matrix = kernel_matrix
+            kernel_matrix = kernel_matrix.to_numpy()
 
         try:
             eigvals, eigvect = compute_kernel_eigenpairs(
-                kernel_matrix=_kernel_matrix,  # from here on only ndarray
+                kernel_matrix=kernel_matrix,  # from here on only ndarray
                 n_eigenpairs=n_eigenpairs,
                 is_symmetric=is_symmetric,
                 is_stochastic=is_stochastic,
@@ -85,7 +83,7 @@ class _DmapKernelAlgorithms:
         if raise_numerical_error:
             raise NumericalMathError(
                 "Eigenpairs have non-negligible imaginary part (larger than "
-                f"{1e2 * sys.float_info.epsilon}. First try to use "
+                f"{1e2 * sys.float_info.epsilon}). First try to use "
                 f"parameter 'symmetrize_kernel=True' (improves numerical stability) and "
                 f"only if this is not working adjust kernel settings."
             )

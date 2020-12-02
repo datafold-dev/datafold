@@ -573,7 +573,7 @@ class EDMDTest(unittest.TestCase):
         ).fit(self.multi_sine_wave_tsc)
 
         # passes reconstruct to best_estimator_ (EDMD)
-        edmdcv.reconstruct(self.multi_sine_wave_tsc)
+        edmdcv.best_estimator_.reconstruct(self.multi_sine_wave_tsc)
 
     def test_edmdcv_parallel_no_error(self):
         edmd = EDMD(
