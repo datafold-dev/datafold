@@ -345,19 +345,21 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
     def _validate_settings(self):
-        check_scalar(self.n_eigenpairs, "n_eigenpairs", target_type=(int), min_val=1)
+        check_scalar(
+            self.n_eigenpairs, "n_eigenpairs", target_type=(int, np.integer), min_val=1
+        )
 
         check_scalar(
             self.time_exponent,
             "time_exponent",
-            target_type=(float, int),
+            target_type=(float, int, np.float, np.integer),
             min_val=0,
         )
 
         check_scalar(
             self.alpha,
             "alpha",
-            target_type=(float, int),
+            target_type=(float, int, np.float, np.integer),
             min_val=0,
             max_val=1,
         )
