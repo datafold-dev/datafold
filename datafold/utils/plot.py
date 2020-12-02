@@ -11,29 +11,34 @@ from datafold._decorators import warn_experimental_function
 
 def plot_eigenvalues(
     eigenvalues: np.ndarray,
+    *,
     plot_unit_circle: bool = False,
     semilogy: bool = False,
     ax=None,
     subplot_kwargs: Optional[Dict[str, object]] = None,
-) -> None:
+    plot_kwargs: Optional[Dict[str, object]] = None,
+):
     """Plots eigenvalue distribution.
 
     Parameters
     ----------
     eigenvalues
-        complex or real eigenvalues
+        Complex or real eigenvalues.
 
     plot_unit_circle
-        plot the unit circle on the complex plane
+        If True, include unit circle on complex plane.
 
     semilogy
         Enable logarithmic y-axis. Parameter is ignored for complex eigenvalues.
 
     ax
-        Plot in existing matplotlib axes object. `subplot_kwargs` are ignored then.
+        Plot in existing matplotlib axes object. ``subplot_kwargs`` are ignored then.
 
     subplot_kwargs
-        Keyword arguments passed to ``plt.subplot``
+        Keyword arguments passed to ``plt.subplot``.
+
+    plot_kwargs
+        Keyword arguments passed to ``ax.plot(**plot_kwargs)``
 
     Returns
     -------
@@ -42,12 +47,17 @@ def plot_eigenvalues(
     if ax is None:
         f, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
 
+    plot_kwargs = plot_kwargs or {}
+    plot_kwargs.setdefault("marker", "+")
+    plot_kwargs.setdefault("linewidth", 0)
+
     if eigenvalues.dtype == np.complexfloating:
-        ax.plot(np.real(eigenvalues), np.imag(eigenvalues), "+")
+
+        ax.plot(np.real(eigenvalues), np.imag(eigenvalues), **plot_kwargs)
 
         if plot_unit_circle:
             circle_values = np.linspace(0, 2 * np.pi, 3000)
-            ax.plot(np.cos(circle_values), np.sin(circle_values), "b-")
+            ax.plot(np.cos(circle_values), np.sin(circle_values), "-", color="gray")
             ax.set_aspect("equal")
 
         with plt.rc_context(rc={"text.usetex": True}):
@@ -65,10 +75,10 @@ def plot_eigenvalues(
 
         _ylabel_text = "eigenvalue $\\lambda$"
         if semilogy:
-            ax.semilogy(np.arange(len(eigenvalues)), eigenvalues, "+")
+            ax.semilogy(np.arange(len(eigenvalues)), eigenvalues, **plot_kwargs)
             _ylabel_text = _ylabel_text + " (log scale)"
         else:
-            ax.plot(np.arange(len(eigenvalues)), eigenvalues, "+")
+            ax.plot(np.arange(len(eigenvalues)), eigenvalues, **plot_kwargs)
 
         with plt.rc_context(rc={"text.usetex": True}):
             ax.set_ylabel(_ylabel_text)
@@ -79,43 +89,103 @@ def plot_eigenvalues(
 
 
 def plot_eigenvalues_time(
-    eigenvalues: np.ndarray, n_timesteps: int, subplot_kwargs=None
-) -> None:
-    """Plot eigenvalues with time exponent.
+    time_values: np.ndarray,
+    eigenvalues: np.ndarray,
+    *,
+    system_type="flowmap",
+    delta_time: Optional[float] = None,
+    ax=None,
+    subplot_kwargs=None,
+    plot_kwargs=None,
+):
+    r"""Plot eigenvalues over time.
 
-    Each k-th eigenvalue :math:`\lambda`
+    The eigenvalues :math:`\lambda_k` (y-axis) are plot with respect to the
+    ``system_type``:
 
-    .. math::
-        \lambda_k^{t}
+    * "flowmap" - requires to set ``delta_time``
+        .. math::
+            \vert \lambda_k^{t / \Delta t} \vert
 
-    This allows to follow the impact of each eigenvalue at certain times. Eigenvalues
-    :math:`\lambda < 1` have a decreasing impact over time and may be more important
-    for short term predictions, :math:`\lambda > 1` on the other hand lead to
-    exponential growth and prohibit long time predicitons.
+    * "differential"
+        .. math::
+            \exp( \lambda_k \cdot t )
+
+    For linear dynamical system, the plot is informative to show the
+    eigenvalues contribution over the time horizon of ``time_values``. Eigenpairs with
+    :math:`\lambda < 1` have a decaying contribution over time, eigenpairs with
+    :math:`\lambda > 1` lead to exponential growth and prohibit long time term
+    predictions.
 
     Parameters
     ----------
-    eigenvalues
-        vlaues to plot over time
 
-    n_timesteps
-        number of time steps
+    time_values
+        The time values on the x-axis.
+
+    eigenvalues
+        Eigenvalues to plot on the y-axis.
+
+    system_type
+        There are two modes to describe a linear dynamical system (see also
+        :py:class:`.LinearDynamicalSystem`)
+        * "flowmap" - discrete system
+        * "differential" - continuous system
+
+    delta_time
+        Reference system time of type "flowmap".
+
+    ax
+        Matplotlib ``Axes`` object to plot in.
 
     subplot_kwargs
-        keyword arguments handled to `matplotlib.pyplot.subpplot`
+        Keyword arguments passed to ``matplotlib.pyplot.subpplot``. Ignored if
+        ``ax`` is not ``None``.
 
+    plot_kwargs
+        Keyword arguments passed to ``ax.plot(**kwargs)``.
     Returns
     -------
 
     """
-    vander_matrix = np.vander(np.abs(eigenvalues), n_timesteps, increasing=True)
 
-    f, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
-    ax.plot(np.arange(n_timesteps), vander_matrix.T, "-")
+    n_timesteps = len(time_values)
+
+    if system_type == "flowmap":
+        if delta_time is None:
+            raise ValueError(
+                "For 'system_type=flowmap', the parameter 'delta_time' must be provided."
+            )
+
+        values_matrix = np.abs(
+            np.power(
+                np.outer(eigenvalues, np.ones(n_timesteps)),
+                time_values[np.newaxis, :] / delta_time,
+            )
+        )
+    elif system_type == "differential":
+        values_matrix = np.abs(np.exp(np.outer(eigenvalues, time_values)))
+    else:
+        raise ValueError(
+            f"system_type={system_type} not known. Choose between "
+            f"[flowmap, differential]."
+        )
+
+    if ax is None:
+        f, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
+
+    plot_kwargs = plot_kwargs or {}
+    plot_kwargs.setdefault("linestyle", "-")
+
+    ax.plot(time_values, values_matrix.T, **plot_kwargs)
 
     with plt.rc_context(rc={"text.usetex": True}):
-        ax.set_xlabel("time step ($t$) [dimensionless]")
-        ax.set_ylabel("abs. eigenvalue $\\vert \\lambda^{t} \\vert$")
+        ax.set_xlabel("time ($t$)")
+
+        if system_type == "flowmap":
+            ax.set_ylabel("$\\vert \\lambda^{t / \\Delta t} \\vert$")
+        else:  # continuous
+            ax.set_ylabel("$\\vert \\exp(\\lambda \cdot t) \\vert$")
 
     return ax
 
@@ -187,7 +257,7 @@ def plot_pairwise_eigenvector(
         _ax.scatter(
             eigenvectors[:, n],
             eigenvectors[:, idx_eigvec],
-            **{} if scatter_params is None else scatter_params
+            **{} if scatter_params is None else scatter_params,
         )
 
         _ax.set_title(
