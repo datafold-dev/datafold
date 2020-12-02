@@ -1455,3 +1455,94 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         self.n_splits_ = n_splits
 
         return self
+
+
+class PostObservable(TSCTransformerMixin):
+    def __init__(self, estimator, cv, n_jobs, verbose, pre_dispatch):
+        self.estimator = estimator
+        self.cv = cv
+        self.n_jobs = n_jobs
+        self.verbose = verbose
+        self.pre_dispatch = pre_dispatch
+
+    def fit(self, X: TSCDataFrame, y=None, **fit_params):
+        """Run fit with all sets of parameter.
+
+        Parameters
+        ----------
+
+        X
+            Training time series data.
+
+        y: None
+            ignored
+
+        **fit_params : Dict[str, object]
+            Parameters passed to the ``fit`` method of the estimator.
+        """
+        # self._validate_settings_edmd()
+        X = self._validate_datafold_data(X)
+
+        cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
+
+        # scorers, refit_metric = self._check_multiscore()
+
+        X, y = indexable(X, y)
+        fit_params = _check_fit_params(X, fit_params)
+
+        n_splits = cv.get_n_splits(X, y, groups=None)
+
+        base_estimator = clone(self.estimator)
+
+        parallel = Parallel(
+            n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch
+        )
+
+        fit_and_score_kwargs = dict(
+            scorer=None,
+            fit_params=fit_params,
+            return_train_score=False,
+            return_n_test_samples=True,
+            return_times=True,
+            return_parameters=False,
+            error_score="raise",
+            verbose=self.verbose,
+        )
+
+        results: Dict[str, Any] = {}
+
+        with parallel:
+
+            all_out: List[Any] = []
+
+            def evaluate_error_test_timeseries():
+
+                out = parallel(
+                    delayed(_fit_and_score_edmd)(
+                        clone(base_estimator),
+                        X,
+                        y,
+                        train=train,
+                        test=test,
+                        parameters=None,
+                        **fit_and_score_kwargs,
+                    )
+                    for train, test in cv.split(X, y, groups=None)
+                )
+
+                if len(out) < 1:
+                    raise ValueError(
+                        "No fits were performed. "
+                        "Was the CV iterator empty? "
+                        "Were there no candidates?"
+                    )
+
+                nonlocal all_out
+                return all_out
+
+            evaluate_error_test_timeseries()
+
+        self.cv_results_ = results
+        self.n_splits_ = n_splits
+
+        return self
