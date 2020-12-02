@@ -83,7 +83,8 @@ class DiffusionMapsTest(unittest.TestCase):
         from sklearn.utils.estimator_checks import check_estimator
 
         for estimator, check in check_estimator(
-            DiffusionMaps(GaussianKernel(epsilon=1.0)), generate_only=True
+            DiffusionMaps(GaussianKernel(epsilon=1.0), n_eigenpairs=3),
+            generate_only=True,
         ):
             check(estimator)
 

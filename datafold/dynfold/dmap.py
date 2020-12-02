@@ -100,10 +100,7 @@ class _DmapKernelAlgorithms:
             eigvect = TSCDataFrame.from_same_indices_as(
                 index_from,
                 eigvect,
-                except_columns=
-                # If kernel matrix shape was smaller than eigenpairs were
-                # requested, then use actual max. possible n_eigenpairs
-                [f"ev{i}" for i in range(min(eigvals.shape[0], n_eigenpairs))],
+                except_columns=[f"ev{i}" for i in range(n_eigenpairs)],
             )
 
         return eigvals, eigvect
@@ -347,6 +344,26 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             **kwargs,
         )
 
+    def _validate_settings(self):
+        check_scalar(
+            self.n_eigenpairs, "n_eigenpairs", target_type=(int, np.integer), min_val=1
+        )
+
+        check_scalar(
+            self.time_exponent,
+            "time_exponent",
+            target_type=(float, int, np.float, np.integer),
+            min_val=0,
+        )
+
+        check_scalar(
+            self.alpha,
+            "alpha",
+            target_type=(float, int, np.float, np.integer),
+            min_val=0,
+            max_val=1,
+        )
+
     def _get_default_kernel(self):
         return GaussianKernel(epsilon=1.0)
 
@@ -508,9 +525,11 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         DiffusionMaps
             self
         """
+        self._validate_settings()
 
         X = self._validate_datafold_data(
-            X=X, validate_array_kwargs=dict(ensure_min_samples=2)
+            X=X,
+            validate_array_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
         )
 
         self._setup_feature_attrs_fit(X, features_out=self._feature_names())
