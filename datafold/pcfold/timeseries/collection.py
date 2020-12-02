@@ -29,7 +29,7 @@ class TSCException(Exception):
 
     @classmethod
     def not_min_samples(cls, min_samples):
-        return cls(f"A minimum number of {min_samples} is required.")
+        return cls(f"A minimum number of {min_samples} samples is required.")
 
     @classmethod
     def not_same_length(cls, actual_lengths):
