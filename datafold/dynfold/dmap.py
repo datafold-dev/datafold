@@ -100,7 +100,10 @@ class _DmapKernelAlgorithms:
             eigvect = TSCDataFrame.from_same_indices_as(
                 index_from,
                 eigvect,
-                except_columns=[f"ev{i}" for i in range(n_eigenpairs)],
+                except_columns=
+                # If kernel matrix shape was smaller than eigenpairs were
+                # requested, then use actual max. possible n_eigenpairs
+                [f"ev{i}" for i in range(min(eigvals.shape[0]), n_eigenpairs)],
             )
 
         return eigvals, eigvect
@@ -578,6 +581,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             basis_change_matrix=basis_change_matrix,
             index_from=index_from,
         )
+
+        # TODO: warning if less self.eigenvalues_ than n_eigenpairs?
+        #  happens if square kernel has less entries than n_eigenpairs
 
         if self._dmap_kernel.is_symmetric_transform() and store_kernel_matrix:
             kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
