@@ -1230,7 +1230,9 @@ class TSCDataFrame(pd.DataFrame):
         Parameters
         ----------
         df
-            new time series, with same features (column names)
+            New time series, with same features (column names) as the existing.
+            If ``df`` is of type ``pd.DataFrame``, the row index must contain time
+            values.
         ts_id
             Dedicated ID of new time series (must not be present in current collection).
 
@@ -1255,9 +1257,17 @@ class TSCDataFrame(pd.DataFrame):
                 f"but got \n{df.columns} "
             )
 
+        if df.index.nlevels == 1:
+            _index = df.index
+        elif df.index.nlevels == 2 and isinstance(df, TSCDataFrame):
+            _index = df.index.get_level_values(self.tsc_time_idx_name)
+        else:
+            raise ValueError("The input parameter 'df' is of wrong format.")
+
         # Add the id to the first level of the MultiIndex
         df.index = pd.MultiIndex.from_arrays(
-            [np.ones(df.shape[0], dtype=np.int) * ts_id, df.index]
+            [np.ones(df.shape[0], dtype=np.int) * ts_id, _index],
+            names=[self.tsc_id_idx_name, self.tsc_time_idx_name],
         )
 
         # 'self' has to appear first to keep TSCDataFrame type.
@@ -1469,7 +1479,8 @@ class TSCDataFrame(pd.DataFrame):
             kwargs["ax"] = ax
 
             if first:
-                ax = ts.plot(legend=legend, **kwargs)
+                ax = ts.plot(color=color, legend=legend, **kwargs)
+
                 if color is None:
                     color = [
                         mclrs.to_rgba(ax.lines[j].get_c())

@@ -1,7 +1,8 @@
 The datafold repository and source distributions bundle a number of libraries that
 are compatibly licensed. We list these here.
 
-Name: diffusion-maps (https://github.com/jmbr/diffusion-maps)
+Name: diffusion-maps
+Source: https://github.com/jmbr/diffusion-maps
 Files: datafold/dynfold/test_dmap.py
 License: MIT
 
@@ -26,7 +27,8 @@ License: MIT
     OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
     WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Name: findiff (https://github.com/maroba/findiff)
+Name: findiff
+Source: https://github.com/maroba/findiff
 Files: datafold/pcfold/timeseries/accessor.py -- TSCAccessor.time_derivative
 License: MIT
 
@@ -50,7 +52,8 @@ License: MIT
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-Name: scikit-learn (https://github.com/scikit-learn/scikit-learn)
+Name: scikit-learn
+Source: https://github.com/scikit-learn/scikit-learn
 Files: datafold/appfold/edmd.py
 License: 2-clause BSD
     For details, see the header inside "datafold/appfold/edmd.py"

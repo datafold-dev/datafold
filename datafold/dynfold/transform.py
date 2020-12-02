@@ -16,7 +16,7 @@ from datafold.pcfold.kernels import PCManifoldKernel
 from datafold.pcfold.timeseries.collection import TSCException
 
 
-class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
+class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
     """Wrapper of a scikit-learn preprocess algorithms to allow time series
     collections as input and output.
 
@@ -174,7 +174,7 @@ class TSCFeaturePreprocess(TSCTransformerMixin, BaseEstimator):
         )
 
 
-class TSCIdentity(TSCTransformerMixin, BaseEstimator):
+class TSCIdentity(BaseEstimator, TSCTransformerMixin):
     """Transformer as a "passthrough" placeholder and/or attaching a constant feature.
 
     Parameters
@@ -294,7 +294,7 @@ class TSCIdentity(TSCTransformerMixin, BaseEstimator):
         return X
 
 
-class TSCPrincipalComponent(TSCTransformerMixin, PCA):
+class TSCPrincipalComponent(PCA, TSCTransformerMixin):
     """Compute principal components from data.
 
     This is a subclass of scikit-learn's ``PCA``  to generalize the
@@ -417,7 +417,7 @@ class TSCPrincipalComponent(TSCTransformerMixin, PCA):
         )
 
 
-class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
+class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     """Perform Takens time delay embedding on time series collection data.
 
     Parameters
@@ -722,7 +722,7 @@ class TSCTakensEmbedding(TSCTransformerMixin, BaseEstimator):
         return X.loc[:, self.feature_names_in_]
 
 
-class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
+class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
     """Represent data in coefficients of radial basis functions.
 
     Parameters
@@ -741,7 +741,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
            type :class:`.TSCDataFrame`.
 
     exact_distance
-        An inexact distance computation increases the performance at the cost of
+        An inexact distance computation increases computational performance at the cost of
         numerical inaccuracies (~1e-7 for Euclidean distance, and ~1 e-14 for squared
         Eucledian distance).
 
@@ -915,7 +915,7 @@ class TSCRadialBasis(TSCTransformerMixin, BaseEstimator):
         )
 
 
-class TSCPolynomialFeatures(TSCTransformerMixin, PolynomialFeatures):
+class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
     """Compute polynomial features from data.
 
     This is a subclass of ``PolynomialFeatures`` from scikit-learn to generalize the
@@ -1027,7 +1027,7 @@ class TSCPolynomialFeatures(TSCTransformerMixin, PolynomialFeatures):
         return poly_data
 
 
-class TSCApplyLambdas(TSCTransformerMixin, BaseEstimator):
+class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
     """Transform data in an element-by-element fashion with lambda functions.
 
     Each function is called on every column in the data (i.e. the number of samples
@@ -1132,7 +1132,7 @@ class TSCApplyLambdas(TSCTransformerMixin, BaseEstimator):
             return X_transformed
 
 
-class TSCFiniteDifference(TSCTransformerMixin, BaseEstimator):
+class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
     """Compute time derivative with finite difference scheme.
 
     .. note::

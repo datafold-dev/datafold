@@ -695,10 +695,12 @@ class DMDBase(
 
     References
     ----------
-
-    :cite:`tu_dynamic_2014`
-    :cite:`williams_datadriven_2015`
-    :cite:`kutz_dynamic_2016`
+    :cite:`schmid_dynamic_2010` - DMD method in the original sense
+    :cite:`rowley_spectral_2009` - connects the DMD method to Koopman operator theory
+    :cite:`tu_dynamic_2014` - generalizes the DMD to temporal snapshot pairs
+    :cite:`williams_datadriven_2015` - generalizes the approximation to a lifted space
+    :cite:`kutz_dynamic_2016` - an introductory book for DMD and its connection to Koopman
+    theory
 
     See Also
     --------
@@ -1095,8 +1097,11 @@ class DMDFull(DMDBase):
     References
     ----------
 
-    :cite:`schmid_dynamic_2010`
-    :cite:`kutz_dynamic_2016`
+    :cite:`schmid_dynamic_2010` - DMD method in the original sense
+    :cite:`rowley_spectral_2009` - connects the DMD method to Koopman operator theory
+    :cite:`tu_dynamic_2014` - generalizes the DMD to temporal snapshot pairs
+    :cite:`williams_datadriven_2015` - generalizes the approximation to a lifted space
+    :cite:`kutz_dynamic_2016` - an introductory book for DMD and Koopman connection
     """
 
     def __init__(
@@ -1194,14 +1199,15 @@ class DMDFull(DMDBase):
             *np.linalg.eig(system_matrix)
         )
 
-        # must be computed with the Koopman eigenvalues (NOT the generator eigenvalues)
-        eigenvectors_left_ = None
         if self.is_diagonalize:
+            # must be computed with the Koopman eigenvalues (NOT the generator eigenvalues)
             eigenvectors_left_ = self._compute_left_eigenvectors(
                 system_matrix=system_matrix,
                 eigenvalues=eigenvalues_,
                 eigenvectors_right=eigenvectors_right_,
             )
+        else:
+            eigenvectors_left_ = None
 
         if self.approx_generator:
             # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10

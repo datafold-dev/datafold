@@ -1139,7 +1139,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         )
 
         dist_kwargs = dist_kwargs or {}
-        # minimum number of neighbors required in the sparse case!
+        # minimum number of neighbors required in sparse case!
         dist_kwargs.setdefault("kmin", self.k_neighbor)
 
         distance_matrix = compute_distance_matrix(

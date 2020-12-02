@@ -4,6 +4,7 @@ import abc
 from functools import partial
 from typing import Generator, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn import metrics
@@ -549,7 +550,7 @@ class TSCScoring(object):
         return factor * float(score)
 
 
-class TSCCrossValidationSplits(metaclass=abc.ABCMeta):
+class TSCCrossValidationSplit(metaclass=abc.ABCMeta):
     """Abstract base class for cross validation splits for time series data.
 
     See sub-classes for details.
@@ -564,7 +565,7 @@ class TSCCrossValidationSplits(metaclass=abc.ABCMeta):
         raise NotImplementedError("base class")
 
 
-class TSCKfoldSeries(TSCCrossValidationSplits):
+class TSCKfoldSeries(TSCCrossValidationSplit):
     """K-fold splits on entire time series.
 
     Both the training and the test set consist of time series in its original length.
@@ -661,7 +662,7 @@ class TSCKfoldSeries(TSCCrossValidationSplits):
         return self.kfold_splitter.get_n_splits(X=X, y=y, groups=groups)
 
 
-class TSCKFoldTime(TSCCrossValidationSplits):
+class TSCKFoldTime(TSCCrossValidationSplit):
     """K-fold splits on time values.
 
     The splits are along the time axis. This means that the time series collection can
@@ -739,7 +740,7 @@ class TSCKFoldTime(TSCCrossValidationSplits):
         return self.kfold_splitter.get_n_splits(X=X, y=y, groups=groups)
 
 
-class TSCWindowFoldTime(TSCCrossValidationSplits):
+class TSCWindowFoldTime(TSCCrossValidationSplit):
     """Assign windows of test samples starting from the end of the time series collection.
 
     This method is useful for time series collections with gaps (time intervals of no
@@ -938,8 +939,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplits):
         Returns
         -------
         """
-        import matplotlib.pyplot as plt
-
         if test_set is not None and (
             np.isin(test_set.time_values(), X.time_values()).any()
         ):

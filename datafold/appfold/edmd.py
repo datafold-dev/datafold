@@ -83,7 +83,7 @@ from datafold.dynfold.base import (
 )
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
-from datafold.pcfold.timeseries.metric import TSCCrossValidationSplits
+from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
     is_integer,
@@ -225,7 +225,7 @@ class EDMD(
         self.include_id_state = include_id_state
         self.compute_koopman_modes = compute_koopman_modes
 
-        # TODO: if necessary provide option to give user defined metric
+        # TODO: if necessary provide option for user defined metric
         self._setup_default_tsc_metric_and_score()
 
         all_steps = self.dict_steps + [("dmd", self.dmd_model)]
@@ -665,7 +665,7 @@ class EDMD(
         time_values
             Time values to evaluate the model for each initial condition.
             Defaults to time values contained in the data available during ``fit``. The
-            values should be ascending and non-negative numeric values.
+            values should be ascending, non-negative numeric values.
 
         qois
             A list of feature names of interest to be include in the returned
@@ -687,7 +687,7 @@ class EDMD(
         TSCException
             Time series collection requirements in `X`: (1) same (constant) time delta as
             during fit (2) all time series must have identical
-            time values (3) all values must be finite (no `NaN` or `inf`)
+            time values (3) all values must be finite (no `NaN` or `inf` values)
         """
 
         check_is_fitted(self)
@@ -701,6 +701,13 @@ class EDMD(
                 n_samples_ic=self.n_samples_ic_,
                 dt=self.dt_ if self.n_samples_ic_ > 1 else None,
             )
+
+        if time_values is None:
+            # If samples were dropped during fit, then for the first
+            # self.n_samples_ic_ - 1 there was no evaluation
+            # This is different from the behaviour in '_validate_features_and_time_values'
+            # and therefore done before.
+            time_values = self.time_values_in_[self.n_samples_ic_ - 1 :]
 
         X, time_values = self._validate_features_and_time_values(
             X=X, time_values=time_values
@@ -1259,7 +1266,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         estimator: EDMD,
         *,
         param_grid: Union[Dict, List[Dict]],
-        cv: TSCCrossValidationSplits,
+        cv: TSCCrossValidationSplit,
         **kwargs,
     ):
 
@@ -1273,7 +1280,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         if not isinstance(self.estimator, EDMD):
             raise TypeError("EDMDCV only supports EDMD estimators.")
 
-        if not isinstance(self.cv, TSCCrossValidationSplits):
+        if not isinstance(self.cv, TSCCrossValidationSplit):
             raise TypeError(f"cv must be of type {(TSCKfoldSeries, TSCKFoldTime)}")
 
     def _check_multiscore(self):
@@ -1448,30 +1455,3 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         self.n_splits_ = n_splits
 
         return self
-
-    def __getattr__(self, name, *args, **kwargs):
-
-        check_is_fitted(self)
-
-        if hasattr(self.best_estimator_, name):
-            return getattr(self.best_estimator_, name)(*args, **kwargs)
-        else:
-            raise AttributeError(f"attribute {name} now known")
-
-    def reconstruct(
-        self, X: TSCDataFrame, qois: Optional[Union[pd.Index, List[str]]] = None
-    ):
-        """Delegated to :py:meth:`.EDMD.reconstruct` of ``best_estimator_``."""
-        return self.__getattr__(name="reconstruct", X=X)
-
-    def predict(
-        self,
-        X: InitialConditionType,
-        time_values: Optional[np.ndarray] = None,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
-        **predict_params,
-    ):
-        """Delegated to :py:meth:`.EDMD.predict` of ``best_estimator_``."""
-        return self.__getattr__(
-            name="predict", X=X, time_values=time_values, qois=qois, **predict_params
-        )
