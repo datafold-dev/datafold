@@ -314,6 +314,22 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         pdtest.assert_frame_equal(actual, expected)
 
+    def test_from_frame_list2(self):
+        df1 = self.simple_df.copy().loc[[0], :]  # pd.DataFrame but possible to transfer
+        df2 = TSCDataFrame(self.simple_df.copy().loc[[1], :])
+
+        with self.assertRaises(TSCException):
+            # 4 time series in simple_df -- currently only single allowed!
+            TSCDataFrame.from_frame_list([self.simple_df.copy()], ts_ids=[9])
+
+        actual = TSCDataFrame.from_frame_list([df1, df2], ts_ids=[99, 100])
+        expected_values = np.row_stack([df1.to_numpy(), df2.to_numpy()])
+
+        nptest.assert_equal(actual.ids.values, np.array([99, 100]))
+        nptest.assert_equal(actual.to_numpy(), expected_values)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
     def test_feature_to_array1(self):
 
         with self.assertRaises(TSCException):

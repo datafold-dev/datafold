@@ -374,9 +374,9 @@ class TSCMetric(object):
                a different weight.
 
         multioutput
-            Handling of metric, if evaluated over multiple features (columns), specify
+            Handling of metric if evaluated over multiple features (columns). Specify
             how to weight each feature. The parameter is ignored for `mode=feature`,
-            because then each feature is a single output.
+            because each feature is a single output.
 
             * "raw_values" - returns metric per feature (i.e., the metric is not reduced)
             * "uniform_average" - returns metric averaged over all features averaged with
