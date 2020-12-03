@@ -1518,12 +1518,15 @@ class TSCDataFrame(pd.DataFrame):
             kwargs["ax"] = ax
 
             if first:
+                # there may be already lines in it, set color of *new* lines
+                exist_lines = len(ax.lines) if ax is not None else 0
+
                 ax = ts.plot(color=color, legend=legend, **kwargs)
 
                 if color is None:
                     color = [
                         mclrs.to_rgba(ax.lines[j].get_c())
-                        for j in range(self.n_features)
+                        for j in range(exist_lines, exist_lines + self.n_features)
                     ]
                 first = False
             else:
