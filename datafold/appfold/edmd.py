@@ -57,7 +57,7 @@ import time
 import warnings
 from itertools import product
 from traceback import format_exception_only
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -1019,9 +1019,22 @@ def _fit_and_score_edmd(
 
     err_timeseries = None
     if return_test_error_timeseries:
-        X_edmd = edmd.reconstruct(X_test)
-        # TODO: there may be better variants to measure the error
-        err_timeseries = (X_test.loc[X_edmd.index] - X_edmd).abs()
+        blocksize = 168
+
+        X_block_list = []
+        err_timeseries_list = []
+
+        for X_block in X_test.tsc.iter_timevalue_window(
+            blocksize=168 + edmd.n_samples_ic_, offset=blocksize
+        ):
+            X_block_list.append(X_block)
+
+            X_edmd = edmd.reconstruct(X_block)
+            # TODO: there may be better variants to measure the error
+            err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
+
+        X_test = TSCDataFrame.from_frame_list(X_block_list)
+        err_timeseries = TSCDataFrame.from_frame_list(err_timeseries_list)
 
     if verbose > 2:
         if isinstance(test_scores, dict):
