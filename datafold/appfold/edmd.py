@@ -246,9 +246,15 @@ class EDMD(
         else:
             # return pandas object to properly indicate what modes are corresponding to
             # which feature
+
+            if hasattr(self, "_incl_postobservables"):
+                _feature_in = self._incl_postobservables
+            else:
+                _feature_in = self.feature_names_in_
+
             modes = pd.DataFrame(
                 self._koopman_modes,
-                index=self.feature_names_in_,
+                index=_feature_in,
                 columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
             )
             return modes
@@ -503,8 +509,8 @@ class EDMD(
         if self._inverse_map is not None and self._dmd_model.is_spectral_mode():
             koopman_modes = self._inverse_map.T @ self._dmd_model.eigenvectors_right_
         else:
-            # Set koopman_modes to None if there are no spectral components of the
-            # Koopman operator or its generator.
+            # Set koopman_modes=None if the koopman matrix was not spectrally
+            # decomposed.
             koopman_modes = None
 
         return koopman_modes
@@ -608,7 +614,11 @@ class EDMD(
         """
 
         if qois is None:
-            feature_columns = self.feature_names_in_
+            if hasattr(self, "_incl_postobservables"):
+                # TODO: only a quick impl.
+                feature_columns = self._incl_postobservables
+            else:
+                feature_columns = self.feature_names_in_
         else:
             feature_columns = qois
 
@@ -932,6 +942,8 @@ def _fit_and_score_edmd(
     parameters,
     fit_params,
     return_train_score=False,
+    return_test_score=True,
+    return_test_error_timeseries=False,
     return_parameters=False,
     return_n_test_samples=False,
     return_times=False,
@@ -1005,6 +1017,12 @@ def _fit_and_score_edmd(
         if return_train_score:
             train_scores = {"score": edmd.score(X_train, y=None)}
 
+    err_timeseries = None
+    if return_test_error_timeseries:
+        X_edmd = edmd.reconstruct(X_test)
+        # TODO: there may be better variants to measure the error
+        err_timeseries = (X_test.loc[X_edmd.index] - X_edmd).abs()
+
     if verbose > 2:
         if isinstance(test_scores, dict):
             for scorer_name in sorted(test_scores):
@@ -1037,7 +1055,11 @@ def _fit_and_score_edmd(
         ret.append(parameters)
     if return_estimator:
         ret.append(edmd)
-    return ret
+
+    if return_test_error_timeseries:
+        return ret, X_test, err_timeseries
+    else:
+        return ret
 
 
 class EDMDCV(GridSearchCV, TSCPredictMixin):
@@ -1465,6 +1487,33 @@ class PostObservable(TSCTransformerMixin):
         self.verbose = verbose
         self.pre_dispatch = pre_dispatch
 
+    def _adapt_edmd_model(self, edmd, cv, X_validate, err_timeseries):
+
+        # 1. TODO: get original data
+        X_dict = edmd.transform(X_validate)
+
+        # 3. TODO: compute inverse map
+        inverse_map_errs = scipy.linalg.lstsq(
+            X_dict.to_numpy(), err_timeseries.to_numpy(), cond=None
+        )[0]
+
+        # 4. TODO: compute Koopman modes
+        modes_errs = inverse_map_errs.T @ edmd.dmd_model.eigenvectors_right_
+
+        # 5. TODO: attach Koopman modes
+        edmd._koopman_modes = np.row_stack([edmd._koopman_modes, modes_errs])
+
+        # 6. TODO: alter feature_names_in_
+
+        attach_features = [f"po{i}" for i in range(len(edmd.feature_names_in_))]
+
+        edmd._incl_postobservables = pd.Index(
+            np.append(edmd.feature_names_in_, attach_features),
+            name=TSCDataFrame.tsc_feature_col_name,
+        )
+
+        return edmd
+
     def fit(self, X: TSCDataFrame, y=None, **fit_params):
         """Run fit with all sets of parameter.
 
@@ -1502,22 +1551,28 @@ class PostObservable(TSCTransformerMixin):
             scorer=None,
             fit_params=fit_params,
             return_train_score=False,
-            return_n_test_samples=True,
-            return_times=True,
+            return_test_score=False,
+            return_test_error_timeseries=True,
+            return_n_test_samples=False,
+            return_times=False,
             return_parameters=False,
             error_score="raise",
+            return_estimator=True,
             verbose=self.verbose,
         )
 
         results: Dict[str, Any] = {}
-
+        X_validate: Optional[TSCDataFrame] = None
+        err_timeseries: Optional[TSCDataFrame] = None
+        best_estimator: Optional[EDMD] = None
         with parallel:
 
-            all_out: List[Any] = []
-
             def evaluate_error_test_timeseries():
+                nonlocal X_validate
+                nonlocal err_timeseries
+                nonlocal best_estimator
 
-                out = parallel(
+                ret = parallel(
                     delayed(_fit_and_score_edmd)(
                         clone(base_estimator),
                         X,
@@ -1529,6 +1584,12 @@ class PostObservable(TSCTransformerMixin):
                     )
                     for train, test in cv.split(X, y, groups=None)
                 )
+                out = [r[0] for r in ret]
+                best_estimator_idx = np.argmax([o[0]["score"] for o in out])
+                best_estimator = out[0][best_estimator_idx]
+
+                X_validate = TSCDataFrame.from_frame_list([r[1] for r in ret])
+                err_timeseries = TSCDataFrame.from_frame_list([r[2] for r in ret])
 
                 if len(out) < 1:
                     raise ValueError(
@@ -1537,12 +1598,18 @@ class PostObservable(TSCTransformerMixin):
                         "Were there no candidates?"
                     )
 
-                nonlocal all_out
-                return all_out
+                return out, X_validate, err_timeseries
 
             evaluate_error_test_timeseries()
 
         self.cv_results_ = results
         self.n_splits_ = n_splits
 
-        return self
+        edmd = self._adapt_edmd_model(
+            edmd=best_estimator,
+            cv=self.cv,
+            X_validate=X_validate,
+            err_timeseries=err_timeseries,
+        )
+
+        return edmd
