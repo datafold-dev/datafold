@@ -565,6 +565,16 @@ class TSCDataFrame(pd.DataFrame):
         tsc_list = list()
 
         for _id, df in zip(ts_ids, frame_list):
+
+            if isinstance(df, TSCDataFrame):
+                if len(df.ids) > 1:
+                    # can be implemented if required
+                    raise TSCException.not_required_n_timeseries(
+                        required_n_timeseries=1, actual_n_timeseries=len(df.ids)
+                    )
+                df = pd.DataFrame(df)
+                df.index = df.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+
             df.index = pd.MultiIndex.from_product([[_id], df.index.to_numpy()])
             tsc_list.append(TSCDataFrame(df))
 
