@@ -526,7 +526,7 @@ class TSCDataFrame(pd.DataFrame):
     def from_frame_list(
         cls,
         frame_list: List[pd.DataFrame],
-        ts_ids: Optional[Union[np.ndarray, List[int]]] = None,
+        ts_ids: Optional[Union[np.ndarray, pd.Index, List[int]]] = None,
     ) -> "TSCDataFrame":
         """Initialize a time series collection from a list of time series.
 
@@ -555,8 +555,33 @@ class TSCDataFrame(pd.DataFrame):
                 handle="raise",
             )
 
+        # prepare list
+        final_list: List[pd.DataFrame] = []
+
+        for df in frame_list:
+            if df.index.nlevels >= 2 and not isinstance(df, TSCDataFrame):
+                # >= 2 to raise error for invalid DataFrames
+                try:
+                    df = TSCDataFrame(df)
+                except AttributeError:
+                    raise TypeError(
+                        f"Cannot process entry check that the format is correct. \n {df}"
+                    )
+
+            if isinstance(df, TSCDataFrame):
+                if len(df.ids) > 1:
+                    df = [e[1] for e in list(df.itertimeseries())]
+                else:
+                    df = pd.DataFrame(df)
+                    df.index = df.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+
+            if isinstance(df, list):
+                final_list += df
+            else:
+                final_list.append(df)
+
         if ts_ids is None:
-            ts_ids = np.arange(len(frame_list)).astype(np.int)
+            ts_ids = np.arange(len(final_list)).astype(np.int)
         else:
             ts_ids = np.asarray(ts_ids)
 
@@ -564,35 +589,17 @@ class TSCDataFrame(pd.DataFrame):
 
         if (
             ts_ids.ndim != 1
-            or ts_ids.shape[0] != len(frame_list)
-            or len(np.unique(ts_ids)) != len(frame_list)
+            or ts_ids.shape[0] != len(final_list)
+            or len(np.unique(ts_ids)) != len(final_list)
         ):
             raise ValueError(
-                "ts_ids must be unique time series IDs of same length as " "frame_list"
+                "ts_ids must be unique time series IDs of same length as frame_list"
             )
 
         tsc_list = list()
 
-        for _id, df in zip(ts_ids, frame_list):
-
-            if df.index.nlevels >= 2 and not isinstance(df, TSCDataFrame):
-                # >= 2 to raise error for invalid DataFrames
-                try:
-                    df = TSCDataFrame(df)
-                except AttributeError:
-                    raise TypeError(
-                        f"Cannot process DataFrame to append to a TSCDataFrame. \n {df}"
-                    )
-
-            if isinstance(df, TSCDataFrame):
-                if len(df.ids) > 1:
-                    # can be implemented if required
-                    raise TSCException.not_required_n_timeseries(
-                        required_n_timeseries=1, actual_n_timeseries=len(df.ids)
-                    )
-                df = pd.DataFrame(df)
-                df.index = df.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
-
+        for _id, df in zip(ts_ids, final_list):
+            # TODO: can be done without loop and would be more efficient
             df.index = pd.MultiIndex.from_product([[_id], df.index.to_numpy()])
             tsc_list.append(TSCDataFrame(df))
 
