@@ -501,6 +501,10 @@ class TSCDataFrame(pd.DataFrame):
         if df.index.ndim != 1:
             raise ValueError("Only single time index (without ID) are allowed.")
 
+        if isinstance(df, TSCDataFrame) or df.index.nlevels > 1:
+            # Handling of TSCDataFrame can be implemented if required.
+            raise TypeError("Only single row-indexed pd.DataFrame are supported.")
+
         if ts_id is None:
             ts_id = 0
 
@@ -543,7 +547,12 @@ class TSCDataFrame(pd.DataFrame):
         ref_df = frame_list[0]
         for _df in frame_list[1:]:
             is_df_same_index(
-                ref_df, _df, check_index=False, check_column=True, handle="raise"
+                ref_df,
+                _df,
+                check_index=False,
+                check_column=True,
+                check_names=False,
+                handle="raise",
             )
 
         if ts_ids is None:
@@ -565,6 +574,15 @@ class TSCDataFrame(pd.DataFrame):
         tsc_list = list()
 
         for _id, df in zip(ts_ids, frame_list):
+
+            if df.index.nlevels >= 2 and not isinstance(df, TSCDataFrame):
+                # >= 2 to raise error for invalid DataFrames
+                try:
+                    df = TSCDataFrame(df)
+                except AttributeError:
+                    raise TypeError(
+                        f"Cannot process DataFrame to append to a TSCDataFrame. \n {df}"
+                    )
 
             if isinstance(df, TSCDataFrame):
                 if len(df.ids) > 1:

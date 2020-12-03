@@ -49,6 +49,7 @@ def is_df_same_index(
     df_right: pd.DataFrame,
     check_index=True,
     check_column=True,
+    check_names=True,
     handle="raise",
 ):
 
@@ -59,7 +60,9 @@ def is_df_same_index(
 
     if check_index:
         try:
-            pdtest.assert_index_equal(df_left.index, df_right.index, check_names=True)
+            pdtest.assert_index_equal(
+                df_left.index, df_right.index, check_names=check_names
+            )
         except AssertionError:
             if handle == "raise":
                 raise
@@ -68,7 +71,7 @@ def is_df_same_index(
     if check_column:
         try:
             pdtest.assert_index_equal(
-                df_left.columns, df_right.columns, check_names=True
+                df_left.columns, df_right.columns, check_names=check_names
             )
         except AssertionError:
             if handle == "raise":
