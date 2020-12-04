@@ -110,10 +110,8 @@ class EDMD(
     * *dictionary* data refers to the data after it was transformed by the dictionary
       and before it is processed by the DMD model
 
-    The two options ``include_id_state`` and ``compute_koopman_modes`` set the
-    attribute ``koopman_modes`` after calling `fit`. If both options are disabled the
-    ``inverse_transform`` is performed via the dictionary transformations functions in
-    reverse order (Note, that this can include non-linear inverse mappings).
+    The Koopman modes are computed if the used DMD variant provides the linear
+    dynamical system with its spectral components and ``use_inverse_transform=False``
 
     ...
 
@@ -142,11 +140,10 @@ class EDMD(
             The final dictionary :py:class:`.TSCDataFrame` must not contain any feature
             names of the original feature names to avoid duplicates.
 
-    compute_koopman_modes
-        If True, a matrix that contains the Koopman modes is computed. It linearly maps
-        from the dictionary space to the full-state original space. The matrix is
-        accessible via the attribute ``koopman_modes``. If ``include_id_state=True``
-        at the same time, this parameter has no effect. 
+    use_transform_inverse
+        If True, the mapping from dictionary space to the original space is performed
+        with ``inverse_transform`` of the dictionary; instead of the usual way with the
+        linear Koopman modes. Note that all models need to implement this function.
 
     memory: :class:`Optional[None, str, object]`, :class:`object` with the \
     `joblib.Memory` interface
@@ -171,32 +168,33 @@ class EDMD(
         The features names in data passed to `fit`.
 
     n_features_out_
-        The number of features in data in dictionary space. An EDMD model prediction
+        The number of features in data in dictionary space. An ``EDMD`` model prediction
         returns ``n_features_in_`` by default.
 
     feature_names_out_
-        The feature names in data in dictionary space. An EDMD model prediction
-        returns data with features equal to ``feature_names_in_`` by default.
+        The feature names in data in dictionary space. An ``EDMD`` model prediction
+        returns data with columns equal to ``feature_names_in_`` by default.
 
     named_steps: :class:`Dict[str, object]`
         Read-only attribute to access any step parameter by user given name. Keys are
         step names and values are steps parameters.
 
     koopman_modes: Optional[pandas.DataFrame]
-        A matrix of shape `(n_features_original_space, n_features_dict_space)` which
-        stores the weights to map from the dictionary states to the original full-state
-        (see Eq. 16 in :cite:`williams_datadriven_2015`). The attribute remains
-        ``None`` if both ``include_id_state`` and ``compute_koopman_modes`` are False.
+        A ``DataFrame`` of shape `(n_features_original_space, n_features_dict_space)`
+        with the modes to map spectrally aligned dictionary states to the original
+        full-state. (see Eq. 16 in :cite:`williams_datadriven_2015`).
+        The attribute is ``None`` if ``use_inverse_transform=True`` or if the
+        DMD model does not describe the Koopman system in spectral form.
 
     koopman_eigenvalues: pandas.Series
-        The eigenvalues of the Koopman matrix or the Koopman generator matrix of
-        shape `(n_features_dict,)`. The attribute is not available if the set DMD model
-        does only compute the system matrix and not the its spectral components.
+        The eigenvalues of the Koopman operator or the Koopman generator matrix of
+        shape `(n_features_dict,)`. The attribute is ``None`` if the DMD model
+        does not describe the Koopman system in spectral form.
 
     n_samples_ic_: int
         The number of time samples required for an initial condition. If the value is
-        larger than 1, then a time series is required with the same sampling interval
-        of the time series during fit.
+        larger than 1, then for an initial condition a time series is required with the
+        same sampling interval of the time series during fit.
 
     See Also
     --------
@@ -215,7 +213,7 @@ class EDMD(
         dmd_model: Optional[DMDBase] = None,
         *,
         include_id_state: bool = True,
-        compute_koopman_modes: bool = True,
+        use_transform_inverse: bool = False,  # TODO: update docu
         memory: Optional[Union[str, object]] = None,
         verbose: bool = False,
     ):
@@ -223,7 +221,7 @@ class EDMD(
         self.dict_steps = dict_steps
         self.dmd_model = dmd_model if dmd_model is not None else DMDFull()
         self.include_id_state = include_id_state
-        self.compute_koopman_modes = compute_koopman_modes
+        self.use_transform_inverse = use_transform_inverse
 
         # TODO: if necessary provide option for user defined metric
         self._setup_default_tsc_metric_and_score()
@@ -374,7 +372,7 @@ class EDMD(
         space).
 
         The actual performed inverse transformation depends on the parameter settings
-        ``include_id_state`` and ``compute_koopman_modes``.
+        ``include_id_state`` and ``use_transform_inverse``.
 
         Parameters
         ----------
@@ -444,23 +442,22 @@ class EDMD(
 
         """
 
-        if self.include_id_state:
-            # trivial case: we just need a projection matrix to select the
-            # original full-states from the dictionary functions
-            inverse_map = projection_matrix_from_features(
-                X_dict.columns, self.feature_names_in_
-            )
-
-        elif self.compute_koopman_modes:
-            # Compute the matrix in a least squares sense
-            # inverse_map = "B" in Williams et al., Eq. 16
-            inverse_map = scipy.linalg.lstsq(
-                X_dict.to_numpy(), X.loc[X_dict.index, :].to_numpy(), cond=None
-            )[0]
-
-        else:
-            # use inverse_transform of dictionary
+        if self.use_transform_inverse:
+            # Indicator to use `ìnverse_transform` and not a linear map.
             inverse_map = None
+        else:
+            if self.include_id_state:
+                # trivial case: we just need a projection matrix to select the
+                # original full-states from the dictionary functions
+                inverse_map = projection_matrix_from_features(
+                    X_dict.columns, self.feature_names_in_
+                )
+            else:
+                # Compute the matrix in a least squares sense
+                # inverse_map = "B" in Williams et al., Eq. 16
+                inverse_map = scipy.linalg.lstsq(
+                    X_dict.to_numpy(), X.loc[X_dict.index, :].to_numpy(), cond=None
+                )[0]
 
         return inverse_map
 
@@ -481,15 +478,15 @@ class EDMD(
            :math:`B` is a projection matrix on the corresponding original state
            features.
 
-        2. The matrix :math:`B` was computed in a least squares sense during `fit` (
-           option `compute_koopman_modes=True`)
+        2. The matrix :math:`B` was computed in a least squares sense during `fit`
            .. math::
                 B = \Psi^{\dagger} \cdot D
             where :math:`\Psi` are the dictionary states and `D` the original states.
 
         3. The matrix :math:`B` was not computed during fit. The the Koopman modes
-           are set to ``None``. Instead the `inverse_transform` of the dictionary pipeline
-           must be called to get back to the original space.
+           are set to ``None``. Enabled with `use_inverse_transform`, which instead uses
+           the `inverse_transform` of the dictionary pipeline to get back to the original
+           space.
 
         Returns
         -------
@@ -498,7 +495,7 @@ class EDMD(
         """
 
         if not hasattr(self, "_inverse_map"):
-            raise NotImplementedError("_inverse_map not available. Please report bug. ")
+            raise NotImplementedError("_inverse_map not available. Please report bug.")
 
         if self._inverse_map is not None and self._dmd_model.is_spectral_mode():
             koopman_modes = self._inverse_map.T @ self._dmd_model.eigenvectors_right_
