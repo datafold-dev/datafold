@@ -1025,7 +1025,7 @@ def _fit_and_score_edmd(
         err_timeseries_list = []
 
         for X_block in X_test.tsc.iter_timevalue_window(
-            blocksize=168 + edmd.n_samples_ic_, offset=blocksize
+            blocksize=168 + edmd.n_samples_ic_, offset=blocksize + edmd.n_samples_ic_
         ):
             X_block_list.append(X_block)
 
