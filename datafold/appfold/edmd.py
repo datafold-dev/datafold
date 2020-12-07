@@ -1017,24 +1017,38 @@ def _fit_and_score_edmd(
         if return_train_score:
             train_scores = {"score": edmd.score(X_train, y=None)}
 
+    # TODO: EXPERIMENTAL
     err_timeseries = None
     if return_test_error_timeseries:
-        blocksize = 168
 
         X_block_list = []
         err_timeseries_list = []
 
-        for X_block in X_test.tsc.iter_timevalue_window(
-            blocksize=168 + edmd.n_samples_ic_, offset=blocksize + edmd.n_samples_ic_
-        ):
-            X_block_list.append(X_block)
+        use_block = True
 
-            X_edmd = edmd.reconstruct(X_block)
-            # TODO: there may be better variants to measure the error
+        if use_block:
+            blocksize = edmd.n_samples_ic_ + 20
+
+            for X_block in X_test.tsc.iter_timevalue_window(
+                blocksize=blocksize,
+                offset=10,
+            ):
+                X_block_list.append(X_block)
+
+                X_edmd = edmd.reconstruct(X_block)
+                # TODO: there may be better variants to measure the error
+                err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
+
+            print(f"USING {blocksize} SAMPLES")
+        else:
+            X_block_list.append(X_test)
+            X_edmd = edmd.reconstruct(X_test)
             err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
+            print(f"USING NO BLOCK!")
 
         X_test = TSCDataFrame.from_frame_list(X_block_list)
         err_timeseries = TSCDataFrame.from_frame_list(err_timeseries_list)
+    # TODO: EXPERIMENTAL END!!
 
     if verbose > 2:
         if isinstance(test_scores, dict):
@@ -1070,7 +1084,7 @@ def _fit_and_score_edmd(
         ret.append(edmd)
 
     if return_test_error_timeseries:
-        return ret, X_test, err_timeseries
+        return ret, X_test, err_timeseries  # TODO: EXPERIMENTAL!!
     else:
         return ret
 
@@ -1493,7 +1507,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
 
 class PostObservable(TSCTransformerMixin):
-    def __init__(self, estimator, cv, n_jobs, verbose, pre_dispatch):
+    def __init__(self, estimator, cv, n_jobs=None, verbose=0, pre_dispatch=None):
         self.estimator = estimator
         self.cv = cv
         self.n_jobs = n_jobs
@@ -1599,7 +1613,7 @@ class PostObservable(TSCTransformerMixin):
                 )
                 out = [r[0] for r in ret]
                 best_estimator_idx = np.argmax([o[0]["score"] for o in out])
-                best_estimator = out[0][best_estimator_idx]
+                best_estimator = out[best_estimator_idx][1]
 
                 X_validate = TSCDataFrame.from_frame_list([r[1] for r in ret])
                 err_timeseries = TSCDataFrame.from_frame_list([r[2] for r in ret])
@@ -1618,11 +1632,13 @@ class PostObservable(TSCTransformerMixin):
         self.cv_results_ = results
         self.n_splits_ = n_splits
 
+        self.err_timeseries = err_timeseries
+
         edmd = self._adapt_edmd_model(
             edmd=best_estimator,
             cv=self.cv,
             X_validate=X_validate,
-            err_timeseries=err_timeseries,
+            err_timeseries=self.err_timeseries,
         )
 
         return edmd
