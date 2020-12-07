@@ -614,6 +614,35 @@ class DiffusionMapsTest(unittest.TestCase):
         actual = dmap.transform(single_sample)
         self.assertIsInstance(actual, TSCDataFrame)
 
+    def test_sparse_time_series_collection(self):
+        X1 = pd.DataFrame(make_swiss_roll(n_samples=500)[0])
+        X2 = pd.DataFrame(make_swiss_roll(n_samples=500)[0])
+
+        X = TSCDataFrame.from_frame_list([X1, X2])
+
+        actual_dmap = DiffusionMaps(
+            kernel=GaussianKernel(epsilon=1.25),
+            n_eigenpairs=6,
+            dist_kwargs=dict(cut_off=30),
+        )
+        actual_result = actual_dmap.fit_transform(X, store_kernel_matrix=True)
+
+        expected_dmap = DiffusionMaps(
+            kernel=GaussianKernel(epsilon=1.25),
+            n_eigenpairs=6,
+            dist_kwargs=dict(cut_off=30),
+        )
+        expected_result = expected_dmap.fit_transform(
+            X.to_numpy(), store_kernel_matrix=True
+        )
+
+        self.assertIsInstance(actual_dmap.kernel_matrix_, scipy.sparse.csr_matrix)
+        self.assertIsInstance(expected_dmap.kernel_matrix_, scipy.sparse.csr_matrix)
+        self.assertIsInstance(actual_result, TSCDataFrame)
+        self.assertIsInstance(expected_result, np.ndarray)
+
+        nptest.assert_equal(actual_result, expected_result)
+
     @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
     def test_cknn_kernel(self):
         from time import time
