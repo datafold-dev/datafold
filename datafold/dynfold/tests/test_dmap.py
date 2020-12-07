@@ -615,8 +615,8 @@ class DiffusionMapsTest(unittest.TestCase):
         self.assertIsInstance(actual, TSCDataFrame)
 
     def test_sparse_time_series_collection(self):
-        X1 = pd.DataFrame(make_swiss_roll(n_samples=500)[0])
-        X2 = pd.DataFrame(make_swiss_roll(n_samples=500)[0])
+        X1 = pd.DataFrame(make_swiss_roll(n_samples=250)[0])
+        X2 = pd.DataFrame(make_swiss_roll(n_samples=250)[0])
 
         X = TSCDataFrame.from_frame_list([X1, X2])
 
@@ -641,7 +641,7 @@ class DiffusionMapsTest(unittest.TestCase):
         self.assertIsInstance(actual_result, TSCDataFrame)
         self.assertIsInstance(expected_result, np.ndarray)
 
-        nptest.assert_equal(actual_result, expected_result)
+        nptest.assert_equal(actual_result.to_numpy(), expected_result)
 
     @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
     def test_cknn_kernel(self):
