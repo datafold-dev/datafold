@@ -825,7 +825,15 @@ class GaussianKernel(RadialBasisKernel):
         # or other computations...)
 
         if callable(self.epsilon):
-            self.epsilon = self.epsilon(distance_matrix)
+            if isinstance(distance_matrix, scipy.sparse.csr_matrix):
+                self.epsilon = self.epsilon(distance_matrix.data)
+            elif isinstance(distance_matrix, np.ndarray):
+                self.epsilon = self.epsilon(distance_matrix)
+            else:
+                raise TypeError(
+                    f"Invalid type: type(distance_matrix)={type(distance_matrix)}."
+                    f"Please report bug."
+                )
 
         self.epsilon = self._check_bandwidth_parameter(
             parameter=self.epsilon, name="epsilon"
