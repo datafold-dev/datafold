@@ -204,6 +204,12 @@ class ClosedPeriodicalCurve(DynamicalSystem):
 
 
 class Pendulum(DynamicalSystem):
+    """
+    System explained:
+    https://towardsdatascience.com/a-beginners-guide-to-simulating-dynamical-systems-with-python-a29bc27ad9b1
+
+    """
+
     def __init__(self, mass_kg=1, length_rod_m=1, friction=0, gravity=9.81):
         self.mass_kg = mass_kg
         self.rod_length_m = length_rod_m
@@ -251,7 +257,7 @@ class Pendulum(DynamicalSystem):
                 self.integrate_pendulum_sim, initial_conditions[ic_idx, :], t_eval
             )
 
-            cartesian_coord = self._convert_cartesian(theta_coord[:, 0])
+            cartesian_coord = self._convert_cartesian(theta_coord[:, 0].copy())
 
             theta_coord = pd.DataFrame(
                 theta_coord, index=t_eval, columns=["theta", "dot_theta"]
