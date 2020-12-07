@@ -623,14 +623,14 @@ class DiffusionMapsTest(unittest.TestCase):
         actual_dmap = DiffusionMaps(
             kernel=GaussianKernel(epsilon=1.25),
             n_eigenpairs=6,
-            dist_kwargs=dict(cut_off=30),
+            dist_kwargs=dict(cut_off=10),
         )
         actual_result = actual_dmap.fit_transform(X, store_kernel_matrix=True)
 
         expected_dmap = DiffusionMaps(
             kernel=GaussianKernel(epsilon=1.25),
             n_eigenpairs=6,
-            dist_kwargs=dict(cut_off=30),
+            dist_kwargs=dict(cut_off=10),
         )
         expected_result = expected_dmap.fit_transform(
             X.to_numpy(), store_kernel_matrix=True
