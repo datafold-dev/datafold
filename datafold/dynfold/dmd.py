@@ -833,23 +833,24 @@ class DMDBase(
             feature_names_out=feature_columns,
         )
 
-        # correct the time shift again to return the correct time according to the
-        # training data (not necessarily "normed time steps" [0, 1, 2, ...]
+        # correct the time shift again according to the training data
+        # (not necessarily normed time steps [0, 1, 2, ...])
         # One way is to shift the time again, i.e.
         #
         #    tsc_df.tsc.shift_time(shift_t=shift)
         #
         # However, this can sometimes introduce numerical noise (forward/backwards
-        # shifting), therefore the user-requested `time_values` set directly into the
-        # index. This way it matches for all time series.
+        # shifting). Therefore, the user-requested `time_values` are set directly into the
+        # index. This way the time values are exactly the same accross for all time
+        # series.
         #
-        # Because hard-setting the time indices can introduce problems, the following
+        # Because hard-setting the time indices can be problematic, the following
         # assert makes sure that both ways match (up to numerical differences).
         assert (
             tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-15
         ).all()
 
-        # Hard set of time_values
+        # Set time_values from user input
         tsc_df.index = tsc_df.index.set_levels(
             time_values, level=1
         ).remove_unused_levels()
