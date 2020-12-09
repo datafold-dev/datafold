@@ -847,7 +847,7 @@ class DMDBase(
         # Because hard-setting the time indices can be problematic, the following
         # assert makes sure that both ways match (up to numerical differences).
         assert (
-            tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-15
+            tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
         ).all()
 
         # Set time_values from user input
@@ -1713,7 +1713,7 @@ class PyDMDWrapper(DMDBase):
             assert pydmd is not None  # mypy
 
         self._setup_default_tsc_metric_and_score()
-        self.method = method.lower()
+        self.method = method
         self.svd_rank = svd_rank
         self.tlsq_rank = tlsq_rank
         self.exact = exact
