@@ -873,6 +873,9 @@ class TSCAccessor(object):
 
         self.check_const_time_delta()
 
+        # can be implemented if required:
+        self.check_required_min_timesteps(required_min_timesteps=2)
+
         ts_counts = self._tsc_df.n_timesteps
 
         if is_integer(ts_counts):
@@ -883,15 +886,15 @@ class TSCAccessor(object):
 
         assert isinstance(ts_counts, pd.Series)  # for mypy
 
-        nr_shift_snapshots = (ts_counts.subtract(1)).sum()
+        n_shift_snapshots = (ts_counts.subtract(1)).sum()
         insert_indices = np.append(0, (ts_counts.subtract(1)).cumsum().to_numpy())
 
         assert len(insert_indices) == self._tsc_df.n_timeseries + 1
 
         if snapshot_orientation == "col":
-            shift_left = np.zeros([self._tsc_df.n_features, nr_shift_snapshots])
+            shift_left = np.zeros([self._tsc_df.n_features, n_shift_snapshots])
         elif snapshot_orientation == "row":
-            shift_left = np.zeros([nr_shift_snapshots, self._tsc_df.n_features])
+            shift_left = np.zeros([n_shift_snapshots, self._tsc_df.n_features])
         else:
             raise ValueError(f"snapshot_orientation={snapshot_orientation} not known")
 
@@ -900,10 +903,10 @@ class TSCAccessor(object):
         # NOTE: if this has performance issues or memory issues, then it may be beneficial
         # to do the whole thing with boolean indexing
 
+        # TODO: maybe three is a better readable code using pandas' functionatlity?
+        #  e.g. shift https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.shift.html
+        #  could also be more efficient than cmp to itertimeseries()
         for i, (id_, ts_df) in enumerate(self._tsc_df.itertimeseries()):
-            # transpose because snapshots are column-wise by convention, whereas here they
-            # are row-wise
-
             if snapshot_orientation == "col":
                 # start from 0 and exclude last snapshot
                 shift_left[:, insert_indices[i] : insert_indices[i + 1]] = ts_df.iloc[

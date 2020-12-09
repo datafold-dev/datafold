@@ -2,7 +2,6 @@
 
 import abc
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.integrate import odeint, solve_ivp
@@ -10,9 +9,10 @@ from scipy.integrate import odeint, solve_ivp
 from datafold.pcfold import TSCDataFrame
 
 
+# TODO: could be a TSCPredictMixin
 class DynamicalSystem(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def eval(self, initial_conditions, t_eval, **kwargs):
+    def predict(self, initial_conditions, time_values, **kwargs):
         raise NotImplementedError("base class")
 
 
@@ -42,7 +42,7 @@ class LimitCycle(DynamicalSystem):
         vals = rad * np.exp(0 + 1j * ang)
         return np.real(vals), np.imag(vals)
 
-    def eval(self, **kwargs):
+    def predict(self, **kwargs):
 
         if "t_eval" in kwargs:
             kwargs["nr_steps"] = len(kwargs["t_eval"])
@@ -127,7 +127,7 @@ class HopfSystem(DynamicalSystem):
         y_dot[1] = y[0] + y[1] * factor
         return y_dot
 
-    def eval(self, initial_conditions, t_eval, ic_type="xx"):
+    def predict(self, initial_conditions, time_values, ic_type="xx"):
 
         assert ic_type in ["xx", "rt"]
         assert initial_conditions.ndim == 2
@@ -144,9 +144,9 @@ class HopfSystem(DynamicalSystem):
         for _id, ic in enumerate(initial_conditions):
             solution = solve_ivp(
                 self.hopf_system,
-                t_span=(t_eval[0], t_eval[-1]),
+                t_span=(time_values[0], time_values[-1]),
                 y0=ic,
-                t_eval=t_eval,
+                t_eval=time_values,
             )
             current_solution = solution["y"].T
             theta = np.arctan2(current_solution[:, 1], current_solution[:, 0])
@@ -198,9 +198,9 @@ class ClosedPeriodicalCurve(DynamicalSystem):
             np.column_stack([x, y, z]), index=t_eval, columns=["x", "y", "z"]
         )
 
-    def eval(self, initial_conditions, t_eval, **kwargs):
+    def predict(self, initial_conditions, time_values, **kwargs):
         assert initial_conditions is None
-        return self._closed_system(t_eval)
+        return self._closed_system(time_values)
 
 
 class Pendulum(DynamicalSystem):
@@ -240,7 +240,7 @@ class Pendulum(DynamicalSystem):
 
         return self.fixation_point_ + np.column_stack([x, y])
 
-    def eval(self, initial_conditions, t_eval, **kwargs):
+    def predict(self, initial_conditions, time_values, **kwargs):
         # initial_conditions = theta_0 -- theta_1
 
         self._compute_cart_parameters()
@@ -254,16 +254,16 @@ class Pendulum(DynamicalSystem):
 
         for ic_idx in range(initial_conditions.shape[0]):
             theta_coord = odeint(
-                self.integrate_pendulum_sim, initial_conditions[ic_idx, :], t_eval
+                self.integrate_pendulum_sim, initial_conditions[ic_idx, :], time_values
             )
 
             cartesian_coord = self._convert_cartesian(theta_coord[:, 0].copy())
 
             theta_coord = pd.DataFrame(
-                theta_coord, index=t_eval, columns=["theta", "dot_theta"]
+                theta_coord, index=time_values, columns=["theta", "dot_theta"]
             )
             cartesian_coord = pd.DataFrame(
-                cartesian_coord, index=t_eval, columns=["x", "y"]
+                cartesian_coord, index=time_values, columns=["x", "y"]
             )
 
             solution_frames.append(pd.concat([theta_coord, cartesian_coord], axis=1))
