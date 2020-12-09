@@ -1110,6 +1110,48 @@ class TestTSCDataFrame(unittest.TestCase):
         with self.assertRaises(AttributeError):
             tsc.insert_ts(new_ts, None)
 
+    def test_delta_time_degenerate_timeseries(self):
+        tsc = TSCDataFrame(self.simple_df.iloc[1:, :])
+        actual = tsc.delta_time
+        expected = pd.Series(
+            [np.nan, 1, 1, 1.0], index=tsc.ids, name="delta_time", dtype=np.float64
+        )
+        pdtest.assert_series_equal(actual, expected)
+
+    def test_linspace(self):
+
+        # The problem is that np.linspace(...) is often not equally spaced numerically
+        # this function tests the tolerances set in the delta_time attribute.
+
+        for n_samples in [10, 1000, 2000, 3000, 3300, 3400, 3500, 10000, 10000]:
+            for stop in [0.01, 0.1, 10, 40, 50, 100, 1000, 10000, 100000000000]:
+
+                # n_samples = 1000
+                # stop = 10000
+
+                time_values, delta = np.linspace(0, stop, n_samples, retstep=True)
+
+                tsc = TSCDataFrame(
+                    np.random.rand(time_values.shape[0], 2),
+                    index=pd.MultiIndex.from_product([[0], time_values]),
+                )
+
+                actual_delta = tsc.delta_time
+
+                # print(n_samples)
+                # print(stop)
+                isinstance(actual_delta, float)
+                self.assertFalse(np.isnan(tsc.delta_time))
+
+                # Check that when increasing the distance in one sample minimally,
+                # then the delta_time is not constant anymore
+                time_values[-1] = time_values[-1] + delta * 1e-9
+                tsc = TSCDataFrame(
+                    np.random.rand(time_values.shape[0], 2),
+                    index=pd.MultiIndex.from_product([[0], time_values]),
+                )
+                self.assertTrue(np.isnan(tsc.delta_time))
+
     def test_build_from_single_timeseries(self):
         df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0, -1), columns=["A"])
         tsc = TSCDataFrame.from_single_timeseries(df)

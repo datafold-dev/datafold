@@ -791,12 +791,21 @@ class TSCDataFrame(pd.DataFrame):
         for timeseries_id in self.ids:
             deltatimes_id = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
 
-            if not self.is_datetime_index():
-                # TODO: see gitlab issue #85
-                # round differences to machine 1 order below machine precision
-                deltatimes_id = np.around(deltatimes_id, decimals=14)
-
             unique_deltatimes = np.unique(deltatimes_id)
+
+            if deltatimes_id.dtype == np.floating and len(unique_deltatimes) > 1:
+                # Note: unique_deltatimes is already sorted by np.unique
+
+                mean_steps = np.max(np.diff(unique_deltatimes))
+                rel_largest_step = mean_steps / unique_deltatimes[-1]
+
+                # Test these tolerances in test
+                REL_TOL = 1e-12
+                ABS_TOL = 1e-15
+                # print(f"mean_steps={mean_steps} | rel_largest_step={rel_largest_step}")
+
+                if mean_steps <= ABS_TOL or rel_largest_step <= REL_TOL:
+                    unique_deltatimes = np.array([unique_deltatimes[0]])
 
             if len(unique_deltatimes) == 1:
                 dt_result_series[timeseries_id] = unique_deltatimes[0]
