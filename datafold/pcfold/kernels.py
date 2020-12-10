@@ -12,6 +12,7 @@ from sklearn.preprocessing import normalize
 from sklearn.utils import check_scalar
 
 from datafold.pcfold.distance import compute_distance_matrix
+from datafold.pcfold.timeseries.accessor import TSCAccessor
 from datafold.utils.general import (
     df_type_and_indices_from,
     diagmat_dot_mat,
@@ -1725,25 +1726,16 @@ class ConeKernel(TSCManifoldKernel):
         if Y is not None:
             is_df_same_index(X, Y, check_index=False, check_column=True, handle="raise")
 
-        # checks that they are scalar:
-        X_dt = X.delta_time
-
-        if not is_float(X_dt):
-            # raises error:
-            X.tsc.check_const_time_delta()
-
-        if Y is not None:
-            Y_dt = Y.delta_time
-
-            if not is_float(X_dt):
-                # raises error:
-                Y.tsc.check_const_time_delta()
-
-            if Y_dt != X_dt:
-                raise TSCException(
-                    f"'X.delta_time={X_dt}' and 'Y.delta_time={Y_dt}' "
-                    f"have not the same time sampling."
-                )
+        # checks that if scalar, if yes returns delta_time
+        if Y is None:
+            X_dt = X.tsc.check_const_time_delta()
+        else:
+            X_dt, _ = TSCAccessor.check_equal_delta_time(
+                X,
+                Y,
+                atol=1e-15,
+                require_const=True,
+            )
 
         # return here to not compute delta_time again
         return X_dt

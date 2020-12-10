@@ -157,10 +157,12 @@ class TSCAccessor(object):
                 actual_lengths=self._tsc_df.is_equal_length()
             )
 
-    def check_const_time_delta(self) -> None:
+    def check_const_time_delta(self) -> Union[pd.Series, float]:
         """Check if all time series have the same time-delta."""
+        delta_time = self._tsc_df.delta_time
         if not self._tsc_df.is_const_delta_time():
             raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
+        return delta_time
 
     def check_timeseries_same_timevalues(self) -> None:
         """Check if all time series in the collection share the same time values."""
@@ -194,8 +196,11 @@ class TSCAccessor(object):
             # this is a better variant than
             # np.asarray(self._tsc_df.delta_time) == np.asarray(required_time_delta)
             # because the shapes can also mismatch
-            nptest.assert_array_equal(
-                np.asarray(self._tsc_df.delta_time), np.asarray(required_time_delta)
+            nptest.assert_allclose(
+                np.asarray(self._tsc_df.delta_time),
+                np.asarray(required_time_delta),
+                rtol=1e-12,
+                atol=1e-15,
             )
         except AssertionError:
             raise TSCException.not_required_delta_time(
@@ -259,6 +264,83 @@ class TSCAccessor(object):
         )
         if (counts > 1).any():
             raise TSCException("time series are required to be non-overlapping")
+
+    @classmethod
+    def check_equal_delta_time(
+        cls, X: TSCDataFrame, Y: TSCDataFrame, atol=1e-15, require_const=False
+    ) -> Tuple[Union[float, pd.Series], Union[float, pd.Series]]:
+        """Check if two time series collections share the same delta times.
+
+        Parameters
+        ----------
+        X
+            First time series collection.
+        Y
+            Second time series collection.
+        atol
+            Tolerance passed to :py:meth:`.equal_const_delta_time`
+
+        require_const
+            If True, both `X` and `Y` must have constant delta times.
+
+        Raises
+        ------
+        :py:class:`TSCException` - if time_delta not equal or if either `X` or `Y` is not
+        constant with ``require_const=True``.
+
+        Returns
+        -------
+
+        """
+        X_dt = X.delta_time
+        Y_dt = Y.delta_time
+
+        equal = True
+        if isinstance(X_dt, pd.Series) and not require_const:
+            if not isinstance(Y_dt, pd.Series):
+                equal = False
+            import pandas.testing as pdtest
+
+            try:
+                pdtest.assert_series_equal(X_dt, Y_dt, atol=atol)
+            except AssertionError:
+                equal = False
+
+        elif (
+            isinstance(X_dt, pd.Series) or isinstance(Y_dt, pd.Series)
+        ) and require_const:
+            raise TSCException.not_const_delta_time()
+        else:
+            if not cls.equal_const_delta_time(X_dt, Y_dt, atol=atol):
+                equal = False
+
+        if not equal:
+            raise TSCException.not_required_delta_time(X_dt, Y_dt)
+
+        return X_dt, Y_dt
+
+    @classmethod
+    def equal_const_delta_time(cls, dt1: float, dt2: float, atol=1e-15) -> bool:
+        """Returns True, if the time deltas should be treated equally.
+
+        Parameters
+        ----------
+        dt1
+            First delta time.
+
+        dt2
+            Second delta time.
+
+        atol
+            Acceptable absolute tolerance between the two delta times. This is
+            relevant for floating delta times that have "numerical noise" when
+            equally spaced.
+
+        Returns
+        -------
+        bool
+        """
+        return np.abs(dt1 - dt2) <= atol
 
     def iter_timevalue_window(
         self, blocksize: int, offset: int, per_time_series: bool = False

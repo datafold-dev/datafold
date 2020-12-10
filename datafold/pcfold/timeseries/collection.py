@@ -44,7 +44,12 @@ class TSCException(Exception):
 
     @classmethod
     def not_const_delta_time(cls, actual_delta_time=None):
-        msg = "The time sampling ('delta_time') is not constant."
+        msg = (
+            "The time sampling ('delta_time') is not constant. \n"
+            "Note: If the time values are numerical floating points and were generated "
+            "with numpy.linspace, then this can introduce numerical noise breaking "
+            "the equal spacing."
+        )
 
         if actual_delta_time is not None:
             msg += f"\n {actual_delta_time}"
@@ -607,6 +612,59 @@ class TSCDataFrame(pd.DataFrame):
 
         return cls(tsc)
 
+    @staticmethod
+    def unique_delta_times(
+        delta_times: Union[np.ndarray, pd.Series], rtol=1e-12, atol=1e-15
+    ) -> np.ndarray:
+        """Returns unique delta times of an array within tolerances for floating time
+        values.
+
+        The default tolerance values are adjusted in test_linspace so that a wide range of
+        time_values generated with ``np.linspace`` are considered as equally spaced (
+        despite numerical noise that breaks the equality).
+
+        Parameters
+        ----------
+        delta_times
+            Array of delta times between samples of a time series.
+
+        rtol
+            Relative tolerance of the largest versus the smallest delta time.
+
+        atol
+            Absolute tolerance between the delta times to be considered unique.
+
+        Returns
+        -------
+        numpy.ndarray
+            Unique (in tolerance levels) delta times.
+        """
+
+        unique_delta_times = np.unique(np.asarray(delta_times))
+
+        if delta_times.dtype == np.floating and len(unique_delta_times) > 1:
+            # Note: unique_delta_times is already sorted by np.unique
+            max_step = np.diff(unique_delta_times)
+            rel_step = max_step / unique_delta_times[1:]
+
+            # print(f"max_step={max_step} | rel_step={rel_step}")
+
+            abs_groups = max_step <= atol
+            rel_groups = rel_step <= rtol
+
+            groups = np.logical_not(np.logical_or(abs_groups, rel_groups)).cumsum()
+            groups = np.append(0, groups)
+
+            n_groups = groups[-1] + 1  # +1 because 0 is also a group
+            _unique_dt = np.zeros(n_groups)
+
+            for group in range(n_groups):
+                _unique_dt[group] = np.mean(unique_delta_times[groups == group])
+
+            unique_delta_times = _unique_dt
+
+        return unique_delta_times
+
     @classmethod
     def from_csv(cls, filepath, **kwargs) -> "TSCDataFrame":
         """Initialize time series collection from csv file.
@@ -789,34 +847,29 @@ class TSCDataFrame(pd.DataFrame):
         id_indexer = self.index.get_level_values(self.tsc_id_idx_name)
 
         for timeseries_id in self.ids:
-            deltatimes_id = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
+            _id_dt = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
+            _id_unique_dt = self.unique_delta_times(_id_dt)
 
-            unique_deltatimes = np.unique(deltatimes_id)
-
-            if deltatimes_id.dtype == np.floating and len(unique_deltatimes) > 1:
-                # Note: unique_deltatimes is already sorted by np.unique
-
-                mean_steps = np.max(np.diff(unique_deltatimes))
-                rel_largest_step = mean_steps / unique_deltatimes[-1]
-
-                # Test these tolerances in test
-                REL_TOL = 1e-12
-                ABS_TOL = 1e-15
-                # print(f"mean_steps={mean_steps} | rel_largest_step={rel_largest_step}")
-
-                if mean_steps <= ABS_TOL or rel_largest_step <= REL_TOL:
-                    unique_deltatimes = np.array([unique_deltatimes[0]])
-
-            if len(unique_deltatimes) == 1:
-                dt_result_series[timeseries_id] = unique_deltatimes[0]
+            if len(_id_unique_dt) == 1:
+                dt_result_series[timeseries_id] = _id_unique_dt[0]
 
         if not np.isnan(dt_result_series).all():
-            n_different_dts = len(np.unique(dt_result_series))
+
+            _unique_result_series = self.unique_delta_times(
+                dt_result_series, rtol=0, atol=1e-15
+            )
+
+            n_different_dts = len(_unique_result_series)
 
             if not np.isnan(dt_result_series).any():
+                # TODO: here it may be interesting to check the new "Null" types of
+                #  pandas. They allow to also have nan by still keeping other dtypes
+                #  than float (--> only float has a nan representation in Numpy types)
                 dt_result_series = dt_result_series.astype(diff_times.dtype)
 
-        else:  # all nan (i.e. irregular sampling), treat as all identical sampled
+        else:
+            # all nan (i.e. irregular sampling), treat as all "identical
+            # irregular sampled"
             n_different_dts = 1
 
         if self.n_timeseries == 1 or n_different_dts == 1:
