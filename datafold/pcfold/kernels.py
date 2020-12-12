@@ -113,7 +113,7 @@ def _symmetric_matrix_division(
     if (vec == 0.0).any():
         if value_zero_division == "raise":
             raise ZeroDivisionError(
-                f"Encountered zero values in division in {(vec == 0).sum()}"
+                f"Encountered zero values in division in {(vec == 0).sum()} points."
             )
         else:
             # division results into 'nan' without ZeroDivisionWarning and will
