@@ -944,7 +944,6 @@ def _fit_and_score_edmd(
     else:
         msg = ""
 
-    # Adjust length of sample weights
     fit_params = fit_params if fit_params is not None else {}
     fit_params = _check_fit_params(X, fit_params, train)
 
