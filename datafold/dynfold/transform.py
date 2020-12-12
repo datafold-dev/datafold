@@ -736,6 +736,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         Selection of what to take as centers during fit.
 
         * `all_data` - all data points during fit are used as centers
+        * `fit_params` - set the center points with keyword arguments during fit
         * `initial_condition` - take the initial condition states as centers.
            Note for this option the data `X` during fit must be of
            type :class:`.TSCDataFrame`.
@@ -756,13 +757,13 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         delayed until `inverse_transform` is called for the first time.
     """
 
-    _cls_valid_center_types = ["all_data", "initial_condition"]
+    _cls_valid_center_types = ["all_data", "fit_params", "initial_condition"]
 
     def __init__(
         self,
         kernel: Optional[PCManifoldKernel] = None,
         *,  # keyword-only
-        center_type="all_data",
+        center_type: str = "all_data",
         exact_distance=True,
     ):
         self.kernel = kernel
@@ -792,7 +793,9 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
             ignored
 
         **fit_params: Dict[str, object]
-            None
+            centers: numpy.ndarray
+                Points where the radial basis functions are centered.
+                `center_type="fit_params"` must be set during initialization.
 
         Returns
         -------
@@ -802,14 +805,33 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(X)
         self._validate_center_type(center_type=self.center_type)
-        self._read_fit_params(attrs=None, fit_params=fit_params)
+        _centers = self._read_fit_params(
+            attrs=[("centers", None)], fit_params=fit_params
+        )
 
         if self.center_type == "all_data":
             self.centers_ = self._X_to_numpy(X)
-        else:  # self.center_type == "initial_condition":
+        elif self.center_type == "fit_params":
+            try:
+                self.centers_ = np.asarray(_centers).astype(np.float)
+            except TypeError:
+                raise TypeError(
+                    "centers were not passed to fit_params or not array-like."
+                )
+
+            if self.centers_.ndim != 2 or self.centers_.shape[1] != X.shape[1]:
+                raise ValueError(
+                    "The center points must be a matrix with same point "
+                    "dimension than 'X'."
+                )
+        elif self.center_type == "initial_condition":
             if not isinstance(X, TSCDataFrame):
-                raise TypeError("Data 'X' must be TSCDataFrame")
+                raise TypeError("'X' must be of type TSCDataFrame.")
             self.centers_ = X.initial_states().to_numpy()
+        else:
+            raise RuntimeError(
+                "center_type was not checked correctly. Please report bug."
+            )
 
         set_kernel = (
             self.kernel if self.kernel is not None else self._get_default_kernel()
@@ -867,14 +889,14 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_centers)`
         """
-        self.fit(X)
+        self.fit(X, **fit_params)
         X_intern = self._X_to_numpy(X)
         self._validate_center_type(center_type=self.center_type)
 
         if self.center_type == "all_data":
             # compute pdist distance matrix, which is often more efficient
             rbf_coeff = self.centers_.compute_kernel_matrix()
-        else:  # self.center_type == "initial_condition":
+        else:  # self.center_type in ["initial_condition", "fit_params"]:
             rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
 
         return self._same_type_X(
