@@ -13,7 +13,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
 from datafold.appfold.edmd import EDMD, EDMDCV
-from datafold.dynfold import gDMDFull
+from datafold.dynfold import DMDFull, gDMDFull
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
     TSCIdentity,
@@ -23,6 +23,7 @@ from datafold.dynfold.transform import (
 from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
 from datafold.utils.general import is_df_same_index
+from datafold.utils.plot import plot_eigenvalues
 
 
 class EDMDTest(unittest.TestCase):
@@ -136,25 +137,25 @@ class EDMDTest(unittest.TestCase):
         self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1] + 1)
 
     def test_qoi_selection1(self):
-        tsc = self.multi_waves
+        X = self.multi_waves
 
         # pre-selection
-        edmd = EDMD(dict_steps=[("id", TSCIdentity())], include_id_state=False).fit(tsc)
+        edmd = EDMD(dict_steps=[("id", TSCIdentity())], include_id_state=False).fit(X)
 
-        cos_values = edmd.predict(tsc.initial_states(), qois=["cos"])
-        sin_values = edmd.predict(tsc.initial_states(), qois=["sin"])
+        cos_values = edmd.predict(X.initial_states(), qois=["cos"])
+        sin_values = edmd.predict(X.initial_states(), qois=["sin"])
 
-        pdtest.assert_index_equal(tsc.loc[:, "cos"].columns, cos_values.columns)
-        pdtest.assert_index_equal(tsc.loc[:, "sin"].columns, sin_values.columns)
+        pdtest.assert_index_equal(X.loc[:, "cos"].columns, cos_values.columns)
+        pdtest.assert_index_equal(X.loc[:, "sin"].columns, sin_values.columns)
 
-        cos_values_reconstruct = edmd.reconstruct(tsc, qois=["cos"])
-        sin_values_reconstruct = edmd.reconstruct(tsc, qois=["sin"])
+        cos_values_reconstruct = edmd.reconstruct(X, qois=["cos"])
+        sin_values_reconstruct = edmd.reconstruct(X, qois=["sin"])
 
         pdtest.assert_index_equal(
-            tsc.loc[:, "cos"].columns, cos_values_reconstruct.columns
+            X.loc[:, "cos"].columns, cos_values_reconstruct.columns
         )
         pdtest.assert_index_equal(
-            tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
+            X.loc[:, "sin"].columns, sin_values_reconstruct.columns
         )
 
     def test_qoi_selection2(self):
@@ -401,7 +402,6 @@ class EDMDTest(unittest.TestCase):
     def test_edmd_dict_sine_wave_generator(self, plot=False):
         # Use a DMD model that approximates the generator matrix and not the Koopman
         # operator
-
         _edmd = EDMD(
             dict_steps=[
                 ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
@@ -436,13 +436,44 @@ class EDMDTest(unittest.TestCase):
         if plot:
             ax = self.sine_wave_tsc.plot()
             inverse_dict.plot(ax=ax)
-
-            from datafold.utils.plot import plot_eigenvalues
-
             f, ax = plt.subplots()
             plot_eigenvalues(eigenvalues=_edmd.dmd_model.eigenvalues_, ax=ax)
-
             plt.show()
+
+    def test_spectral_and_matrix_mode(self):
+        _edmd_spectral = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            dmd_model=DMDFull(sys_mode="spectral"),
+        )
+
+        _edmd_matrix = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=2)),
+            ],
+            dmd_model=DMDFull(sys_mode="matrix"),
+        )
+
+        actual_spectral = _edmd_spectral.fit_predict(X=self.sine_wave_tsc)
+        actual_matrix = _edmd_matrix.fit_predict(X=self.sine_wave_tsc)
+
+        pdtest.assert_frame_equal(actual_spectral, actual_matrix)
+
+        self.assertTrue(_edmd_spectral.koopman_modes is not None)
+        self.assertTrue(_edmd_spectral.dmd_model.is_spectral_mode())
+
+        self.assertTrue(_edmd_matrix.koopman_modes is None)
+        self.assertTrue(_edmd_matrix.dmd_model.is_matrix_mode())
+
+        # use qois argument
+        actual_spectral = _edmd_spectral.reconstruct(X=self.sine_wave_tsc, qois=["sin"])
+        actual_matrix = _edmd_matrix.reconstruct(X=self.sine_wave_tsc, qois=["sin"])
+        pdtest.assert_frame_equal(actual_spectral, actual_matrix)
 
     def test_edmd_with_composed_dict(self, display_html=False, plot=False):
 

@@ -242,17 +242,11 @@ class EDMD(
         if self._koopman_modes is None:
             return None
         else:
-            # return pandas object to properly indicate what modes are corresponding to
-            # which feature
-
-            if hasattr(self, "_incl_postobservables"):
-                _feature_in = self._incl_postobservables
-            else:
-                _feature_in = self.feature_names_in_
-
+            # pandas object to properly indicate what modes are corresponding to which
+            # feature
             modes = pd.DataFrame(
                 self._koopman_modes,
-                index=_feature_in,
+                index=self.feature_names_pred_,
                 columns=[f"evec{i}" for i in range(self._koopman_modes.shape[1])],
             )
             return modes
@@ -323,14 +317,14 @@ class EDMD(
                 )
 
     @property
-    def feature_names_in_(self):
+    def feature_names_in_(self) -> pd.Index:
         # delegate to first step (which will call _check_is_fitted)
         # NOTE: n_features_in_ is also delegated, but already included in the super
         # class Pipeline (implementation by sklearn)
         return self.steps[0][1].feature_names_in_
 
     @property
-    def n_features_out_(self):
+    def n_features_out_(self) -> int:
         # Important note: this returns the number of features by the dictionary,
         # NOT from a EDMD prediction
         return self._dmd_model.n_features_in_
@@ -340,6 +334,11 @@ class EDMD(
         # Important note: this returns the number of features by the dictionary,
         # NOT from a EDMD prediction
         return self._dmd_model.feature_names_in_
+
+    @property
+    def feature_names_pred_(self) -> pd.Index:
+        # TODO: in documentation
+        return self._feature_names_pred
 
     def transform(self, X: TransformType) -> TransformType:
         """Perform dictionary transformations on time series data (original space).
@@ -425,6 +424,15 @@ class EDMD(
         # number that is required for the initial condition
         return int(diff) + 1
 
+    def _least_squares_inverse_map(self, X, X_dict):
+        if isinstance(X, pd.DataFrame):
+            X = X.to_numpy()
+
+        if isinstance(X_dict, pd.DataFrame):
+            X_dict = X_dict.to_numpy()
+
+        return scipy.linalg.lstsq(X_dict, X, cond=None)[0]
+
     def _compute_inverse_map(self, X: TSCDataFrame, X_dict: TSCDataFrame):
         """Compute matrix that linearly maps from dictionary space to original feature
         space.
@@ -448,26 +456,22 @@ class EDMD(
 
         """
 
-        if self.use_transform_inverse:
-            # Indicator to use `ìnverse_transform` and not a linear map.
-            inverse_map = None
+        if self.include_id_state:
+            # trivial case: we just need a projection matrix to select the
+            # original full-states from the dictionary functions
+            inverse_map = projection_matrix_from_features(
+                X_dict.columns, self.feature_names_in_
+            )
         else:
-            if self.include_id_state:
-                # trivial case: we just need a projection matrix to select the
-                # original full-states from the dictionary functions
-                inverse_map = projection_matrix_from_features(
-                    X_dict.columns, self.feature_names_in_
-                )
-            else:
-                # Compute the matrix in a least squares sense
-                # inverse_map = "B" in Williams et al., Eq. 16
-                inverse_map = scipy.linalg.lstsq(
-                    X_dict.to_numpy(), X.loc[X_dict.index, :].to_numpy(), cond=None
-                )[0]
+            # Compute the matrix in a least squares sense
+            # inverse_map = "B" in Williams et al., Eq. 16
+            inverse_map = self._least_squares_inverse_map(
+                X=X.loc[X_dict.index, :], X_dict=X_dict
+            )
 
         return inverse_map
 
-    def _compute_koopman_modes(self) -> Optional[np.ndarray]:
+    def _compute_koopman_modes(self, inverse_map: np.ndarray) -> np.ndarray:
         """Compute the Koopman modes based on the user settings.
 
         The Koopman modes :math:`V` are a computed with
@@ -475,24 +479,18 @@ class EDMD(
         .. math::
             V = B \cdot \Psi_{DMD}
 
-        where :math:`B` linearly maps the dictionary states from the dictionary space
-        to the original full-state space. See :cite:`williams_datadriven_2015` Eq. 20.
+        where :math:`B` linearly maps the dictionary states to the original
+        full-state space. See :cite:`williams_datadriven_2015` Eq. 20.
 
-        There are three possible ways:
+        :math:`B` is refers to the input ``inverse_map`` and is computed in
+        :py:meth:`._compute_inverse_map`.
 
-        1. The full-state original states are included in the dictionary. The matric
-           :math:`B` is a projection matrix on the corresponding original state
-           features.
+        Parameters
+        ----------
 
-        2. The matrix :math:`B` was computed in a least squares sense during `fit`
-           .. math::
-                B = \Psi^{\dagger} \cdot D
-            where :math:`\Psi` are the dictionary states and `D` the original states.
+        inverse_map
+            Matrix that maps
 
-        3. The matrix :math:`B` was not computed during fit. The the Koopman modes
-           are set to ``None``. Enabled with `use_inverse_transform`, which instead uses
-           the `inverse_transform` of the dictionary pipeline to get back to the original
-           space.
 
         Returns
         -------
@@ -500,17 +498,7 @@ class EDMD(
             The computed Koopman modes.
         """
 
-        if not hasattr(self, "_inverse_map"):
-            raise NotImplementedError("_inverse_map not available. Please report bug.")
-
-        if self._inverse_map is not None and self._dmd_model.is_spectral_mode():
-            koopman_modes = self._inverse_map.T @ self._dmd_model.eigenvectors_right_
-        else:
-            # Set koopman_modes=None if the koopman matrix was not spectrally
-            # decomposed.
-            koopman_modes = None
-
-        return koopman_modes
+        return inverse_map.T @ self._dmd_model.eigenvectors_right_
 
     def _attach_id_state(self, X, X_dict):
         # remove states from X (the id-states) that are also removed during dictionary
@@ -572,6 +560,7 @@ class EDMD(
         time_values = self._validate_time_values(time_values=X.time_values())
         self.time_values_in_ = time_values
         self.dt_ = X.delta_time
+        self._feature_names_pred = X.columns
 
         # '_fit' calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu):
@@ -586,8 +575,20 @@ class EDMD(
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             self._dmd_model.fit(X=X_dict, y=y, **fit_params["dmd"])
 
-        self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
-        self._koopman_modes = self._compute_koopman_modes()
+        if not self.use_transform_inverse:
+            self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
+
+            if self.dmd_model.is_spectral_mode():
+                self._koopman_modes = self._compute_koopman_modes(
+                    inverse_map=self._inverse_map
+                )
+            else:
+                self._koopman_modes = None
+        else:
+            # Indicator to use `ìnverse_transform` of dictionary and not linear map of
+            # Koopman modes.
+            self._inverse_map = None
+            self._koopman_modes = None
 
         return self
 
@@ -611,29 +612,55 @@ class EDMD(
         """
 
         if qois is None:
-            if hasattr(self, "_incl_postobservables"):
-                # TODO: only a quick impl.
-                feature_columns = self._incl_postobservables
-            else:
-                feature_columns = self.feature_names_in_
+            feature_columns = self.feature_names_pred_
         else:
             feature_columns = qois
 
-        if self.koopman_modes is not None:
-            if qois is None:
-                modes = self.koopman_modes.to_numpy()
-            else:
-                project_matrix = projection_matrix_from_features(
-                    self.feature_names_in_, qois
-                )
-                modes = project_matrix.T @ self.koopman_modes.to_numpy()
+        if self._inverse_map is not None:
 
-            # compute the time series in original space directly by adapting the modes
-            X_ts = self._dmd_model.predict(
-                X_dict,
-                time_values=time_values,
-                **{"modes": modes, "feature_columns": feature_columns},
-            )
+            if self._koopman_modes is not None:
+                # The DMD model is in spectral mode and the Koopman modes were
+                # computed.
+
+                if qois is None:
+                    modes = self.koopman_modes.to_numpy()
+                else:
+                    project_matrix = projection_matrix_from_features(
+                        self.feature_names_pred_, qois
+                    )
+                    modes = project_matrix.T @ self._koopman_modes
+
+                # compute the time series in original space directly by adapting the modes
+                X_ts = self._dmd_model.predict(
+                    X_dict,
+                    time_values=time_values,
+                    **{"modes": modes, "feature_columns": feature_columns},
+                )
+            else:
+                # The DMD model does not compute compute the spectral components of the
+                # Koopman matrix. The inverse_map needs to be done afterwards because the
+                # DMD model requires to maintain a square matrix to forward the system
+                if qois is None:
+                    inverse_map = self._inverse_map
+                else:
+                    project_matrix = projection_matrix_from_features(
+                        self.feature_names_pred_, qois
+                    )
+                    inverse_map = self._inverse_map @ project_matrix
+
+                # computes full system
+                X_ts = self._dmd_model.predict(
+                    X_dict,
+                    time_values=time_values,
+                )
+
+                # restrict to the
+                X_ts = TSCDataFrame(
+                    X_ts.to_numpy() @ inverse_map,
+                    columns=feature_columns,
+                    index=X_ts.index,
+                )
+
         else:
             # predict all dictionary time series
             X_ts = self._dmd_model.predict(X_dict, time_values=time_values)
@@ -939,7 +966,6 @@ def _fit_and_score_edmd(
     parameters,
     fit_params,
     return_train_score=False,
-    return_test_score=True,
     return_test_error_timeseries=False,
     return_parameters=False,
     return_n_test_samples=False,
@@ -1020,7 +1046,7 @@ def _fit_and_score_edmd(
         X_block_list = []
         err_timeseries_list = []
 
-        use_block = True
+        use_block = False
 
         if use_block:
             blocksize = edmd.n_samples_ic_ + 20
@@ -1422,9 +1448,9 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
                 out = parallel(
                     delayed(_fit_and_score_edmd)(
-                        clone(base_estimator),
-                        X,
-                        y,
+                        edmd=clone(base_estimator),
+                        X=X,
+                        y=y,
                         train=train,
                         test=test,
                         parameters=parameters,
@@ -1502,43 +1528,108 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         return self
 
 
-class PostObservable(TSCTransformerMixin):
-    def __init__(self, estimator, cv, n_jobs=None, verbose=0, pre_dispatch=None):
+class PostObservable(object):
+    # TODO: Alternative? EDMDCVErrorObservable?
+
+    def __init__(
+        self,
+        estimator,
+        cv,
+        time_horizon: Optional[int] = None,
+        offset: Optional[int] = None,  # TODO: docu, only with time_horizon
+        n_jobs=None,
+        verbose=0,
+        pre_dispatch=None,
+    ):
+        # TODO: check pre_distpatch , can this avoid re-training?
         self.estimator = estimator
         self.cv = cv
+        self.time_horizon = time_horizon
+        self.offset = offset
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.pre_dispatch = pre_dispatch
 
     def _adapt_edmd_model(self, edmd, cv, X_validate, err_timeseries):
 
-        # 1. TODO: get original data
+        # 1. get original data
         X_dict = edmd.transform(X_validate)
 
-        # 3. TODO: compute inverse map
-        inverse_map_errs = scipy.linalg.lstsq(
-            X_dict.to_numpy(), err_timeseries.to_numpy(), cond=None
-        )[0]
+        # 3. compute inverse map
+        inverse_map_errs = edmd._least_squares_inverse_map(
+            X=err_timeseries, X_dict=X_dict
+        )
 
-        # 4. TODO: compute Koopman modes
-        modes_errs = inverse_map_errs.T @ edmd.dmd_model.eigenvectors_right_
+        # 4. compute Koopman modes for error observables
+        modes_errs = edmd._compute_koopman_modes(inverse_map_errs)
 
-        # 5. TODO: attach Koopman modes
+        # 5. attach Koopman modes to existing
         edmd._koopman_modes = np.row_stack([edmd._koopman_modes, modes_errs])
 
-        # 6. TODO: alter feature_names_in_
-
-        attach_features = [f"po{i}" for i in range(len(edmd.feature_names_in_))]
-
-        edmd._incl_postobservables = pd.Index(
-            np.append(edmd.feature_names_in_, attach_features),
+        # 6. change feature_names_out_pred_
+        edmd._feature_names_pred = pd.Index(
+            np.append(
+                edmd.feature_names_pred_,
+                # the new error features
+                [f"abserr_{col}" for col in edmd.feature_names_pred_],
+            ),
             name=TSCDataFrame.tsc_feature_col_name,
         )
 
         return edmd
 
-    def fit(self, X: TSCDataFrame, y=None, **fit_params):
-        """Run fit with all sets of parameter.
+    def _fit_and_create_error_timeseries(
+        self, edmd: EDMD, X: TSCDataFrame, y, split_nr, train, test, fit_params, verbose
+    ):
+
+        if verbose:
+            msg = f"split: {split_nr}"
+            print("[CV] %s %s" % (msg, (64 - len(msg)) * "."), end="", flush=True)
+
+        X_train, X_test = _split_X_edmd(X, y, train_indices=train, test_indices=test)
+
+        edmd = edmd.fit(X=X_train, y=y, **fit_params)
+
+        test_score = edmd.score(X_test, y=None)
+
+        if verbose:
+            print(f"test_score = {test_score}")
+
+        X_block_list = []
+        err_timeseries_list = []
+
+        if self.time_horizon is not None:
+            blocksize = edmd.n_samples_ic_ + self.time_horizon
+
+            for X_block in X_test.tsc.iter_timevalue_window(
+                blocksize=blocksize,
+                offset=self.offset,
+            ):
+                X_block_list.append(X_block)
+                X_edmd = edmd.reconstruct(X_block)
+                # TODO: there may be better / different variants to measure the error
+                #  -- make parametrizable?
+                err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
+        else:
+            X_block_list.append(X_test)
+            X_edmd = edmd.reconstruct(X_test)
+            err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
+
+        X_test = TSCDataFrame.from_frame_list(X_block_list)
+        err_timeseries = TSCDataFrame.from_frame_list(err_timeseries_list)
+
+        return {
+            "test_score": test_score,
+            "edmd": edmd,
+            "X_test": X_test,
+            "err_timeseries": err_timeseries,
+        }
+
+    def _validate_estimator(self):
+        pass  # TODO:
+
+    def compute_post_observables(self, X: TSCDataFrame, y=None, **fit_params):
+        """Computes the post observables and alters the EDMD estimator.
 
         Parameters
         ----------
@@ -1552,9 +1643,7 @@ class PostObservable(TSCTransformerMixin):
         **fit_params : Dict[str, object]
             Parameters passed to the ``fit`` method of the estimator.
         """
-        # self._validate_settings_edmd()
-        X = self._validate_datafold_data(X)
-
+        self._validate_estimator()
         cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
 
         # scorers, refit_metric = self._check_multiscore()
@@ -1570,60 +1659,50 @@ class PostObservable(TSCTransformerMixin):
             n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch
         )
 
-        fit_and_score_kwargs = dict(
-            scorer=None,
-            fit_params=fit_params,
-            return_train_score=False,
-            return_test_score=False,
-            return_test_error_timeseries=True,
-            return_n_test_samples=False,
-            return_times=False,
-            return_parameters=False,
-            error_score="raise",
-            return_estimator=True,
-            verbose=self.verbose,
-        )
-
         results: Dict[str, Any] = {}
         X_validate: Optional[TSCDataFrame] = None
         err_timeseries: Optional[TSCDataFrame] = None
         best_estimator: Optional[EDMD] = None
         with parallel:
 
-            def evaluate_error_test_timeseries():
+            def evaluate_cv_splits():
                 nonlocal X_validate
                 nonlocal err_timeseries
                 nonlocal best_estimator
 
                 ret = parallel(
-                    delayed(_fit_and_score_edmd)(
-                        clone(base_estimator),
-                        X,
-                        y,
+                    delayed(self._fit_and_create_error_timeseries)(
+                        edmd=clone(base_estimator),
+                        X=X,
+                        y=y,
+                        split_nr=i,
                         train=train,
                         test=test,
-                        parameters=None,
-                        **fit_and_score_kwargs,
+                        fit_params=fit_params,
+                        verbose=self.verbose,
                     )
-                    for train, test in cv.split(X, y, groups=None)
+                    for i, (train, test) in enumerate(cv.split(X, y, groups=None))
                 )
-                out = [r[0] for r in ret]
-                best_estimator_idx = np.argmax([o[0]["score"] for o in out])
-                best_estimator = out[best_estimator_idx][1]
 
-                X_validate = TSCDataFrame.from_frame_list([r[1] for r in ret])
-                err_timeseries = TSCDataFrame.from_frame_list([r[2] for r in ret])
-
-                if len(out) < 1:
+                if len(ret) < 1:
                     raise ValueError(
                         "No fits were performed. "
                         "Was the CV iterator empty? "
                         "Were there no candidates?"
                     )
 
-                return out, X_validate, err_timeseries
+                scores: np.ndarray = np.asarray([r["test_score"] for r in ret])
+                best_estimator_idx = np.argmax(scores)
+                best_estimator = ret[best_estimator_idx]["edmd"]
 
-            evaluate_error_test_timeseries()
+                X_validate = TSCDataFrame.from_frame_list([r["X_test"] for r in ret])
+                err_timeseries = TSCDataFrame.from_frame_list(
+                    [r["err_timeseries"] for r in ret]
+                )
+
+                return ret, X_validate, err_timeseries
+
+            evaluate_cv_splits()
 
         self.cv_results_ = results
         self.n_splits_ = n_splits

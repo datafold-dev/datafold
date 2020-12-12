@@ -722,6 +722,8 @@ class DMDBase(
         raise NotImplementedError("Please report bug.")  # should not get here
 
     def _read_predict_params(self, predict_params):
+        if self.is_matrix_mode():
+            raise ValueError(f"post_map can only be provided with 'sys_type=spectral'")
 
         # user defined post_map
         post_map = predict_params.pop("post_map", None)
@@ -879,12 +881,14 @@ class DMDBase(
         post_map: Union[numpy.ndarray, scipy.sparse.spmatrix]
             A matrix that is combined with the right eigenvectors. \
             :code:`post_map @ eigenvectors_right_`. If set, then also the input
-            `feature_columns` is required. It cannot be set with 'modes' at the same time.
+            `feature_columns` is required. It cannot be set with 'modes' at the same
+            time and requires "sys_type=spectral".
 
         modes: Union[numpy.ndarray]
             A matrix that sets the DMD modes directly. This must not be given at the
             same time with ``post_map``. If set, then also the input ``feature_columns``
-            is required. It cannot be set with 'modes' at the same time.
+            is required. It cannot be set with 'modes' at the same time and requires
+            "sys_type=spectral".
 
         feature_columns: pandas.Index
             If ``post_map`` is given with a changed state length, then new feature names
