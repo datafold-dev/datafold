@@ -446,12 +446,14 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def normalize_time(self):
-        """Normalize time for time series in the collection.
+        """Normalize time in time series collection.
 
-        Normalized time has the following properties:
+        A :py:class:`TSCDataFrame` with normalized time has the following properties:
 
-        * global time starts at zero (at least one time series has time value 0)
-        * time delta is constant 1
+        * the global time starts at zero
+        * delta_time is constant one
+
+        Note, that at least one time series starts at time zero, but other can
 
         Returns
         -------
