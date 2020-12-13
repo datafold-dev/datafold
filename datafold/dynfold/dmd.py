@@ -722,8 +722,6 @@ class DMDBase(
         raise NotImplementedError("Please report bug.")  # should not get here
 
     def _read_predict_params(self, predict_params):
-        if self.is_matrix_mode():
-            raise ValueError(f"post_map can only be provided with 'sys_type=spectral'")
 
         # user defined post_map
         post_map = predict_params.pop("post_map", None)
@@ -741,6 +739,11 @@ class DMDBase(
                     "If 'post_map' or 'modes' are provided it is necessary "
                     "to set 'feature_columns' in **kwargs"
                 )
+
+        if self.is_matrix_mode() and (
+            post_map is not None or user_set_modes is not None
+        ):
+            raise ValueError(f"post_map can only be provided with 'sys_type=spectral'")
 
         return post_map, user_set_modes, feature_columns
 

@@ -640,13 +640,6 @@ class EDMD(
                 # The DMD model does not compute compute the spectral components of the
                 # Koopman matrix. The inverse_map needs to be done afterwards because the
                 # DMD model requires to maintain a square matrix to forward the system
-                if qois is None:
-                    inverse_map = self._inverse_map
-                else:
-                    project_matrix = projection_matrix_from_features(
-                        self.feature_names_pred_, qois
-                    )
-                    inverse_map = self._inverse_map @ project_matrix
 
                 # computes full system
                 X_ts = self._dmd_model.predict(
@@ -654,12 +647,12 @@ class EDMD(
                     time_values=time_values,
                 )
 
-                # restrict to the
+                # map back to original space and select qois
                 X_ts = TSCDataFrame(
-                    X_ts.to_numpy() @ inverse_map,
-                    columns=feature_columns,
+                    X_ts.to_numpy() @ self._inverse_map,
+                    columns=self.feature_names_pred_,
                     index=X_ts.index,
-                )
+                ).loc[:, feature_columns]
 
         else:
             # predict all dictionary time series
@@ -1628,7 +1621,7 @@ class PostObservable(object):
     def _validate_estimator(self):
         pass  # TODO:
 
-    def compute_post_observables(self, X: TSCDataFrame, y=None, **fit_params):
+    def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
         """Computes the post observables and alters the EDMD estimator.
 
         Parameters
