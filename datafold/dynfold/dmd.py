@@ -1162,8 +1162,8 @@ class DMDFull(DMDBase):
         G = shift_start_transposed.T @ shift_start_transposed
         G_dash = shift_start_transposed.T @ shift_end_transposed
 
-        # If the matrix is square and of full rank, then x (but for round-off error) is
-        # the “exact” solution of the equation.
+        # If the matrix is square and of full rank, then x is the exact solution of
+        # the linear equation system..
         koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
 
         if rank != G.shape[1]:

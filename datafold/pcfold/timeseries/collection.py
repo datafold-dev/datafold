@@ -548,6 +548,13 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
+        try:
+            frame_list = list(frame_list)
+        except:
+            raise TypeError("'frame_list' must be list-like")
+
+        if len(frame_list) == 0:
+            raise ValueError("'frame_list' must have at least one DataFrame")
 
         ref_df = frame_list[0]
         for _df in frame_list[1:]:
@@ -1718,7 +1725,6 @@ class InitialCondition(object):
             by=["start", "end", "delta_time"], axis=0
         ):
             grouped_ids = df.index
-
             grouped_tsc: TSCDataFrame = X.loc[grouped_ids, :]
 
             initial_states = grouped_tsc.initial_states(n_samples_ic)

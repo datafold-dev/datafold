@@ -175,6 +175,10 @@ class EDMD(
         The feature names in data in dictionary space. An ``EDMD`` model prediction
         returns data with columns equal to ``feature_names_in_`` by default.
 
+    feature_names_pred_
+        The feature names contained in a time series collection returned by a
+        prediction. A subset of these features can be set in the ``qois`` argument.
+
     named_steps: :class:`Dict[str, object]`
         Read-only attribute to access any step parameter by user given name. Keys are
         step names and values are steps parameters.
@@ -317,27 +321,26 @@ class EDMD(
                 )
 
     @property
-    def feature_names_in_(self) -> pd.Index:
+    def feature_names_in_(self):
         # delegate to first step (which will call _check_is_fitted)
         # NOTE: n_features_in_ is also delegated, but already included in the super
         # class Pipeline (implementation by sklearn)
         return self.steps[0][1].feature_names_in_
 
     @property
-    def n_features_out_(self) -> int:
-        # Important note: this returns the number of features by the dictionary,
+    def n_features_out_(self):
+        # Note: this returns the number of features by the dictionary transformation,
         # NOT from a EDMD prediction
         return self._dmd_model.n_features_in_
 
     @property
     def feature_names_out_(self):
-        # Important note: this returns the number of features by the dictionary,
-        # NOT from a EDMD prediction
+        # Note: this returns the feature names of the dictionary
+        # transformation NOT from a EDMD prediction (see feature_names_pred_)
         return self._dmd_model.feature_names_in_
 
     @property
     def feature_names_pred_(self) -> pd.Index:
-        # TODO: in documentation
         return self._feature_names_pred
 
     def transform(self, X: TransformType) -> TransformType:
@@ -614,6 +617,11 @@ class EDMD(
         if qois is None:
             feature_columns = self.feature_names_pred_
         else:
+            if not np.isin(qois, self.feature_names_pred_).all():
+                raise ValueError(
+                    "'qois' must only contain feature names in attribute "
+                    "'feature_names_pred_'"
+                )
             feature_columns = qois
 
         if self._inverse_map is not None:
@@ -959,7 +967,6 @@ def _fit_and_score_edmd(
     parameters,
     fit_params,
     return_train_score=False,
-    return_test_error_timeseries=False,
     return_parameters=False,
     return_n_test_samples=False,
     return_times=False,
@@ -1032,39 +1039,6 @@ def _fit_and_score_edmd(
         if return_train_score:
             train_scores = {"score": edmd.score(X_train, y=None)}
 
-    # TODO: EXPERIMENTAL
-    err_timeseries = None
-    if return_test_error_timeseries:
-
-        X_block_list = []
-        err_timeseries_list = []
-
-        use_block = False
-
-        if use_block:
-            blocksize = edmd.n_samples_ic_ + 20
-
-            for X_block in X_test.tsc.iter_timevalue_window(
-                blocksize=blocksize,
-                offset=10,
-            ):
-                X_block_list.append(X_block)
-
-                X_edmd = edmd.reconstruct(X_block)
-                # TODO: there may be better variants to measure the error
-                err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
-
-            print(f"USING {blocksize} SAMPLES")
-        else:
-            X_block_list.append(X_test)
-            X_edmd = edmd.reconstruct(X_test)
-            err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
-            print(f"USING NO BLOCK!")
-
-        X_test = TSCDataFrame.from_frame_list(X_block_list)
-        err_timeseries = TSCDataFrame.from_frame_list(err_timeseries_list)
-    # TODO: EXPERIMENTAL END!!
-
     if verbose > 2:
         if isinstance(test_scores, dict):
             for scorer_name in sorted(test_scores):
@@ -1098,10 +1072,7 @@ def _fit_and_score_edmd(
     if return_estimator:
         ret.append(edmd)
 
-    if return_test_error_timeseries:
-        return ret, X_test, err_timeseries  # TODO: EXPERIMENTAL!!
-    else:
-        return ret
+    return ret
 
 
 class EDMDCV(GridSearchCV, TSCPredictMixin):
@@ -1529,7 +1500,7 @@ class PostObservable(object):
         estimator,
         cv,
         time_horizon: Optional[int] = None,
-        offset: Optional[int] = None,  # TODO: docu, only with time_horizon
+        offset: Optional[int] = None,  # TODO: docu: only with time_horizon
         n_jobs=None,
         verbose=0,
         pre_dispatch=None,
@@ -1571,6 +1542,38 @@ class PostObservable(object):
 
         return edmd
 
+    def _block_reconstruct(self, edmd, X_test):
+        blocksize = edmd.n_samples_ic_ + self.time_horizon
+
+        X_test_blocks = TSCDataFrame.from_frame_list(
+            list(
+                X_test.tsc.iter_timevalue_window(
+                    blocksize=blocksize, offset=self.offset
+                )
+            )
+        )
+
+        time_indices = X_test_blocks.index.get_level_values(
+            TSCDataFrame.tsc_time_idx_name
+        )
+        time_shift_values = time_indices[::blocksize]
+        shift_first = X_test_blocks.loc[[0], :].time_values() - time_shift_values[0]
+
+        X_test_blocks.index = pd.MultiIndex.from_product(
+            [X_test_blocks.ids, shift_first]
+        )
+
+        X_reconstruct = edmd.reconstruct(X_test_blocks)
+        X_reconstruct.index = (
+            X_test_blocks.groupby("ID").tail(self.time_horizon + 1).index
+        )
+
+        err_timeseries = (
+            X_test_blocks.loc[X_reconstruct.index, :] - X_reconstruct
+        ).abs()
+
+        return X_test_blocks, err_timeseries
+
     def _fit_and_create_error_timeseries(
         self, edmd: EDMD, X: TSCDataFrame, y, split_nr, train, test, fit_params, verbose
     ):
@@ -1588,28 +1591,11 @@ class PostObservable(object):
         if verbose:
             print(f"test_score = {test_score}")
 
-        X_block_list = []
-        err_timeseries_list = []
-
         if self.time_horizon is not None:
-            blocksize = edmd.n_samples_ic_ + self.time_horizon
-
-            for X_block in X_test.tsc.iter_timevalue_window(
-                blocksize=blocksize,
-                offset=self.offset,
-            ):
-                X_block_list.append(X_block)
-                X_edmd = edmd.reconstruct(X_block)
-                # TODO: there may be better / different variants to measure the error
-                #  -- make parametrizable?
-                err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
+            X_test, err_timeseries = self._block_reconstruct(edmd, X_test)
         else:
-            X_block_list.append(X_test)
             X_edmd = edmd.reconstruct(X_test)
-            err_timeseries_list.append((X_test.loc[X_edmd.index] - X_edmd).abs())
-
-        X_test = TSCDataFrame.from_frame_list(X_block_list)
-        err_timeseries = TSCDataFrame.from_frame_list(err_timeseries_list)
+            err_timeseries = (X_test.loc[X_edmd.index] - X_edmd).abs()
 
         return {
             "test_score": test_score,

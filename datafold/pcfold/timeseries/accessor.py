@@ -121,7 +121,7 @@ class TSCAccessor(object):
             self.check_required_time_delta(required_time_delta=ensure_delta_time)
 
         if ensure_same_time_values:
-            self.check_timeseries_same_timevalues()
+            self.check_equal_timevalues()
 
         if ensure_normalized_time:
             self.check_normalized_time()
@@ -164,7 +164,7 @@ class TSCAccessor(object):
             raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
         return delta_time
 
-    def check_timeseries_same_timevalues(self) -> None:
+    def check_equal_timevalues(self) -> None:
         """Check if all time series in the collection share the same time values."""
         if not self._tsc_df.is_same_time_values():
             raise TSCException.not_same_time_values()

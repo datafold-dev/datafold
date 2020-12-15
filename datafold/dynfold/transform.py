@@ -810,8 +810,15 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         )
 
         if self.center_type == "all_data":
+            if _centers is not None:
+                raise ValueError("center points were passed but center_type='all_data'")
+
             self.centers_ = self._X_to_numpy(X)
         elif self.center_type == "fit_params":
+
+            if _centers is None:
+                raise ValueError("The center points were not provided in 'fit_params'.")
+
             try:
                 self.centers_ = np.asarray(_centers).astype(np.float)
             except TypeError:

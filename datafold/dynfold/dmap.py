@@ -534,8 +534,11 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
         self._setup_feature_attrs_fit(X, features_out=self._feature_names())
-        store_kernel_matrix = self._read_fit_params(
-            attrs=[("store_kernel_matrix", False)], fit_params=fit_params
+
+        # TODO: remove landmarks
+        store_kernel_matrix, landmarks = self._read_fit_params(
+            attrs=[("store_kernel_matrix", False), ("landmarks", None)],
+            fit_params=fit_params,
         )
 
         self._setup_default_dist_kwargs()
@@ -553,13 +556,22 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             symmetrize_kernel=self.symmetrize_kernel,
         )
 
-        if isinstance(X, TSCDataFrame):
+        # TODO: remove landmarks
+        use_landmarks = landmarks is not None
+
+        if isinstance(X, TSCDataFrame) and not use_landmarks:
             self.X_ = TSCDataFrame(
                 X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_
             )
         elif isinstance(X, (np.ndarray, pd.DataFrame)):
+            # TODO: remove landmarks
+            if use_landmarks:
+                _points = landmarks
+            else:
+                _points = X
+
             self.X_ = PCManifold(
-                X,
+                _points,
                 kernel=self._dmap_kernel,
                 dist_kwargs=self.dist_kwargs_,
             )
@@ -704,7 +716,11 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
         self.fit(X=X, y=y, **fit_params)
 
-        eigvec, _ = self._select_target_coords_eigenpairs()
+        # TODO: remove landmarks
+        if "landmarks" in fit_params:
+            eigvec = self.transform(X)
+        else:
+            eigvec, _ = self._select_target_coords_eigenpairs()
 
         return self._perform_dmap_embedding(eigvec)
 

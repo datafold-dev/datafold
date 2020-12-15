@@ -42,7 +42,7 @@ class TSCBaseMixin(object):
                 return_values.append(fit_params.pop(attr[0], attr[1]))
 
         if fit_params != {}:
-            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
+            raise KeyError(f"fit_params.keys = {fit_params.keys()} not supported")
 
         if len(return_values) == 0:
             return None
