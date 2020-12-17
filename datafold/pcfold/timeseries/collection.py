@@ -621,7 +621,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @staticmethod
     def unique_delta_times(
-        delta_times: Union[np.ndarray, pd.Series], rtol=1e-12, atol=1e-15
+        delta_times: Union[np.ndarray, pd.Series], rtol=1e-11, atol=1e-15
     ) -> np.ndarray:
         """Returns unique delta times of an array within tolerances for floating time
         values.

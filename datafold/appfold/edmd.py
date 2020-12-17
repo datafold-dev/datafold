@@ -618,9 +618,11 @@ class EDMD(
             feature_columns = self.feature_names_pred_
         else:
             if not np.isin(qois, self.feature_names_pred_).all():
+                illegal_mask = np.logical_not(np.isin(qois, self.feature_names_pred_))
+
                 raise ValueError(
                     "'qois' must only contain feature names in attribute "
-                    "'feature_names_pred_'"
+                    f"'feature_names_pred_'. Illegal: {np.array(qois)[illegal_mask]}"
                 )
             feature_columns = qois
 
@@ -1494,11 +1496,12 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
 class PostObservable(object):
     # TODO: Alternative? EDMDCVErrorObservable?
+    # TODO: integrate to corrent by np.pi/2 factor --> get directly 1x STD
 
     def __init__(
         self,
         estimator,
-        cv,
+        cv: Optional[TSCCrossValidationSplit] = None,
         time_horizon: Optional[int] = None,
         offset: Optional[int] = None,  # TODO: docu: only with time_horizon
         n_jobs=None,
