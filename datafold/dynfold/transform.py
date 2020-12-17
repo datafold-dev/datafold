@@ -906,6 +906,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         else:  # self.center_type in ["initial_condition", "fit_params"]:
             rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
 
+        # import matplotlib.pyplot as plt; plt.matshow(rbf_coeff)
         return self._same_type_X(
             X=X, values=rbf_coeff, feature_names=self.feature_names_out_
         )
