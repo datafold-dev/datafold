@@ -65,12 +65,12 @@ import scipy.linalg
 import scipy.sparse
 from joblib import Parallel, delayed
 from sklearn.base import clone
-from sklearn.exceptions import FitFailedWarning
+from sklearn.exceptions import FitFailedWarning, NotFittedError
 from sklearn.metrics._scorer import _check_multimetric_scoring
 from sklearn.model_selection import GridSearchCV, check_cv
 from sklearn.model_selection._validation import is_classifier
 from sklearn.pipeline import Pipeline
-from sklearn.utils import _message_with_time, _print_elapsed_time
+from sklearn.utils import _message_with_time, _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
 from datafold.dynfold import DMDBase, DMDFull
@@ -1494,37 +1494,74 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         return self
 
 
+# TODO: Alternative? EDMDCVErrorObservable?
+# TODO: Testing & Docu
 class PostObservable(object):
-    # TODO: Alternative? EDMDCVErrorObservable?
-    # TODO: integrate to corrent by np.pi/2 factor --> get directly 1x STD
+    """# TODO
+
+
+    Parameters
+    ----------
+    estimator
+        # TODO
+
+    cv
+        - the best estimator is the final
+        - the observable is only evaluated on the validation set
+        - # TODO:
+
+    observables
+        factor https://en.wikipedia.org/wiki/Half-normal_distribution
+
+    time_horizon
+        - assumed to be unbiased
+
+    offset
+        - by how much to move the prediction window
+
+    n_jobs
+        - the CV splits can be computed in parallel
+
+    pre-dispatch
+        - check docu in EDMDCV
+    """
+
+    _valid_observables = ["std", "abserr"]
 
     def __init__(
         self,
         estimator,
         cv: Optional[TSCCrossValidationSplit] = None,
+        observable="abserr",  # std or abserr
+        # --> Change default to std (but change parameter in scripts first)
         time_horizon: Optional[int] = None,
         offset: Optional[int] = None,  # TODO: docu: only with time_horizon
-        n_jobs=None,
-        verbose=0,
-        pre_dispatch=None,
+        n_jobs: Optional[int] = None,
+        verbose: int = 0,
+        pre_dispatch: str = "2*n_jobs",
     ):
-        # TODO: check pre_distpatch , can this avoid re-training?
         self.estimator = estimator
         self.cv = cv
+        self.observable = observable
         self.time_horizon = time_horizon
         self.offset = offset
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.pre_dispatch = pre_dispatch
 
-    def _adapt_edmd_model(self, edmd, cv, X_validate, err_timeseries):
+    def _adapt_edmd_model(self, edmd, cv, X_validate, abserr_timeseries):
 
         # 1. get original data
         X_dict = edmd.transform(X_validate)
 
+        if self.observable == "std":
+            target_timeseries = abserr_timeseries * np.sqrt(np.pi / 2)
+        else:
+            target_timeseries = abserr_timeseries
+
         # 3. compute inverse map
         inverse_map_errs = edmd._least_squares_inverse_map(
-            X=err_timeseries, X_dict=X_dict
+            X=target_timeseries, X_dict=X_dict
         )
 
         # 4. compute Koopman modes for error observables
@@ -1537,8 +1574,7 @@ class PostObservable(object):
         edmd._feature_names_pred = pd.Index(
             np.append(
                 edmd.feature_names_pred_,
-                # the new error features
-                [f"abserr_{col}" for col in edmd.feature_names_pred_],
+                [f"{self.observable}_{col}" for col in edmd.feature_names_pred_],
             ),
             name=TSCDataFrame.tsc_feature_col_name,
         )
@@ -1607,33 +1643,40 @@ class PostObservable(object):
             "err_timeseries": err_timeseries,
         }
 
-    def _validate_estimator(self):
-        pass  # TODO:
+    def _validate(self):
+        if not isinstance(self.estimator, EDMD):
+            raise TypeError("estimator must be of type EDMD")
 
-    def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
-        """Computes the post observables and alters the EDMD estimator.
+        try:
+            check_is_fitted(self.estimator)
+            # NOTE: can be implemented to deal with an already-fitted EDMD
+            raise ValueError("EDMD estimator must not be fitted already")
+        except NotFittedError:
+            pass
 
-        Parameters
-        ----------
+        if self.time_horizon is not None and self.offset is not None:
+            check_scalar(
+                self.time_horizon,
+                name="time_horizon",
+                target_type=(np.integer, int),
+                min_val=1,
+            )
 
-        X
-            Training time series data.
+            check_scalar(
+                self.offset, name="offset", target_type=(np.integer, int), min_val=1
+            )
+        elif self.time_horizon is not None or self.offset is not None:
+            raise ValueError("'time_horizon' and 'offset' must be provided together")
 
-        y: None
-            ignored
+        if self.observable not in self._valid_observables:
+            raise ValueError(
+                f"observable={self.observable} is invalid. "
+                f"Choose from {self._valid_observables}"
+            )
 
-        **fit_params : Dict[str, object]
-            Parameters passed to the ``fit`` method of the estimator.
-        """
-        self._validate_estimator()
+    def _run_cv(self, X, y, **fit_params):
         cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
-
-        # scorers, refit_metric = self._check_multiscore()
-
-        X, y = indexable(X, y)
-        fit_params = _check_fit_params(X, fit_params)
-
-        n_splits = cv.get_n_splits(X, y, groups=None)
+        # n_splits = self.cv.get_n_splits(X, y, groups=None)
 
         base_estimator = clone(self.estimator)
 
@@ -1687,15 +1730,47 @@ class PostObservable(object):
             evaluate_cv_splits()
 
         self.cv_results_ = results
-        self.n_splits_ = n_splits
 
-        self.err_timeseries = err_timeseries
+        return X_validate, err_timeseries, best_estimator
 
-        edmd = self._adapt_edmd_model(
-            edmd=best_estimator,
+    def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
+        """Computes the post observables and alters the EDMD estimator.
+
+        Parameters
+        ----------
+
+        X
+            Training time series data.
+
+        y: None
+            ignored
+
+        **fit_params : Dict[str, object]
+            Parameters passed to the ``fit`` method of the estimator.
+        """
+        self._validate()
+
+        # scorers, refit_metric = self._check_multiscore()
+
+        X, y = indexable(X, y)
+        fit_params = _check_fit_params(X, fit_params)
+
+        if self.cv is None:
+            self.final_estimator_ = clone(self.estimator)
+            self.final_estimator_ = self.final_estimator_.fit(X, y, **fit_params)
+            X_validate, abserr_timeseries = self._block_reconstruct(
+                self.final_estimator_, X_test=X
+            )
+        else:
+            X_validate, abserr_timeseries, self.final_estimator_ = self._run_cv(
+                X, y, **fit_params
+            )
+
+        self.final_estimator_ = self._adapt_edmd_model(
+            edmd=self.final_estimator_,
             cv=self.cv,
             X_validate=X_validate,
-            err_timeseries=self.err_timeseries,
+            abserr_timeseries=abserr_timeseries,
         )
 
-        return edmd
+        return self.final_estimator_
