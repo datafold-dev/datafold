@@ -330,13 +330,13 @@ def _kth_nearest_neighbor_dist(
     Parameters
     ----------
     distance_matrix
-        Matrix of shape `(n_samples_Y, n_samples_X)` to partition to find the distance of
-        the `k`-th nearest neighbor. If the matrix is sparse each point must have a
-        minimum number of `k` non-zero elements.
+        Distance matrix of shape `(n_samples_Y, n_samples_X)` from which to find the
+        `k`-th nearest neighbor and its corresponding distance to return. If the matrix is
+        sparse each point must have a minimum number of `k` neighbours (i.e. non-zero
+        elements per row).
 
     k
-        The distance of the `k`-th nearest neighbor is returned. The value must be a
-        positive integer.
+        The distance of the `k`-th nearest neighbor.
 
     Returns
     -------
