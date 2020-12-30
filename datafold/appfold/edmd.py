@@ -1496,9 +1496,9 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
 # TODO: Alternative? EDMDCVErrorObservable?
 # TODO: Testing & Docu
+# TODO: compute mean of error time series if offset < blocksize?
 class PostObservable(object):
     """# TODO
-
 
     Parameters
     ----------
