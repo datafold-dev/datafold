@@ -216,7 +216,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     Attributes
     ----------
 
-    X_: PCManifold
+    X_fit_: PCManifold
         The training data during fit. The data is required for out-of-sample mappings;
         the object is equipped with kernel :py:class:`DmapKernelFixed`.
 
@@ -560,7 +560,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         use_landmarks = landmarks is not None
 
         if isinstance(X, TSCDataFrame) and not use_landmarks:
-            self.X_ = TSCDataFrame(
+            self.X_fit_ = TSCDataFrame(
                 X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_
             )
         elif isinstance(X, (np.ndarray, pd.DataFrame)):
@@ -570,13 +570,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             else:
                 _points = X
 
-            self.X_ = PCManifold(
+            self.X_fit_ = PCManifold(
                 _points,
                 kernel=self._dmap_kernel,
                 dist_kwargs=self.dist_kwargs_,
             )
 
-        kernel_output = self.X_.compute_kernel_matrix()
+        kernel_output = self.X_fit_.compute_kernel_matrix()
         (
             kernel_matrix_,
             self._cdist_kwargs,
@@ -592,13 +592,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             # dynamics-adapted kernels can drop samples from X)
             index_from: Optional[TSCDataFrame] = kernel_matrix_
         elif (
-            isinstance(self.X_, TSCDataFrame)
-            and kernel_matrix_.shape[0] == self.X_.shape[0]
+            isinstance(self.X_fit_, TSCDataFrame)
+            and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
         ):
-            # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_ is a time
-            # series, then take incides from X_ -- this only works if no samples are
+            # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
+            # series, then take incides from X_fit_ -- this only works if no samples are
             # dropped in the kernel computation.
-            index_from = self.X_
+            index_from = self.X_fit_
         else:
             index_from = None
 
@@ -659,12 +659,12 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_coords)`
         """
-        check_is_fitted(self, ("X_", "eigenvalues_", "eigenvectors_"))
+        check_is_fitted(self, ("X_fit_", "eigenvalues_", "eigenvectors_"))
 
         X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=1))
         self._validate_feature_input(X, direction="transform")
 
-        kernel_output = self.X_.compute_kernel_matrix(X, **self._cdist_kwargs)
+        kernel_output = self.X_fit_.compute_kernel_matrix(X, **self._cdist_kwargs)
         kernel_matrix_cdist, _, _ = PCManifoldKernel.read_kernel_output(
             kernel_output=kernel_output
         )
@@ -675,8 +675,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             # dynamics-adapted kernels can drop samples from X)
             index_from: Optional[TSCDataFrame] = kernel_matrix_cdist
         elif isinstance(X, TSCDataFrame) and kernel_matrix_cdist.shape[0] == X.shape[0]:
-            # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_ is a time
-            # series, then take incides from X_ -- this only works if no samples are
+            # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
+            # series, then take incides from X_fit_ -- this only works if no samples are
             # dropped in the kernel computation.
             index_from = X
         else:
@@ -748,11 +748,11 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         self._validate_feature_input(X, direction="inverse_transform")
 
         if not hasattr(self, "inv_coeff_matrix_"):
-            if isinstance(self.X_, pd.DataFrame):
+            if isinstance(self.X_fit_, pd.DataFrame):
                 # happens if samples were dropped during kernel fit
-                _X = self.X_.loc[self.eigenvectors_.index, :]
+                _X = self.X_fit_.loc[self.eigenvectors_.index, :]
             else:
-                _X = self.X_
+                _X = self.X_fit_
 
             eigvec, _ = self._select_target_coords_eigenpairs()
 

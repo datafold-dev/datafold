@@ -532,7 +532,7 @@ class DiffusionMapsTest(unittest.TestCase):
             tsc_data, store_kernel_matrix=True
         )
 
-        self.assertEqual(dmap.X_.dist_kwargs["cut_off"], 2)
+        self.assertEqual(dmap.X_fit_.dist_kwargs["cut_off"], 2)
         self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
 
     def test_kernel_symmetric_conjugate(self):
@@ -725,7 +725,7 @@ class DiffusionMapsTest(unittest.TestCase):
             kernel_matrix_,
             _basis_change_matrix,
             _row_sums_alpha,
-        ) = dmap_embed.X_.compute_kernel_matrix()
+        ) = dmap_embed.X_fit_.compute_kernel_matrix()
         t22 = time()
         solver_kwargs = {
             "k": setting["n_eigenpairs"],
