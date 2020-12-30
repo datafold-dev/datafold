@@ -1760,11 +1760,8 @@ class ConeKernel(TSCManifoldKernel):
         if is_compute_distance:
             distance_matrix = np.zeros_like(cos_matrix)
 
-        # only allocate memory in first iteration, afterwards use already
-        # existing array via "out" parameter
-        diff_matrix = None
-        division = None
-        zero_mask = None
+        # define names and init as None to already to use in "out"
+        diff_matrix, denominator, zero_mask = [None] * 3
 
         for row_idx in range(cos_matrix.shape[0]):
             diff_matrix = np.subtract(X_numpy, Y_numpy[row_idx, :], out=diff_matrix)
@@ -1775,12 +1772,12 @@ class ConeKernel(TSCManifoldKernel):
                     diff_matrix, axis=1, check_finite=False
                 )
 
-            # denominator of cos: norm of time_derivative * norm_difference
-            division = np.multiply(
-                norm_timederiv_Y[row_idx], distance_matrix[row_idx, :], out=division
+            # norm of time_derivative * norm_difference
+            denominator = np.multiply(
+                norm_timederiv_Y[row_idx], distance_matrix[row_idx, :], out=denominator
             )
 
-            # nominator of cos: scalar product (time_derivative, differences)
+            # nominator: scalar product (time_derivative, differences)
             # in paper: (\xi, \omega)
             cos_matrix[row_idx, :] = np.dot(
                 timederiv_Y[row_idx, :],
@@ -1788,12 +1785,12 @@ class ConeKernel(TSCManifoldKernel):
                 out=cos_matrix[row_idx, :],
             )
 
-            # special handling of duplicates -> division by zero leads to nan
-            zero_mask = np.equal(division, 0.0, out=zero_mask)
-            cos_matrix[row_idx, zero_mask] = 0
-            cos_matrix[row_idx, ~zero_mask] /= division[~zero_mask]
+            # special handling of (almost) duplicates -> denominator by zero leads to nan
+            zero_mask = np.less_equal(denominator, 1e-14, out=zero_mask)
+            cos_matrix[row_idx, zero_mask] = 0.0  # -> np.cos(0) = 1 later
+            cos_matrix[row_idx, ~zero_mask] /= denominator[~zero_mask]
 
-        # memory and cache efficient solving of (no intermediate memory allocations):
+        # memory and cache efficient solving with no intermediate memory allocations:
         # cos_matrix = 1 - self.zeta * np.square(np.cos(cos_matrix))
         cos_matrix = np.cos(cos_matrix, out=cos_matrix)
         cos_matrix = np.square(cos_matrix, out=cos_matrix)
