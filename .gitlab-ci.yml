@@ -31,25 +31,30 @@ functional_tests:
     - echo $PYTHONPATH
     - nosetests tutorials/ -v
 
-black_check:
+code_checks:
   stage: code_analysis
   script:
-    - python3 -m black --version
-    - python3 -m black ./datafold/ --check --diff
-  allow_failure: true
+    - pre-commit run --all
 
-isort_check:
-  stage: code_analysis
-  script:
-    - python3 -m isort --version
-    - python3 -m isort -c -rc ./datafold/
-  allow_failure: true
-
-mypy_check:
-  stage: code_analysis
-  script:
-    - mypy ./
-  allow_failure: true
+#black_check:
+#  stage: code_analysis
+#  script:
+#    - python3 -m black --version
+#    - python3 -m black ./datafold/ --check --diff
+#  allow_failure: true
+#
+#isort_check:
+#  stage: code_analysis
+#  script:
+#    - python3 -m isort --version
+#    - python3 -m isort -c -rc ./datafold/
+#  allow_failure: true
+#
+#mypy_check:
+#  stage: code_analysis
+#  script:
+#    - mypy ./
+#  allow_failure: true
 
 docu_check:
   stage: code_analysis

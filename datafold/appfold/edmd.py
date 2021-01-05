@@ -59,7 +59,7 @@ from copy import deepcopy
 from functools import partial
 from itertools import product
 from traceback import format_exception_only
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -84,7 +84,6 @@ from datafold.dynfold.base import (
     TSCTransformerMixin,
 )
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
-from datafold.pcfold.timeseries.collection import TSCException
 from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
