@@ -656,7 +656,7 @@ class EDMDPredictionTest(unittest.TestCase):
     def test_sine_data(self):
         edmd = EDMD(dict_steps=[("id", TSCIdentity())], include_id_state=False)
         edmd.fit(self.sine_data)
-        edmd_new = EDMDPrediction(time_horizon=2, offset=2).adapt_model(edmd)
+        edmd_new = EDMDPrediction(blocksize=2, offset=2).adapt_model(edmd)
 
         actual = edmd_new.reconstruct(X=self.sine_data)
 
