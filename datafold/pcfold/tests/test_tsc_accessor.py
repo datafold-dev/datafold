@@ -69,24 +69,24 @@ class TestTscAccessor(unittest.TestCase):
 
         # tests for one time series
         self.assertEqual(
-            len(list(tsc_df.tsc.iter_timevalue_window(blocksize=2, offset=2))), 5
+            len(list(tsc_df.tsc.iter_timevalue_window(window_size=2, offset=2))), 5
         )
         self.assertEqual(
-            len(list(tsc_df.tsc.iter_timevalue_window(blocksize=5, offset=5))), 2
+            len(list(tsc_df.tsc.iter_timevalue_window(window_size=5, offset=5))), 2
         )
         self.assertEqual(
-            len(list(tsc_df.tsc.iter_timevalue_window(blocksize=5, offset=1))), 6
+            len(list(tsc_df.tsc.iter_timevalue_window(window_size=5, offset=1))), 6
         )
 
         # the same must be true if there are two time series present
         self.assertEqual(
-            len(list(tsc_df2.tsc.iter_timevalue_window(blocksize=2, offset=2))), 5
+            len(list(tsc_df2.tsc.iter_timevalue_window(window_size=2, offset=2))), 5
         )
         self.assertEqual(
-            len(list(tsc_df2.tsc.iter_timevalue_window(blocksize=5, offset=5))), 2
+            len(list(tsc_df2.tsc.iter_timevalue_window(window_size=5, offset=5))), 2
         )
         self.assertEqual(
-            len(list(tsc_df2.tsc.iter_timevalue_window(blocksize=5, offset=1))), 6
+            len(list(tsc_df2.tsc.iter_timevalue_window(window_size=5, offset=1))), 6
         )
 
     def test_assign_ids_sequential(self):

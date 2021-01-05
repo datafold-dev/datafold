@@ -975,7 +975,6 @@ def _fit_and_score_edmd(
     return_train_score=False,
     return_parameters=False,
     return_n_test_samples=False,
-    return_times=False,
     return_estimator=False,
     error_score=np.nan,
 ):
@@ -1070,9 +1069,6 @@ def _fit_and_score_edmd(
 
     if return_n_test_samples:
         ret.append(X_test.shape[0])
-    if return_times:
-        assert isinstance(score_time, numbers.Number)
-        ret.extend([fit_time, score_time])
     if return_parameters:
         ret.append(parameters)
     if return_estimator:
@@ -1499,7 +1495,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
 
 # TODO: rename -- any naming scheme?
-class EDMDPrediction(object):
+class EDMDWindowPrediction(object):
     """
 
     Parameters
@@ -1511,16 +1507,16 @@ class EDMDPrediction(object):
 
     """
 
-    def __init__(self, blocksize=10, offset=10):
-        self.blocksize = blocksize
+    def __init__(self, window_size=10, offset=10):
+        self.window_size = window_size
         self.offset = offset
 
     def _validate(self):
         # TODO: call function
 
-        if self.blocksize is not None and self.offset is not None:
+        if self.window_size is not None and self.offset is not None:
             check_scalar(
-                self.blocksize,
+                self.window_size,
                 name="time_horizon",
                 target_type=(np.integer, int),
                 min_val=1,
@@ -1529,10 +1525,10 @@ class EDMDPrediction(object):
             check_scalar(
                 self.offset, name="offset", target_type=(np.integer, int), min_val=1
             )
-        elif self.blocksize is not None or self.offset is not None:
+        elif self.window_size is not None or self.offset is not None:
             raise ValueError("'time_horizon' and 'offset' must be provided together")
 
-    def _block_reconstruct(self, X, edmd, offset, qois=None, return_X_blocks=False):
+    def _window_reconstruct(self, X, edmd, offset, qois=None, return_X_windows=False):
         """# TODO to have docu for new reconstruct method!
 
         Parameters
@@ -1546,55 +1542,64 @@ class EDMDPrediction(object):
 
         """
 
-        if not hasattr(edmd, "blocksize"):
+        if not hasattr(edmd, "window_size"):
             raise AttributeError(
-                "The EDMD object requires the attribute 'blocksize' "
-                "to perform block reconstruction."
+                "The EDMD object requires the attribute 'window_size' "
+                "to perform reconstruction on windows in data."
             )
+        elif not isinstance(edmd.window_size, int):
+            raise TypeError("")  # TODO
 
         X = edmd._validate_datafold_data(
             X,
             ensure_tsc=True,
             tsc_kwargs=dict(
-                ensure_const_delta_time=True, ensure_min_timesteps=edmd.blocksize
+                ensure_const_delta_time=True, ensure_min_timesteps=edmd.window_size
             ),
         )
-        X_blocks = TSCDataFrame.from_frame_list(
+        X_windows = TSCDataFrame.from_frame_list(
             list(
                 X.tsc.iter_timevalue_window(
-                    blocksize=edmd.blocksize, offset=self.offset
+                    window_size=edmd.window_size,
+                    offset=offset,
+                    per_time_series=True,
+                    strictly_sequential=True,
                 )
             )
         )
-        final_index_blocks = X_blocks.index.copy()
+
+        final_index_windows = X_windows.index.copy()
+
+        assert X_windows.n_timesteps == edmd.window_size
+
         final_index_reconstruct = (
-            X_blocks.groupby(TSCDataFrame.tsc_id_idx_name)
-            .tail(edmd.blocksize - edmd.n_samples_ic_ + 1)
+            X_windows.groupby(TSCDataFrame.tsc_id_idx_name)
+            .tail(edmd.window_size - edmd.n_samples_ic_ + 1)
             .index
         )
 
         # adapt index such that `_reconstruct` can solve all initial conditions at once:
-        time_indices = X_blocks.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
-        time_shift_values = time_indices[:: edmd.blocksize]
+        time_indices = X_windows.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+        time_shift_values = time_indices[:: edmd.window_size]
 
-        shift_first = X_blocks.loc[[0], :].time_values() - time_shift_values[0]
-        X_blocks.index = pd.MultiIndex.from_product(
-            [X_blocks.ids, shift_first],
+        shift_first = X_windows.loc[[0], :].time_values() - time_shift_values[0]
+        X_windows.index = pd.MultiIndex.from_product(
+            [X_windows.ids, shift_first],
             names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
         )
 
-        X_reconstruct = edmd._reconstruct(X=X_blocks, qois=qois)
+        X_reconstruct = edmd._reconstruct(X=X_windows, qois=qois)
 
         # recover true index:
-        X_blocks.index = final_index_blocks
+        X_windows.index = final_index_windows
         X_reconstruct.index = final_index_reconstruct
 
-        if return_X_blocks:
-            return X_reconstruct, X_blocks
+        if return_X_windows:
+            return X_reconstruct, X_windows
         else:
             return X_reconstruct
 
-    def _block_score(self, X, y=None, sample_weight=None, edmd=None):
+    def _window_score(self, X, y=None, sample_weight=None, edmd=None):
         """# TODO
 
         Parameters
@@ -1611,7 +1616,7 @@ class EDMDPrediction(object):
         assert y is None
 
         # does all the checks:
-        X_reconstruct, X = edmd.reconstruct(X, return_X_blocks=True)
+        X_reconstruct, X = edmd.reconstruct(X, return_X_windows=True)
         return edmd._score_eval(
             X.loc[X_reconstruct.index, :], X_reconstruct, sample_weight
         )
@@ -1628,14 +1633,14 @@ class EDMDPrediction(object):
 
         """
         # TODO: it is not optimal that the model is required to be fit here...
-        estimator.blocksize = self.blocksize
+        estimator.window_size = self.window_size
 
         # overwrite the two methods with "blocked" methods
         # ignored types is for mypy
         estimator.reconstruct = partial(  # type: ignore
-            self._block_reconstruct, edmd=estimator, offset=self.offset
+            self._window_reconstruct, edmd=estimator, offset=self.offset
         )
-        estimator.score = partial(self._block_score, edmd=estimator)  # type: ignore
+        estimator.score = partial(self._window_score, edmd=estimator)  # type: ignore
         return estimator
 
 
@@ -1741,7 +1746,7 @@ class EDMDPostObservable(object):
 
         try:
             X_reconstruct, X_test = edmd.reconstruct(
-                X_test, qois=None, return_X_blocks=True
+                X_test, qois=None, return_X_windows=True
             )
         except TypeError:
             X_reconstruct = edmd.reconstruct(X_test)

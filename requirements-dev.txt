@@ -3,7 +3,6 @@ coverage==4.5.4
 jupyter>=1.0.0
 jupyter-client>=6.0.0
 jupyter-core>=4.6.3
-mypy==0.750
 nbconvert>=5.6.1
 nbformat>=5.0.4
 nbsphinx>=0.6.0

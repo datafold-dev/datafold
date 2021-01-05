@@ -343,13 +343,17 @@ class TSCAccessor(object):
         return np.abs(dt1 - dt2) <= atol
 
     def iter_timevalue_window(
-        self, blocksize: int, offset: int, per_time_series: bool = False
+        self,
+        window_size: int,
+        offset: int,
+        per_time_series: bool = False,
+        strictly_sequential: bool = True,
     ) -> Generator[TSCDataFrame, None, None]:
         """Iterator over time series intervals (window).
 
         Parameters
         ----------
-        blocksize
+        window_size
             The number of samples for each window. Note that the `blocksize` is not
             guaranteed and is usually shorter in last iterations if the number of samples
             are not a multiple of `blocksize`.
@@ -359,10 +363,12 @@ class TSCAccessor(object):
             shifted. If ``offset=blocksize``, then the windows are non-overlapping.
 
         per_time_series
-            If True, then the windows are generated for each time series separately.
-            This is recommended for cases when a collection consists of disjoint time
-            series (i.e. non-overlapping time intervals). Otherwise, the time
-            values that match the current window of multiple time series are returned.
+            If True, the windows are generated for each time series separately. This is
+            recommended for time series a collection consists where the time series are
+            disjoint (i.e. non-overlapping time intervals).
+
+        strictly_sequential
+            TODO
 
         Returns
         -------
@@ -370,28 +376,30 @@ class TSCAccessor(object):
             An iterator for the windowed time series data.
         """
 
-        if not is_integer(blocksize):
+        self.check_const_time_delta()
+
+        if not is_integer(window_size):
             raise TypeError(
-                f"The parameter 'blocksize={blocksize}' must be of type integer. "
-                f"Got {type(blocksize)}"
+                f"The parameter 'window_size={window_size}' must be of type integer. "
+                f"Got {type(window_size)}"
             )
 
         if not is_integer(offset):
             raise TypeError(
                 f"The parameter 'offset={offset}' must be of type integer."
-                f"Got {type(blocksize)}"
+                f"Got {type(window_size)}"
             )
 
-        if blocksize <= 0:
+        if window_size <= 0:
             raise ValueError(
-                f"The parameter 'blocksize={blocksize}' must be positive."
-                f"Got {type(blocksize)}"
+                f"The parameter 'window_size={window_size}' must be positive."
+                f"Got {type(window_size)}"
             )
 
         if offset <= 0:
             raise ValueError(
                 f"The parameter 'offset={offset}' must be positive."
-                f"Got {type(blocksize)}"
+                f"Got {type(window_size)}"
             )
 
         if per_time_series:
@@ -406,15 +414,20 @@ class TSCAccessor(object):
         for _, current_tsc in _iter_timeseries_collection:
             time_values = current_tsc.time_values()
             start = 0
-            end = start + blocksize
+            end = start + window_size
 
             while end <= time_values.shape[0]:
                 selected_time_values = time_values[start:end]
 
                 start = start + offset
-                end = start + blocksize
+                end = start + window_size
 
-                yield current_tsc.select_time_values(selected_time_values)
+                _ret = current_tsc.select_time_values(selected_time_values)
+
+                if strictly_sequential and isinstance(_ret.n_timesteps, pd.Series):
+                    pass
+                else:
+                    yield _ret
 
     def shift_time(self, shift_t: float):
         """Shift all time values from the time series by a constant value.

@@ -84,7 +84,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.assertTrue(estimator._get_tags()["requires_y"])
 
     def test_geometric_harmonics_interpolator(self, plot=False):
-        logging.basicConfig(level=logging.DEBUG)
 
         eps = 1e-1
 
@@ -124,7 +123,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
             plt.show()
 
     def test_eigenfunctions(self, plot=False):
-        logging.basicConfig(level=logging.DEBUG)
 
         eps = 1e1
         cut_off = 1e1 * eps
@@ -1169,12 +1167,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
 if __name__ == "__main__":
 
     import os
-
-    verbose = os.getenv("VERBOSE")
-    if verbose is not None:
-        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-    else:
-        logging.basicConfig(level=logging.ERROR, format="%(message)s")
 
     # unittest.main()
 

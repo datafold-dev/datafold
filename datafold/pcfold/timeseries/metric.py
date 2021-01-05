@@ -861,7 +861,7 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
         X.tsc.check_const_time_delta()
 
         for test_tsc in indices_tsc.copy().tsc.iter_timevalue_window(
-            blocksize=self.test_window_length,
+            window_size=self.test_window_length,
             offset=self.test_window_length + self.test_offset,
             per_time_series=True,
         ):

@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# type: ignore
+
 # Configuration file for the Sphinx documentation builder.
 #
 # For a full list of Sphinx configuration see the documentation:

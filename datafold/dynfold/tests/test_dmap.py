@@ -6,6 +6,7 @@ import unittest
 
 import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
 import scipy.sparse.linalg.eigen.arpack
@@ -30,7 +31,6 @@ else:
 
 class DiffusionMapsTest(unittest.TestCase):
     def setUp(self):
-        logging.basicConfig(level=logging.DEBUG)
         self.xmin = 0.0
         self.ymin = 0.0
         self.width = 1.0
@@ -644,7 +644,7 @@ class DiffusionMapsTest(unittest.TestCase):
         nptest.assert_equal(actual_result.to_numpy(), expected_result)
 
     @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
-    def test_cknn_kernel(self):
+    def test_cknn_kernel2(self):
         from time import time
 
         import datafold.pcfold as pfold
@@ -1220,14 +1220,6 @@ class DiffusionMapsVariableTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
-    verbose = os.getenv("VERBOSE")
-    if verbose is not None:
-        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-    else:
-        logging.basicConfig(level=logging.ERROR, format="%(message)s")
-
-    # Comment in to run/debug specific tests
 
     t = DiffusionMapsTest()
     t.setUp()

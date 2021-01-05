@@ -15,3 +15,9 @@ repos:
     hooks:
     - id: nbstripout
       files: ".ipynb"
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: ''
+    hooks:
+    -   id: mypy
+        args: [--ignore-missing-imports, --no-implicit-optional]

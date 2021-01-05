@@ -13,7 +13,7 @@ import pandas.testing as pdtest
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
-from datafold.appfold.edmd import EDMD, EDMDCV, EDMDPrediction
+from datafold.appfold.edmd import EDMD, EDMDCV, EDMDWindowPrediction
 from datafold.dynfold import DMDFull, gDMDFull
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
@@ -656,7 +656,7 @@ class EDMDPredictionTest(unittest.TestCase):
     def test_sine_data(self):
         edmd = EDMD(dict_steps=[("id", TSCIdentity())], include_id_state=False)
         edmd.fit(self.sine_data)
-        edmd_new = EDMDPrediction(blocksize=2, offset=2).adapt_model(edmd)
+        edmd_new = EDMDWindowPrediction(window_size=2, offset=2).adapt_model(edmd)
 
         actual = edmd_new.reconstruct(X=self.sine_data)
 
@@ -671,8 +671,8 @@ class EDMDPredictionTest(unittest.TestCase):
             dict_steps=[("id", TSCTakensEmbedding(delays=2))], include_id_state=False
         )
         edmd.fit(self.sine_data)
-        edmd_new = EDMDPrediction(
-            blocksize=edmd.n_samples_ic_ + 1, offset=2
+        edmd_new = EDMDWindowPrediction(
+            window_size=edmd.n_samples_ic_ + 1, offset=2
         ).adapt_model(edmd)
         actual = edmd_new.reconstruct(X=self.sine_data)
 
