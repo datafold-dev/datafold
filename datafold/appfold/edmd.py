@@ -974,6 +974,7 @@ def _fit_and_score_edmd(
     return_train_score=False,
     return_parameters=False,
     return_n_test_samples=False,
+    return_times=False,
     return_estimator=False,
     error_score=np.nan,
 ):
@@ -1066,8 +1067,13 @@ def _fit_and_score_edmd(
 
     ret = [train_scores, test_scores] if return_train_score else [test_scores]
 
+    # TODO: improve the return format:
+    #  make it a dictionary instead of list such as in:
+    #  https://github.com/scikit-learn/scikit-learn/blob/1e386a49fcaefcc9860266b5957582bc85aa56ab/sklearn/model_selection/_validation.py#L650
     if return_n_test_samples:
         ret.append(X_test.shape[0])
+    if return_times:
+        ret.extend([fit_time, score_time])  # type: ignore  # TODO
     if return_parameters:
         ret.append(parameters)
     if return_estimator:
