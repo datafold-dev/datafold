@@ -7,12 +7,13 @@ from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
-from datafold.appfold.edmd import EDMD, EDMDCV
+from datafold.appfold.edmd import EDMD, EDMDCV, EDMDPrediction
 from datafold.dynfold import DMDFull, gDMDFull
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
@@ -27,7 +28,8 @@ from datafold.utils.plot import plot_eigenvalues
 
 
 class EDMDTest(unittest.TestCase):
-    def _setup_sine_wave_data(self) -> TSCDataFrame:
+    @staticmethod
+    def _setup_sine_wave_data() -> TSCDataFrame:
         time = np.linspace(0, 2 * np.pi, 100)
         df = pd.DataFrame(np.sin(time) + 10, index=time, columns=["sin"])
         return TSCDataFrame.from_single_timeseries(df)
@@ -645,6 +647,45 @@ class EDMDTest(unittest.TestCase):
         ).fit(self.multi_sine_wave_tsc)
 
         self.assertIsInstance(edmdcv.cv_results_, dict)
+
+
+class EDMDPredictionTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.sine_data = EDMDTest._setup_sine_wave_data()
+
+    def test_sine_data(self):
+        edmd = EDMD(dict_steps=[("id", TSCIdentity())], include_id_state=False)
+        edmd.fit(self.sine_data)
+        edmd_new = EDMDPrediction(time_horizon=2, offset=2).adapt_model(edmd)
+
+        actual = edmd_new.reconstruct(X=self.sine_data)
+
+        self.assertTrue(actual.n_timeseries, 50)
+        nptest.assert_equal(actual.time_values(), self.sine_data.time_values())
+
+        actual_score = edmd_new.score(self.sine_data)
+        self.assertIsInstance(actual_score, float)
+
+    def test_sine_data2(self):
+        edmd = EDMD(
+            dict_steps=[("id", TSCTakensEmbedding(delays=2))], include_id_state=False
+        )
+        edmd.fit(self.sine_data)
+        edmd_new = EDMDPrediction(
+            blocksize=edmd.n_samples_ic_ + 1, offset=2
+        ).adapt_model(edmd)
+        actual = edmd_new.reconstruct(X=self.sine_data)
+
+        self.assertTrue(actual.n_timeseries, 50)
+        self.assertTrue(actual.n_timesteps, 2)
+
+        self.assertIsInstance(edmd_new.score(self.sine_data), float)
+
+        edmd_new.blocksize = 3  # equals number to obtain initial condition
+        self.assertTrue(actual.n_timeseries, 50)
+        self.assertTrue(actual.n_timesteps, 1)
+
+        self.assertIsInstance(edmd_new.score(self.sine_data), float)
 
 
 if __name__ == "__main__":

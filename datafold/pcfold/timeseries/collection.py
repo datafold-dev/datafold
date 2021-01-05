@@ -616,7 +616,6 @@ class TSCDataFrame(pd.DataFrame):
             tsc_list.append(TSCDataFrame(df))
 
         tsc = pd.concat(tsc_list, axis=0)
-
         return cls(tsc)
 
     @staticmethod

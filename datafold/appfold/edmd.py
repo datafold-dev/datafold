@@ -55,6 +55,8 @@ DAMAGE.
 import numbers
 import time
 import warnings
+from copy import deepcopy
+from functools import partial
 from itertools import product
 from traceback import format_exception_only
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
@@ -760,6 +762,29 @@ class EDMD(
 
         return X_ts
 
+    def _reconstruct(self, X: TSCDataFrame, qois):
+
+        X_reconstruct: List[TSCDataFrame] = []
+        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
+            X, n_samples_ic=self.n_samples_ic_
+        ):
+            # transform initial condition to dictionary space
+            X_dict_ic = self.transform(X_ic)
+
+            X_est_ts = self._predict_ic(
+                X_dict=X_dict_ic, time_values=time_values, qois=qois
+            )
+
+            X_reconstruct.append(X_est_ts)
+
+        X_reconstruct = pd.concat(X_reconstruct, axis=0)
+        assert isinstance(X_reconstruct, TSCDataFrame)
+
+        # NOTE: time series contained in X_reconstruct can be shorter in length than
+        # the original time series (i.e. no full reconstruction), because some transfom
+        # models drop samples (e.g. Takens)
+        return X_reconstruct
+
     def reconstruct(
         self,
         X: TSCDataFrame,
@@ -804,27 +829,7 @@ class EDMD(
             # time series initial conditions is included in the predict method.
         )
         self._validate_feature_names(X)
-
-        X_reconstruct: List[TSCDataFrame] = []
-        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
-            X, n_samples_ic=self.n_samples_ic_
-        ):
-            # transform initial condition to dictionary space
-            X_dict_ic = self.transform(X_ic)
-
-            X_est_ts = self._predict_ic(
-                X_dict=X_dict_ic, time_values=time_values, qois=qois
-            )
-
-            X_reconstruct.append(X_est_ts)
-
-        X_reconstruct = pd.concat(X_reconstruct, axis=0)
-        assert isinstance(X_reconstruct, TSCDataFrame)
-
-        # NOTE: time series contained in X_reconstruct can be shorter in length than
-        # the original time series (i.e. no full reconstruction), because some transfom
-        # models drop samples (e.g. Takens)
-        return X_reconstruct
+        return self._reconstruct(X=X, qois=qois)
 
     def fit_predict(
         self,
@@ -932,16 +937,15 @@ class EDMD(
         self._check_attributes_set_up(check_attributes=["_score_eval"])
 
         # does all the checks:
-        X_est_ts = self.reconstruct(X)
+        X_reconstruct = self.reconstruct(X)
 
-        # Important note for getting initial states in dictionary space:
-        # during .transform() samples can be discarded (e.g. when applying Takens)
-        # This means that in the latent space there can be less samples than in the
-        # "physical" space and this is corrected:
-        if X.shape[0] > X_est_ts.shape[0]:
-            X = X.loc[X_est_ts.index, :]
+        # Note that during `transform` samples can be discarded (e.g. when
+        # applying Takens). In the latent space there are then less samples than in the
+        # original space, which is corrected here
+        if self.n_samples_ic_ > 1:
+            X = X.loc[X_reconstruct.index, :]
 
-        return self._score_eval(X, X_est_ts, sample_weight)
+        return self._score_eval(X, X_reconstruct, sample_weight)
 
 
 def _split_X_edmd(X: TSCDataFrame, y, train_indices, test_indices):
@@ -1380,7 +1384,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
         n_splits = cv.get_n_splits(X, y, groups=None)
 
-        base_estimator = clone(self.estimator)
+        base_estimator = deepcopy(self.estimator)
 
         parallel = Parallel(
             n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch
@@ -1494,10 +1498,151 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         return self
 
 
+# TODO: rename -- any naming scheme?
+class EDMDPrediction(object):
+    """
+
+    Parameters
+    ----------
+
+    time_horizon
+        # TODO: * includes initial condition! must be greater than 1!!
+        #       * is steps, not in actual time!
+
+    """
+
+    def __init__(self, blocksize=10, offset=10):
+        self.blocksize = blocksize
+        self.offset = offset
+
+    def _validate(self):
+        # TODO: call function
+
+        if self.blocksize is not None and self.offset is not None:
+            check_scalar(
+                self.blocksize,
+                name="time_horizon",
+                target_type=(np.integer, int),
+                min_val=1,
+            )
+
+            check_scalar(
+                self.offset, name="offset", target_type=(np.integer, int), min_val=1
+            )
+        elif self.blocksize is not None or self.offset is not None:
+            raise ValueError("'time_horizon' and 'offset' must be provided together")
+
+    def _block_reconstruct(self, X, edmd, offset, qois=None, return_X_blocks=False):
+        """# TODO to have docu for new reconstruct method!
+
+        Parameters
+        ----------
+        edmd
+        X
+        qois
+
+        Returns
+        -------
+
+        """
+
+        if not hasattr(edmd, "blocksize"):
+            raise AttributeError(
+                "The EDMD object requires the attribute 'blocksize' "
+                "to perform block reconstruction."
+            )
+
+        X = edmd._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            tsc_kwargs=dict(
+                ensure_const_delta_time=True, ensure_min_timesteps=edmd.blocksize
+            ),
+        )
+        X_blocks = TSCDataFrame.from_frame_list(
+            list(
+                X.tsc.iter_timevalue_window(
+                    blocksize=edmd.blocksize, offset=self.offset
+                )
+            )
+        )
+        final_index_blocks = X_blocks.index.copy()
+        final_index_reconstruct = (
+            X_blocks.groupby(TSCDataFrame.tsc_id_idx_name)
+            .tail(edmd.blocksize - edmd.n_samples_ic_ + 1)
+            .index
+        )
+
+        # adapt index such that `_reconstruct` can solve all initial conditions at once:
+        time_indices = X_blocks.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+        time_shift_values = time_indices[:: edmd.blocksize]
+
+        shift_first = X_blocks.loc[[0], :].time_values() - time_shift_values[0]
+        X_blocks.index = pd.MultiIndex.from_product(
+            [X_blocks.ids, shift_first],
+            names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
+        )
+
+        X_reconstruct = edmd._reconstruct(X=X_blocks, qois=qois)
+
+        # recover true index:
+        X_blocks.index = final_index_blocks
+        X_reconstruct.index = final_index_reconstruct
+
+        if return_X_blocks:
+            return X_reconstruct, X_blocks
+        else:
+            return X_reconstruct
+
+    def _block_score(self, X, y=None, sample_weight=None, edmd=None):
+        """# TODO
+
+        Parameters
+        ----------
+        X
+        y
+        sample_weight
+        edmd
+
+        Returns
+        -------
+
+        """
+        assert y is None
+
+        # does all the checks:
+        X_reconstruct, X = edmd.reconstruct(X, return_X_blocks=True)
+        return edmd._score_eval(
+            X.loc[X_reconstruct.index, :], X_reconstruct, sample_weight
+        )
+
+    def adapt_model(self, estimator: EDMD):
+        """TODO
+
+        Parameters
+        ----------
+        estimator
+
+        Returns
+        -------
+
+        """
+        # TODO: it is not optimal that the model is required to be fit here...
+        estimator.blocksize = self.blocksize
+
+        # overwrite the two methods with "blocked" methods
+        # ignored types is for mypy
+        estimator.reconstruct = partial(  # type: ignore
+            self._block_reconstruct, edmd=estimator, offset=self.offset
+        )
+        estimator.score = partial(self._block_score, edmd=estimator)  # type: ignore
+        return estimator
+
+
 # TODO: Alternative? EDMDCVErrorObservable?
 # TODO: Testing & Docu
 # TODO: compute mean of error time series if offset < blocksize?
-class PostObservable(object):
+class EDMDPostObservable(object):
     """# TODO
 
     Parameters
@@ -1534,8 +1679,6 @@ class PostObservable(object):
         cv: Optional[TSCCrossValidationSplit] = None,
         observable="abserr",  # std or abserr
         # --> Change default to std (but change parameter in scripts first)
-        time_horizon: Optional[int] = None,
-        offset: Optional[int] = None,  # TODO: docu: only with time_horizon
         n_jobs: Optional[int] = None,
         verbose: int = 0,
         pre_dispatch: str = "2*n_jobs",
@@ -1543,13 +1686,11 @@ class PostObservable(object):
         self.estimator = estimator
         self.cv = cv
         self.observable = observable
-        self.time_horizon = time_horizon
-        self.offset = offset
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.pre_dispatch = pre_dispatch
 
-    def _adapt_edmd_model(self, edmd, cv, X_validate, abserr_timeseries):
+    def _adapt_edmd_model(self, edmd, X_validate, abserr_timeseries):
 
         # 1. get original data
         X_dict = edmd.transform(X_validate)
@@ -1581,37 +1722,33 @@ class PostObservable(object):
 
         return edmd
 
-    def _block_reconstruct(self, edmd, X_test):
-        blocksize = edmd.n_samples_ic_ + self.time_horizon
+    def _compute_err_timeseries(self, edmd, X_test):
+        """
 
-        X_test_blocks = TSCDataFrame.from_frame_list(
-            list(
-                X_test.tsc.iter_timevalue_window(
-                    blocksize=blocksize, offset=self.offset
-                )
+        Parameters
+        ----------
+        edmd
+        X_test
+        qois
+
+        Returns
+        -------
+
+        """
+        # TODO: here is a distinction that maybe is better to solve via a new parameter
+        #  in reconstruct (e.g. return_X to return the samples in X that are actually
+        #  reconstructed)
+
+        try:
+            X_reconstruct, X_test = edmd.reconstruct(
+                X_test, qois=None, return_X_blocks=True
             )
-        )
+        except TypeError:
+            X_reconstruct = edmd.reconstruct(X_test)
 
-        time_indices = X_test_blocks.index.get_level_values(
-            TSCDataFrame.tsc_time_idx_name
-        )
-        time_shift_values = time_indices[::blocksize]
-        shift_first = X_test_blocks.loc[[0], :].time_values() - time_shift_values[0]
+        err_timeseries = (X_test.loc[X_reconstruct.index, :] - X_reconstruct).abs()
 
-        X_test_blocks.index = pd.MultiIndex.from_product(
-            [X_test_blocks.ids, shift_first]
-        )
-
-        X_reconstruct = edmd.reconstruct(X_test_blocks)
-        X_reconstruct.index = (
-            X_test_blocks.groupby("ID").tail(self.time_horizon + 1).index
-        )
-
-        err_timeseries = (
-            X_test_blocks.loc[X_reconstruct.index, :] - X_reconstruct
-        ).abs()
-
-        return X_test_blocks, err_timeseries
+        return X_test, err_timeseries
 
     def _fit_and_create_error_timeseries(
         self, edmd: EDMD, X: TSCDataFrame, y, split_nr, train, test, fit_params, verbose
@@ -1630,11 +1767,7 @@ class PostObservable(object):
         if verbose:
             print(f"test_score = {test_score}")
 
-        if self.time_horizon is not None:
-            X_test, err_timeseries = self._block_reconstruct(edmd, X_test)
-        else:
-            X_edmd = edmd.reconstruct(X_test)
-            err_timeseries = (X_test.loc[X_edmd.index] - X_edmd).abs()
+        X_test, err_timeseries = self._compute_err_timeseries(edmd, X_test)
 
         return {
             "test_score": test_score,
@@ -1654,20 +1787,6 @@ class PostObservable(object):
         except NotFittedError:
             pass
 
-        if self.time_horizon is not None and self.offset is not None:
-            check_scalar(
-                self.time_horizon,
-                name="time_horizon",
-                target_type=(np.integer, int),
-                min_val=1,
-            )
-
-            check_scalar(
-                self.offset, name="offset", target_type=(np.integer, int), min_val=1
-            )
-        elif self.time_horizon is not None or self.offset is not None:
-            raise ValueError("'time_horizon' and 'offset' must be provided together")
-
         if self.observable not in self._valid_observables:
             raise ValueError(
                 f"observable={self.observable} is invalid. "
@@ -1677,8 +1796,6 @@ class PostObservable(object):
     def _run_cv(self, X, y, **fit_params):
         cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
         # n_splits = self.cv.get_n_splits(X, y, groups=None)
-
-        base_estimator = clone(self.estimator)
 
         parallel = Parallel(
             n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch
@@ -1697,7 +1814,7 @@ class PostObservable(object):
 
                 ret = parallel(
                     delayed(self._fit_and_create_error_timeseries)(
-                        edmd=clone(base_estimator),
+                        edmd=deepcopy(self.estimator),
                         X=X,
                         y=y,
                         split_nr=i,
@@ -1756,9 +1873,11 @@ class PostObservable(object):
         fit_params = _check_fit_params(X, fit_params)
 
         if self.cv is None:
-            self.final_estimator_ = clone(self.estimator)
+            # Need to use deepcopy here, bc. sklearn.clone does not clone methods but
+            # re-inits the object
+            self.final_estimator_ = deepcopy(self.estimator)
             self.final_estimator_ = self.final_estimator_.fit(X, y, **fit_params)
-            X_validate, abserr_timeseries = self._block_reconstruct(
+            X_validate, abserr_timeseries = self._compute_err_timeseries(
                 self.final_estimator_, X_test=X
             )
         else:
@@ -1768,7 +1887,6 @@ class PostObservable(object):
 
         self.final_estimator_ = self._adapt_edmd_model(
             edmd=self.final_estimator_,
-            cv=self.cv,
             X_validate=X_validate,
             abserr_timeseries=abserr_timeseries,
         )
