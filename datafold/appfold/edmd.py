@@ -1766,7 +1766,7 @@ class EDMDPostObservable(object):
 
         if verbose:
             msg = f"split: {split_nr}"
-            print("[CV] %s %s" % (msg, (64 - len(msg)) * "."), end="", flush=True)
+            print("[CV] %s %s" % (msg, (64 - len(msg)) * "."), flush=True)
 
         X_train, X_test = _split_X_edmd(X, y, train_indices=train, test_indices=test)
 

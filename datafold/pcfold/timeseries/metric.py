@@ -961,13 +961,18 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
                 train_indices, test_indices, return_dropped=True
             )
 
-            ax[i].set_ylabel(f"split {i}")
-            ax[i].set_yticks([])
+            if n_splits == 1:
+                _ax = ax
+            else:
+                _ax = ax[i]
+
+            _ax.set_ylabel(f"split {i}")
+            _ax.set_yticks([])
 
             for j, (_, df) in enumerate(train_tsc.groupby(id_name)):
                 time_values = df.index.get_level_values(time_name)
                 width = time_values[-1] - time_values[0] + delta_time
-                ax[i].bar(
+                _ax.bar(
                     time_values[0],
                     height=1,
                     width=width,
@@ -979,7 +984,7 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
             for j, (_, df) in enumerate(test_tsc.groupby(id_name)):
                 time_values = df.index.get_level_values(time_name)
                 width = time_values[-1] - time_values[0] + delta_time
-                ax[i].bar(
+                _ax.bar(
                     time_values[0],
                     height=1,
                     width=width,
@@ -991,7 +996,7 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
             # This can be made easier when #105 is addressed
             dropped_samples = dropped_samples.index.get_level_values(time_name)
             if len(dropped_samples) > 0:
-                ax[i].bar(
+                _ax.bar(
                     dropped_samples,
                     height=1,
                     width=delta_time,
@@ -1007,7 +1012,7 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
                     time_values = df.time_values()
                     width = time_values[-1] - time_values[0]
 
-                    ax[i].bar(
+                    _ax.bar(
                         time_values[0],
                         height=1,
                         width=width,
@@ -1016,5 +1021,5 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
                         label="test" if j == 0 else None,
                     )
 
-        ax[-1].set_xlabel("time")
+        _ax.set_xlabel("time")
         plt.legend(loc="lower center")
