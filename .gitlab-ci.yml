@@ -65,7 +65,7 @@ code_checks:
 #    - python3 -m isort -c -rc ./datafold/
 #  allow_failure: true
 #
-#mypy_check:
+#mypy_check: test
 #  stage: code_analysis
 #  script:
 #    - mypy ./
