@@ -1,4 +1,5 @@
 stages:
+  - remote_setup
   - test
   - code_analysis
   - deploy
@@ -8,19 +9,23 @@ cache:
     - .cache/pip
     - venv/
 
-before_script:
-  - ~/Python-3.7.9/bin/python -m pip install --upgrade virtualenv
-  - ~/Python-3.7.9/bin/python -m pip install --upgrade pip
-  - virtualenv venv
-  - source venv/bin/activate
-  - python -m pip uninstall datafold
-  - python -m pip install --upgrade pip
-  - python -m pip install --upgrade setuptools
-  - python -m pip install --upgrade twine
-  - python -m pip install -r requirements-dev.txt
+setup:
+  stage: remote_setup
+  script:
+    - ~/Python-3.7.9/python -m pip install --upgrade virtualenv
+    - ~/Python-3.7.9/python -m pip install --upgrade pip
+    - virtualenv venv
+    - source venv/bin/activate
+    - python -m pip uninstall datafold
+    - python -m pip install --upgrade pip
+    - python -m pip install --upgrade setuptools
+    - python -m pip install --upgrade twine
+    - python -m pip install -r requirements-dev.txt
 
 unittests:
   stage: test
+  before_script:
+    - source venv/bin/activate
   script:
     - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ --cover-html --cover-html-dir="./coverage/" datafold/ -v
   allow_failure: false
@@ -31,6 +36,8 @@ unittests:
     when: on_success
 
 functional_tests:
+  before_script:
+    - source venv/bin/activate
   script:
     - export PYTHONPATH=`pwd`
     - echo $PYTHONPATH
