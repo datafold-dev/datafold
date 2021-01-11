@@ -1,18 +1,23 @@
 stages:
-  - setup_remote
   - test
   - code_analysis
   - deploy
 
-setup:
-  stage: setup_remote
-  script:
-    - python3 -m pip uninstall datafold
-#    - python3 -m pip install --upgrade pip --user
-#    - python3 -m pip install --upgrade setuptools --user
-#    - python3 -m pip install --upgrade twine --user
-    - python3 -m pip install -r requirements-dev.txt --user
-  allow_failure: false
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - ~/Python-3.7.9/bin/python -m pip install --upgrade virtualenv
+  - ~/Python-3.7.9/bin/python -m pip install --upgrade pip
+  - virtualenv venv
+  - source venv/bin/activate
+  - python -m pip uninstall datafold
+  - python -m pip install --upgrade pip
+  - python -m pip install --upgrade setuptools
+  - python -m pip install --upgrade twine
+  - python -m pip install -r requirements-dev.txt
 
 unittests:
   stage: test
