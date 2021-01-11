@@ -12,8 +12,9 @@ cache:
 setup:
   stage: remote_setup
   script:
-    - virtualenv venv
+    - virtualenv venv -p ~/Python-3.7.9/python
     - source venv/bin/activate
+    - python -V
     - python -m pip install --upgrade pip
     - python -m pip install --upgrade setuptools
     - python -m pip install --upgrade twine
@@ -23,6 +24,7 @@ unittests:
   stage: test
   before_script:
     - source venv/bin/activate
+    - python -V
   script:
     - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ --cover-html --cover-html-dir="./coverage/" datafold/ -v
   allow_failure: false
@@ -35,6 +37,7 @@ unittests:
 functional_tests:
   before_script:
     - source venv/bin/activate
+    - python -V
   script:
     - export PYTHONPATH=`pwd`
     - echo $PYTHONPATH
@@ -42,6 +45,9 @@ functional_tests:
 
 code_checks:
   stage: code_analysis
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
     - pre-commit run --all
 
