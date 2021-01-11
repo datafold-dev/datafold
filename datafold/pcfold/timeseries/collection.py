@@ -4,6 +4,7 @@ import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
 import scipy.sparse
+from pandas.api.types import is_datetime64_dtype
 from pandas.core.indexing import _iLocIndexer, _LocIndexer
 
 from datafold.pcfold.distance import compute_distance_matrix
@@ -1102,7 +1103,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_datetime_index(self) -> bool:
         """Indicates whether 'time' index is datetime format."""
-        return self.index.get_level_values(self.tsc_time_idx_name).dtype.kind == "M"
+        return is_datetime64_dtype(self.index.get_level_values(self.tsc_time_idx_name))
 
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
         """Generator over time series (id, pandas.DataFrame).
@@ -1434,9 +1435,16 @@ class TSCDataFrame(pd.DataFrame):
             raise TSCException.not_const_delta_time()
 
         start, end = self.time_interval()
-        return np.arange(
-            start, np.nextafter(end, np.finfo(np.float64).max), self.delta_time
-        )
+
+        if self.is_datetime_index():
+            return np.arange(start, end + np.timedelta64(1, "ns"), self.delta_time)
+        else:
+            # maintain actual time dtype
+            _dtype = self.index.get_level_values(self.tsc_time_idx_name).dtype
+
+            return np.arange(
+                start, np.nextafter(end, np.finfo(np.float64).max), self.delta_time
+            ).astype(_dtype)
 
     def feature_to_array(
         self, feature: Optional[str] = None, as_frame: bool = False

@@ -193,15 +193,21 @@ class TSCAccessor(object):
         """
 
         try:
-            # this is a better variant than
-            # np.asarray(self._tsc_df.delta_time) == np.asarray(required_time_delta)
-            # because the shapes can also mismatch
-            nptest.assert_allclose(
-                np.asarray(self._tsc_df.delta_time),
-                np.asarray(required_time_delta),
-                rtol=1e-12,
-                atol=1e-15,
-            )
+            delta_times = np.asarray(self._tsc_df.delta_time)
+
+            if self._tsc_df.is_datetime_index():
+                if not (delta_times == required_time_delta).all():
+                    raise AttributeError
+            else:
+                # this is a better variant than
+                # np.asarray(self._tsc_df.delta_time) == np.asarray(required_time_delta)
+                # because the shapes can also mismatch
+                nptest.assert_allclose(
+                    delta_times,
+                    np.asarray(required_time_delta),
+                    rtol=1e-12,
+                    atol=1e-15,
+                )
         except AssertionError:
             raise TSCException.not_required_delta_time(
                 required_delta_time=required_time_delta,

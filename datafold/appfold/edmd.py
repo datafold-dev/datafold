@@ -242,13 +242,13 @@ class EDMD(
 
     @property
     def koopman_modes(self):
-        check_is_fitted(self)
+        check_is_fitted(self, attributes=["_koopman_modes"])
 
         if self._koopman_modes is None:
             return None
         else:
-            # pandas object to properly indicate what modes are corresponding to which
-            # feature
+            # pandas object to properly indicate what modes are
+            # corresponding to which feature
             modes = pd.DataFrame(
                 self._koopman_modes,
                 index=self.feature_names_pred_,
@@ -618,13 +618,6 @@ class EDMD(
         if qois is None:
             feature_columns = self.feature_names_pred_
         else:
-            if not np.isin(qois, self.feature_names_pred_).all():
-                illegal_mask = np.logical_not(np.isin(qois, self.feature_names_pred_))
-
-                raise ValueError(
-                    "'qois' must only contain feature names in attribute "
-                    f"'feature_names_pred_'. Illegal: {np.array(qois)[illegal_mask]}"
-                )
             feature_columns = qois
 
         if self._inverse_map is not None:
@@ -751,6 +744,10 @@ class EDMD(
             X=X, time_values=time_values
         )
 
+        qois = self._validate_qois(
+            qois=qois, valid_feature_names=self._feature_names_pred
+        )
+
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
@@ -828,6 +825,8 @@ class EDMD(
             # time series initial conditions is included in the predict method.
         )
         self._validate_feature_names(X)
+        self._validate_qois(qois=qois, valid_feature_names=self.feature_names_pred_)
+
         return self._reconstruct(X=X, qois=qois)
 
     def fit_predict(
@@ -1555,6 +1554,11 @@ class EDMDWindowPrediction(object):
         elif not isinstance(edmd.window_size, int):
             raise TypeError("")  # TODO
 
+        assert edmd.window_size > edmd.n_samples_ic_, (  # TODO: make proper error!
+            f"edmd.window_size={edmd.window_size}, "
+            f"edmd.n_samples_ic_={edmd.n_samples_ic_}"
+        )
+
         X = edmd._validate_datafold_data(
             X,
             ensure_tsc=True,
@@ -1562,6 +1566,10 @@ class EDMDWindowPrediction(object):
                 ensure_const_delta_time=True, ensure_min_timesteps=edmd.window_size
             ),
         )
+        qois = edmd._validate_qois(
+            qois=qois, valid_feature_names=edmd.feature_names_pred_
+        )
+
         X_windows = TSCDataFrame.from_frame_list(
             list(
                 X.tsc.iter_timevalue_window(
@@ -1575,7 +1583,8 @@ class EDMDWindowPrediction(object):
 
         final_index_windows = X_windows.index.copy()
 
-        assert X_windows.n_timesteps == edmd.window_size
+        n_timesteps = X_windows.n_timesteps
+        assert isinstance(n_timesteps, int) and n_timesteps == edmd.window_size
 
         final_index_reconstruct = (
             X_windows.groupby(TSCDataFrame.tsc_id_idx_name)
@@ -1583,13 +1592,9 @@ class EDMDWindowPrediction(object):
             .index
         )
 
-        # adapt index such that `_reconstruct` can solve all initial conditions at once:
-        time_indices = X_windows.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
-        time_shift_values = time_indices[:: edmd.window_size]
-
-        shift_first = X_windows.loc[[0], :].time_values() - time_shift_values[0]
+        first_id_time_values = X_windows.loc[X_windows.ids[0]].index
         X_windows.index = pd.MultiIndex.from_product(
-            [X_windows.ids, shift_first],
+            [X_windows.ids, first_id_time_values],
             names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
         )
 
@@ -1604,7 +1609,7 @@ class EDMDWindowPrediction(object):
         else:
             return X_reconstruct
 
-    def _window_score(self, X, y=None, sample_weight=None, edmd=None):
+    def _window_score(self, X, y=None, sample_weight=None, qois=None, edmd=None):
         """# TODO
 
         Parameters
@@ -1621,10 +1626,15 @@ class EDMDWindowPrediction(object):
         assert y is None
 
         # does all the checks:
-        X_reconstruct, X = edmd.reconstruct(X, return_X_windows=True)
-        return edmd._score_eval(
-            X.loc[X_reconstruct.index, :], X_reconstruct, sample_weight
-        )
+        X_reconstruct, X = edmd.reconstruct(X, qois=qois, return_X_windows=True)
+
+        if qois is None:
+            X_reconstruct = X_reconstruct.loc[:, X.columns]
+            X = X.loc[X_reconstruct.index, :]
+        else:
+            X = X.loc[X_reconstruct.index, qois]
+
+        return edmd._score_eval(X, X_reconstruct, sample_weight)
 
     def adapt_model(self, estimator: EDMD):
         """TODO
@@ -1711,17 +1721,17 @@ class EDMDPostObservable(object):
             target_timeseries = abserr_timeseries
 
         # 3. compute inverse map
-        inverse_map_errs = edmd._least_squares_inverse_map(
-            X=target_timeseries, X_dict=X_dict
+        inverse_map2error_values = edmd._least_squares_inverse_map(
+            X=target_timeseries, X_dict=X_dict.loc[abserr_timeseries.index, :]
         )
 
         # 4. compute Koopman modes for error observables
-        modes_errs = edmd._compute_koopman_modes(inverse_map_errs)
+        modes_error_values = edmd._compute_koopman_modes(inverse_map2error_values)
 
         # 5. attach Koopman modes to existing
-        edmd._koopman_modes = np.row_stack([edmd._koopman_modes, modes_errs])
+        edmd._koopman_modes = np.row_stack([edmd._koopman_modes, modes_error_values])
 
-        # 6. change feature_names_out_pred_
+        # 6. change feature_names_out_pred_ by attaching to existing
         edmd._feature_names_pred = pd.Index(
             np.append(
                 edmd.feature_names_pred_,
@@ -1755,6 +1765,9 @@ class EDMDPostObservable(object):
             )
         except TypeError:
             X_reconstruct = edmd.reconstruct(X_test)
+
+        # remove initial states, because they are often almost exact
+        X_reconstruct = X_reconstruct.drop(labels=X_reconstruct.head(1).index)
 
         err_timeseries = (X_test.loc[X_reconstruct.index, :] - X_reconstruct).abs()
 
@@ -1884,7 +1897,7 @@ class EDMDPostObservable(object):
 
         if self.cv is None:
             # Need to use deepcopy here, bc. sklearn.clone does not clone methods but
-            # re-inits the object
+            # re-initializes the object
             self.final_estimator_ = deepcopy(self.estimator)
             self.final_estimator_ = self.final_estimator_.fit(X, y, **fit_params)
             X_validate, abserr_timeseries = self._compute_err_timeseries(

@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import scipy.linalg
+from pandas.api.types import is_datetime64_dtype
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
@@ -171,11 +172,8 @@ class LinearDynamicalSystem(object):
                 "The array must be 1-dim. and only contain real-valued numeric data."
             )
 
-        if (time_values < 0).any():
-            raise ValueError("The time values must all be positive numbers.")
-
-        if np.isnan(time_values).any() or np.isinf(time_values).any():
-            raise ValueError("The time values contain invalid numbers (nan/inf).")
+        if is_datetime64_dtype(time_values):
+            time_values = time_values.astype(np.int)
 
         # TIME DELTA
         if self.is_differential_system():
@@ -188,7 +186,11 @@ class LinearDynamicalSystem(object):
             )
         else:
             assert time_delta is not None  # mypy
-            time_delta = float(time_delta)  # built in Python
+            # cast to built-in Python value
+            if np.asarray(time_delta).dtype.kind in "mli":
+                time_delta = int(time_delta)
+            else:
+                time_delta = float(time_delta)
             if time_delta <= 0:
                 raise ValueError(f"time_delta={time_delta} must be positive.")
 
@@ -819,7 +821,10 @@ class DMDBase(
             )
 
         if self.time_invariant:
-            shift = np.min(time_values)
+            if time_values.dtype.kind in "mM":
+                shift = np.min(time_values)
+            else:
+                shift = 0
         else:
             # If the dmd time is shifted during data (e.g. the minimum processed data
             # starts with time=5, some positive value) then normalize the time_samples
@@ -851,9 +856,15 @@ class DMDBase(
         #
         # Because hard-setting the time indices can be problematic, the following
         # assert makes sure that both ways match (up to numerical differences).
-        assert (
-            tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
-        ).all()
+
+        if time_values.dtype == np.floating:
+            assert (
+                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
+            ).all()
+        elif time_values.dtype == np.integer:
+            assert (
+                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values
+            ).all()
 
         # Set time_values from user input
         tsc_df.index = tsc_df.index.set_levels(
@@ -966,6 +977,10 @@ class DMDBase(
             tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._validate_feature_names(X)
+
+        # TODO: qois flag is currently not supported in DMD, bc. predict does not
+        #  support it # 125
+        # self._validate_qois(qois=qois, valid_feature_names=self.feature_names_in_)
 
         X_reconstruct_ts = []
 
