@@ -47,8 +47,6 @@ functional_tests:
     - echo $PYTHONPATH
     - nosetests tutorials/ -v
 
-
-# TODO: fix -- troubles with remote VM
 code_checks:
   stage: code_analysis
   before_script:
@@ -57,26 +55,6 @@ code_checks:
   script:
     - pre-commit run --all
   allow_failure: true
-
-#black_check:
-#  stage: code_analysis
-#  script:
-#    - python -m black --version
-#    - python -m black ./datafold/ --check --diff
-#  allow_failure: true
-#
-#isort_check:
-#  stage: code_analysis
-#  script:
-#    - python -m isort --version
-#    - python -m isort -c -rc ./datafold/
-#  allow_failure: true
-#
-#mypy_check:
-#  stage: code_analysis
-#  script:
-#    - mypy ./
-#  allow_failure: true
 
 docu_check:
   stage: code_analysis
