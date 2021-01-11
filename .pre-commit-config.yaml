@@ -17,7 +17,7 @@ repos:
       files: ".ipynb"
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: ''
+    rev: v0.750
     hooks:
     -   id: mypy
         args: [--ignore-missing-imports, --no-implicit-optional]

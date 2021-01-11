@@ -43,6 +43,8 @@ functional_tests:
     - echo $PYTHONPATH
     - nosetests tutorials/ -v
 
+
+# TODO: fix -- troubles with remote VM
 code_checks:
   stage: code_analysis
   before_script:
@@ -50,22 +52,23 @@ code_checks:
     - python -V
   script:
     - pre-commit run --all
+  allow_failure: true
 
 #black_check:
 #  stage: code_analysis
 #  script:
-#    - python3 -m black --version
-#    - python3 -m black ./datafold/ --check --diff
+#    - python -m black --version
+#    - python -m black ./datafold/ --check --diff
 #  allow_failure: true
 #
 #isort_check:
 #  stage: code_analysis
 #  script:
-#    - python3 -m isort --version
-#    - python3 -m isort -c -rc ./datafold/
+#    - python -m isort --version
+#    - python -m isort -c -rc ./datafold/
 #  allow_failure: true
 #
-#mypy_check: test
+#mypy_check:
 #  stage: code_analysis
 #  script:
 #    - mypy ./
@@ -94,8 +97,10 @@ pages:
 # requires to set TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD variables
 pypi_upload:
   stage: deploy
+  before_script:
+    - source venv/bin/activate
   script:
-    - python3 setup.py sdist bdist_wheel
+    - python setup.py sdist bdist_wheel
     - twine upload dist/*
   only:
     - master
