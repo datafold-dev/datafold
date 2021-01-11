@@ -12,11 +12,8 @@ cache:
 setup:
   stage: remote_setup
   script:
-    - ~/Python-3.7.9/python -m pip install --upgrade virtualenv
-    - ~/Python-3.7.9/python -m pip install --upgrade pip
     - virtualenv venv
     - source venv/bin/activate
-    - python -m pip uninstall datafold
     - python -m pip install --upgrade pip
     - python -m pip install --upgrade setuptools
     - python -m pip install --upgrade twine
