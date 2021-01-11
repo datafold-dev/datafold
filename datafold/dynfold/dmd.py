@@ -863,7 +863,7 @@ class DMDBase(
             ).all()
         elif time_values.dtype == np.integer:
             assert (
-                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values
+                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values == 0
             ).all()
 
         # Set time_values from user input
