@@ -6,11 +6,12 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PRE_COMMIT_HOME: "${CI_PROJECT_DIR}/.cache/pre-commit"
 
 cache:
   paths:
     - .cache/pip
-    - .cache/pre-commit
+    - ${PRE_COMMIT_HOME}
     - venv/
 
 setup:
