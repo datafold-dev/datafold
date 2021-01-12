@@ -6,6 +6,7 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  # https://pre-commit.com/#gitlab-ci-example  (TODO: caching does not work for pre-commit)
   PRE_COMMIT_HOME: "${CI_PROJECT_DIR}/.cache/pre-commit"
 
 cache:
