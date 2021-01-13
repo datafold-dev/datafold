@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import scipy.linalg
-from pandas.api.types import is_datetime64_dtype
+from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
@@ -172,7 +172,7 @@ class LinearDynamicalSystem(object):
                 "The array must be 1-dim. and only contain real-valued numeric data."
             )
 
-        if is_datetime64_dtype(time_values):
+        if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
             time_values = time_values.astype(np.int)
 
         # TIME DELTA
