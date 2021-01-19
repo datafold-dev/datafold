@@ -62,7 +62,7 @@ extensions = [
     "sphinx.ext.todo",
     # See below for configuration
     "sphinx.ext.imgmath",
-    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html
+    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html#overview
     "sphinxcontrib.bibtex",
     # 'napoleon' allows NumPy and Google style documentation (no external Sphinx
     #  package required)
@@ -159,6 +159,8 @@ for line in content.splitlines(keepends=True):
 # write content back to file
 with open(filepath_literature_file, "w") as file:
     file.write("".join(new_content))
+
+bibtex_bibfiles = [filepath_literature_file]
 
 # ----------------------------------------------------------------------------------------
 # napoleon (see full list of available options:
