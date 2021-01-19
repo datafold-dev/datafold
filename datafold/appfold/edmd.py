@@ -299,7 +299,8 @@ class EDMD(
         X_dict = self.transform(X)
 
         # transform of X_dict matrix
-        #   -> note that in the DMD model, there are column-oriented features
+        #   -> note that the transpose is required because in the DMD model the
+        #      features are column oriented
         eval_eigenfunction = self._dmd_model.compute_spectral_system_states(
             X_dict.to_numpy().T
         )
@@ -1316,8 +1317,6 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         )
 
     def _validate_settings_edmd(self):
-        # leave import here to avoid circular imports
-
         if not isinstance(self.estimator, EDMD):
             raise TypeError("EDMDCV only supports EDMD estimators.")
 
@@ -1498,7 +1497,6 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         return self
 
 
-# TODO: rename -- any naming scheme?
 class EDMDWindowPrediction(object):
     """
 
@@ -1650,8 +1648,8 @@ class EDMDWindowPrediction(object):
         # TODO: it is not optimal that the model is required to be fit here...
         estimator.window_size = self.window_size
 
-        # overwrite the two methods with "blocked" methods
-        # ignored types is for mypy
+        # overwrite the two methods with new "windowed" methods
+        # ignored types for mypy
         estimator.reconstruct = partial(  # type: ignore
             self._window_reconstruct, edmd=estimator, offset=self.offset
         )
