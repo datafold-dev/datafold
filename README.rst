@@ -118,28 +118,28 @@ Installation of *datafold* requires `Python>=3.7 <https://www.python.org/>`__ wi
 packages usually ship with a standard Python installation). The *datafold* package
 dependencies are listed in the next section and install automatically.
 
-There are two ways to install *datafold*:
+There are two ways to install *datafold*.
 
-1. **PyPI**: install the *datafold* core package (without tutorials and tests). To
-   download the tutorial files separately go to
+1. **PyPI**: install the core package (excluding tutorials and tests). This
+   is the standard way for users. To download the tutorial files separately go to
    `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
-2. **Source**: clone the entire repository. This way is recommended if you want
-   access the latest (but potentially unstable) development, want to contribute to
-   *datafold*, or wish to run tests.
+2. **Source**: download or git-clone the entire repository. This way is recommended if you
+   want to access the latest (but potentially unstable) development, run tests
+   or contribute to *datafold* (see Contributing for details).
 
 From PyPI
 ---------
 
 *datafold* is hosted on the official Python package index (PyPI)
-(https://pypi.org/project/datafold/). To install *datafold* and its dependencies use
-:code:`pip`:
+(https://pypi.org/project/datafold/). To install *datafold* and its dependencies with
+:code:`pip` run
 
 .. code-block:: bash
 
    pip install datafold
 
 .. note::
-    If you run Python with Anaconda, also consider
+    If you installed Python with Anaconda, also consider
     `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
 
 From source
@@ -154,7 +154,7 @@ From source
 
         git clone https://gitlab.com/datafold-dev/datafold.git
 
-   b. Download the source code
+   b. Download the source code from the ``master`` branch
       (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
@@ -166,52 +166,45 @@ From source
 
        python setup.py install
 
-   Add the :code:`--user` flag to install the software for the current user only.
-
-3. Optionally, run the tests locally. Because the tests have additional dependencies,
-   they have be installed separately with the ``requirements-dev.txt`` file
-
-   .. code-block:: bash
-
-      pip install -r requirements-dev.txt
-      python setup.py test
+   Add the :code:`--user` flag to install the package and dependencies for the
+   current user only.
 
 Dependencies
 ============
 
 The *datafold* dependencies are managed in
 `requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
-and install with the package manager ``pip``, if the package is not already available.
-The tests and tutorials require further dependencies which are managed in
+and install with the package manager ``pip``. Note that the tests and tutorials require
+further dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
 *datafold* integrates with common packages from the
 `Python scientific computing stack <https://www.scipy.org/about.html>`__:
 
 * `NumPy <https://numpy.org/>`__
-   The data structure ``PCManifold`` subclasses from NumPy's ``ndarray``
+   The data structure ``PCManifold`` subclasses from NumPy's
+   `ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
    to capture point clouds with the assumption of being sampled on or near a manifold.
    NumPy is used throughout *datafold* and is the default package for numerical
    data and algorithms.
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`__
-   *datafold* uses Pandas' rich
+   *datafold* uses pandas'
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__
-   to capture time series data as a base class for ``TSCDataFrame``. Specifically the
-   ability to index time, time series ID and high-dimensional spatial dimension are
-   required. The data is then contained in a single object with easy data slicing and
-   the additional functionality of time series and collections thereof.
+   as a base class for ``TSCDataFrame`` to capture time series data and
+   collections thereof. The data structure indexes time, time series ID and
+   multiple spatial features. The data is contained in a single object with
+   pandas rich functionality to access data - *datafold* includes time series specific
+   functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`__.
    This is done by deriving the models from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
-   or appropriate ``MixIns``. *datafold* also defines own base classes
+   and appropriate ``MixIns``. *datafold* defines own base classes
    that align with the API in a duck-typing fashion to allow identifying
    dynamics from time series data in ``TSCDataFrame`` objects.
-
-   object.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`__
    The package is used for elementary numerical algorithms and data structures in

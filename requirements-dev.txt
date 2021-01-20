@@ -13,7 +13,7 @@ pydata-sphinx-theme==0.4.1
 pydmd==0.3.0
 scikit-optimize>=0.8.1,<0.9.0
 sphinx>=3.0.0,<4.0.0
-sphinx-autodoc-typehints==1.11.0
+sphinx-autodoc-typehints==1.11.1
 sphinx-automodapi==0.13
 sphinxcontrib-bibtex==2.1.4
 git+git://github.com/jmbr/diffusion-maps@master

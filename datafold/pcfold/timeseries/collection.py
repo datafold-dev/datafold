@@ -287,7 +287,27 @@ class TSCDataFrame(pd.DataFrame):
         dist_kwargs.setdefault("backend", "guess_optimal")
         self.attrs["dist_kwargs"] = dist_kwargs
 
-        self._validate()
+        try:
+            self._validate()
+        except AttributeError as e:
+            # This is a special case of input, where the fallback is to pd.DataFrame
+            # internally of pandas the __init__ is called like this:
+            # df._constructor(res)
+            # --> df._constructor is TSCDataFrame
+            # --> res is a BlockManager
+            # If a BlockManager slices the index, then no AttributeError is raised,
+            # but instead self casted to pd.DataFrame
+            # (case was necessary from pandas==1.2.0 onwards)
+            _is_blockmanager_input = len(args) > 0 and isinstance(
+                args[0], pd.core.internals.managers.BlockManager
+            )
+
+            if _is_blockmanager_input and self.index.nlevels != 2:
+                # TODO: this seems dangerous... maybe there are better ways to deal
+                #  with this?
+                self = pd.DataFrame(self)
+            else:
+                raise e
 
     @classmethod
     def from_tensor(
