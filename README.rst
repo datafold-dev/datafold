@@ -425,28 +425,28 @@ Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The documentation is built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`__ and
-various Sphinx extensions (all install with the development dependencies). The source
+various extensions (install with the development dependencies). The source
 code is documented with
 `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`__ style.
 
-Additional dependencies for building the documentation (**not** contained in
-``requirements-dev.txt``):
+Additional dependencies to build the documentation that *not* install with the
+development dependencies:
 
-* `LaTex <https://www.latex-project.org/>`__ to render maths equations,
-* `mathjax <https://www.mathjax.org/>`__ to display the LaTex equations in the browser
-* `graphviz <https://graphviz.org/>`__ to render class dependency graphs, and
+* `LaTex <https://www.latex-project.org/>`__ to render equations,
+* `mathjax <https://www.mathjax.org/>`__ to display equations in the browser
+* `graphviz <https://graphviz.org/>`__ to render class dependency graphs
 * `pandoc <https://pandoc.org/index.html>`__ to convert between formats (required by
-  `nbsphinx` extension that includes the tutorials into the web page documentation).
+  `nbsphinx` extension that includes the tutorials to the web page).
 
-In Linux, install the packages with
+In a Linux environment, install the packages with
 
 .. code-block:: bash
 
     apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
 
-(This excludes the Latex installation see the available `texlive` packages).
+(This excludes the Latex installation, see available `texlive` packages).
 
-To build the documentation run from the root folder of the repository:
+To build the documentation with `Sphinx <https://www.sphinx-doc.org/en/master/>`__:
 
 .. code-block:: bash
 
