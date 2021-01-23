@@ -650,11 +650,13 @@ class TSCAccessor(object):
             The data with time series IDs in sequential order.
         """
 
-        self._tsc_df.set_index(self._tsc_df.index.remove_unused_levels(), inplace=True)
+        self._tsc_df.index = self._tsc_df.index.remove_unused_levels()
         # levels[0] = IDs, levels[1] = time
         n_timeseries = len(self._tsc_df.index.levels[0])
 
-        self._tsc_df.index.set_levels(np.arange(n_timeseries), level=0, inplace=True)
+        self._tsc_df.index = self._tsc_df.index.set_levels(
+            np.arange(n_timeseries), level=0
+        )
         return self._tsc_df
 
     def assign_ids_train_test(
@@ -901,8 +903,8 @@ class TSCAccessor(object):
                         ),
                     )
                 )
-                local_tsc_df.set_index(reassigned_ids_idx, inplace=True)
-                return local_tsc_df
+
+                return local_tsc_df.set_index(reassigned_ids_idx)
 
         result_dfs = list()
 

@@ -920,9 +920,7 @@ class TestTSCDataFrame(unittest.TestCase):
         df = self.simple_df.copy()
 
         # index is float64 but can be converted to int64 without loss
-        df.index.set_levels(
-            df.index.levels[0].astype(np.float64), level=0, inplace=True
-        )
+        df.index = df.index.set_levels(df.index.levels[0].astype(np.float64), level=0)
 
         # index must be the same
         pdtest.assert_frame_equal(TSCDataFrame(df), TSCDataFrame(self.simple_df))
@@ -931,8 +929,8 @@ class TestTSCDataFrame(unittest.TestCase):
         df = self.simple_df.copy()
 
         # index is float64 and cannot be converted to int64 without loss
-        df.index.set_levels(
-            df.index.levels[0].astype(np.float64) + 0.01, level=0, inplace=True
+        df.index = df.index.set_levels(
+            df.index.levels[0].astype(np.float64) + 0.01, level=0
         )
 
         with self.assertRaises(AttributeError):

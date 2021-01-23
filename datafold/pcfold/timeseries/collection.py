@@ -302,10 +302,10 @@ class TSCDataFrame(pd.DataFrame):
             # internally of pandas the __init__ is called like this:
             # df._constructor(res)
             # --> df._constructor is TSCDataFrame
-            # --> res is a BlockManager
+            # --> res is a BlockManager (pandas internal type)
             # If a BlockManager slices the index, then no AttributeError is raised,
-            # but instead self casted to pd.DataFrame
-            # (case was necessary from pandas==1.2.0 onwards)
+            # but instead self casted to DataFrame
+            # (case was necessary with changes introduced in pandas 1.2.0)
             _is_blockmanager_input = len(args) > 0 and isinstance(
                 args[0], pd.core.internals.managers.BlockManager
             )
@@ -769,10 +769,9 @@ class TSCDataFrame(pd.DataFrame):
             # convert to int64 if it is possible to transform without loss
             # (e.g. from 4.0 to 4) else raise Attribute error
             if (ids_index.astype(np.int64) == ids_index).all():
-                self.index.set_levels(
+                self.index = self.index.set_levels(
                     self.index.levels[0].astype(np.int64),
                     level=self.tsc_id_idx_name,
-                    inplace=True,
                 )
             else:
                 # The ids have to be integer values
@@ -937,7 +936,7 @@ class TSCDataFrame(pd.DataFrame):
         else:
             n_time_elements.index.name = self.tsc_id_idx_name
             # seems not to be sorted in the first place.
-            n_time_elements.sort_index(inplace=True)
+            n_time_elements = n_time_elements.sort_index()
             n_time_elements.name = "counts"
             return n_time_elements
 
