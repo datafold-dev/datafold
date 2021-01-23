@@ -174,8 +174,10 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertEqual(actual.index.get_level_values(0).dtype, np.integer)
 
         # test inplace
-        tsc_df.set_index(new_idx, inplace=True)
-        pdtest.assert_frame_equal(tsc_df, actual)
+        with self.assertRaises(ValueError):
+            # Cannot specify 'inplace=True' when
+            # 'flags.allows_duplicate_labels' is False.
+            tsc_df.set_index(new_idx, inplace=True)
 
     def test_set_index2(self):
         tsc_df = TSCDataFrame(self.simple_df.copy())
@@ -191,11 +193,6 @@ class TestTSCDataFrame(unittest.TestCase):
         with self.assertRaises(AttributeError):
             tsc_df.set_index(new_idx_float_id)
 
-        with self.assertRaises(AttributeError):
-            # Note: the AttributeError is raised, but after that tsc_df is left in an
-            # invalid state with floating time series IDs
-            tsc_df.set_index(new_idx_float_id, inplace=True)
-
         # reset tsc_df
         tsc_df = TSCDataFrame(self.simple_df)
 
@@ -206,12 +203,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
 
         self.assertTrue(tsc_df.set_index(new_idx_degenerated_ts).has_degenerate())
-
-        # no inplace operation
         self.assertFalse(tsc_df.has_degenerate())
-
-        tsc_df.set_index(new_idx_degenerated_ts, inplace=True)
-        self.assertTrue(tsc_df.has_degenerate())
 
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
@@ -405,7 +397,7 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = pd.DataFrame(
             data=data_expected, index=time_index_expected, columns=feature_col_expected
         )
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
     def test_from_timeseries_tensor_time_index(self):
         matrix = np.zeros([3, 2, 2])  # 1st: time series ID, 2nd: time, 3rd: feature
@@ -433,7 +425,7 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = pd.DataFrame(
             data=data_expected, index=time_index_expected, columns=feature_col_expected
         )
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
     def test_from_shift_matrix_row(self):
 
@@ -697,7 +689,7 @@ class TestTSCDataFrame(unittest.TestCase):
         values = self.simple_df.to_numpy()[[0, 2, 4, 6], :]
         expected = pd.DataFrame(values, index=idx, columns=col)
 
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
     def test_timeseries_initial_states_n_samples(self):
         actual = TSCDataFrame(self.simple_df).initial_states(n_samples=2)
@@ -713,7 +705,7 @@ class TestTSCDataFrame(unittest.TestCase):
         values = self.simple_df.to_numpy()[[0, 1, 2, 3, 4, 5, 6, 7], :]
         expected = pd.DataFrame(values, index=idx, columns=col)
 
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
         with self.assertRaises(TSCException):
             # some time series have only length 2
@@ -731,7 +723,7 @@ class TestTSCDataFrame(unittest.TestCase):
         values = self.simple_df.to_numpy()[[1, 3, 5, 8], :]
         actual = pd.DataFrame(values, index=idx, columns=col)
 
-        pdtest.assert_frame_equal(expected, actual)
+        pdtest.assert_frame_equal(expected, actual, check_flags=False)
 
     def test_time_delta01(self):
         actual = TSCDataFrame(self.simple_df).delta_time
@@ -811,7 +803,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertIsInstance(actual, pd.DataFrame)
 
         expected = self.simple_df.iloc[[0, 2, 4], :]
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
         with self.assertRaises(KeyError):
             tsc.select_time_values(time_values=100)  # no time series with this time
@@ -820,7 +812,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
         # in 'key' use a list to enforce a data frame, not a series
         expected = self.simple_df.iloc[[6], :]
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
     def test_multi_time_tsc(self):
         ts = TSCDataFrame(self.simple_df)
@@ -850,7 +842,7 @@ class TestTSCDataFrame(unittest.TestCase):
         actual = ts.select_time_values(time_values=np.array([0]))
         expected = self.simple_df.loc[pd.IndexSlice[:, 0], :]
 
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
     def test_multi_time_tsc4(self):
         # behaviour if not all time points are present
@@ -921,8 +913,8 @@ class TestTSCDataFrame(unittest.TestCase):
         expected_b = pd.DataFrame(self.simple_df.loc[:, "B"])
         expected_b.columns.name = TSCDataFrame.tsc_feature_col_name
 
-        pdtest.assert_frame_equal(actual_a, expected_a)
-        pdtest.assert_frame_equal(actual_b, expected_b)
+        pdtest.assert_frame_equal(actual_a, expected_a, check_flags=False)
+        pdtest.assert_frame_equal(actual_b, expected_b, check_flags=False)
 
     def test_loc_slice07(self):
         df = self.simple_df.copy()
@@ -1027,7 +1019,9 @@ class TestTSCDataFrame(unittest.TestCase):
 
         # xs returns a Series
         expected = pd.DataFrame(self.simple_df.xs("A", axis=1))
-        pdtest.assert_frame_equal(actual, expected, check_names=False)
+        pdtest.assert_frame_equal(
+            actual, expected, check_names=False, check_flags=False
+        )
 
     def test_getitem(self):
         tsc = TSCDataFrame(self.simple_df)
@@ -1267,7 +1261,7 @@ class TestInitialCondition(unittest.TestCase):
         expected = pd.DataFrame(self.test_tsc01).head(3)
 
         self.assertTrue(InitialCondition.validate(actual))
-        pdtest.assert_frame_equal(actual, expected)
+        pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
     def test_iter_reconstruct_ic01(self):
         # test if it can handle a single time series
@@ -1285,7 +1279,7 @@ class TestInitialCondition(unittest.TestCase):
             )
 
             self.assertTrue(InitialCondition.validate(actual_ic))
-            pdtest.assert_frame_equal(actual_ic, expected_ic)
+            pdtest.assert_frame_equal(actual_ic, expected_ic, check_flags=False)
             nptest.assert_array_equal(actual_time_values, expected_time_values)
 
     def test_iter_reconstruct_ic02(self):
@@ -1305,7 +1299,7 @@ class TestInitialCondition(unittest.TestCase):
             )
 
             self.assertTrue(InitialCondition.validate(actual_ic))
-            pdtest.assert_frame_equal(actual_ic, expected_ic)
+            pdtest.assert_frame_equal(actual_ic, expected_ic, check_flags=False)
             nptest.assert_array_equal(actual_time_values, expected_time_values)
 
     def test_iter_reconstruct_ic03(self):

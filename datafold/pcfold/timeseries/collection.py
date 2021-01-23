@@ -180,27 +180,31 @@ class TSCDataFrame(pd.DataFrame):
     * two-dimensional index, where the first index indicates the time series ID (
       integer), and the second the time (non-negative numerical values)
     * one-dimensional columns for feature names
-    * neither the index nor in column allows duplicates
+    * no duplicates in the labels (index and column) are allowed (the flag
+      `allows_duplicate_labels <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
+      is set to True). Note, that this disables inplace operations on the labels (e.g.
+      :code:`tsc.set_index(new_index, inplace=True` raises an error).
 
-    A time series are usually two or more samples. However, the data structure can also
-    store degenerated time series with only one time sample. This is useful to define
-    initial conditions.
+    A time series consists of two or more temporal ordered samples. However, it is also
+    possible to store degenerated time series of only one time sample. In some
+    situations this is useful (e.g. defining initial conditions), but other operations
+    might not work if degenerated time series are present.
 
-    Please visit the Pandas
+    Visit the Pandas
     `documentation <https://pandas.pydata.org/pandas-docs/stable/index.html>`__ for
-    inherited attributes, methods and other algorithms that can in general act on data
-    frames.
+    all inherited attributes, methods and algorithms that can act on general DataFrame
+    objects.
 
     .. note::
-        Because Pandas provides a large variety of functionality of its data
-        structures, not all methods are tested to check if they comply with
-        `TSCDataFrame`. Please report unexpected behavior, bugs or inconsistencies by
-        `opening an issue <https://gitlab.com/datafold-dev/datafold/-/issues>`__.
+        Pandas provides a large variety of functionality. Not all available methods are
+        tested if they comply with `TSCDataFrame`. Please report unexpected behavior,
+        bugs or inconsistencies in a new
+        `issue <https://gitlab.com/datafold-dev/datafold/-/issues>`__.
 
     .. warning::
-        Currently, there is no `TSCSeries`, which results in inconsistencies when
-        using `iloc`. Even if the result is still a valid `TSCDataFrame` the type
-        changes to `pandas.DataFrame` or `pandas.Series`.
+        Currently, there is no corresponding `TSCSeries`, which results in
+        inconsistencies in `iloc` indexing. Even if the returned slice is a valid
+        `TSCDataFrame` the type can change to `DataFrame` or `Series`.
 
     Examples
     --------
@@ -289,6 +293,10 @@ class TSCDataFrame(pd.DataFrame):
 
         try:
             self._validate()
+
+            # In validate an AttributeError is raised, follow-up changes to the data
+            # are dealt with the flag (introduced in pandas v. 1.2.0)
+            self.flags.allows_duplicate_labels = False
         except AttributeError as e:
             # This is a special case of input, where the fallback is to pd.DataFrame
             # internally of pandas the __init__ is called like this:
