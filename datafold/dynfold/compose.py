@@ -11,7 +11,7 @@ from sklearn.utils.validation import check_is_fitted
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
 
 
-class TSCPipeline(pipeline.Pipeline, TSCTransformerMixin):
+class TSCPipeline(pipeline.Pipeline, TSCTransformerMixin):  # pragma: no cover
     @property
     def feature_names_in_(self):
         return self.steps[0][1].feature_names_in_

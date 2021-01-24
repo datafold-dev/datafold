@@ -766,7 +766,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
 
-class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):
+class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
     """(experimental, not documented)
     .. warning::
         This class is not documented. Contributions are welcome

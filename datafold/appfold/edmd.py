@@ -1497,7 +1497,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         return self
 
 
-class EDMDWindowPrediction(object):
+class EDMDWindowPrediction(object):  # pragma: no cover
     """
 
     Parameters
@@ -1660,7 +1660,7 @@ class EDMDWindowPrediction(object):
 # TODO: Alternative? EDMDCVErrorObservable?
 # TODO: Testing & Docu
 # TODO: compute mean of error time series if offset < blocksize?
-class EDMDPostObservable(object):
+class EDMDPostObservable(object):  # pragma: no cover
     """# TODO
 
     Parameters
