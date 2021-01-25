@@ -161,13 +161,13 @@ class _DmapKernelAlgorithms:
 
 
 class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
-    """Define diffusion process on point cloud to find meaningful geometric
-    descriptions.
+    """Defines a diffusion process on point cloud to find meaningful
+    geometric descriptions.
 
     The model can be used for
 
     * non-linear dimensionality reduction
-    * approximating eigenfunctions of operators (see ``alpha`` parameter):
+    * approximation eigenfunctions of operators (see ``alpha`` parameter):
 
         - Laplace-Beltrami
         - Fokker-Plank
@@ -178,17 +178,19 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     kernel
         The kernel to describe proximity between points. The kernel is passed
         as an ``internal_kernel`` to :py:class:`.DmapKernelFixed`, which describes
-        the diffusion process. Defaults to :py:class:`.GaussianKernel` with bandwidth 1.0.
+        the diffusion process. Defaults to :py:class:`.GaussianKernel` with
+        bandwidth `epsilon=1`.
 
     n_eigenpairs
-        The number of eigenpairs to compute from kernel matrix.
+        The number of eigenpairs to compute from the kernel matrix.
 
     time_exponent
-        The time of the diffusion process (exponent of eigenvalues in embedding).
+        The time of the diffusion process (exponent of eigenvalues in embedding). The
+        value can be also be changed after the model is fit.
 
     is_stochastic
         If True, the diffusion kernel matrix is normalized (row stochastic). In the
-        standard definition of diffusion maps this has to be true.
+        standard definition of diffusion maps this has to be True.
 
     alpha
         The re-normalization parameter between `(0,1)`. Set ``alpha=1`` to correct the
@@ -202,11 +204,10 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         Note, that ``is_stochastic=True`` is required in all three cases.
 
     symmetrize_kernel
-        If True, a conjugate transformation is performed if the settings
-        lead to a non-symmetric kernel matrix. This improves numerical stability when
-        solving the eigenvectors of the kernel matrix because it allows algorithms
-        designed for (sparse) Hermitian matrices to be used. If the kernel matrix is
-        symmetric already (`is_stochastic=False`), then the parameter has no effect.
+        If True, a symmetric conjugate transformation is performed, if the kernel
+        matrix is non-symmetric (otherwise the parameter has no effect). The symmetric
+        conjugate improves numerical when solving the eigenvectors, because it allows
+        algorithms designed for (sparse) Hermitian matrices to be used.
 
     dist_kwargs
         Keyword arguments passed to the internal distance matrix computation. See
@@ -218,24 +219,24 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
     X_fit_: PCManifold
         The training data during fit. The data is required for out-of-sample mappings;
-        the object is equipped with kernel :py:class:`DmapKernelFixed`.
+        the :py:class:`PCManifold` is equipped with kernel :py:class:`DmapKernelFixed`.
 
     eigenvalues_ : numpy.ndarray
         The eigenvalues of diffusion kernel matrix in decreasing order.
 
     eigenvectors_: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-        The eigenvectors of the kernel matrix to parametrize the data manifold.
+        The eigenvectors of the kernel matrix.
 
     target_coords_: numpy.ndarray
-        The indices to map to when transforming the data. The target point dimension
-        equals to the number of indices included in `target_coords_`. Note that the
+        The coordinate indices to map to when transforming the data. The target point
+        dimension equals the number of indices included in `target_coords_`. Note that the
         attributes `eigenvectors_` and `eigenvalues_` sill contain *all* computed
         eigenpairs.
 
     inv_coeff_matrix_: numpy.ndarray
         The coefficient matrix to map points from embedding space back to original space.\
-        The computation and setting the attribute is delayed until `inverse_transform` is
-        called for the first time.
+        The computation is delayed until `inverse_transform` is called for the first
+        time (only then the attribute is available).
 
     kernel_matrix_ : Union[numpy.ndarray, scipy.sparse.csr_matrix]
         The computed kernel matrix; the matrix is only stored if
@@ -353,7 +354,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             self.time_exponent,
             "time_exponent",
             target_type=(float, int, np.float, np.integer),
-            min_val=0,
         )
 
         check_scalar(
@@ -403,8 +403,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             self.time_exponent,
             "time_exponent",
             target_type=(float, np.floating, int, np.integer),
-            min_val=0,
-            max_val=None,
         )
 
         if self.time_exponent == 0:
@@ -413,7 +411,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             eigvals_time = np.power(self.eigenvalues_, self.time_exponent)
             dmap_embedding = mat_dot_diagmat(np.asarray(eigenvectors), eigvals_time)
 
-        if isinstance(eigenvectors, (pd.DataFrame, TSCDataFrame)):
+        if isinstance(eigenvectors, pd.DataFrame):
             dmap_embedding = df_type_and_indices_from(
                 indices_from=eigenvectors,
                 values=dmap_embedding,
