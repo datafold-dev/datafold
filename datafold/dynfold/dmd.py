@@ -1174,8 +1174,12 @@ class DMDFull(DMDBase):
                 "computational performance."
             )
 
+        # see Eq. (13 a) and (13 b) in `williams_datadriven_2015`
         G = shift_start_transposed.T @ shift_start_transposed
+        G = np.multiply(1 / X.shape[0], G, out=G)
+
         G_dash = shift_start_transposed.T @ shift_end_transposed
+        G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
 
         # If the matrix is square and of full rank, then x is the exact solution of
         # the linear equation system..
@@ -1188,17 +1192,22 @@ class DMDFull(DMDBase):
                 f"{np.sum(residual)}"
             )
 
-        # # TODO: Experimental (test other solvers, with more functionality)
+        # # TODO: START Experimental (test other solvers, with more functionality)
         # #  ridge_regression, and sparisty promoting least squares solutions could be
         #    included here
         # # TODO: clarify if the ridge regression should be done better on lstsq with
         #     shift matrices (instead of the G, G_dash)
 
-        # #  also possible to integrate "RidgeCV" which allows to select the best
-        # #  alpha from a list
-        # #  https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV
-
         # TODO: fit_intercept option useful to integrate?
+        # #  https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV
+        # from sklearn.linear_model import RidgeCV
+        #
+        # ridge = RidgeCV(alphas=[0.0001, 0.001, 0.01, 0.05, 1], fit_intercept=False)
+        # ridge.fit(X=shift_start_transposed, y=shift_end_transposed)
+        # koopman_matrix = ridge.coef_.T
+        #
+        # print(f"best alpha value {ridge.alpha_}")
+
         # koopman_matrix = ridge_regression(
         #     G, G_dash, alpha=self.alpha, verbose=0, return_intercept=False
         # )
@@ -1221,9 +1230,11 @@ class DMDFull(DMDBase):
         eigenvalues_, eigenvectors_right_ = sort_eigenpairs(
             *np.linalg.eig(system_matrix)
         )
+        eigenvectors_right_ /= np.linalg.norm(eigenvectors_right_, axis=0)
 
         if self.is_diagonalize:
-            # must be computed with the Koopman eigenvalues (NOT the generator eigenvalues)
+            # must be computed with the Koopman eigenvalues
+            # (NOT the generator eigenvalues)
             eigenvectors_left_ = self._compute_left_eigenvectors(
                 system_matrix=system_matrix,
                 eigenvalues=eigenvalues_,

@@ -43,6 +43,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         Parameters
         ----------
         name
+            - "center" -:class:`sklearn.preprocessing.StandardScaler`
             - "min-max" - :class:`sklearn.preprocessing.MinMaxScaler`
             - "standard" - :class:`sklearn.preprocessing.StandardScaler`
 
@@ -51,6 +52,8 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCFeaturePreprocess
             new instance
         """
+        if name == "center":
+            return cls(StandardScaler(copy=True, with_mean=True, with_std=False))
         if name == "min-max":
             return cls(MinMaxScaler(feature_range=(0, 1), copy=True))
         elif name == "standard":
