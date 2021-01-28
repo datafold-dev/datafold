@@ -1,25 +1,54 @@
 What is *datafold*?
 ====================
 
-*datafold* is a Python package that provides **data**-driven models for point clouds to
-find an *explicit* mani-**fold** parametrization and to identify non-linear
-dynamical systems on these manifolds. Informally, a manifold is an usually unknown
-geometrical structure on which data is sampled. For high-dimensional point clouds a
-typical use case is to parametrize an intrinsic low-dimension manifold, with
-non-linear dimension reduction. For time series data, the underlying dynamical system is
-assumed to have a phase space that is a manifold.
+*datafold* is a Python package that provides **data**-driven models for point clouds
+that are sampled on (or near) a mani**fold**; a geometrical structure with certain
+properties. That data forms geometrical structures, which are often of much lower
+dimension than the ambient point dimension, is often referred to "manifold assumption".
+Successful models adapt to the coordinates of the manifold and generalize to the
+neighbourhood in the vicinity of the available training data. *datafold* primarily
+includes models with an explicit manifold parametrization. The models give
+insight to the analyzed process and can uncover spatial or spatio-temporal patterns of
+the process.
 
-For a longer introduction to *datafold*, please go to `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__
-and for a mathematical thorough introduction, we refer to the used
-`references <https://datafold-dev.gitlab.io/datafold/references.html>`__.
+*datafold* includes
 
-The source code is distributed under the `MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
+* Data structures to handle point clouds on manifolds (``PCManifold``) and time series
+  collections (``TSCDataFrame``). The data structures are used both internally and for
+  model input/outputs (if applicable).
+* An efficient implementation of the ``DiffusionMaps`` model to sparely parametrize
+  a manifold from point cloud data or to approximate the eigenfunctions of the
+  Laplace-Beltrami operator as a function basis. As a distinguishing factor to other
+  implementations, the the model allows setting an arbitrary kernel, for example, a
+  standard Gaussian kernel,
+  `continuous `k` nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
+  `dynamics-adapted kernel (cone kernel) <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
+* Out-of-sample methods such as the (auto-tuned) Laplacian Pyramids or Geometric
+  Harmonics to interpolate general function values on manifold point clouds.
+* (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull`` or ``EDMD``) which
+  are data-driven dynamical models built from time series data. To improve the
+  model's accuracy, EDMD provides a framework to express the data in a more suitable
+  intrinsic feature state in accordance to the Koopan operator theory. This includes
+  scaling of heterogeneous time series quantities or more involved transformations to
+  geometrically informed coordinates, such as with Diffusion Maps. Furthermore, it is
+  possible to time-delay time series for phase space reconstruction
+  (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
+* ``EDMDCV`` allows the model parameters (including the
+  transformation model parameters) to be optimized with cross-validation and
+  also accounts for time series splittings.
+
+See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
+For a mathematical thorough introduction, we refer to the
+`scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__.
+
+The source code is distributed under the
+`MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
 
 Any contribution (code/tutorials/documentation improvements) and feedback is
 very welcome. Either use the
 `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
 `service desk email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
-Please also see the "Contributing" section further below.
+See also the "Contributing" section further below.
 
 .. note::
     The project is under active development in a research-driven environment.
@@ -57,31 +86,6 @@ Quick links
 
 * `Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__
 
-Highlights
-==========
-
-The *datafold* package includes:
-
-* Data structures to handle point clouds on manifolds (``PCManifold``) and time series
-  collections (``TSCDataFrame``). The data structures are used both internally and for
-  model input/outputs (if applicable).
-* An efficient implementation of the ``DiffusionMaps`` model to parametrize a manifold
-  from point cloud data or to approximate the Laplace-Beltrami operator eigenfunctions.
-  In the model an arbitrary kernel can be set. This includes, for example, a standard
-  Gaussian kernel, a continuous `k` nearest neighbor kernel, or a dynamics adapted kernel
-  (cone kernel).
-* Out-of-sample methods such as the (auto-tuned) Laplacian Pyramids or Geometric
-  Harmonics to interpolate general function values on manifold point clouds.
-* (Extended-) Dynamic Mode Decomposition (e.g. ``DMDFull`` or ``EDMD``) which
-  are data-driven dynamical models built from time series data. To improve the
-  model's accuracy, the available data can be transformed with a variety of functions.
-  This includes scaling of heterogeneous time series features, representing the
-  time series in another coordinate system (e.g. Laplace-Beltrami operator) or to
-  reconstruct a diffeomorphic copy of the phase space with time delay embedding (cf.
-  `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
-* ``EDMDCV`` allows the model parameters (including the
-  transformation model parameters) to be optimized with cross-validation and
-  also accounts for time series splitting.
 
 Cite
 ====
