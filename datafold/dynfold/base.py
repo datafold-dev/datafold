@@ -580,7 +580,7 @@ class TSCPredictMixin(TSCBaseMixin):
 
             if not mask_valid_qois.all():
                 raise ValueError(
-                    f"The qois={qois[mask_valid_qois]} are invalid. Valid "
+                    f"The qois={qois[~mask_valid_qois]} are invalid. Valid "
                     f"feature names are {valid_feature_names}."
                 )
 

@@ -622,7 +622,6 @@ class EDMD(
             feature_columns = qois
 
         if self._inverse_map is not None:
-
             if self._koopman_modes is not None:
                 # The DMD model is in spectral mode and the Koopman modes were
                 # computed.
@@ -642,7 +641,7 @@ class EDMD(
                     **{"modes": modes, "feature_columns": feature_columns},
                 )
             else:
-                # The DMD model does not compute compute the spectral components of the
+                # The DMD model does not compute the spectral components of the
                 # Koopman matrix. The inverse_map needs to be done afterwards because the
                 # DMD model requires to maintain a square matrix to forward the system
 
