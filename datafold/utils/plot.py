@@ -252,7 +252,12 @@ def plot_pairwise_eigenvector(
         current_row = i // ncols
         current_col = i - current_row * ncols
 
-        _ax = ax[current_row, current_col]
+        if nrows == 1:
+            _ax = ax[current_col]
+        elif ncols == 1:
+            _ax = ax[current_row]
+        else:
+            _ax = ax[current_row, current_col]
 
         _ax.scatter(
             eigenvectors[:, n],
