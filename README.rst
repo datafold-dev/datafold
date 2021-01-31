@@ -1,26 +1,25 @@
 What is *datafold*?
 ====================
 
-*datafold* is a Python package that provides **data**-driven models for point clouds
-that are sampled on (or near) a mani**fold**; a geometrical structure with certain
-properties. That data forms geometrical structures, which are often of much lower
-dimension than the ambient point dimension, is often referred to "manifold assumption".
-Successful models adapt to the coordinates of the manifold and generalize to the
-neighbourhood in the vicinity of the available training data. *datafold* primarily
-includes models with an explicit manifold parametrization. The models give
-insight to the analyzed process and can uncover spatial or spatio-temporal patterns of
-the process.
+*datafold* is a Python package providing **data**-driven models for point clouds that are
+sampled on (or near) a mani**fold** (i.e. a geometrical structure with certain
+properties). Associating data to manifolds, which are often of much lower dimension than
+the ambient point dimension, is typically referred to as the "manifold assumption".
+Successful models can extract the intrinsic coordinates of the manifold and generalize it
+to the neighbourhood in the vicinity of the available training data. *datafold* includes
+models with an explicit manifold parametrization. The models can therefore give insight
+into the analyzed process and can uncover spatial or spatio-temporal patterns of the
+process.
 
 *datafold* includes
 
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
   model input/outputs (if applicable).
-* An efficient implementation of the ``DiffusionMaps`` model to sparely parametrize
-  a manifold from point cloud data or to approximate the eigenfunctions of the
-  Laplace-Beltrami operator as a function basis. As a distinguishing factor to other
-  implementations, the the model allows setting an arbitrary kernel, for example, a
-  standard Gaussian kernel,
+* An efficient implementation of the ``DiffusionMaps`` model to parametrize
+  a manifold from point cloud data by approximating the eigenfunctions of the
+  Laplace-Beltrami operator. As a distinguishing factor to other implementations, the the
+  model allows setting an arbitrary kernel, for example, a standard Gaussian kernel,
   `continuous `k` nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
   `dynamics-adapted kernel (cone kernel) <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
 * Out-of-sample methods such as the (auto-tuned) Laplacian Pyramids or Geometric
@@ -28,12 +27,12 @@ the process.
 * (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull`` or ``EDMD``) which
   are data-driven dynamical models built from time series data. To improve the
   model's accuracy, EDMD provides a framework to express the data in a more suitable
-  intrinsic feature state in accordance to the Koopan operator theory. This includes
-  scaling of heterogeneous time series quantities or more involved transformations to
-  geometrically informed coordinates, such as with Diffusion Maps. Furthermore, it is
-  possible to time-delay time series for phase space reconstruction
+  intrinsic feature state in accordance to the Koopman operator theory. This includes
+  scaling of heterogeneous time series quantities and more involved transformations to
+  geometrically informed function basis, such as with ``DiffusionMaps``.
+  Furthermore, it is possible to time-delay time series for phase space reconstruction
   (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
-* ``EDMDCV`` allows the model parameters (including the
+* ``EDMDCV`` allows model parameters (including the
   transformation model parameters) to be optimized with cross-validation and
   also accounts for time series splittings.
 
