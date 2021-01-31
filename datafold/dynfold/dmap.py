@@ -481,7 +481,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         indices = np.asarray(indices)
         indices = np.sort(indices)
 
-        if indices.dtype != np.int:
+        if indices.dtype != np.int_:
             raise TypeError(f"The indices must be integers. Got type {indices.dtype}.")
 
         if indices[0] < 0 or indices[-1] >= self.n_eigenpairs:

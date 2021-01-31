@@ -173,7 +173,7 @@ class LinearDynamicalSystem(object):
             )
 
         if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
-            time_values = time_values.astype(np.int)
+            time_values = time_values.astype(np.int_)
 
         # TIME DELTA
         if self.is_differential_system():

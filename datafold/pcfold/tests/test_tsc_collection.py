@@ -612,7 +612,9 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc_df = TSCDataFrame(self.simple_df)
         tsc_df = tsc_df.drop(0, level=1)
 
-        nptest.assert_equal(tsc_df.degenerate_ids(), np.array([0, 1, 15], dtype=np.int))
+        nptest.assert_equal(
+            tsc_df.degenerate_ids(), np.array([0, 1, 15], dtype=np.int_)
+        )
         self.assertTrue(tsc_df.has_degenerate())
 
     def test_degenerate_timeseries1(self):

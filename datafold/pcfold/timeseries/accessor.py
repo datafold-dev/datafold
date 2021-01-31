@@ -835,7 +835,7 @@ class TSCAccessor(object):
             )
 
             if local_tsc_df.is_datetime_index():
-                first_diff = first_diff.astype(np.int)
+                first_diff = first_diff.astype(np.int_)
 
             first_diff = np.append(np.inf, first_diff)
 
@@ -985,7 +985,7 @@ class TSCAccessor(object):
 
         if is_integer(ts_counts):
             ts_counts = pd.Series(
-                np.ones(self._tsc_df.n_timeseries, dtype=np.int) * ts_counts,
+                np.ones(self._tsc_df.n_timeseries, dtype=np.int_) * ts_counts,
                 index=self._tsc_df.ids,
             )
 

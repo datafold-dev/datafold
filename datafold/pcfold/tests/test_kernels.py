@@ -187,7 +187,7 @@ class TestKernelUtils(unittest.TestCase):
         data = generate_circle_data(100, 100, 1)
         distance_matrix = compute_distance_matrix(data)
 
-        for k in np.linspace(2, 90, 20).astype(np.int):
+        for k in np.linspace(2, 90, 20).astype(np.int_):
             expected = _kth_nearest_neighbor_dist(distance_matrix, k)
 
             distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
@@ -204,7 +204,7 @@ class TestKernelUtils(unittest.TestCase):
 
         distance_matrix = compute_distance_matrix(data_ref, data_query)
 
-        for k in np.linspace(2, 90, 20).astype(np.int):
+        for k in np.linspace(2, 90, 20).astype(np.int_):
 
             actual = _kth_nearest_neighbor_dist(
                 scipy.sparse.csr_matrix(distance_matrix), k

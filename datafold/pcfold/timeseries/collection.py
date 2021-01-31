@@ -622,7 +622,7 @@ class TSCDataFrame(pd.DataFrame):
                 final_list.append(df)
 
         if ts_ids is None:
-            ts_ids = np.arange(len(final_list)).astype(np.int)
+            ts_ids = np.arange(len(final_list)).astype(np.int_)
         else:
             ts_ids = np.asarray(ts_ids)
 
@@ -765,7 +765,7 @@ class TSCDataFrame(pd.DataFrame):
         # just for security:
         self.index: pd.MultiIndex = self.index.remove_unused_levels()
 
-        if ids_index.dtype != np.int:
+        if ids_index.dtype != np.int_:
             # convert to int64 if it is possible to transform without loss
             # (e.g. from 4.0 to 4) else raise Attribute error
             if (ids_index.astype(np.int64) == ids_index).all():
@@ -1401,7 +1401,7 @@ class TSCDataFrame(pd.DataFrame):
 
         # Add the id to the first level of the MultiIndex
         df.index = pd.MultiIndex.from_arrays(
-            [np.ones(df.shape[0], dtype=np.int) * ts_id, _index],
+            [np.ones(df.shape[0], dtype=np.int_) * ts_id, _index],
             names=[self.tsc_id_idx_name, self.tsc_time_idx_name],
         )
 
