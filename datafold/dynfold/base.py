@@ -273,7 +273,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 # (better code readability than pd.Index)
                 features_out = pd.Index(
                     features_out,
-                    dtype=np.str,
+                    dtype=np.str_,
                     name=TSCDataFrame.tsc_feature_col_name,
                 )
 
@@ -598,7 +598,7 @@ class TSCPredictMixin(TSCBaseMixin):
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")
 
-        self._validate_time_values(time_values=time_values)
+        time_values = self._validate_time_values(time_values=time_values)
         self._validate_feature_names(X)
 
         return X, time_values
