@@ -945,6 +945,9 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
     bandwidth_type
         "median" or "mean"
 
+    random_state
+        seed for random generator if the data is subsampled
+
     Attributes
     ----------
 
@@ -971,6 +974,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         intrinsic_dim=2,
         regress_threshold=0.9,
         bandwidth_type="median",
+        random_state: Optional[int] = None,
     ):
 
         self.strategy = strategy
@@ -978,6 +982,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         self.intrinsic_dim = intrinsic_dim
         self.regress_threshold = regress_threshold
         self.bandwidth_type = bandwidth_type
+        self.random_state = random_state
 
         self.eps_med_scale = eps_med_scale
         self.n_subsample = n_subsample
@@ -1211,7 +1216,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
                 X,
                 replace=False,
                 n_samples=self.n_subsample,
-                random_state=None,
+                random_state=self.random_state,
             )
         else:
             eigvec = np.asarray(X)
