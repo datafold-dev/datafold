@@ -45,7 +45,7 @@ def plot_eigenvalues(
     """
 
     if ax is None:
-        f, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
+        _, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
 
     plot_kwargs = plot_kwargs or {}
     plot_kwargs.setdefault("marker", "+")
@@ -95,7 +95,7 @@ def plot_eigenvalues_time(
     system_type="flowmap",
     delta_time: Optional[float] = None,
     ax=None,
-    subplot_kwargs=None,
+    subplots_kwargs=None,
     plot_kwargs=None,
 ):
     r"""Plot eigenvalues over time.
@@ -138,14 +138,16 @@ def plot_eigenvalues_time(
     ax
         Matplotlib ``Axes`` object to plot in.
 
-    subplot_kwargs
+    subplots_kwargs
         Keyword arguments passed to ``matplotlib.pyplot.subpplot``. Ignored if
         ``ax`` is not ``None``.
 
     plot_kwargs
         Keyword arguments passed to ``ax.plot(**kwargs)``.
+
     Returns
     -------
+    matplotlib axes object
 
     """
 
@@ -172,10 +174,11 @@ def plot_eigenvalues_time(
         )
 
     if ax is None:
-        f, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
+        f, ax = plt.subplots(**({} if subplots_kwargs is None else subplots_kwargs))
 
     plot_kwargs = plot_kwargs or {}
     plot_kwargs.setdefault("linestyle", "-")
+    plot_kwargs.setdefault("color", "black")
 
     ax.plot(time_values, values_matrix.T, **plot_kwargs)
 
