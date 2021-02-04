@@ -522,7 +522,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         # in case the column in not string it is important to transform it here to
         # string. Otherwise, There are mixed types (e.g. int and str), because the
         # delayed columns are all strings to indicate the delay number.
-        X.columns = X.columns.astype(np.str)
+        X.columns = X.columns.astype(np.str_)
         return X
 
     def _expand_all_delay_columns(self, cols):
@@ -540,7 +540,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
         return pd.Index(
             columns_names,
-            dtype=np.str,
+            dtype=np.str_,
             copy=False,
             name=TSCDataFrame.tsc_feature_col_name,
         )
@@ -989,7 +989,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         # Note: get_feature_names function is already provided by super class
         if self._has_feature_names(X):
             feature_names = self.get_feature_names(
-                input_features=X.columns.astype(np.str)
+                input_features=X.columns.astype(np.str_)
             )
         else:
             feature_names = self.get_feature_names()

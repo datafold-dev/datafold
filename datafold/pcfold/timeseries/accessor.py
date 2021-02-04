@@ -196,7 +196,7 @@ class TSCAccessor(object):
             delta_times = np.asarray(self._tsc_df.delta_time)
 
             if self._tsc_df.is_datetime_index():
-                if not (delta_times == required_time_delta).all():
+                if (delta_times != required_time_delta).any():
                     raise AttributeError
             else:
                 # this is a better variant than
