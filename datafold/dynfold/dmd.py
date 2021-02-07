@@ -256,7 +256,7 @@ class LinearDynamicalSystem(object):
                 # --> evolve system with, using `float_power`
                 #               ev^(t / time_delta)
 
-                _eigenvalues = self.eigenvalues_.astype(np.complex)
+                _eigenvalues = self.eigenvalues_.astype(np.complex_)
 
                 for idx, time in enumerate(time_values):
                     time_series_tensor[:, idx, :] = np.real(
@@ -759,7 +759,7 @@ class DMDBase(
              The eigenvectors are
 
              * not normed
-             * row-wise in the matrix
+             * row-wise in returned matrix
 
         """
         lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
@@ -1202,7 +1202,8 @@ class DMDFull(DMDBase):
         # #  https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV
         # from sklearn.linear_model import RidgeCV
         #
-        # ridge = RidgeCV(alphas=[0.0001, 0.001, 0.01, 0.05, 1], fit_intercept=False)
+        # ridge = RidgeCV(alphas=[0.0001, 0.001, 0.01, 0.05, 1],
+        # normalize=False, fit_intercept=False)
         # ridge.fit(X=shift_start_transposed, y=shift_end_transposed)
         # koopman_matrix = ridge.coef_.T
         #
