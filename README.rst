@@ -1,47 +1,41 @@
 What is *datafold*?
 ====================
 
-*datafold* is a Python package providing **data**-driven models for point clouds that are
-sampled on (or near) a mani**fold** (i.e. a geometrical structure with certain
-properties). Associating data to manifolds, which are often of much lower dimension than
-the ambient point dimension, is typically referred to as the "manifold assumption".
-Successful models can extract the intrinsic coordinates of the manifold and generalize it
-to the neighbourhood in the vicinity of the available training data. *datafold* includes
-models with an explicit manifold parametrization. The models can therefore give insight
-into the analyzed process and can uncover spatial or spatio-temporal patterns of the
-process.
+*datafold* is a Python library providing data-driven models for kernel-based manifold
+learning and identification of dynamical systems. The source code is distributed under the
+`MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
 
-*datafold* includes
+**datafold* includes
 
+* An efficient implementation of the ``DiffusionMaps`` model to infer geometric
+  structures from point cloud data. The framework computes mathematically meaningful
+  objects, such as the eigenfunctions of the Laplace-Beltrami operator. As a
+  distinguishing factor to other implementations, can handle sparse distance matrix to and
+   setting an arbitrary kernel, for example, a standard Gaussian kernel,
+  `continuous `k` nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
+  `dynamics-adapted kernel (cone kernel) <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
+* Out-of-sample extensions for the Diffusion Maps model, such as the (auto-tuned)
+  Laplacian Pyramids or Geometric Harmonics to interpolate general function values on a
+  point cloud manifold.
+* The (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull`` or ``EDMD``) as
+  a data-driven dynamical model to identify dynamical systems from time series data.
+  The EDMD is a flexible scikit-learn
+  `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html>`__,
+  which allows transforming the time series data in a more suitable feature state. This is
+  in accordance to the Koopman operator theory. Two interesting transformations are a
+  geometrically informed function basis (from ``DiffusionMaps`` and time-delay time series
+  for phase space reconstruction
+  (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
+* ``EDMDCV`` allows model parameters (including the
+  transformation model parameters) to be optimized with cross-validation that
+  also accounts for time series splittings.
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
   model input/outputs (if applicable).
-* An efficient implementation of the ``DiffusionMaps`` model to parametrize
-  a manifold from point cloud data by approximating the eigenfunctions of the
-  Laplace-Beltrami operator. As a distinguishing factor to other implementations, the the
-  model allows setting an arbitrary kernel, for example, a standard Gaussian kernel,
-  `continuous `k` nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
-  `dynamics-adapted kernel (cone kernel) <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
-* Out-of-sample methods such as the (auto-tuned) Laplacian Pyramids or Geometric
-  Harmonics to interpolate general function values on manifold point clouds.
-* (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull`` or ``EDMD``) which
-  are data-driven dynamical models built from time series data. To improve the
-  model's accuracy, EDMD provides a framework to express the data in a more suitable
-  intrinsic feature state in accordance to the Koopman operator theory. This includes
-  scaling of heterogeneous time series quantities and more involved transformations to
-  geometrically informed function basis, such as with ``DiffusionMaps``.
-  Furthermore, it is possible to time-delay time series for phase space reconstruction
-  (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
-* ``EDMDCV`` allows model parameters (including the
-  transformation model parameters) to be optimized with cross-validation and
-  also accounts for time series splittings.
 
-See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
-For a mathematical thorough introduction, we refer to the
-`scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__.
-
-The source code is distributed under the
-`MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
+See also `this introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
+For a mathematical thorough introduction, we refer to the `scientific literature
+<https://datafold-dev.gitlab.io/datafold/references.html>`__.
 
 Any contribution (code/tutorials/documentation improvements) and feedback is
 very welcome. Either use the
@@ -85,7 +79,6 @@ Quick links
 
 * `Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__
 
-
 Cite
 ====
 
@@ -118,8 +111,8 @@ How to get it?
 Installation of *datafold* requires `Python>=3.7 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
 `setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed (both
-packages usually ship with a standard Python installation). The *datafold* package
-dependencies are listed in the next section and install automatically.
+packages usually ship with a standard Python installation). The *datafold*
+dependencies are listed in the next section.
 
 There are two ways to install *datafold*.
 
@@ -142,7 +135,7 @@ From PyPI
    pip install datafold
 
 .. note::
-    If you installed Python with Anaconda, also consider
+    If you use Python in an Anaconda set up, also consider
     `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
 
 From source
@@ -163,22 +156,22 @@ From source
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
       `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__)
 
-2. Install *datafold* from the root folder of the repository with
+2. Install *datafold* from the repository with
 
    .. code-block:: bash
 
        python setup.py install
 
-   Add the :code:`--user` flag to install the package and dependencies for the
+   Optionally, add a :code:`--user` flag to install the package and dependencies for the
    current user only.
 
 Dependencies
 ============
 
-The *datafold* dependencies are managed in
+The *datafold* dependencies are managed in the file
 `requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
-and install with the package manager ``pip``. Note that the tests and tutorials require
-further dependencies which are managed in
+and install during *datafold* installation. The tests and tutorials require further
+dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
 *datafold* integrates with common packages from the
@@ -186,28 +179,27 @@ further dependencies which are managed in
 
 * `NumPy <https://numpy.org/>`__
    The data structure ``PCManifold`` subclasses from NumPy's
-   `ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-   to capture point clouds with the assumption of being sampled on or near a manifold.
+   `ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__. The
+   class attaches an kernel object to the data to describe point similarity.
    NumPy is used throughout *datafold* and is the default package for numerical
    data and algorithms.
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`__
    *datafold* uses pandas'
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__
-   as a base class for ``TSCDataFrame`` to capture time series data and
+   as a base class for ``TSCDataFrame``, which captures time series data and
    collections thereof. The data structure indexes time, time series ID and
-   multiple spatial features. The data is contained in a single object with
-   pandas rich functionality to access data - *datafold* includes time series specific
-   functionality.
+   one-or-many spatial spatial features. *datafold* includes specific methods for the time
+   series context, but is also compatible with pandas rich functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`__.
    This is done by deriving the models from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
-   and appropriate ``MixIns``. *datafold* defines own base classes
-   that align with the API in a duck-typing fashion to allow identifying
-   dynamics from time series data in ``TSCDataFrame`` objects.
+   and appropriate ``MixIns``. *datafold* defines own base classes that align with the
+   API in a duck-typing fashion to allow identifying dynamical systems from time series
+   data in ``TSCDataFrame`` objects.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`__
    The package is used for elementary numerical algorithms and data structures in
