@@ -28,7 +28,7 @@ learning and identification of dynamical systems. The source code is distributed
   (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
 * ``EDMDCV`` allows model parameters (including the
   transformation model parameters) to be optimized with cross-validation that
-  also accounts for time series splittings.
+  accounts for time series splittings.
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
   model input/outputs (if applicable).
