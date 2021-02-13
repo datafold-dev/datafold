@@ -171,47 +171,49 @@ class _iLocTSCIndexer(_iLocIndexer):
 
 
 class TSCDataFrame(pd.DataFrame):
-    """Data frame to represent collections of time series data.
+    """Data frame to store time series collections.
 
     The class inherits from pandas' data structure :class:`pandas.DataFrame` and provides
-    additional methods to manipulate or analyse the time series collection. The main
-    restrictions on a more general ``pandas.DataFrame`` are:
+    additional functionality to manipulate and analyze the time series collection. The
+    main restrictions compared to ``pandas.DataFrame`` are
 
-    * two-dimensional index, where the first index indicates the time series ID (
-      integer), and the second the time (non-negative numerical values)
-    * one-dimensional columns for feature names
-    * no duplicates in the labels (index and column) are allowed (the flag
+    * two-dimensional row index, where the first level indicates the time series ID
+      (integer), and the second level the time value (non-negative numerical values)
+    * one-dimensional column index for feature names corresponding to the spatial
+      dimension
+    * no duplicates in both index and column (the flag
       `allows_duplicate_labels <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
       is set to True). Note, that this disables inplace operations on the labels (e.g.
       :code:`tsc.set_index(new_index, inplace=True` raises an error).
 
-    A time series consists of two or more temporal ordered samples. However, it is also
-    possible to store degenerated time series of only one time sample. In some
-    situations this is useful (e.g. defining initial conditions), but other operations
-    might not work if degenerated time series are present.
+    A single time series consists of two or more samples with temporal context. However,
+    it is also possible to store "degenerated time series", which only contain a single
+    sample. In some situations this is useful, for example for setup initial
+    conditions.
 
-    Visit the Pandas
-    `documentation <https://pandas.pydata.org/pandas-docs/stable/index.html>`__ for
-    all inherited attributes, methods and algorithms that can act on general DataFrame
-    objects.
+    Extended algorithms that act on ``TSCDataFrame`` are provided in
+    :py:class:`TSCAccessor` and for functionality that is provided by the parent
+    class, visit Pandas
+    `documentation <https://pandas.pydata.org/pandas-docs/stable/index.html>`__.
 
     .. note::
-        Pandas provides a large variety of functionality. Not all available methods are
-        tested if they comply with `TSCDataFrame`. Please report unexpected behavior,
-        bugs or inconsistencies in a new
+        Pandas provides a large range of functionality. Not all available methods are
+        tested if they work properly with ``TSCDataFrame``. Please report unexpected
+        behavior, bugs or inconsistencies by opening a new
         `issue <https://gitlab.com/datafold-dev/datafold/-/issues>`__.
 
     .. warning::
-        Currently, there is no corresponding `TSCSeries`, which results in
-        inconsistencies in `iloc` indexing. Even if the returned slice is a valid
-        `TSCDataFrame` the type can change to `DataFrame` or `Series`.
+        Currently, there is no corresponding ``TSCSeries``, which results in
+        inconsistencies in `iloc` indexing. It en encouraged to slice data such that
+        the returned object is a ``DataFrame`` or subsequently cast the object again to
+        ``TSCDataFrame``.
 
     Examples
     --------
 
-    A data frame structure with four time series with two features (columns). The first
-    three share the same time values (rows). The fourth time series is a so-called
-    degenerated time series because it only consists of a single sample.
+    A ``TSCDataFrame`` with three time series and two features (columns). The
+    first two time series share the same time values (rows). The third time series
+    contains only a single sample (degenerated time series).
 
     +-------------+---------------+-----------+-----------+
     | feature     |               | sin       | cos       |
@@ -230,12 +232,6 @@ class TSCDataFrame(pd.DataFrame):
     +-------------+---------------+-----------+-----------+
     |             | 0.126933      | 0.371662  | 0.928368  |
     +-------------+---------------+-----------+-----------+
-    | 2           | 0.000000      | 0.000000  | 1.000000  |
-    +-------------+---------------+-----------+-----------+
-    |             | 0.063467      | 0.281733  |  0.959493 |
-    +-------------+---------------+-----------+-----------+
-    |             | 0.126933      | 0.540641  |  0.841254 |
-    +-------------+---------------+-----------+-----------+
     | 3           | 0.000000      | 0.000000  | 1.000000  |
     +-------------+---------------+-----------+-----------+
 
@@ -247,7 +243,7 @@ class TSCDataFrame(pd.DataFrame):
         ``pandas.DataFrame``, except:
 
         * ``kernel`` :py:class:`.BaseManifoldKernel` - A kernel to describe the
-           manifold  of the time series samples. Defaults to ``None``
+           point similarity. Defaults to ``None``.
         * ``dist_kwargs`` :class:`dict` - Keyword arguments passed to
           :py:meth:`.compute_distance_matrix`.
 
@@ -263,10 +259,9 @@ class TSCDataFrame(pd.DataFrame):
         The name of feature axis (columns).
 
     kernel
-        The kernel to describe the locality between samples. A
-        :py:class:`.PCManifoldKernel` takes the samples independently, whereas a
-        :py:class:`.TSCManifoldKernel` can include the time information from the
-        collection in a kernel to describe the proximity.
+        The kernel to describe the proximity between samples. A
+        :py:class:`.PCManifoldKernel` is ignores the time information and
+        :py:class:`.TSCManifoldKernel` can use the temporal information in the metric.
     """
 
     tsc_id_idx_name = "ID"  # name used in index of (unique) time series
@@ -325,7 +320,7 @@ class TSCDataFrame(pd.DataFrame):
         columns: Optional[Union[pd.Index, list]] = None,
         time_values: Optional[np.ndarray] = None,
     ) -> "TSCDataFrame":
-        """Initialize time series collection from a three dimensional tensor.
+        """Create a ``TSCDataFrame`` from a three dimensional tensor.
 
         Parameters
         ----------
@@ -333,16 +328,16 @@ class TSCDataFrame(pd.DataFrame):
             The time series data of shape `(n_timeseries, n_timesteps, n_feature,)`.
 
         time_series_ids
-            The IDs of shape `(n_timeseries,)` to assign to respective time
-            series. Defaults to `(0,1,2,..., n_timeseries)`.
+            The IDs of shape `(n_timeseries,)` to assign for the respective time
+            series. Defaults to `(0,1,2,..., n_timeseries-1)`.
 
         columns
             The feature names of shape `(n_feature,)`. Defaults to
-            string `feature[0,1,2,..., n_feature]`.
+            string `feature[0,1,2,..., n_feature-1]`.
 
         time_values
             Time values of the time series in the tensor. Defaults to
-            `(0,1,2, ..., n_timesteps)`.
+            `(0,1,2, ..., n_timesteps-1)`.
 
         Returns
         -------
@@ -407,7 +402,7 @@ class TSCDataFrame(pd.DataFrame):
         snapshot_orientation: str = "col",
         columns: Optional[Union[pd.Index, list]] = None,
     ) -> "TSCDataFrame":
-        """Initialize time series collection from shift matrices.
+        """Create ``TSCDataFrame`` from shift matrices.
 
         Parameters
         ----------
@@ -423,7 +418,7 @@ class TSCDataFrame(pd.DataFrame):
 
         columns
             Feature names of shape `(n_feature,)`. Defaults to
-            `feature[0,1,2,..., n_feature]`.
+            `feature[0,1,2,..., n_feature-1]`.
 
         Returns
         -------
@@ -474,23 +469,23 @@ class TSCDataFrame(pd.DataFrame):
         except_index: Optional[ColumnType] = None,
         except_columns: Optional[ColumnType] = None,
     ) -> "TSCDataFrame":
-        """Initialize time series collection by using same index or columns from
-        another `TSCDataFrame`.
+        """Create ``TSCDataFrame`` by using same index or columns from other
+        ``TSCDataFrame``.
 
         Parameters
         ----------
         indices_from
-            Existing object to copy index and/or columns from.
+            Object to copy index and/or columns from.
 
         values
-            Values for new time series collection.
+            Values for new ``TSCDataFrame``.
 
         except_index
-            Index for new time series collection (only copy columns). Should not be
+            Index for new object (only copy columns). Should not be
             set together with `except_columns`.
 
         except_columns
-            Columns for this time series collection (only copy index). Should not be
+            Columns for new object (only copy index). Should not be
             set together with `except_index`.
 
         Returns
@@ -500,7 +495,7 @@ class TSCDataFrame(pd.DataFrame):
         """
 
         if not isinstance(indices_from, TSCDataFrame):
-            raise TypeError("'indices_from' must be of type TSCDataFrame")
+            raise TypeError("Parameter 'indices_from' must be of type 'TSCDataFrame'")
 
         return df_type_and_indices_from(
             indices_from=indices_from,
@@ -513,7 +508,7 @@ class TSCDataFrame(pd.DataFrame):
     def from_single_timeseries(
         cls, df: Union[pd.Series, pd.DataFrame], ts_id: Optional[int] = None
     ) -> "TSCDataFrame":
-        """Initialize a time series collection with single time series.
+        """Create ``TSCDataFrame`` from single time series.
 
         This can be used to iteratively extent the collection (e.g. in a loop using
         :py:meth:`TSCDataFrame.insert_ts`).
@@ -532,12 +527,9 @@ class TSCDataFrame(pd.DataFrame):
             new instance
         """
 
-        if df.index.ndim != 1:
-            raise ValueError("Only single time index (without ID) are allowed.")
-
         if isinstance(df, TSCDataFrame) or df.index.nlevels > 1:
             # Handling of TSCDataFrame can be implemented if required.
-            raise TypeError("Only single row-indexed pd.DataFrame are supported.")
+            raise TypeError("The row index must only contain time values.")
 
         if ts_id is None:
             ts_id = 0
@@ -562,7 +554,7 @@ class TSCDataFrame(pd.DataFrame):
         frame_list: List[pd.DataFrame],
         ts_ids: Optional[Union[np.ndarray, pd.Index, List[int]]] = None,
     ) -> "TSCDataFrame":
-        """Initialize a time series collection from a list of time series.
+        """Create ``TSCDataFrame`` from a list of time series.
 
         Parameters
         ----------
@@ -579,14 +571,17 @@ class TSCDataFrame(pd.DataFrame):
         """
         try:
             frame_list = list(frame_list)
-        except:
-            raise TypeError("'frame_list' must be list-like")
+        except TypeError:
+            raise TypeError("Parameter 'frame_list' must be iterable")
 
         if len(frame_list) == 0:
-            raise ValueError("'frame_list' must have at least one DataFrame")
+            raise ValueError("'frame_list' must contain at least one object")
 
         ref_df = frame_list[0]
         for _df in frame_list[1:]:
+            if not isinstance(_df, pd.DataFrame):
+                raise TypeError("all objects in list must be of type DataFrame")
+
             is_df_same_index(
                 ref_df,
                 _df,
@@ -600,8 +595,8 @@ class TSCDataFrame(pd.DataFrame):
         final_list: List[pd.DataFrame] = []
 
         for df in frame_list:
+            # >= 2 to raise error for invalid DataFrames
             if df.index.nlevels >= 2 and not isinstance(df, TSCDataFrame):
-                # >= 2 to raise error for invalid DataFrames
                 try:
                     df = TSCDataFrame(df)
                 except AttributeError:
@@ -1435,7 +1430,6 @@ class TSCDataFrame(pd.DataFrame):
         -------
 
         """
-
         self.index = self.index.remove_unused_levels()
         return np.asarray(self.index.levels[1])
 
