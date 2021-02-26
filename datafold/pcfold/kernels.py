@@ -840,11 +840,13 @@ class GaussianKernel(RadialBasisKernel):
             parameter=self.epsilon, name="epsilon"
         )
 
-        return _apply_kernel_function_numexpr(
+        kernel_matrix = _apply_kernel_function_numexpr(
             distance_matrix,
             expr="exp((- 1 / (2*eps)) * D)",
             expr_dict={"eps": self.epsilon},
         )
+
+        return kernel_matrix
 
 
 class MultiquadricKernel(RadialBasisKernel):
@@ -1364,7 +1366,8 @@ class DmapKernelFixed(BaseManifoldKernel):
         row_sums = kernel_matrix.sum(axis=1)
 
         if scipy.sparse.issparse(kernel_matrix):
-            # np.matrix (deprecated but used in scipy sparse matrix) to np.ndarray
+            # np.matrix to np.ndarray
+            # (np.matrix is deprecated but still used in scipy.sparse)
             row_sums = row_sums.A1
 
         if self.alpha < 1:
@@ -1463,7 +1466,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         )
 
         if isinstance(kernel_matrix, pd.DataFrame):
-            # store indices and save into same type later
+            # store indices and cast to same type later
             _type = type(kernel_matrix)
             rows_idx, columns_idx = kernel_matrix.index, kernel_matrix.columns
             kernel_matrix = kernel_matrix.to_numpy()
