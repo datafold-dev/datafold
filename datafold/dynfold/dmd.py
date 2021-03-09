@@ -1303,24 +1303,6 @@ class DMDFull(DMDBase):
                 eigenvectors_left=eigenvectors_left_,
             )
 
-            # TODO: EXPERIMENTAL: SORT EIGENVECTORS ACCORDING TO "DIRICHLET ENERGY(?)"
-            if False:
-                koop_eig_func = self.eigenvectors_left_ @ X.to_numpy().T
-                normalize_factors = np.linalg.norm(koop_eig_func, axis=1)
-
-                left_eigvec_normalized = diagmat_dot_mat(
-                    normalize_factors, self.eigenvectors_left_
-                )
-
-                energy = np.linalg.norm(left_eigvec_normalized, axis=1)
-
-                sort_indices = np.argsort(energy)[::-1]
-
-                self.eigenvectors_right_ = self.eigenvectors_right_[:, sort_indices]
-                self.eigenvalues_ = self.eigenvalues_[sort_indices]
-                self.eigenvectors_left_ = self.eigenvectors_left_[sort_indices, :]
-            # TODO: END EXPERIMENTAL
-
             if store_system_matrix:
                 if self.approx_generator:
                     self.generator_matrix_ = (

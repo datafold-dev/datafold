@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 import scipy.spatial
-from scipy.special import xlogy
 from sklearn.gaussian_process.kernels import Kernel
 from sklearn.preprocessing import normalize
 from sklearn.utils import check_scalar
@@ -1011,39 +1010,6 @@ class QuinticKernel(RadialBasisKernel):
         """
         # r**5
         return _apply_kernel_function_numexpr(distance_matrix, "D ** 5")
-
-
-# class ThinPlateKernel(RadialBasisKernel):
-#     r"""Thin plate radial basis kernel.
-#
-#     .. math::
-#         K = xlogy(D^2, D)
-#
-#
-#     where :math:`D` is the Euclidean distance matrix and argument for
-#     :class:`scipy.special.xlogy`.
-#
-#     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-#     for more functionality and documentation.
-#     """
-#
-#     def __init__(self):
-#         super(ThinPlateKernel, self).__init__(distance_metric="euclidean")
-#
-#     def eval(self, distance_matrix: np.ndarray) -> np.ndarray:
-#         """Evaluate the kernel on pre-computed distance matrix.
-#
-#         Parameters
-#         ----------
-#         distance_matrix
-#             Matrix of pairwise distances of shape `(n_samples_Y, n_samples_X)`.
-#
-#         Returns
-#         -------
-#         Union[np.ndarray, scipy.sparse.csr_matrix]
-#             Kernel matrix of same shape and type as `distance_matrix`.
-#         """
-#         return xlogy(np.square(distance_matrix), distance_matrix)
 
 
 class ContinuousNNKernel(PCManifoldKernel):

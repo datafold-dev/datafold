@@ -55,10 +55,11 @@ DAMAGE.
 import numbers
 import time
 import warnings
+from collections import defaultdict
 from copy import deepcopy
 from functools import partial
 from itertools import product
-from traceback import format_exc, format_exception_only
+from traceback import format_exc
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -68,11 +69,10 @@ import scipy.sparse
 from joblib import Parallel, delayed, logger
 from sklearn.base import clone
 from sklearn.exceptions import FitFailedWarning, NotFittedError
-from sklearn.metrics._scorer import _check_multimetric_scoring
 from sklearn.model_selection import GridSearchCV, check_cv
 from sklearn.model_selection._validation import _num_samples, _score, is_classifier
 from sklearn.pipeline import Pipeline
-from sklearn.utils import _message_with_time, _print_elapsed_time, check_scalar
+from sklearn.utils import _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
 from datafold.dynfold import DMDBase, DMDFull
@@ -108,8 +108,8 @@ class EDMD(
     key difference is that the intrinsic EDMD-dictionary states are usually mapped
     back to full-state time series.
 
-    If the set DMD model computes the eigenpairs of the Koopman matrix, then the model
-    provides the Koopman triplet (modes, eigenvalues and eigenfunctions).
+    If the internal DMD model computes the eigenpairs of the Koopman matrix, then the
+    EDMD model provides the Koopman triplet (modes, eigenvalues and eigenfunctions).
 
     ...
 
@@ -356,7 +356,7 @@ class EDMD(
         Parameters
         ----------
         X : TSCDataFrame, pandas.DataFrame
-           TIme series to transform. Must fulfill the input requirements of
+           Time series to transform. Must fulfill the input requirements of
            first step of the pipeline. Each time series must have a minimum of
            ``n_samples_ic_`` samples.
 
@@ -706,8 +706,8 @@ class EDMD(
 
         if self._inverse_map is not None:
             if self._koopman_modes is not None:
-                # The DMD model is in spectral mode and the Koopman modes were
-                # computed.
+                # The DMD model computed spectral components and the
+                # Koopman modes are available.
 
                 if qois is None:
                     modes = self.koopman_modes.to_numpy()
@@ -724,11 +724,12 @@ class EDMD(
                     **{"modes": modes, "feature_columns": feature_columns},
                 )
             else:
-                # The DMD model does not compute the spectral components of the
+                # The DMD model does not provide the spectral components of the
                 # Koopman matrix. The inverse_map needs to be applied afterwards because
-                # the DMD model requires to maintain a square matrix to forward the system
+                # the DMD model requires to maintain a square matrix to forward the
+                # system.
 
-                # computes full system
+                # computes system in EDMD-dictionary space
                 X_ts = self._dmd_model.predict(
                     X_dict,
                     time_values=time_values,
@@ -818,9 +819,9 @@ class EDMD(
 
         if time_values is None:
             # If samples were dropped during fit, then for the first
-            # self.n_samples_ic_ - 1 there was no evaluation
-            # This is different from the behaviour in '_validate_features_and_time_values'
-            # and therefore done before.
+            # self.n_samples_ic_ - 1 there was is evaluation.
+            # Because this is different from the behaviour in
+            # '_validate_features_and_time_values' this is done separately here.
             time_values = self.time_values_in_[self.n_samples_ic_ - 1 :]
 
         X, time_values = self._validate_features_and_time_values(
@@ -860,8 +861,8 @@ class EDMD(
         assert isinstance(X_reconstruct, TSCDataFrame)
 
         # NOTE: time series contained in X_reconstruct can be shorter in length than
-        # the original time series (i.e. no full reconstruction), because some transfom
-        # models drop samples (e.g. Takens)
+        # the original time series (i.e. no full reconstruction), because some transform
+        # models drop samples (e.g. time delay embeddings or finite differences)
         return X_reconstruct
 
     def reconstruct(
@@ -1390,8 +1391,6 @@ class EDMDCV(GridSearchCV):
         results: Dict[str, Any] = {}
         with parallel:
 
-            from collections import defaultdict
-
             all_candidate_params: List[List[Dict[str, Any]]] = []
             all_out: List[Any] = []
             all_more_results = defaultdict(list)
@@ -1501,13 +1500,13 @@ class EDMDWindowPrediction(object):
     ----------
 
     window_size
-        An integer value indicating the time steps to inlcude in a window. The value
-        must be greater than the the attribute ``edmd.n_samples_ic_``, because the
-        windows also contains the samples required for initial condition.
+        An integer value indicating the time steps to include in a window. The value
+        must be greater than the the attribute ``edmd.n_samples_ic_``, because a
+        window also contains the samples dedicated for the initial condition.
 
     offset
         An integer value to indicate the offset between two windows. When setting
-        `offset=window_size-edmd.n_samples_ic_`, then test samples do not overlap
+        `offset=window_size-edmd.n_samples_ic_`, then the test samples do not overlap
         between windows and samples are not dropped.
 
     """
@@ -1533,13 +1532,17 @@ class EDMDWindowPrediction(object):
             raise ValueError("'time_horizon' and 'offset' must be provided together")
 
     def _window_reconstruct(
-        self, X, edmd, offset, y=None, qois=None, return_X_windows=False
+        self,
+        X: TSCDataFrame,
+        edmd: EDMD,
+        offset: int,
+        y=None,
+        qois=None,
+        return_X_windows: bool = False,
     ):
         """Reconstruct existing time series of equal length.
 
-        From the existing time series
-
-        This method is used to overwrite the default score method of an EDMD
+        This method is used to overwrite the default score method of an :py:class:`.EDMD`
         model, which in contrast to this model scores on the time series found in `X`.
 
         In this method, the time series are subdivided into smaller time series of
@@ -1549,12 +1552,23 @@ class EDMDWindowPrediction(object):
 
         Parameters
         ----------
-        edmd
         X
+            The time series collection to reconstruct. From each time series of the
+            collection windows are extracted and separately reconstructed.
+
         qois
+            A list of feature names of interest to be include in the returned
+            predictions. Passed to :py:meth:`.predict`.
+
+        return_X_windows
+            If True, then an additional time series collection is returned,
+            which contains extracted windows from `X`.
 
         Returns
         -------
+        TSCDataFrame, Optional[TSCDataFrame]
+            The reconstructed time series collection and if `return_X_windows=True`
+            also the extracted windows from `X`.
 
         """
 
@@ -1625,15 +1639,13 @@ class EDMDWindowPrediction(object):
             return X_reconstruct
 
     def _window_score(self, X, y=None, sample_weight=None, qois=None, edmd=None):
-        """Score of windowed time series and its model reconstruction.
+        """Score of reconstructed windowed time series collection.
 
-        This method is used to overwrite the default score method of an EDMD
-        model, which in contrast to this model scores on the time series found in `X`.
-
-        In this method, the time series are subdivided into smaller time series of
-        equal length (windows). Each window contains the initial condition and the
+        This method can overwrite the default score method of an EDMD model. In this
+        method, the time series in `X` are again subdivided into smaller time series of
+        equal length (the windows). Each window contains the initial condition and the
         samples to score the model against. This therefore corresponds to a more
-        systematic approach.
+        systematic approach to analyze the error over a prediciton horizon.
 
         Parameters
         ----------
