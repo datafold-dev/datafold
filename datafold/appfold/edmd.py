@@ -500,7 +500,7 @@ class EDMD(
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             The computed Koopman modes.
         """
 

@@ -540,7 +540,7 @@ class TSCAccessor(object):
             The order of the derivative.
 
         accuracy
-            The accuracy level of the derivative scheme.
+            The accuracy (even positive integer) of the derivative scheme.
 
         shift_index
             If True, then the time is shifted such that no future samples are included.
