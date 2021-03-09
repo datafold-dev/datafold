@@ -27,7 +27,7 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(tc.loc[0, :], self.simple_df.loc[0, :])
         pdtest.assert_frame_equal(tc.loc[1, :], self.simple_df.loc[1, :])
 
-    def test_invalid1(self):
+    def test_invalid_tsc(self):
         tc = TSCDataFrame(self.simple_df)
 
         # ID 45 appears at the start and end
@@ -47,7 +47,7 @@ class TestTSCDataFrame(unittest.TestCase):
             columns=self.simple_df.columns,
         )
 
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(pd.errors.DuplicateLabelError):
             pd.concat([tsc_append, tc], axis=0)
 
         # time values of ID 0 are not sorted
@@ -987,10 +987,90 @@ class TestTSCDataFrame(unittest.TestCase):
 
         self.assertIsInstance(actual, TSCDataFrame)
 
+    def test_set_invalid_index(self):
+        tsc = TSCDataFrame(self.simple_df)
+
+        with self.assertRaises(AttributeError):
+            tsc.index = pd.Index(np.arange(tsc.shape[0]))
+
+        with self.assertRaises(AttributeError):
+            tsc.set_index(np.arange(tsc.shape[0]))
+
+        with self.assertRaises(AttributeError):
+            tsc.index = pd.Index(np.zeros(tsc.shape[0]))
+
+        with self.assertRaises(AttributeError):
+            tsc.set_index(np.zeros(tsc.shape[0]))
+
+    def test_set_invalid_columns(self):
+        tsc = TSCDataFrame(self.simple_df)
+        with self.assertRaises(AttributeError):
+            tsc.columns = pd.MultiIndex.from_product([[0], [0, 1]])
+
+        with self.assertRaises(AttributeError):
+            tsc.columns = pd.Index(np.zeros(tsc.shape[1]))
+
+    def test_insert_invalid_dtype_row(self):
+        tsc = TSCDataFrame(self.simple_df)
+
+        insert = pd.Series(["a", "b"], index=tsc.columns, name=(999, 0))
+
+        with self.assertRaises(AttributeError):
+            tsc.append(insert)
+
+        with self.assertRaises(AttributeError):
+            pd.concat([tsc, insert], axis=0)
+
+    def test_insert_invalid_dtype_data(self):
+
+        with self.assertRaises(AttributeError):
+            invalid_tsc = self.simple_df.copy()
+            invalid_tsc.iloc[0, 0] = "a"
+            TSCDataFrame(invalid_tsc)
+
+        tsc = TSCDataFrame(self.simple_df)
+
+        with self.assertRaises(AttributeError):
+            tsc.iloc[(0, 0), 0] = "a"
+
+        with self.assertRaises(AttributeError):
+            tsc.iloc[0, :] = np.array([0, "not_numeric"])
+
+        with self.assertRaises(AttributeError):
+            tsc.loc[pd.IndexSlice[0, :], :] = pd.Series([0, "not_numeric"])
+
+        with self.assertRaises(AttributeError):
+            tsc.loc[(0, 0), "A"] = "a"
+
+        with self.assertRaises(AttributeError):
+            tsc.loc[pd.IndexSlice[0, :], :] = np.array([0, "not_numeric"])
+
+        with self.assertRaises(AttributeError):
+            tsc.loc[pd.IndexSlice[0, :], :] = pd.Series([0, "not_numeric"])
+
+        # check that no attempt to change the data was sucessful (raise AttributeError
+        # before changing the data)
+        nptest.assert_equal(tsc.to_numpy(), self.simple_df.to_numpy())
+
+    def test_insert_naninf_data(self):
+        tsc = TSCDataFrame(self.simple_df)
+
+        # allow nan and inf in tsc
+        tsc.iloc[0, 0] = np.nan
+        tsc.iloc[0, 1] = np.inf
+        nptest.assert_equal(tsc.iloc[0, :].to_numpy(), np.array([np.nan, np.inf]))
+        self.assertFalse(tsc.is_finite())
+
+        tsc.loc[(0, 1), "A"] = np.nan
+        tsc.loc[(0, 1), "B"] = np.inf
+        nptest.assert_equal(tsc.loc[(0, 1), :].to_numpy(), np.array([np.nan, np.inf]))
+        self.assertFalse(tsc.is_finite())
+
+        tsc.loc[pd.IndexSlice[0, 0], :] = np.array([0, 1])
+        nptest.assert_equal(tsc.loc[pd.IndexSlice[0, 0], :], np.array([0, 1]))
+
     def test_at_index(self):
-
         # tests the .at index with two examples
-
         tsc = TSCDataFrame(self.simple_df)
         actual1 = tsc.at[(0, 1), "A"]
         actual2 = tsc.at[(45, 17), "B"]
@@ -1101,7 +1181,7 @@ class TestTSCDataFrame(unittest.TestCase):
         # Not unique time points -> invalid
         new_ts = pd.DataFrame(np.random.rand(2, 2), index=[0, 0], columns=["A", "B"])
 
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(pd.errors.DuplicateLabelError):
             tsc.insert_ts(new_ts, None)
 
     def test_delta_time_degenerate_timeseries(self):
