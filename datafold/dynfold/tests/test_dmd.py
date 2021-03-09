@@ -409,7 +409,7 @@ class DMDTest(unittest.TestCase):
 
         # also fails if there are changes in the implementation that includes small
         # numerical noise
-        self.assertLessEqual(np.abs(score_dmd - score_gdmd), 4.102015949136728e-11)
+        self.assertLessEqual(np.abs(score_dmd - score_gdmd), 5.938548264250443e-11)
 
         if plot:
             print(score_dmd)

@@ -26,7 +26,7 @@ def read_datafold_version():
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/
 
 author = "datafold development team"
-# TODO: maybe there is a more general email address to use?
+# TODO: maybe there is a more general email to use?
 email = "daniel.lehmberg@hm.edu"
 
 path_to_pkg_requirements = os.path.join(
@@ -40,36 +40,34 @@ with open(path_to_pkg_requirements, "r") as f:
 install_requires = [req.replace("\n", "") for req in install_requires]
 
 short_description = (
-    "datafold is a Python library providing data-driven models for "
-    "kernel-based manifold learning and identification of dynamical "
-    "systems."
+    "A package providing manifold parametrization in the Diffusion Maps framework "
+    "and identification of dynamical systems in the Koopman operator view with the "
+    "Extended Dynamic Mode Decomposition."
 )
 
 long_description = """
-datafold is a Python library providing data-driven models for kernel-based manifold 
-learning and identification of dynamical systems.
-
-Highlights are:
+The package provides:
 
 * (Extended-) Dynamic Mode Decomposition (EDMD) to approximate the Koopman operator for 
-  system identification
-* Diffusion Maps to approximate eigenfunctions of Laplace-Beltrami operator
+  system identification. 
+* Diffusion Maps to find meaningful geometric descriptions in point clouds, such as the 
+  eigenfunctions of the Laplace-Beltrami operator. 
 * Data structure for time series collections (TSCDataFrame) and dedicated 
-  transformations, such as time-delay embeddings (TSCTakensEmbedding). 
+  transformations, such as time-delay embeddings (TSCTakensEmbedding). The data 
+  structures operate with both EDMD and DMAP.  
 """
 
 setup(
     name="datafold",
     author=author,
     version=read_datafold_version(),
-    description="datafold is Python software for data-driven algorithms with "
-    "manifold assumption",
+    description=short_description,
     long_description=long_description,
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
     keywords=[
         "machine learning, dynamical system, data-driven, time series, time series "
-        "regression, time series forecasting, manifold learning"
+        "regression, time series forecasting, manifold learning, koopman operator"
     ],
     author_email=email,
     packages=find_packages(),
