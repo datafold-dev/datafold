@@ -70,8 +70,8 @@ class TestTSCTransform(unittest.TestCase):
         TEST_ESTIMATORS = (
             TSCIdentity(),
             TSCPrincipalComponent(),
-            TSCFeaturePreprocess(MinMaxScaler()),
-            TSCFeaturePreprocess(StandardScaler()),
+            TSCFeaturePreprocess(sklearn_transformer=MinMaxScaler()),
+            TSCFeaturePreprocess(sklearn_transformer=StandardScaler()),
             TSCPolynomialFeatures(),
         )
 

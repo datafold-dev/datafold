@@ -32,6 +32,8 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
     """
 
     _cls_valid_scale_names = ("min-max", "standard")
+    # flag from scikit-learn -- need to set that check_estimator is valid
+    _required_parameters = ["sklearn_transformer"]
 
     def __init__(self, sklearn_transformer):
         self.sklearn_transformer = sklearn_transformer
