@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
+from pandas.api.types import is_datetime64_dtype
 from sklearn.base import TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
@@ -42,7 +43,7 @@ class TSCBaseMixin(object):
                 return_values.append(fit_params.pop(attr[0], attr[1]))
 
         if fit_params != {}:
-            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
+            raise KeyError(f"fit_params.keys = {fit_params.keys()} not supported")
 
         if len(return_values) == 0:
             return None
@@ -272,7 +273,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 # (better code readability than pd.Index)
                 features_out = pd.Index(
                     features_out,
-                    dtype=np.str,
+                    dtype=np.str_,
                     name=TSCDataFrame.tsc_feature_col_name,
                 )
 
@@ -513,20 +514,21 @@ class TSCPredictMixin(TSCBaseMixin):
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
             raise TypeError(f"time_values.dtype {time_values.dtype} not supported")
 
-        _is_datetime = time_values.dtype.kind == "M"
+        if not is_datetime64_dtype(time_values) and (time_values < 0).any():
+            # "datetime" cannot be negative and raises error when checked with "< 0"
+            raise ValueError("In 'time_values' all values must be non-negative.")
 
-        if not _is_datetime and (time_values < 0).any():
-            # "datetime" cannot be negative and cannot be checked with "< 0"
-            raise ValueError("in time_values no negative values are allowed")
+        if not np.isfinite(time_values).all():
+            raise ValueError("'time_values' contains invalid numbers (inf/nan).")
 
         if time_values.ndim != 1:
-            raise ValueError("time_values must be be one dimensional")
+            raise ValueError("'time_values' must be be an 1-dim. array")
 
         if not (np.diff(time_values).astype(np.float64) > 0).all():
             # as "float64" is required in case of datetime where the differences are in
             # terms of "np.timedelta"
             raise ValueError(
-                "Parameter 'time_values' must be sorted with increasing unique values."
+                "'time_values' must be sorted with increasing unique values"
             )
 
         return time_values
@@ -561,6 +563,29 @@ class TSCPredictMixin(TSCBaseMixin):
         except AssertionError as e:
             raise ValueError(e.args[0])
 
+    def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
+
+        if qois is not None:
+            try:
+                qois = np.asarray(qois)
+            except:
+                raise TypeError("parameter 'qois' must be list-like")
+
+            if qois.ndim != 1:
+                raise ValueError(
+                    f"'qois' must be a 1-dim. array. " f"Got qois.ndim={qois.ndim}"
+                )
+
+            mask_valid_qois = np.isin(qois, valid_feature_names)
+
+            if not mask_valid_qois.all():
+                raise ValueError(
+                    f"The qois={qois[~mask_valid_qois]} are invalid. Valid "
+                    f"feature names are {valid_feature_names}."
+                )
+
+        return qois
+
     def _validate_features_and_time_values(
         self, X: TSCDataFrame, time_values: Optional[np.ndarray]
     ):
@@ -573,7 +598,7 @@ class TSCPredictMixin(TSCBaseMixin):
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")
 
-        self._validate_time_values(time_values=time_values)
+        time_values = self._validate_time_values(time_values=time_values)
         self._validate_feature_names(X)
 
         return X, time_values

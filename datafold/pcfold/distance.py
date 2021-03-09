@@ -217,7 +217,9 @@ class BruteForceDist(DistanceAlgorithm):
             distance_matrix = squareform(_pdist)
         else:
             # sklearn uses an numeric inexact but faster implementation
-            distance_matrix = pairwise_distances(X, metric=self.metric)
+            distance_matrix = pairwise_distances(
+                X, metric=self.metric, **backend_options
+            )
 
         if cut_off is not None:
             distance_matrix = self._dense2csr_matrix(distance_matrix, cut_off=cut_off)

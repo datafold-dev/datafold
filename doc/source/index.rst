@@ -52,8 +52,8 @@ Faculty of Computer Science and Mathematics in
 research group "Pedestrian Dynamics" `www.vadere.org <http://www.vadere.org/>`_,
 
 .. image:: _static/img/hm_logo.png
-   :height: 110px
-   :width: 250px
+   :height: 81px
+   :width: 300px
    :target: https://www.hm.edu/en/index.en.html
 
 2. Technical University of Munich
@@ -62,6 +62,6 @@ research group "Pedestrian Dynamics" `www.vadere.org <http://www.vadere.org/>`_,
 Chair of Scientific Computing in Computer Science
 
 .. image:: _static/img/tum_logo.png
-   :height: 100px
-   :width: 200px
+   :height: 75px
+   :width: 150px
    :target: https://www.tum.de/en/

@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import scipy.linalg
+from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
@@ -171,11 +172,8 @@ class LinearDynamicalSystem(object):
                 "The array must be 1-dim. and only contain real-valued numeric data."
             )
 
-        if (time_values < 0).any():
-            raise ValueError("The time values must all be positive numbers.")
-
-        if np.isnan(time_values).any() or np.isinf(time_values).any():
-            raise ValueError("The time values contain invalid numbers (nan/inf).")
+        if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
+            time_values = time_values.astype(np.int_)
 
         # TIME DELTA
         if self.is_differential_system():
@@ -188,7 +186,11 @@ class LinearDynamicalSystem(object):
             )
         else:
             assert time_delta is not None  # mypy
-            time_delta = float(time_delta)  # built in Python
+            # cast to built-in Python value
+            if np.asarray(time_delta).dtype.kind in "mli":
+                time_delta = int(time_delta)
+            else:
+                time_delta = float(time_delta)
             if time_delta <= 0:
                 raise ValueError(f"time_delta={time_delta} must be positive.")
 
@@ -254,7 +256,7 @@ class LinearDynamicalSystem(object):
                 # --> evolve system with, using `float_power`
                 #               ev^(t / time_delta)
 
-                _eigenvalues = self.eigenvalues_.astype(np.complex)
+                _eigenvalues = self.eigenvalues_.astype(np.complex_)
 
                 for idx, time in enumerate(time_values):
                     time_series_tensor[:, idx, :] = np.real(
@@ -740,6 +742,11 @@ class DMDBase(
                     "to set 'feature_columns' in **kwargs"
                 )
 
+        if self.is_matrix_mode() and (
+            post_map is not None or user_set_modes is not None
+        ):
+            raise ValueError(f"post_map can only be provided with 'sys_type=spectral'")
+
         return post_map, user_set_modes, feature_columns
 
     def _compute_left_eigenvectors(
@@ -752,7 +759,7 @@ class DMDBase(
              The eigenvectors are
 
              * not normed
-             * row-wise in the matrix
+             * row-wise in returned matrix
 
         """
         lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
@@ -814,7 +821,10 @@ class DMDBase(
             )
 
         if self.time_invariant:
-            shift = np.min(time_values)
+            if time_values.dtype.kind in "mM":
+                shift = np.min(time_values)
+            else:
+                shift = 0
         else:
             # If the dmd time is shifted during data (e.g. the minimum processed data
             # starts with time=5, some positive value) then normalize the time_samples
@@ -846,9 +856,15 @@ class DMDBase(
         #
         # Because hard-setting the time indices can be problematic, the following
         # assert makes sure that both ways match (up to numerical differences).
-        assert (
-            tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
-        ).all()
+
+        if time_values.dtype == np.floating:
+            assert (
+                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
+            ).all()
+        elif time_values.dtype == np.integer:
+            assert (
+                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values == 0
+            ).all()
 
         # Set time_values from user input
         tsc_df.index = tsc_df.index.set_levels(
@@ -879,12 +895,14 @@ class DMDBase(
         post_map: Union[numpy.ndarray, scipy.sparse.spmatrix]
             A matrix that is combined with the right eigenvectors. \
             :code:`post_map @ eigenvectors_right_`. If set, then also the input
-            `feature_columns` is required. It cannot be set with 'modes' at the same time.
+            `feature_columns` is required. It cannot be set with 'modes' at the same
+            time and requires "sys_type=spectral".
 
         modes: Union[numpy.ndarray]
             A matrix that sets the DMD modes directly. This must not be given at the
             same time with ``post_map``. If set, then also the input ``feature_columns``
-            is required. It cannot be set with 'modes' at the same time.
+            is required. It cannot be set with 'modes' at the same time and requires
+            "sys_type=spectral".
 
         feature_columns: pandas.Index
             If ``post_map`` is given with a changed state length, then new feature names
@@ -959,6 +977,10 @@ class DMDBase(
             tsc_kwargs={"ensure_const_delta_time": True},
         )
         self._validate_feature_names(X)
+
+        # TODO: qois flag is currently not supported in DMD, bc. predict does not
+        #  support it # 125
+        # self._validate_qois(qois=qois, valid_feature_names=self.feature_names_in_)
 
         X_reconstruct_ts = []
 
@@ -1152,11 +1174,15 @@ class DMDFull(DMDBase):
                 "computational performance."
             )
 
+        # see Eq. (13 a) and (13 b) in `williams_datadriven_2015`
         G = shift_start_transposed.T @ shift_start_transposed
-        G_dash = shift_start_transposed.T @ shift_end_transposed
+        G = np.multiply(1 / X.shape[0], G, out=G)
 
-        # If the matrix is square and of full rank, then x (but for round-off error) is
-        # the “exact” solution of the equation.
+        G_dash = shift_start_transposed.T @ shift_end_transposed
+        G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
+
+        # If the matrix is square and of full rank, then x is the exact solution of
+        # the linear equation system..
         koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
 
         if rank != G.shape[1]:
@@ -1166,17 +1192,23 @@ class DMDFull(DMDBase):
                 f"{np.sum(residual)}"
             )
 
-        # # TODO: Experimental (test other solvers, with more functionality)
+        # # TODO: START Experimental (test other solvers, with more functionality)
         # #  ridge_regression, and sparisty promoting least squares solutions could be
         #    included here
         # # TODO: clarify if the ridge regression should be done better on lstsq with
         #     shift matrices (instead of the G, G_dash)
 
-        # #  also possible to integrate "RidgeCV" which allows to select the best
-        # #  alpha from a list
-        # #  https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV
-
         # TODO: fit_intercept option useful to integrate?
+        # #  https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV
+        # from sklearn.linear_model import RidgeCV
+        #
+        # ridge = RidgeCV(alphas=[0.0001, 0.001, 0.01, 0.05, 1],
+        # normalize=False, fit_intercept=False)
+        # ridge.fit(X=shift_start_transposed, y=shift_end_transposed)
+        # koopman_matrix = ridge.coef_.T
+        #
+        # print(f"best alpha value {ridge.alpha_}")
+
         # koopman_matrix = ridge_regression(
         #     G, G_dash, alpha=self.alpha, verbose=0, return_intercept=False
         # )
@@ -1199,14 +1231,17 @@ class DMDFull(DMDBase):
         eigenvalues_, eigenvectors_right_ = sort_eigenpairs(
             *np.linalg.eig(system_matrix)
         )
+        eigenvectors_right_ /= np.linalg.norm(eigenvectors_right_, axis=0)
 
         if self.is_diagonalize:
-            # must be computed with the Koopman eigenvalues (NOT the generator eigenvalues)
+            # must be computed with the Koopman eigenvalues
+            # (NOT the generator eigenvalues)
             eigenvectors_left_ = self._compute_left_eigenvectors(
                 system_matrix=system_matrix,
                 eigenvalues=eigenvalues_,
                 eigenvectors_right=eigenvectors_right_,
             )
+
         else:
             eigenvectors_left_ = None
 
@@ -1267,6 +1302,24 @@ class DMDFull(DMDBase):
                 eigenvalues=eigenvalues_,
                 eigenvectors_left=eigenvectors_left_,
             )
+
+            # TODO: EXPERIMENTAL: SORT EIGENVECTORS ACCORDING TO "DIRICHLET ENERGY(?)"
+            if False:
+                koop_eig_func = self.eigenvectors_left_ @ X.to_numpy().T
+                normalize_factors = np.linalg.norm(koop_eig_func, axis=1)
+
+                left_eigvec_normalized = diagmat_dot_mat(
+                    normalize_factors, self.eigenvectors_left_
+                )
+
+                energy = np.linalg.norm(left_eigvec_normalized, axis=1)
+
+                sort_indices = np.argsort(energy)[::-1]
+
+                self.eigenvectors_right_ = self.eigenvectors_right_[:, sort_indices]
+                self.eigenvalues_ = self.eigenvalues_[sort_indices]
+                self.eigenvectors_left_ = self.eigenvectors_left_[sort_indices, :]
+            # TODO: END EXPERIMENTAL
 
             if store_system_matrix:
                 if self.approx_generator:

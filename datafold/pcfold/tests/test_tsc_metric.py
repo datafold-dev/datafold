@@ -32,38 +32,37 @@ class TestTSCMetric(unittest.TestCase):
         return pd.DataFrame(data, time_index, columns)
 
     def _create_tsc_one(self):
-        self.tsc_one_left = TSCDataFrame.from_single_timeseries(
+        self.tsc_ytrue = TSCDataFrame.from_single_timeseries(
             df=self._create_multi_feature_timeseries(10)
         )
 
-        # "left" and "right" refer to "y_true" and "y_pred" to measure the metric
-        self.tsc_one_left = self.tsc_one_left.insert_ts(
+        self.tsc_ytrue = self.tsc_ytrue.insert_ts(
             self._create_multi_feature_timeseries(10)
         )
-        self.tsc_one_left = self.tsc_one_left.insert_ts(
+        self.tsc_ytrue = self.tsc_ytrue.insert_ts(
             self._create_multi_feature_timeseries(10)
         )
 
-        self.tsc_one_right = TSCDataFrame.from_same_indices_as(
-            self.tsc_one_left, values=np.random.rand(*self.tsc_one_left.shape)
+        self.tsc_ypred = TSCDataFrame.from_same_indices_as(
+            self.tsc_ytrue, values=np.random.rand(*self.tsc_ytrue.shape)
         )
 
     def _create_tsc_two(self):
-        self.tsc_two_left = TSCDataFrame.from_single_timeseries(
+        self.tsc_ytrue2 = TSCDataFrame.from_single_timeseries(
             df=self._create_multi_feature_timeseries(10)
         )
 
         # NOTE: here they have different length!
         # "left" and "right" refer to "y_true" and "y_pred" to measure the metric
-        self.tsc_two_left = self.tsc_two_left.insert_ts(
+        self.tsc_ytrue2 = self.tsc_ytrue2.insert_ts(
             self._create_multi_feature_timeseries(5)
         )
-        self.tsc_two_left = self.tsc_two_left.insert_ts(
+        self.tsc_ytrue2 = self.tsc_ytrue2.insert_ts(
             self._create_multi_feature_timeseries(20)
         )
 
-        self.tsc_two_right = TSCDataFrame.from_same_indices_as(
-            self.tsc_two_left, values=np.random.rand(*self.tsc_two_left.shape)
+        self.tsc_ypred2 = TSCDataFrame.from_same_indices_as(
+            self.tsc_ytrue2, values=np.random.rand(*self.tsc_ytrue2.shape)
         )
 
     def test_metrics_without_error(self):
@@ -84,25 +83,25 @@ class TestTSCMetric(unittest.TestCase):
                         try:
                             if metric != "max":  # max does not support multi-output
                                 tsc_metric(
-                                    self.tsc_one_left,
-                                    self.tsc_one_right,
+                                    self.tsc_ytrue,
+                                    self.tsc_ypred,
                                     multioutput=multioutput,
                                 )
                                 tsc_metric(
-                                    self.tsc_two_left,
-                                    self.tsc_two_right,
+                                    self.tsc_ytrue2,
+                                    self.tsc_ypred2,
                                     multioutput=multioutput,
                                 )
                             else:
                                 with self.assertRaises(ValueError):
                                     tsc_metric(
-                                        self.tsc_one_left,
-                                        self.tsc_one_right,
+                                        self.tsc_ytrue,
+                                        self.tsc_ypred,
                                         multioutput=multioutput,
                                     )
                                     tsc_metric(
-                                        self.tsc_two_left,
-                                        self.tsc_two_right,
+                                        self.tsc_ytrue2,
+                                        self.tsc_ypred2,
                                         multioutput=multioutput,
                                     )
                         except Exception as e:
@@ -117,17 +116,17 @@ class TestTSCMetric(unittest.TestCase):
     def test_error_per_timeseries1(self):
         multioutput = "uniform_average"
         actual = TSCMetric(metric="mse", mode="timeseries")(
-            self.tsc_one_left, self.tsc_one_right, multioutput=multioutput
+            self.tsc_ytrue, self.tsc_ypred, multioutput=multioutput
         )
 
         self.assertIsInstance(actual, pd.Series)
 
         idx = pd.IndexSlice
 
-        for id_ in self.tsc_one_left.ids:
+        for id_ in self.tsc_ytrue.ids:
             expected_val = mean_squared_error(
-                self.tsc_one_left.loc[idx[id_, :], :],
-                self.tsc_one_right.loc[idx[id_, :], :],
+                self.tsc_ytrue.loc[idx[id_, :], :],
+                self.tsc_ypred.loc[idx[id_, :], :],
                 sample_weight=None,
                 multioutput="uniform_average",
             )
@@ -138,17 +137,17 @@ class TestTSCMetric(unittest.TestCase):
         multi_output = "raw_values"
 
         actual = TSCMetric(metric="mse", mode="timeseries")(
-            self.tsc_one_left, self.tsc_one_right, multioutput=multi_output
+            self.tsc_ytrue, self.tsc_ypred, multioutput=multi_output
         )
 
         self.assertIsInstance(actual, pd.DataFrame)
 
         idx = pd.IndexSlice
 
-        for id_ in self.tsc_one_left.ids:
+        for id_ in self.tsc_ytrue.ids:
             expected_val = mean_squared_error(
-                self.tsc_one_left.loc[idx[id_, :], :],
-                self.tsc_one_right.loc[idx[id_, :], :],
+                self.tsc_ytrue.loc[idx[id_, :], :],
+                self.tsc_ypred.loc[idx[id_, :], :],
                 sample_weight=None,
                 multioutput=multi_output,
             )
@@ -161,17 +160,17 @@ class TestTSCMetric(unittest.TestCase):
         multi_output = "raw_values"
 
         actual = TSCMetric(metric="mse", mode="timeseries")(
-            self.tsc_two_left, self.tsc_two_right, multioutput=multi_output
+            self.tsc_ytrue2, self.tsc_ypred2, multioutput=multi_output
         )
 
         self.assertIsInstance(actual, pd.DataFrame)
 
         idx = pd.IndexSlice
 
-        for id_ in self.tsc_two_left.ids:
+        for id_ in self.tsc_ytrue2.ids:
             expected_val = mean_squared_error(
-                self.tsc_two_left.loc[idx[id_, :], :],
-                self.tsc_two_right.loc[idx[id_, :], :],
+                self.tsc_ytrue2.loc[idx[id_, :], :],
+                self.tsc_ypred2.loc[idx[id_, :], :],
                 sample_weight=None,
                 multioutput=multi_output,
             )
@@ -179,34 +178,34 @@ class TestTSCMetric(unittest.TestCase):
             nptest.assert_array_equal(expected_val, actual.loc[id_].to_numpy())
 
     def test_error_per_feature1(self):
-        sample_weight = np.ones(self.tsc_one_left.shape[0])
+        sample_weight = np.ones(self.tsc_ytrue.shape[0])
         actual = TSCMetric(metric="mse", mode="feature")(
-            self.tsc_one_left, self.tsc_one_right, sample_weight=sample_weight
+            self.tsc_ytrue, self.tsc_ypred, sample_weight=sample_weight
         )
 
         self.assertIsInstance(actual, pd.Series)
 
         nptest.assert_array_equal(
             mean_squared_error(
-                self.tsc_one_left, self.tsc_one_right, multioutput="raw_values"
+                self.tsc_ytrue, self.tsc_ypred, multioutput="raw_values"
             ),
             actual.to_numpy(),
         )
 
     def test_error_per_feature2(self):
-        sample_weight = np.zeros(self.tsc_one_left.shape[0])
+        sample_weight = np.zeros(self.tsc_ytrue.shape[0])
         sample_weight[0] = 1  # put whole weight on a single sample
 
         actual = TSCMetric(metric="mse", mode="feature")(
-            self.tsc_one_left, self.tsc_one_right, sample_weight=sample_weight
+            self.tsc_ytrue, self.tsc_ypred, sample_weight=sample_weight
         )
 
         self.assertIsInstance(actual, pd.Series)
 
         nptest.assert_array_equal(
             mean_squared_error(
-                self.tsc_one_left,
-                self.tsc_one_right,
+                self.tsc_ytrue,
+                self.tsc_ypred,
                 sample_weight=sample_weight,
                 multioutput="raw_values",
             ),
@@ -214,16 +213,16 @@ class TestTSCMetric(unittest.TestCase):
         )
 
     def test_error_per_feature3(self):
-        sample_weight = np.ones(self.tsc_two_left.shape[0])
+        sample_weight = np.ones(self.tsc_ytrue2.shape[0])
         actual = TSCMetric(metric="mse", mode="feature")(
-            self.tsc_two_left, self.tsc_two_right, sample_weight=sample_weight
+            self.tsc_ytrue2, self.tsc_ypred2, sample_weight=sample_weight
         )
 
         self.assertIsInstance(actual, pd.Series)
 
         nptest.assert_array_equal(
             mean_squared_error(
-                self.tsc_two_left, self.tsc_two_right, multioutput="raw_values"
+                self.tsc_ytrue2, self.tsc_ypred2, multioutput="raw_values"
             ),
             actual.to_numpy(),
         )
@@ -231,18 +230,18 @@ class TestTSCMetric(unittest.TestCase):
     def test_error_per_timestep1(self):
         multioutput = "uniform_average"
         actual = TSCMetric(metric="mse", mode="timestep")(
-            self.tsc_one_left, self.tsc_one_right, multioutput=multioutput
+            self.tsc_ytrue, self.tsc_ypred, multioutput=multioutput
         )
 
         self.assertIsInstance(actual, pd.Series)
 
         idx_slice = pd.IndexSlice
-        for t in self.tsc_one_left.time_values():
+        for t in self.tsc_ytrue.time_values():
 
             nptest.assert_array_equal(
                 mean_squared_error(
-                    self.tsc_one_left.loc[idx_slice[:, t], :],
-                    self.tsc_one_right.loc[idx_slice[:, t], :],
+                    self.tsc_ytrue.loc[idx_slice[:, t], :],
+                    self.tsc_ypred.loc[idx_slice[:, t], :],
                     sample_weight=None,
                     multioutput=multioutput,
                 ),
@@ -252,12 +251,12 @@ class TestTSCMetric(unittest.TestCase):
     def test_error_per_timestep2(self):
         multioutput = np.array([0.5, 0.5, 1])  # user defined weighing
         sample_weight = np.arange(
-            len(self.tsc_one_left.ids)
+            len(self.tsc_ytrue.ids)
         )  # increasing weight for each time step (three)
 
         actual = TSCMetric(metric="mse", mode="timestep")(
-            self.tsc_one_left,
-            self.tsc_one_right,
+            self.tsc_ytrue,
+            self.tsc_ypred,
             sample_weight=sample_weight,
             multioutput=multioutput,
         )
@@ -265,12 +264,12 @@ class TestTSCMetric(unittest.TestCase):
         self.assertIsInstance(actual, pd.Series)
 
         idx_slice = pd.IndexSlice
-        for t in self.tsc_one_left.time_values():
+        for t in self.tsc_ytrue.time_values():
 
             nptest.assert_array_equal(
                 mean_squared_error(
-                    self.tsc_one_left.loc[idx_slice[:, t], :],
-                    self.tsc_one_right.loc[idx_slice[:, t], :],
+                    self.tsc_ytrue.loc[idx_slice[:, t], :],
+                    self.tsc_ypred.loc[idx_slice[:, t], :],
                     sample_weight=sample_weight,
                     multioutput=multioutput,
                 ),
@@ -282,18 +281,18 @@ class TestTSCMetric(unittest.TestCase):
 
         multioutput = "uniform_average"
         actual = TSCMetric(metric="mse", mode="timestep")(
-            self.tsc_two_left, self.tsc_two_right, multioutput=multioutput
+            self.tsc_ytrue2, self.tsc_ypred2, multioutput=multioutput
         )
 
         self.assertIsInstance(actual, pd.Series)
 
         idx_slice = pd.IndexSlice
-        for t in self.tsc_two_left.time_values():
+        for t in self.tsc_ytrue2.time_values():
 
             nptest.assert_array_equal(
                 mean_squared_error(
-                    self.tsc_two_left.loc[idx_slice[:, t], :],
-                    self.tsc_two_right.loc[idx_slice[:, t], :],
+                    self.tsc_ytrue2.loc[idx_slice[:, t], :],
+                    self.tsc_ypred2.loc[idx_slice[:, t], :],
                     sample_weight=None,
                     multioutput=multioutput,
                 ),
@@ -307,17 +306,17 @@ class TestTSCMetric(unittest.TestCase):
         )
 
         pdtest.assert_series_equal(
-            _metric_callable_expected(self.tsc_one_left, self.tsc_one_left),
-            _metric_callable_actual(self.tsc_one_left, self.tsc_one_left),
+            _metric_callable_expected(self.tsc_ytrue, self.tsc_ytrue),
+            _metric_callable_actual(self.tsc_ytrue, self.tsc_ytrue),
         )
 
     def test_feature_uniform_avrg_score(self):
 
         _metric = TSCMetric(metric="rmse", mode="feature", scaling="id")
         _score = TSCScoring(_metric)
-        _score_actual = _score(self.tsc_one_left, self.tsc_one_right)
+        _score_actual = _score(self.tsc_ytrue, self.tsc_ypred)
 
-        _score_expected = _metric(self.tsc_one_left, self.tsc_one_right)
+        _score_expected = _metric(self.tsc_ytrue, self.tsc_ypred)
         _score_expected = float(_score_expected.mean())
 
         self.assertEqual(-1 * _score_expected, _score_actual)
@@ -328,10 +327,10 @@ class TestTSCMetric(unittest.TestCase):
         _metric = TSCMetric(metric="rmse", mode="feature", scaling="id")
         _score = TSCScoring(_metric)
         _score_actual = _score(
-            self.tsc_one_left, self.tsc_one_right, sample_weight=sample_weight
+            self.tsc_ytrue, self.tsc_ypred, sample_weight=sample_weight
         )
 
-        _score_expected = _metric(self.tsc_one_left, self.tsc_one_right)
+        _score_expected = _metric(self.tsc_ytrue, self.tsc_ypred)
         _score_expected = float(np.average(_score_expected, weights=sample_weight))
 
         self.assertEqual(-1 * _score_expected, _score_actual)

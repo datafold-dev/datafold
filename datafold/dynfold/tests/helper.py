@@ -3,8 +3,6 @@
 """Helper functions for testing. """
 
 import logging
-import os
-import sys
 from typing import Optional
 
 import diffusion_maps as legacy_dmap
@@ -13,6 +11,7 @@ import numpy.testing as nptest
 from scipy.sparse import csr_matrix
 
 from datafold.dynfold.dmap import DiffusionMaps
+from datafold.pcfold import GaussianKernel
 from datafold.utils.general import assert_equal_eigenvectors
 
 
@@ -138,6 +137,8 @@ def cmp_dmap_legacy(
 
 
 def cmp_dmap(dmap1: DiffusionMaps, dmap2: DiffusionMaps):
+    assert isinstance(dmap1.kernel, GaussianKernel)
+    assert isinstance(dmap2.kernel, GaussianKernel)
 
     nptest.assert_equal(dmap1.kernel.epsilon, dmap2.kernel.epsilon)
 

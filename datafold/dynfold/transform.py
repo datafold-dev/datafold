@@ -32,6 +32,8 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
     """
 
     _cls_valid_scale_names = ("min-max", "standard")
+    # flag from scikit-learn -- need to set that check_estimator is valid
+    _required_parameters = ["sklearn_transformer"]
 
     def __init__(self, sklearn_transformer):
         self.sklearn_transformer = sklearn_transformer
@@ -43,6 +45,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         Parameters
         ----------
         name
+            - "center" -:class:`sklearn.preprocessing.StandardScaler`
             - "min-max" - :class:`sklearn.preprocessing.MinMaxScaler`
             - "standard" - :class:`sklearn.preprocessing.StandardScaler`
 
@@ -51,6 +54,8 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCFeaturePreprocess
             new instance
         """
+        if name == "center":
+            return cls(StandardScaler(copy=True, with_mean=True, with_std=False))
         if name == "min-max":
             return cls(MinMaxScaler(feature_range=(0, 1), copy=True))
         elif name == "standard":
@@ -456,10 +461,9 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     References
     ----------
 
-    * Original paper from Takens :cite:`rand_detecting_1981`
-    * Takens delay embedding in the context of time series data
-      :cite:`champion_discovery_2019` (the time delay embedding is then a transform
-      function of :py:class:`.EDMD` dictionary).
+    * Original paper from Takens :cite:`takens_detecting_1981`
+    * time delay embedding in the context of Koopman operator, e.g.
+      :cite:`champion_discovery_2019` or :cite:`arbabi_ergodic_2017`
     """
 
     def __init__(
@@ -519,7 +523,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         # in case the column in not string it is important to transform it here to
         # string. Otherwise, There are mixed types (e.g. int and str), because the
         # delayed columns are all strings to indicate the delay number.
-        X.columns = X.columns.astype(np.str)
+        X.columns = X.columns.astype(np.str_)
         return X
 
     def _expand_all_delay_columns(self, cols):
@@ -537,7 +541,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
         return pd.Index(
             columns_names,
-            dtype=np.str,
+            dtype=np.str_,
             copy=False,
             name=TSCDataFrame.tsc_feature_col_name,
         )
@@ -736,6 +740,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         Selection of what to take as centers during fit.
 
         * `all_data` - all data points during fit are used as centers
+        * `fit_params` - set the center points with keyword arguments during fit
         * `initial_condition` - take the initial condition states as centers.
            Note for this option the data `X` during fit must be of
            type :class:`.TSCDataFrame`.
@@ -756,13 +761,13 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         delayed until `inverse_transform` is called for the first time.
     """
 
-    _cls_valid_center_types = ["all_data", "initial_condition"]
+    _cls_valid_center_types = ["all_data", "fit_params", "initial_condition"]
 
     def __init__(
         self,
         kernel: Optional[PCManifoldKernel] = None,
         *,  # keyword-only
-        center_type="all_data",
+        center_type: str = "all_data",
         exact_distance=True,
     ):
         self.kernel = kernel
@@ -792,7 +797,9 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
             ignored
 
         **fit_params: Dict[str, object]
-            None
+            centers: numpy.ndarray
+                Points where the radial basis functions are centered.
+                `center_type="fit_params"` must be set during initialization.
 
         Returns
         -------
@@ -802,14 +809,40 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(X)
         self._validate_center_type(center_type=self.center_type)
-        self._read_fit_params(attrs=None, fit_params=fit_params)
+        _centers = self._read_fit_params(
+            attrs=[("centers", None)], fit_params=fit_params
+        )
 
         if self.center_type == "all_data":
+            if _centers is not None:
+                raise ValueError("center points were passed but center_type='all_data'")
+
             self.centers_ = self._X_to_numpy(X)
-        else:  # self.center_type == "initial_condition":
+        elif self.center_type == "fit_params":
+
+            if _centers is None:
+                raise ValueError("The center points were not provided in 'fit_params'.")
+
+            try:
+                self.centers_ = np.asarray(_centers).astype(np.float)
+            except TypeError:
+                raise TypeError(
+                    "centers were not passed to fit_params or not array-like."
+                )
+
+            if self.centers_.ndim != 2 or self.centers_.shape[1] != X.shape[1]:
+                raise ValueError(
+                    "The center points must be a matrix with same point "
+                    "dimension than 'X'."
+                )
+        elif self.center_type == "initial_condition":
             if not isinstance(X, TSCDataFrame):
-                raise TypeError("Data 'X' must be TSCDataFrame")
+                raise TypeError("'X' must be of type TSCDataFrame.")
             self.centers_ = X.initial_states().to_numpy()
+        else:
+            raise RuntimeError(
+                "center_type was not checked correctly. Please report bug."
+            )
 
         set_kernel = (
             self.kernel if self.kernel is not None else self._get_default_kernel()
@@ -867,16 +900,17 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_centers)`
         """
-        self.fit(X)
+        self.fit(X, **fit_params)
         X_intern = self._X_to_numpy(X)
         self._validate_center_type(center_type=self.center_type)
 
         if self.center_type == "all_data":
             # compute pdist distance matrix, which is often more efficient
             rbf_coeff = self.centers_.compute_kernel_matrix()
-        else:  # self.center_type == "initial_condition":
+        else:  # self.center_type in ["initial_condition", "fit_params"]:
             rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
 
+        # import matplotlib.pyplot as plt; plt.matshow(rbf_coeff)
         return self._same_type_X(
             X=X, values=rbf_coeff, feature_names=self.feature_names_out_
         )
@@ -956,7 +990,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         # Note: get_feature_names function is already provided by super class
         if self._has_feature_names(X):
             feature_names = self.get_feature_names(
-                input_features=X.columns.astype(np.str)
+                input_features=X.columns.astype(np.str_)
             )
         else:
             feature_names = self.get_feature_names()

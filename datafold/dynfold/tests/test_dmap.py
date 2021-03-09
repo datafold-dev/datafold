@@ -6,6 +6,7 @@ import unittest
 
 import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
 import scipy.sparse.linalg.eigen.arpack
@@ -30,7 +31,6 @@ else:
 
 class DiffusionMapsTest(unittest.TestCase):
     def setUp(self):
-        logging.basicConfig(level=logging.DEBUG)
         self.xmin = 0.0
         self.ymin = 0.0
         self.width = 1.0
@@ -395,7 +395,7 @@ class DiffusionMapsTest(unittest.TestCase):
             plt.show()
 
     def test_nystrom_out_of_sample_1dspiral(self, plot=False):
-        def sample_1dsprial(phis):
+        def sample_1d_spiral(phis):
             c1 = phis * np.cos(phis)
             c2 = phis * np.sin(phis)
             return np.vstack([c1, c2]).T
@@ -406,8 +406,8 @@ class DiffusionMapsTest(unittest.TestCase):
         # remove first so that they are all between the phis-samples
         phis_oos = phis_oos[1:]
 
-        X_all = sample_1dsprial(phis)
-        X_oos = sample_1dsprial(phis_oos)
+        X_all = sample_1d_spiral(phis)
+        X_oos = sample_1d_spiral(phis_oos)
 
         # for variation use sparse code
         dmap_embed = DiffusionMaps(
@@ -532,7 +532,7 @@ class DiffusionMapsTest(unittest.TestCase):
             tsc_data, store_kernel_matrix=True
         )
 
-        self.assertEqual(dmap.X_.dist_kwargs["cut_off"], 2)
+        self.assertEqual(dmap.X_fit_.dist_kwargs["cut_off"], 2)
         self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
 
     def test_kernel_symmetric_conjugate(self):
@@ -644,7 +644,7 @@ class DiffusionMapsTest(unittest.TestCase):
         nptest.assert_equal(actual_result.to_numpy(), expected_result)
 
     @unittest.skipIf(not IMPORTED_RDIST, reason="rdist not installed")
-    def test_cknn_kernel(self):
+    def test_cknn_kernel2(self):
         from time import time
 
         import datafold.pcfold as pfold
@@ -725,7 +725,7 @@ class DiffusionMapsTest(unittest.TestCase):
             kernel_matrix_,
             _basis_change_matrix,
             _row_sums_alpha,
-        ) = dmap_embed.X_.compute_kernel_matrix()
+        ) = dmap_embed.X_fit_.compute_kernel_matrix()
         t22 = time()
         solver_kwargs = {
             "k": setting["n_eigenpairs"],
@@ -952,7 +952,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
     def test_num_eigenpairs(self):
 
         data, _ = make_swiss_roll(1000)
-        all_n_eigenpairs = np.linspace(10, 50, 5).astype(np.int)
+        all_n_eigenpairs = np.linspace(10, 50, 5).astype(np.int_)
 
         for n_eigenpairs in all_n_eigenpairs:
             actual = DiffusionMaps(
@@ -1220,14 +1220,6 @@ class DiffusionMapsVariableTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
-    verbose = os.getenv("VERBOSE")
-    if verbose is not None:
-        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-    else:
-        logging.basicConfig(level=logging.ERROR, format="%(message)s")
-
-    # Comment in to run/debug specific tests
 
     t = DiffusionMapsTest()
     t.setUp()
