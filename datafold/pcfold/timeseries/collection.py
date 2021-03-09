@@ -679,6 +679,7 @@ class TSCDataFrame(pd.DataFrame):
         The tolerances are required for floating point time values. For example,
 
         .. code::
+
             np.unique(np.diff(np.linspace(0,2, 4)))
 
         prints :code:`array([0.6666666666666666, 0.6666666666666667])`.

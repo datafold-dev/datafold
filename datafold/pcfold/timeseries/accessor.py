@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import itertools
 import warnings
 from typing import Generator, Optional, Tuple, Union
 
@@ -13,15 +12,21 @@ import pandas.testing as pdtest
 from scipy.stats import multivariate_normal
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
-from datafold.utils.general import is_float, is_integer
+from datafold.utils.general import is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
 class TSCAccessor(object):
-    """Accessor functions operatoring on TSCDataFrame.
+    """Extension functions for TSCDataFrame.
 
     See `documentation <https://pandas.pydata.org/pandas-docs/stable/development/extending.html?highlight=accessor>`_
     for regular pandas accessors.
+
+    The functions are available through the accessor `tsc`, for example,
+
+    .. code::
+
+            tsc_object.tsc.normalize_time()
 
     Parameters
     ----------

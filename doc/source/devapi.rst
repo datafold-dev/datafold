@@ -49,9 +49,6 @@ Classes
    .. automethod:: time_derivative
    .. automethod:: time_values_overview
 
-Process finished with exit code 0
-
-
 
 .. autoclass:: datafold.pcfold.timeseries.collection.TSCException
 
