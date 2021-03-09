@@ -161,12 +161,12 @@ class _DmapKernelAlgorithms:
 
 
 class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
-    """Defines a diffusion process on point cloud to find meaningful
+    """Define a diffusion process on point cloud to find meaningful
     geometric descriptions.
 
     The model can be used for
 
-    * non-linear dimensionality reduction
+    * non-linear dimension reduction
     * approximation eigenfunctions of operators (see ``alpha`` parameter):
 
         - Laplace-Beltrami
@@ -176,38 +176,38 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     Parameters
     ----------
     kernel
-        The kernel to describe proximity between points. The kernel is passed
-        as an ``internal_kernel`` to :py:class:`.DmapKernelFixed`, which describes
-        the diffusion process. Defaults to :py:class:`.GaussianKernel` with
-        bandwidth `epsilon=1`.
+        The kernel to describe similarity between points. The kernel is passed
+        as an ``internal_kernel`` to :py:class:`.DmapKernelFixed`, which computes a
+        Markov matrix that describes the diffusion process.
+        Defaults to :py:class:`.GaussianKernel` with bandwidth `epsilon=1`.
 
     n_eigenpairs
         The number of eigenpairs to compute from the kernel matrix.
 
     time_exponent
         The time of the diffusion process (exponent of eigenvalues in embedding). The
-        value can be also be changed after the model is fit.
+        value can be changed after the model is fit.
 
     is_stochastic
         If True, the diffusion kernel matrix is normalized (row stochastic). In the
-        standard definition of diffusion maps this has to be True.
+        standard definition this has to be True.
 
     alpha
-        The re-normalization parameter between `(0,1)`. Set ``alpha=1`` to correct the
-        sampling density in the data as an artifact of the collection process. Special
-        values are
+        The degree of re-normalization between `(0,1)`. Setting ``alpha=1`` corrects
+        the sampling density in the data as an artifact of the collection process.
+        Special values are (see :cite:`coifman_diffusion_2006`)
 
         * `alpha=0` Graph Laplacian,
         * `alpha=0.5` Fokker-Plank operator,
         * `alpha=1` Laplace-Beltrami operator
 
-        Note, that ``is_stochastic=True`` is required in all three cases.
+        Note, that ``is_stochastic=True`` is required for all three cases.
 
     symmetrize_kernel
         If True, a symmetric conjugate transformation is performed, if the kernel
         matrix is non-symmetric (otherwise the parameter has no effect). The symmetric
-        conjugate improves numerical when solving the eigenvectors, because it allows
-        algorithms designed for (sparse) Hermitian matrices to be used.
+        conjugate improves numerical stability when solving the eigenvectors, because it
+        allows using algorithms designed for (sparse) Hermitian matrices.
 
     dist_kwargs
         Keyword arguments passed to the internal distance matrix computation. See
@@ -220,6 +220,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     X_fit_: PCManifold
         The training data during fit. The data is required for out-of-sample mappings;
         the :py:class:`PCManifold` is equipped with kernel :py:class:`DmapKernelFixed`.
+        ``np.asarray(X_fit_)`` casts the object to a standard numpy array.
 
     eigenvalues_ : numpy.ndarray
         The eigenvalues of diffusion kernel matrix in decreasing order.
@@ -234,7 +235,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         eigenpairs.
 
     inv_coeff_matrix_: numpy.ndarray
-        The coefficient matrix to map points from embedding space back to original space.\
+        The coefficient matrix to map points from embedding space back to state space.
         The computation is delayed until `inverse_transform` is called for the first
         time (only then the attribute is available).
 
@@ -378,10 +379,10 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         if (np.abs(eigvals) < _magic_tol).any():
             warnings.warn(
                 "Diffusion map eigenvalues are close to zero, which can cause "
-                "numerical instability when applying the Nystroem extension."
+                "numerical instabilities when applying the Nystroem extension."
             )
 
-        # Nyström approximation
+        # Nystroem approximation
         approx_eigenvectors = _kernel_cdist @ mat_dot_diagmat(
             eigvec, np.reciprocal(eigvals)
         )
@@ -533,9 +534,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         self._setup_feature_attrs_fit(X, features_out=self._feature_names())
 
-        # TODO: remove landmarks
-        store_kernel_matrix, landmarks = self._read_fit_params(
-            attrs=[("store_kernel_matrix", False), ("landmarks", None)],
+        store_kernel_matrix = self._read_fit_params(
+            attrs=[("store_kernel_matrix", False)],
             fit_params=fit_params,
         )
 
@@ -554,22 +554,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             symmetrize_kernel=self.symmetrize_kernel,
         )
 
-        # TODO: remove landmarks
-        use_landmarks = landmarks is not None
-
-        if isinstance(X, TSCDataFrame) and not use_landmarks:
+        if isinstance(X, TSCDataFrame):
             self.X_fit_ = TSCDataFrame(
                 X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_
             )
         elif isinstance(X, (np.ndarray, pd.DataFrame)):
-            # TODO: remove landmarks
-            if use_landmarks:
-                _points = landmarks
-            else:
-                _points = X
-
             self.X_fit_ = PCManifold(
-                _points,
+                X,
                 kernel=self._dmap_kernel,
                 dist_kwargs=self.dist_kwargs_,
             )
@@ -714,12 +705,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
         self.fit(X=X, y=y, **fit_params)
 
-        # TODO: remove landmarks
-        if "landmarks" in fit_params:
-            eigvec = self.transform(X)
-        else:
-            eigvec, _ = self._select_target_coords_eigenpairs()
-
+        eigvec, _ = self._select_target_coords_eigenpairs()
         return self._perform_dmap_embedding(eigvec)
 
     def inverse_transform(self, X: TransformType) -> TransformType:
@@ -1275,13 +1261,13 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             Not implemented.
         """
 
-        # TODO: from the philosophy the inverse_transform should map
+        # TODO: the inverse_transform should map
         #   \Psi_selected -> \Psi_full
         #  However this is usually not what we are interested in. Instead it is more
         #  likely that someone wants to do the inverse_transform like in DMAP:
         #   \Psi_selected -> X (original data).
 
         raise NotImplementedError(
-            "The inverse_transform should be carried out with an DMAP, which has all "
-            "eigenvectors (not selected)."
+            "The inverse_transform should be carried out with an DiffusionMap model, "
+            "which contains all computed eigenvectors."
         )

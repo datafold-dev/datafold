@@ -395,7 +395,7 @@ class DiffusionMapsTest(unittest.TestCase):
             plt.show()
 
     def test_nystrom_out_of_sample_1dspiral(self, plot=False):
-        def sample_1dsprial(phis):
+        def sample_1d_spiral(phis):
             c1 = phis * np.cos(phis)
             c2 = phis * np.sin(phis)
             return np.vstack([c1, c2]).T
@@ -406,8 +406,8 @@ class DiffusionMapsTest(unittest.TestCase):
         # remove first so that they are all between the phis-samples
         phis_oos = phis_oos[1:]
 
-        X_all = sample_1dsprial(phis)
-        X_oos = sample_1dsprial(phis_oos)
+        X_all = sample_1d_spiral(phis)
+        X_oos = sample_1d_spiral(phis_oos)
 
         # for variation use sparse code
         dmap_embed = DiffusionMaps(

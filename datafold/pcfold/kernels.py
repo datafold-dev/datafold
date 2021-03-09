@@ -1430,12 +1430,11 @@ class DmapKernelFixed(BaseManifoldKernel):
             else:
                 internal_kernel = _stochastic_kernel_matrix(internal_kernel)
 
-            assert (
+            # check that if     "is symmetric pdist" -> require basis change
+            #            else   no basis change
+            assert not (
                 (is_pdist and self.is_symmetric_transform())
-                and basis_change_matrix is not None
-            ) or (
-                not (is_pdist and self.is_symmetric_transform())
-                and basis_change_matrix is None
+                ^ (basis_change_matrix is not None)
             )
 
         if is_pdist and self.is_symmetric:

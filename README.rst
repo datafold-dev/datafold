@@ -5,15 +5,15 @@ What is *datafold*?
 learning and identification of dynamical systems. The source code is distributed under the
 `MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
 
-**datafold* includes
+*datafold* includes:
 
 * An efficient implementation of the ``DiffusionMaps`` model to infer geometric
   structures from point cloud data. The framework computes mathematically meaningful
   objects, such as the eigenfunctions of the Laplace-Beltrami operator. As a
   distinguishing factor to other implementations, can handle sparse distance matrix to and
-   setting an arbitrary kernel, for example, a standard Gaussian kernel,
-  `continuous `k` nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
-  `dynamics-adapted kernel (cone kernel) <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
+  setting an arbitrary kernel, for example, a standard Gaussian kernel,
+  `continuous k-nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
+  `dynamics-adapted cone kernel <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
 * Out-of-sample extensions for the Diffusion Maps model, such as the (auto-tuned)
   Laplacian Pyramids or Geometric Harmonics to interpolate general function values on a
   point cloud manifold.

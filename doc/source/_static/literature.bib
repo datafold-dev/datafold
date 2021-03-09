@@ -107,6 +107,23 @@
 	pages = {1307--1346},
 }
 
+@article{arbabi_ergodic_2017,
+	title = {Ergodic {Theory}, {Dynamic} {Mode} {Decomposition}, and {Computation} of {Spectral} {Properties} of the {Koopman} {Operator}},
+	volume = {16},
+	issn = {1536-0040},
+	url = {https://epubs.siam.org/doi/10.1137/17M1125236},
+	doi = {10.1137/17M1125236},
+	abstract = {We establish the convergence of a class of numerical algorithms, known as dynamic mode decomposition (DMD), for computation of the eigenvalues and eigenfunctions of the infinite-dimensional Koopman operator. The algorithms act on data coming from observables on a state space, arranged in Hankel-type matrices. The proofs utilize the assumption that the underlying dynamical system is ergodic. This includes the classical measure-preserving systems, as well as systems whose attractors support a physical measure. Our approach relies on the observation that vector projections in DMD can be used to approximate the function projections by the virtue of Birkhoff{\textquoteright}s ergodic theorem. Using this fact, we show that applying DMD to Hankel data matrices in the limit of infinite-time observations yields the true Koopman eigenfunctions and eigenvalues. We also show that the singular value decomposition, which is the central part of most DMD algorithms, converges to the proper orthogonal decomposition of observables. We use this result to obtain a representation of the dynamics of systems with continuous spectrum based on the lifting of the coordinates to the space of observables. The numerical application of these methods is demonstrated using well-known dynamical systems and examples from computational fluid dynamics.},
+	language = {en},
+	number = {4},
+	urldate = {2019-03-20},
+	journal = {SIAM Journal on Applied Dynamical Systems},
+	author = {Arbabi, Hassan and Mezi{\'c}, Igor},
+	month = jan,
+	year = {2017},
+	pages = {2096--2126},
+}
+
 @phdthesis{lafon_diffusion_2004,
 	title = {Diffusion {Maps} and {Geometric} {Harmonics}},
 	language = {en},
@@ -361,7 +378,7 @@
 	pages = {5591--5596},
 }
 
-@incollection{rand_detecting_1981,
+@incollection{takens_detecting_1981,
 	address = {Berlin, Heidelberg},
 	title = {Detecting strange attractors in turbulence},
 	volume = {898},
@@ -372,7 +389,6 @@
 	booktitle = {Dynamical {Systems} and {Turbulence}, {Warwick} 1980},
 	publisher = {Springer Berlin Heidelberg},
 	author = {Takens, Floris},
-	editor = {Rand, David and Young, Lai-Sang},
 	year = {1981},
 	doi = {10.1007/BFb0091924},
 	note = {Series Title: Lecture Notes in Mathematics},
@@ -488,4 +504,17 @@
 	month = dec,
 	year = {2009},
 	pages = {115--127},
+}
+
+@article{manojlovic_applications_2020,
+	title = {Applications of {Koopman} {Mode} {Analysis} to {Neural} {Networks}},
+	url = {http://arxiv.org/abs/2006.11765},
+	abstract = {We consider the training process of a neural network as a dynamical system acting on the high-dimensional weight space. Each epoch is an application of the map induced by the optimization algorithm and the loss function. Using this induced map, we can apply observables on the weight space and measure their evolution. The evolution of the observables are given by the Koopman operator associated with the induced dynamical system. We use the spectrum and modes of the Koopman operator to realize the above objectives. Our methods can help to, a priori, determine the network depth; determine if we have a bad initialization of the network weights, allowing a restart before training too long; speeding up the training time. Additionally, our methods help enable noise rejection and improve robustness. We show how the Koopman spectrum can be used to determine the number of layers required for the architecture. Additionally, we show how we can elucidate the convergence versus non-convergence of the training process by monitoring the spectrum, in particular, how the existence of eigenvalues clustering around 1 determines when to terminate the learning process. We also show how using Koopman modes we can selectively prune the network to speed up the training procedure. Finally, we show that incorporating loss functions based on negative Sobolev norms can allow for the reconstruction of a multi-scale signal polluted by very large amounts of noise.},
+	language = {en},
+	urldate = {2021-02-24},
+	journal = {arXiv:2006.11765 [cs, math, stat]},
+	author = {Manojlovi{\'c}, Iva and Fonoberova, Maria and Mohr, Ryan and Andrej{\v c}uk, Aleksandr and Drma{\v c}, Zlatko and Kevrekidis, Yannis and Mezi{\'c}, Igor},
+	month = jun,
+	year = {2020},
+	note = {arXiv: 2006.11765},
 }

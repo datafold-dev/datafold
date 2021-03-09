@@ -35,7 +35,7 @@ class TSCAccessor(object):
         # DataFrame. This is because the accessor has to know when updating this object.
         if not isinstance(tsc_df, TSCDataFrame):
             raise TypeError(
-                "Can use 'tsc' extension only for type TSCDataFrame (convert before)"
+                "The 'tsc' extension only works for type TSCDataFrame (convert before)."
             )
 
         self._tsc_df = tsc_df
