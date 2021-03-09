@@ -674,12 +674,18 @@ class TSCDataFrame(pd.DataFrame):
     def unique_delta_times(
         delta_times: Union[np.ndarray, pd.Series], rtol=1e-11, atol=1e-15
     ) -> np.ndarray:
-        """Returns unique delta times of an array within tolerances for floating time
-        values.
+        """Returns unique (within tolerances) delta time values.
 
-        The default tolerance values are adjusted in test_linspace so that a wide range of
-        time_values generated with ``np.linspace`` are considered as equally spaced (
-        despite numerical noise that breaks the equality).
+        The tolerances are required for floating point time values. For example,
+
+        .. code::
+            np.unique(np.diff(np.linspace(0,2, 4)))
+
+        prints :code:`array([0.6666666666666666, 0.6666666666666667])`.
+
+        The default tolerance values are adjusted in test_linspace_unique_delta_times so
+        that a wide range of time_values generated with ``np.linspace`` are considered
+        equally spaced (despite the numerical noise that breaks the equality).
 
         Parameters
         ----------

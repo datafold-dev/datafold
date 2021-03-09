@@ -6,6 +6,8 @@ import pandas as pd
 import pandas.testing as pdtest
 
 from datafold.pcfold import TSCDataFrame
+from datafold.pcfold.timeseries.accessor import TSCAccessor
+from datafold.pcfold.timeseries.collection import TSCException
 
 
 class TestTscAccessor(unittest.TestCase):
@@ -311,6 +313,26 @@ class TestTscAccessor(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             tsc_df.copy().tsc.assign_ids_const_delta(drop_samples=False)
+
+    def test_check_equal_delta_time(self):
+        tsc = TSCDataFrame(self.simple_df)
+        dt1, dt2 = TSCAccessor.check_equal_delta_time(tsc, tsc, require_const=True)
+
+        self.assertEqual(dt1, dt2)
+
+        # insert new time series that now has a different time sampling
+        tsc = tsc.insert_ts(
+            pd.DataFrame(1, index=np.linspace(0, 1, 5), columns=tsc.columns)
+        )
+
+        with self.assertRaises(TSCException):
+            TSCAccessor.check_equal_delta_time(tsc, tsc, require_const=True)
+
+        dt1, dt2 = TSCAccessor.check_equal_delta_time(tsc, tsc, require_const=False)
+        self.assertIsInstance(dt1, pd.Series)
+        self.assertIsInstance(dt2, pd.Series)
+        self.assertTrue(0.25 in dt1.to_numpy() and 0.25 in dt2.to_numpy())
+        pdtest.assert_series_equal(dt1, dt2)
 
     def test_shift_matrices(self):
         # TODO: potentially do more tests (esp. with uneven number of time series,

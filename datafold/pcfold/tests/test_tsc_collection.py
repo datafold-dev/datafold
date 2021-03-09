@@ -1192,7 +1192,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         pdtest.assert_series_equal(actual, expected)
 
-    def test_linspace(self):
+    def test_linspace_unique_delta_times(self):
 
         # The problem is that np.linspace(...) is often not equally spaced numerically
         # this function tests the tolerances set in the delta_time attribute.

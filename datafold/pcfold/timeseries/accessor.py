@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
+import pandas.testing as pdtest
 from scipy.stats import multivariate_normal
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
@@ -275,7 +276,7 @@ class TSCAccessor(object):
     def check_equal_delta_time(
         cls, X: TSCDataFrame, Y: TSCDataFrame, atol=1e-15, require_const=False
     ) -> Tuple[Union[float, pd.Series], Union[float, pd.Series]]:
-        """Check if two time series collections share the same delta times.
+        """Check if two time series collections have the same delta times.
 
         Parameters
         ----------
@@ -305,12 +306,11 @@ class TSCAccessor(object):
         if isinstance(X_dt, pd.Series) and not require_const:
             if not isinstance(Y_dt, pd.Series):
                 equal = False
-            import pandas.testing as pdtest
-
-            try:
-                pdtest.assert_series_equal(X_dt, Y_dt, atol=atol)
-            except AssertionError:
-                equal = False
+            else:
+                try:
+                    pdtest.assert_series_equal(X_dt, Y_dt, atol=atol)
+                except AssertionError:
+                    equal = False
 
         elif (
             isinstance(X_dt, pd.Series) or isinstance(Y_dt, pd.Series)
