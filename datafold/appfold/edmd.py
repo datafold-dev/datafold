@@ -1489,24 +1489,34 @@ class EDMDCV(GridSearchCV):
         return self
 
 
-class EDMDWindowPrediction(object):  # pragma: no cover
-    """
+class EDMDWindowPrediction(object):
+    """Adapt EDMD model to perform reconstruct and score time series of same length.
+
+    The adaptation of the EDMD model is useful if a fixed prediction horizon is
+    tested. Instead of the default behaviour of EDMD to reconstruct the full time series
+    found in a :py:class`.TSCDataFrame`, time series of equal length are extracted from
+    the data and then reconstructed.
 
     Parameters
     ----------
 
-    time_horizon
-        # TODO: * includes initial condition! must be greater than 1!!
-        #       * is steps, not in actual time!
+    window_size
+        An integer value indicating the time steps to inlcude in a window. The value
+        must be greater than the the attribute ``edmd.n_samples_ic_``, because the
+        windows also contains the samples required for initial condition.
+
+    offset
+        An integer value to indicate the offset between two windows. When setting
+        `offset=window_size-edmd.n_samples_ic_`, then test samples do not overlap
+        between windows and samples are not dropped.
 
     """
 
-    def __init__(self, window_size=10, offset=10):
+    def __init__(self, window_size: int = 10, offset: int = 10):
         self.window_size = window_size
         self.offset = offset
 
     def _validate(self):
-        # TODO: call function
 
         if self.window_size is not None and self.offset is not None:
             check_scalar(
@@ -1523,7 +1533,17 @@ class EDMDWindowPrediction(object):  # pragma: no cover
             raise ValueError("'time_horizon' and 'offset' must be provided together")
 
     def _window_reconstruct(self, X, edmd, offset, qois=None, return_X_windows=False):
-        """# TODO to have docu for new reconstruct method!
+        """Reconstruct existing time series of equal length.
+
+        From the existing time series
+
+        This method is used to overwrite the default score method of an EDMD
+        model, which in contrast to this model scores on the time series found in `X`.
+
+        In this method, the time series are subdivided into smaller time series of
+        equal length (windows). Each window contains the initial condition and the
+        samples to score the model against. This therefore corresponds to a more
+        systematic approach.
 
         Parameters
         ----------
@@ -1539,7 +1559,7 @@ class EDMDWindowPrediction(object):  # pragma: no cover
         if not hasattr(edmd, "window_size"):
             raise AttributeError(
                 "The EDMD object requires the attribute 'window_size' "
-                "to perform reconstruction on windows in data."
+                "to perform windowed reconstruction in data."
             )
         elif not isinstance(edmd.window_size, int):
             raise TypeError("")  # TODO
@@ -1600,23 +1620,39 @@ class EDMDWindowPrediction(object):  # pragma: no cover
             return X_reconstruct
 
     def _window_score(self, X, y=None, sample_weight=None, qois=None, edmd=None):
-        """# TODO
+        """Score of windowed time series and its model reconstruction.
+
+        This method is used to overwrite the default score method of an EDMD
+        model, which in contrast to this model scores on the time series found in `X`.
+
+        In this method, the time series are subdivided into smaller time series of
+        equal length (windows). Each window contains the initial condition and the
+        samples to score the model against. This therefore corresponds to a more
+        systematic approach.
 
         Parameters
         ----------
         X
+            Time series to reconstruct in windowed fashion.
         y
+            ignored
+
         sample_weight
+            If not None, this argument is passed as ``sample_weight`` keyword
+            argument to the internal ``score`` method.
+
         edmd
+            The EDMD model to apply the score function to.
 
         Returns
         -------
+        float
+            score
 
         """
-        assert y is None
 
         # does all the checks:
-        X_reconstruct, X = edmd.reconstruct(X, qois=qois, return_X_windows=True)
+        X_reconstruct, X = edmd.reconstruct(X, y, qois=qois, return_X_windows=True)
 
         if qois is None:
             X_reconstruct = X_reconstruct.loc[:, X.columns]
@@ -1637,7 +1673,6 @@ class EDMDWindowPrediction(object):  # pragma: no cover
         -------
 
         """
-        # TODO: it is not optimal that the model is required to be fit here...
         estimator.window_size = self.window_size
 
         # overwrite the two methods with new "windowed" methods
@@ -1649,11 +1684,16 @@ class EDMDWindowPrediction(object):  # pragma: no cover
         return estimator
 
 
-# TODO: Alternative? EDMDCVErrorObservable?
-# TODO: Testing & Docu
-# TODO: compute mean of error time series if offset < blocksize?
+from datafold._decorators import warn_experimental_class
+
+
+@warn_experimental_class
 class EDMDPostObservable(object):  # pragma: no cover
     """# TODO
+
+    # TODO: Alternative? EDMDCVErrorObservable?
+    # TODO: Testing & Docu
+    # TODO: compute mean of error time series if offset < blocksize?
 
     Parameters
     ----------
