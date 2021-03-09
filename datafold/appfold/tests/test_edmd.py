@@ -295,6 +295,33 @@ class EDMDTest(unittest.TestCase):
         self.assertIsInstance(actual_eigvals, pd.Series)
         self.assertIsInstance(actual_eigfunc, TSCDataFrame)
 
+    def test_sort_koopman_triplets(self):
+        _edmd_wo_sort = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=6)),
+            ],
+            dmd_model=DMDFull(is_diagonalize=True),
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        _edmd_w_sort = EDMD(
+            dict_steps=[
+                ("scale", TSCFeaturePreprocess.from_name(name="min-max")),
+                ("delays", TSCTakensEmbedding(delays=10)),
+                ("pca", TSCPrincipalComponent(n_components=6)),
+            ],
+            dmd_model=DMDFull(is_diagonalize=True),
+            sort_koopman_triplets=True,
+            include_id_state=True,
+        ).fit(X=self.multi_waves)
+
+        expected = _edmd_wo_sort.reconstruct(self.multi_waves)
+        actual = _edmd_w_sort.reconstruct(self.multi_waves)
+
+        pdtest.assert_frame_equal(expected, actual)
+
     def test_koopman_eigenfunction_eval(self):
         _edmd = EDMD(
             dict_steps=[
