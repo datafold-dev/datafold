@@ -1532,7 +1532,9 @@ class EDMDWindowPrediction(object):
         elif self.window_size is not None or self.offset is not None:
             raise ValueError("'time_horizon' and 'offset' must be provided together")
 
-    def _window_reconstruct(self, X, edmd, offset, qois=None, return_X_windows=False):
+    def _window_reconstruct(
+        self, X, edmd, offset, y=None, qois=None, return_X_windows=False
+    ):
         """Reconstruct existing time series of equal length.
 
         From the existing time series
@@ -1561,13 +1563,16 @@ class EDMDWindowPrediction(object):
                 "The EDMD object requires the attribute 'window_size' "
                 "to perform windowed reconstruction in data."
             )
-        elif not isinstance(edmd.window_size, int):
-            raise TypeError("")  # TODO
 
-        assert edmd.window_size > edmd.n_samples_ic_, (  # TODO: make proper error!
-            f"edmd.window_size={edmd.window_size}, "
-            f"edmd.n_samples_ic_={edmd.n_samples_ic_}"
-        )
+        if not isinstance(edmd.window_size, int):
+            raise TypeError("'window_size' must be of type int")
+
+        if edmd.window_size <= edmd.n_samples_ic_:
+            raise ValueError(
+                f"edmd.window_size={edmd.window_size} must be larger than the number of "
+                "samples required to make an initial condition ("
+                f"edmd.n_samples_ic_={edmd.n_samples_ic_})"
+            )
 
         X = edmd._validate_datafold_data(
             X,
@@ -1652,7 +1657,7 @@ class EDMDWindowPrediction(object):
         """
 
         # does all the checks:
-        X_reconstruct, X = edmd.reconstruct(X, y, qois=qois, return_X_windows=True)
+        X_reconstruct, X = edmd.reconstruct(X=X, y=y, qois=qois, return_X_windows=True)
 
         if qois is None:
             X_reconstruct = X_reconstruct.loc[:, X.columns]

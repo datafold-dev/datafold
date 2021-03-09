@@ -8,36 +8,37 @@ learning and identification of dynamical systems. The source code is distributed
 *datafold* includes:
 
 * An efficient implementation of the ``DiffusionMaps`` model to infer geometric
-  structures from point cloud data. The framework computes mathematically meaningful
-  objects, such as the eigenfunctions of the Laplace-Beltrami operator. As a
-  distinguishing factor to other implementations, can handle sparse distance matrix to and
-  setting an arbitrary kernel, for example, a standard Gaussian kernel,
+  meaningful structures from point cloud data, such as the eigenfunctions of the
+  Laplace-Beltrami operator. As a distinguishing factor to other implementations, the
+  model can handle a sparse kernel matrix and allows setting an arbitrary kernel,
+  including a standard Gaussian kernel,
   `continuous k-nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
   `dynamics-adapted cone kernel <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
 * Out-of-sample extensions for the Diffusion Maps model, such as the (auto-tuned)
   Laplacian Pyramids or Geometric Harmonics to interpolate general function values on a
   point cloud manifold.
 * The (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull`` or ``EDMD``) as
-  a data-driven dynamical model to identify dynamical systems from time series data.
-  The EDMD is a flexible scikit-learn
+  a data-driven model to identify dynamical systems from time series data.
+  The EDMD model subclasses from flexible scikit-learn
   `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html>`__,
-  which allows transforming the time series data in a more suitable feature state. This is
-  in accordance to the Koopman operator theory. Two interesting transformations are a
-  geometrically informed function basis (from ``DiffusionMaps`` and time-delay time series
-  for phase space reconstruction
+  which allows setting up and transforming time series collection data to a more suitable
+  feature state (see Koopman operator theory). Two interesting transformations are the
+  Diffusion Maps and time-delay embedding series for phase space reconstruction
   (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
 * ``EDMDCV`` allows model parameters (including the
   transformation model parameters) to be optimized with cross-validation that
   accounts for time series splittings.
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
-  model input/outputs (if applicable).
+  model input/outputs. In contrast to solutions found in other projects, such as lists of
+  Numpy arrays, this makes it much easier to describe collected time data and associate
+  time information.
 
-See also `this introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
+See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
 For a mathematical thorough introduction, we refer to the `scientific literature
 <https://datafold-dev.gitlab.io/datafold/references.html>`__.
 
-Any contribution (code/tutorials/documentation improvements) and feedback is
+Any contribution (code/tutorials/documentation improvements), questions or feedback is
 very welcome. Either use the
 `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
 `service desk email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
@@ -234,11 +235,12 @@ How does it compare to other software?
    limitation of ``PyDMD`` is that it only processes single coherent time series, see
    `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`__. The DMD models that
    are directly included in *datafold* utilize the functionality of the data
-   structure ``TSCDataFrame`` and can therefore process multiple time
-   series - in an extreme case only snapshot pairs.
+   structure ``TSCDataFrame`` and can therefore process time
+   series collections - in an extreme case only containing snapshot pairs.
 
-* `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__ specializes on a *sparse*
-   identification of dynamical systems to infer governing equations.
+* `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__
+   specializes on a *sparse* system identification of nonlinear dynamical systems to
+   infer governing equations.
 
 
 Contributing
@@ -312,7 +314,7 @@ Please read and follow the steps of gitlab's
 .. note::
     We have set up a "Continuous Integration" (CI) pipeline. However, the worker (a
     `gitlab-runner`) of the parent repository is not available for forked projects (for
-    reasons see
+    background see
     `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
 
 After you have created a fork you can clone the repository with
