@@ -49,7 +49,7 @@ class TSCMetric(object):
     """
 
     _cls_valid_modes = ["timeseries", "timestep", "feature"]
-    _cls_valid_metrics = ["rmse", "rrmse", "mse", "mae", "max", "l2"]
+    _cls_valid_metrics = ["rmse", "rrmse", "mse", "mae", "medae", "max", "l2"]
     _cls_valid_scaling = ["id", "min-max", "standard", "l2_normalize"]
 
     def __init__(self, metric: str, mode: str, scaling: str = "id"):
@@ -68,7 +68,7 @@ class TSCMetric(object):
             self.mode = mode
         else:
             raise ValueError(
-                f"Invalid mode={mode}. Choose from {self._cls_valid_modes}"
+                f"Invalid mode='{mode}'. Choose from {self._cls_valid_modes}"
             )
 
         self.scaling = self._select_scaling(name=scaling)
@@ -119,16 +119,48 @@ class TSCMetric(object):
 
         return l2_norm
 
-    def _rmse_metric(
+    def _medae_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-        # TODO: [minor] when upgrading to scikit-learn 0.22 mean_squared error has a
-        #  keyword "squared", if set to False, this computes the RMSE directly
+        """Median absolute error."""
 
-        mse_error = metrics.mean_squared_error(
-            y_true, y_pred, sample_weight=sample_weight, multioutput=multioutput
+        if sample_weight is not None:
+            raise ValueError("Median absolute error does not support sample_weight.")
+
+        return metrics.median_absolute_error(
+            y_true=y_true, y_pred=y_pred, multioutput=multioutput
         )
-        return np.sqrt(mse_error)
+
+    # def _mer_metric(
+    #     self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
+    # ):
+    #     r"""Mean error relative to mean observation
+    #     Each time series must have the same length (corresponding to a prediction
+    #     horizon).
+    #
+    #     The error is taken from https://www.ijcai.org/Proceedings/2017/0277.pdf
+    #
+    #     The MER is computed with
+    #     .. math::
+    #         \text{MER} = 100 \cdot \frac{1}{N} \sum_{i=1}^N
+    #         \frac{\vert y - \hat{y} \vert}{\bar{y}}
+    #     """
+    #     # TODO: this metric shows a problem in the current setting
+    #     #  -- it does not fir in the metric_per_[timeseries|feature|timestep]
+    #
+    #     if self.mode == "timestep":
+    #         raise ValueError("Metric 'mean error relative to mean observation' does not "
+    #                          "support mode 'timestep'.")
+    #
+    #     if sample_weight is not None:
+    #         raise NotImplementedError("Sample weight is not implemented ")
+    #
+    #     N = y_true.shape[0]
+    #     error = (100 * 1 / N * ((y_true - y_pred).abs() / y_true.mean()).sum())
+    #
+    #     if multioutput == "uniform_average":
+    #         error = np.mean(error)
+    #     return error
 
     def _rrmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
@@ -165,15 +197,19 @@ class TSCMetric(object):
     def _metric_from_str_input(self, error_metric: str):
 
         error_metric = error_metric.lower()
+        from typing import Callable
 
+        error_metric_handle: Callable
         if error_metric == "rmse":  # root mean squared error
-            error_metric_handle = self._rmse_metric
-        elif error_metric == "rrmse":
-            error_metric_handle = self._rrmse_metric
+            error_metric_handle = partial(metrics.mean_squared_error, squared=False)
+        elif error_metric == "rrmse":  # relative root mean squared error
+            error_metric_handle = self._rrmse_metric  # type: ignore
         elif error_metric == "mse":
             error_metric_handle = metrics.mean_squared_error
         elif error_metric == "mae":
             error_metric_handle = metrics.mean_absolute_error
+        elif error_metric == "medae":  # median absolute error
+            error_metric_handle = self._medae_metric
         elif error_metric == "max":
             error_metric_handle = self._max_error
         elif error_metric == "l2":
@@ -231,7 +267,6 @@ class TSCMetric(object):
                 )
 
         if self._is_scalar_multioutput(multioutput=multioutput):
-
             column = self._single_column_name(multioutput=multioutput)
 
             # Make in both cases a DataFrame and later convert to Series in the scalar
