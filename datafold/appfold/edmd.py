@@ -1668,14 +1668,20 @@ class EDMDWindowPrediction(object):
         return edmd._score_eval(X, X_reconstruct, sample_weight)
 
     def adapt_model(self, estimator: EDMD):
-        """TODO
+        """Adapts the EDMD model.
+
+        Attaches the attribute `window_size` to the EDMD model and overwrites the
+        `score` and `reconstruct` methods.
 
         Parameters
         ----------
         estimator
+            The model to adapt. The model must be already fit.
 
         Returns
         -------
+        EDMD
+            The adapted model.
 
         """
         estimator.window_size = self.window_size
