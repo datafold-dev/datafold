@@ -58,19 +58,19 @@ import warnings
 from copy import deepcopy
 from functools import partial
 from itertools import product
-from traceback import format_exception_only
+from traceback import format_exc, format_exception_only
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import scipy.linalg
 import scipy.sparse
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, logger
 from sklearn.base import clone
 from sklearn.exceptions import FitFailedWarning, NotFittedError
 from sklearn.metrics._scorer import _check_multimetric_scoring
 from sklearn.model_selection import GridSearchCV, check_cv
-from sklearn.model_selection._validation import is_classifier
+from sklearn.model_selection._validation import _num_samples, _score, is_classifier
 from sklearn.pipeline import Pipeline
 from sklearn.utils import _message_with_time, _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
@@ -1059,21 +1059,35 @@ def _fit_and_score_edmd(
     return_n_test_samples=False,
     return_times=False,
     return_estimator=False,
+    split_progress=None,
+    candidate_progress=None,
     error_score=np.nan,
 ):
+    if not isinstance(error_score, numbers.Number) and error_score != "raise":
+        raise ValueError(
+            "error_score must be the string 'raise' or a numeric value. "
+            "(Hint: if using 'raise', please make sure that it has been "
+            "spelled correctly.)"
+        )
+
+    progress_msg = ""
+    if verbose > 2:
+        if split_progress is not None:
+            progress_msg = f" {split_progress[0] + 1}/{split_progress[1]}"
+        if candidate_progress and verbose > 9:
+            progress_msg += f"; {candidate_progress[0] + 1}/" f"{candidate_progress[1]}"
+
     if verbose > 1:
         if parameters is None:
-            msg = ""
+            params_msg = ""
         else:
-            msg = "%s" % (", ".join("%s=%s" % (k, v) for k, v in parameters.items()))
-        print("[CV] %s %s" % (msg, (64 - len(msg)) * "."))
-    else:
-        msg = ""
+            sorted_keys = sorted(parameters)  # Ensure deterministic o/p
+            params_msg = ", ".join(f"{k}={parameters[k]}" for k in sorted_keys)
 
+    # Adjust length of sample weights
     fit_params = fit_params if fit_params is not None else {}
     fit_params = _check_fit_params(X, fit_params, train)
 
-    train_scores: Dict[str, numbers.Number] = {}
     if parameters is not None:
         # clone after setting parameters in case any parameters
         # are estimators (like pipeline steps)
@@ -1086,10 +1100,13 @@ def _fit_and_score_edmd(
 
     start_time = time.time()
 
+    # NOTE: this deviates from the _fit_and_score in sklearn, which uses a
+    #  _safe_split function (defined in metaestimators.py)
     X_train, X_test = _split_X_edmd(X, y, train_indices=train, test_indices=test)
 
+    result = {}
     try:
-        edmd = edmd.fit(X=X_train, y=y, **fit_params)
+        edmd.fit(X_train, y=None, **fit_params)
     except Exception as e:
         # Handle all exception, to not waste other working or complete results
         fit_time = time.time() - start_time  # Note fit time as time until error
@@ -1097,85 +1114,83 @@ def _fit_and_score_edmd(
         if error_score == "raise":
             raise
         elif isinstance(error_score, numbers.Number):
-            if isinstance(scorer, dict):
-                test_scores = {name: error_score for name in scorer}
+            # Note fit time as time until error
+            fit_time = time.time() - start_time
+            score_time = 0.0
+            if error_score == "raise":
+                raise
+            elif isinstance(error_score, numbers.Number):
+                test_scores = error_score
                 if return_train_score:
-                    train_scores = test_scores.copy()
-            else:
-                test_scores = {"score": error_score}
-                if return_train_score:
-                    train_scores = {"score": error_score}
-            warnings.warn(
-                "Estimator fit failed. The score on this train-test"
-                f" partition for these parameters will be set to {error_score}. "
-                f"Details: \n{format_exception_only(type(e), e)[0]}",
-                FitFailedWarning,
-            )
-        else:
-            raise ValueError(
-                "error_score must be the string 'raise' or a"
-                " numeric value. (Hint: if using 'raise', please"
-                " make sure that it has been spelled correctly.)"
-            )
+                    train_scores = error_score
 
+                warnings.warn(
+                    "Estimator fit failed. The score on this train-test"
+                    f" partition for these parameters will be set to {error_score}. "
+                    "Details: \n%s" % (format_exc()),
+                    FitFailedWarning,
+                )
+            result["fit_failed"] = True
     else:
-        fit_time = time.time() - start_time
-        test_scores = {"score": edmd.score(X_test, y=None)}
+        result["fit_failed"] = False
 
+        fit_time = time.time() - start_time
+        test_scores = _score(edmd, X_test, None, scorer, error_score)
         score_time = time.time() - start_time - fit_time
 
         if return_train_score:
-            train_scores = {"score": edmd.score(X_train, y=None)}
-
-    if verbose > 2:
-        if isinstance(test_scores, dict):
-            for scorer_name in sorted(test_scores):
-                msg += f", {scorer_name}="
-                if return_train_score:
-                    msg += f"(train={train_scores[scorer_name]:.3f},"
-                    msg += f" test={test_scores[scorer_name]:.3f})"
-                else:
-                    msg += f"{test_scores[scorer_name]:.3f}"
-        else:
-            msg += ", score="
-            msg += (
-                f"{test_scores:.3f}"
-                if not return_train_score
-                else f"(train={train_scores:.3f}, test={test_scores:.3f})"
-            )
+            train_scores = _score(edmd, X_train, None, scorer, error_score)
 
     if verbose > 1:
+
+        sorted_keys = sorted(parameters)  # Ensure deterministic o/p
+        params_msg = ", ".join(f"{k}={parameters[k]}" for k in sorted_keys)
+
         total_time = score_time + fit_time
-        print(_message_with_time("CV", msg, int(total_time)))
+        end_msg = f"[CV] END "
+        result_msg = params_msg + (";" if params_msg else "")
+        result_msg += f" total time={logger.short_format_time(total_time)}"
 
-    ret = [train_scores, test_scores] if return_train_score else [test_scores]
+        # Right align the result_msg
+        end_msg += "." * (80 - len(end_msg) - len(result_msg))
+        end_msg += result_msg
+        print(end_msg)
 
-    # TODO: improve the return format:
-    #  make it a dictionary instead of list such as in:
-    #  https://github.com/scikit-learn/scikit-learn/blob/1e386a49fcaefcc9860266b5957582bc85aa56ab/sklearn/model_selection/_validation.py#L650
+    # mypy says: # FIXME
+    #   error: Incompatible types in assignment (expression has type "Number",
+    #   target has type "bool")
+    # I am not sure why target (the assignment to key in dict) has type bool -
+    # to avoid the error I ignored the type
+    result["test_scores"] = test_scores  # type: ignore
+    if return_train_score:
+        result["train_scores"] = train_scores  # type: ignore
     if return_n_test_samples:
-        ret.append(X_test.shape[0])
+        result["n_test_samples"] = _num_samples(X_test)  # type: ignore
     if return_times:
-        ret.extend([fit_time, score_time])  # type: ignore  # TODO
+        result["fit_time"] = fit_time  # type: ignore
+        result["score_time"] = score_time  # type: ignore
     if return_parameters:
-        ret.append(parameters)
+        result["parameters"] = parameters
     if return_estimator:
-        ret.append(edmd)
+        result["estimator"] = edmd
+    return result
 
-    return ret
 
-
-class EDMDCV(GridSearchCV, TSCPredictMixin):
+class EDMDCV(GridSearchCV):
     """Exhaustive parameter search over specified grid for a :class:`EDMD` model with
     cross-validation.
+
+    .. note::
+        EDMDCV sublasses from :py:class:`sklearn.GridSearchCV`. However, it does not
+        support the parameter ``scoring`` which enables multi metric evaluations.
+        Furthermore, ``refit`` is restricted to a bool.
 
     ...
 
     Parameters
     ----------
     estimator
-        Model to be optimized. Either use the default ``score``
-        function, or ``scoring`` must be passed.
+        Model to be optimized. Uses the ``score`` function set in the model.
 
     param_grid
         Dictionary with parameters names (string) as keys and lists of
@@ -1184,37 +1199,19 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         in the list are explored. This enables searching over any sequence
         of parameter settings.
 
-    scoring : string, callable, list/tuple, dict or None
-        A single string (see :ref:`scoring_parameter`) or a callable
-        (see :ref:`scoring`) to evaluate the predictions on the test set.
-
-        For evaluating multiple metrics, either give a list of (unique) strings
-        or a dict with names as keys and callables as values.
-
-        Note: that when using custom scorers, each scorer should return a single
-        value. Metric functions returning a list/array of values can be wrapped
-        into multiple scorers that return one value each.
-
-        See :ref:`multimetric_grid_search` for an example.
-
-        If None, the estimator's score method is used.
-
-        .. warning::
-            The multi-metric optimization is experimental. Please use with care.
-
-    n_jobs : int or None, optional (default=None)
+    n_jobs
         Number of jobs to run in parallel.
         ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
         ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
         for more details.
 
-    pre_dispatch : int, or string, optional
+    pre_dispatch
         Controls the number of jobs that get dispatched during parallel
         execution. Reducing this number can be useful to avoid an
         explosion of memory consumption when more jobs get dispatched
         than CPUs can process. This parameter can be:
 
-            - None, in which case all the jobs are immediately
+            - A string 'all', in which case all the jobs are immediately
               created and spawned. Use this for lightweight and
               fast-running jobs, to avoid delays due to on-demand
               spawning of the jobs
@@ -1225,39 +1222,16 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
             - A string, giving an expression as a function of n_jobs,
               as in '2*n_jobs'
 
-    cv : cross-validation generator
-        Determines the cross-validation splitting strategy. Possible inputs for cv are:
+    cv
+        Determines the cross-validation splitting strategy. Possible inputs are:
 
         - :class:`.TSCKfoldSeries` splits `k` folds across time series (useful when
             many time series are in a collection)
         - :class:`.TSCKFoldTime` splits `k` folds across time
 
-    refit : bool, string, or callable, default=True
+    refit
         Refit an estimator using the best found parameters on the whole
         dataset.
-
-        For multiple metric evaluation, this needs to be a string denoting the
-        scorer that would be used to find the best parameters for refitting
-        the estimator at the end.
-
-        Where there are considerations other than maximum score in
-        choosing a best estimator, ``refit`` can be set to a function which
-        returns the selected ``best_index_`` given ``cv_results_``. In that
-        case, the ``best_estimator_`` and ``best_parameters_`` will be set
-        according to the returned ``best_index_`` while the ``best_score_``
-        attribute will not be available.
-
-        The refitted estimator is made available at the ``best_estimator_``
-        attribute and permits using ``predict`` directly on this
-        ``GridSearchCV`` instance.
-
-        Also for multiple metric evaluation, the attributes ``best_index_``,
-        ``best_score_`` and ``best_params_`` will only be available if
-        ``refit`` is set and all of them will be determined w.r.t this specific
-        scorer.
-
-        See ``scoring`` parameter to know more about multiple metric
-        evaluation.
 
     verbose : :class:`int`
         Controls the verbosity: the higher, the more messages.
@@ -1268,7 +1242,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         `FitFailedWarning` is raised. This parameter does not affect the refit
         step, which will always raise the error. Default is ``np.nan``.
 
-    return_train_score : :class:`bool`
+    return_train_score
         If ``False``, the ``cv_results_`` attribute will not include training
         scores. Computing training scores is used to get insights on how different
         parameter settings impact the overfitting/underfitting trade-off.
@@ -1281,56 +1255,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
     cv_results_ : dict of numpy (masked) ndarrays
         A dict with keys as column headers and values as columns, that can be
-        imported into a ``pandas.DataFrame``.
-        For instance the below given table
-
-        +------------+-----------+------------+-----------------+---+---------+
-        |param_kernel|param_gamma|param_degree|split0_test_score|...|rank_t...|
-        +============+===========+============+=================+===+=========+
-        |  'poly'    |     --    |      2     |       0.80      |...|    2    |
-        +------------+-----------+------------+-----------------+---+---------+
-        |  'poly'    |     --    |      3     |       0.70      |...|    4    |
-        +------------+-----------+------------+-----------------+---+---------+
-        |  'rbf'     |     0.1   |     --     |       0.80      |...|    3    |
-        +------------+-----------+------------+-----------------+---+---------+
-        |  'rbf'     |     0.2   |     --     |       0.93      |...|    1    |
-        +------------+-----------+------------+-----------------+---+---------+
-
-        will be represented by a ``cv_results_`` dict of::
-
-            {
-            'param_kernel': masked_array(data = ['poly', 'poly', 'rbf', 'rbf'],
-                                         mask = [False False False False]...)
-            'param_gamma': masked_array(data = [-- -- 0.1 0.2],
-                                        mask = [ True  True False False]...),
-            'param_degree': masked_array(data = [2.0 3.0 -- --],
-                                         mask = [False False  True  True]...),
-            'split0_test_score'  : [0.80, 0.70, 0.80, 0.93],
-            'split1_test_score'  : [0.82, 0.50, 0.70, 0.78],
-            'mean_test_score'    : [0.81, 0.60, 0.75, 0.85],
-            'std_test_score'     : [0.01, 0.10, 0.05, 0.08],
-            'rank_test_score'    : [2, 4, 3, 1],
-            'split0_train_score' : [0.80, 0.92, 0.70, 0.93],
-            'split1_train_score' : [0.82, 0.55, 0.70, 0.87],
-            'mean_train_score'   : [0.81, 0.74, 0.70, 0.90],
-            'std_train_score'    : [0.01, 0.19, 0.00, 0.03],
-            'mean_fit_time'      : [0.73, 0.63, 0.43, 0.49],
-            'std_fit_time'       : [0.01, 0.02, 0.01, 0.01],
-            'mean_score_time'    : [0.01, 0.06, 0.04, 0.04],
-            'std_score_time'     : [0.00, 0.00, 0.00, 0.01],
-            'params'             : [{'kernel': 'poly', 'degree': 2}, ...],
-            }
-
-        .. note::
-
-            The key ``'params'`` is used to store a list of parameter
-            settings dicts for all the parameter candidates.
-            The ``mean_fit_time``, ``std_fit_time``, ``mean_score_time`` and
-            ``std_score_time`` are all in seconds. For multi-metric evaluation,
-            the scores for all the scorers are available in the ``cv_results_``
-            dict at the keys ending with that scorer's name (``'_<scorer_name>'``)
-            instead of ``'_score'`` shown above. ('split0_test_precision',
-            'mean_train_precision' etc.)
+        imported into a ``pandas.DataFrame``. See documentation in super class.
 
     best_estimator_ : estimator
         Estimator that was chosen by the search, i.e. estimator
@@ -1342,7 +1267,6 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         Mean cross-validated score of the best_estimator
         For multi-metric evaluation, this is present only if ``refit`` is
         specified.
-        This attribute is not available if ``refit`` is a function.
 
     best_params_ : dict
         Parameter setting that gave the best results on the hold out data.
@@ -1375,8 +1299,7 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
     -----
 
     The parameters selected are those that maximize the score of the left out
-    data, unless an explicit score is passed in which case it is used instead.
-    If `n_jobs` was set to a value higher than one, the data is copied for each
+    data. If `n_jobs` was set to a value higher than one, the data is copied for each
     point in the grid (and not `n_jobs` times). This is done for efficiency
     reasons if individual jobs take very little time, but may raise errors if
     the dataset is large and not enough memory is available.  A workaround in
@@ -1392,11 +1315,25 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         *,
         param_grid: Union[Dict, List[Dict]],
         cv: TSCCrossValidationSplit,
-        **kwargs,
+        n_jobs: Optional[int] = None,
+        pre_dispatch: Union[int, str] = "2*n_jobs",
+        refit: bool = True,
+        verbose: int = 1,
+        error_score: Union[str, numbers.Number] = "raise",
+        return_train_score: bool = True,
     ):
 
         super(EDMDCV, self).__init__(
-            estimator=estimator, param_grid=param_grid, cv=cv, **kwargs
+            estimator=estimator,
+            param_grid=param_grid,
+            scoring=None,
+            n_jobs=n_jobs,
+            cv=cv,
+            refit=refit,
+            verbose=verbose,
+            pre_dispatch=pre_dispatch,
+            error_score=error_score,
+            return_train_score=return_train_score,
         )
 
     def _validate_settings_edmd(self):
@@ -1406,41 +1343,8 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
         if not isinstance(self.cv, TSCCrossValidationSplit):
             raise TypeError(f"cv must be of type {(TSCKfoldSeries, TSCKFoldTime)}")
 
-    def _check_multiscore(self):
-        scorers, self.multimetric_ = _check_multimetric_scoring(
-            self.estimator, scoring=self.scoring
-        )
-
-        if self.multimetric_:
-            if (
-                self.refit is not False
-                and (
-                    not isinstance(self.refit, str)
-                    or
-                    # This will work for both dict / list (tuple)
-                    self.refit not in scorers
-                )
-                and not callable(self.refit)
-            ):
-                raise ValueError(
-                    "For multi-metric scoring, the parameter "
-                    "refit must be set to a scorer key or a "
-                    "callable to refit an estimator with the "
-                    "best parameter setting on the whole "
-                    "data and make the best_* attributes "
-                    "available for that metric. If this is "
-                    "not needed, refit should be set to "
-                    "False explicitly. %r was passed." % self.refit
-                )
-            else:
-                refit_metric = self.refit
-        else:
-            refit_metric = "score"
-
-        return scorers, refit_metric
-
     def fit(self, X: TSCDataFrame, y=None, **fit_params):
-        """Run fit with all sets of parameter.
+        """Fit and score the model for all parameter candidates.
 
         Parameters
         ----------
@@ -1455,22 +1359,22 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
             Parameters passed to the ``fit`` method of the estimator.
         """
         self._validate_settings_edmd()
-        X = self._validate_datafold_data(X)
 
-        cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
+        refit_metric = "score"
 
-        scorers, refit_metric = self._check_multiscore()
+        def scorers(estimator, X, y=None):
+            return estimator.score(X)
 
         X, y = indexable(X, y)
+
         fit_params = _check_fit_params(X, fit_params)
 
-        n_splits = cv.get_n_splits(X, y, groups=None)
+        cv_orig = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
+        n_splits = cv_orig.get_n_splits(X, y)
 
         base_estimator = deepcopy(self.estimator)
 
-        parallel = Parallel(
-            n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch
-        )
+        parallel = Parallel(n_jobs=self.n_jobs, pre_dispatch=self.pre_dispatch)
 
         fit_and_score_kwargs = dict(
             scorer=scorers,
@@ -1485,31 +1389,41 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
 
         results: Dict[str, Any] = {}
         with parallel:
+
+            from collections import defaultdict
+
             all_candidate_params: List[List[Dict[str, Any]]] = []
             all_out: List[Any] = []
+            all_more_results = defaultdict(list)
 
-            def evaluate_candidates(candidate_params):
+            def evaluate_candidates(candidate_params, cv=None, more_results=None):
+
+                cv = cv or cv_orig
                 candidate_params = list(candidate_params)
                 n_candidates = len(candidate_params)
 
                 if self.verbose > 0:
                     print(
-                        f"Fitting {n_splits} folds for each of {n_candidates} candidates,"
-                        f" totalling {n_candidates * n_splits} fits"
+                        "Fitting {0} folds for each of {1} candidates,"
+                        " totalling {2} fits".format(
+                            n_splits, n_candidates, n_candidates * n_splits
+                        )
                     )
 
                 out = parallel(
                     delayed(_fit_and_score_edmd)(
-                        edmd=clone(base_estimator),
-                        X=X,
-                        y=y,
+                        clone(base_estimator),
+                        X,
+                        y,
                         train=train,
                         test=test,
                         parameters=parameters,
+                        split_progress=(split_idx, n_splits),
+                        candidate_progress=(cand_idx, n_candidates),
                         **fit_and_score_kwargs,
                     )
-                    for parameters, (train, test) in product(
-                        candidate_params, cv.split(X, y, groups=None)
+                    for (cand_idx, parameters), (split_idx, (train, test)) in product(
+                        enumerate(candidate_params), enumerate(cv.split(X, y))
                     )
                 )
 
@@ -1522,57 +1436,52 @@ class EDMDCV(GridSearchCV, TSCPredictMixin):
                 elif len(out) != n_candidates * n_splits:
                     raise ValueError(
                         "cv.split and cv.get_n_splits returned "
-                        f"inconsistent results. Expected {n_splits} "
-                        f"splits, got {len(out) // n_candidates}"
+                        "inconsistent results. Expected {} "
+                        "splits, got {}".format(n_splits, len(out) // n_candidates)
                     )
 
                 all_candidate_params.extend(candidate_params)
                 all_out.extend(out)
+                if more_results is not None:
+                    for key, value in more_results.items():
+                        all_more_results[key].extend(value)
 
                 nonlocal results
                 results = self._format_results(
-                    all_candidate_params, scorers, n_splits, all_out
+                    all_candidate_params, n_splits, all_out, all_more_results
                 )
+
                 return results
 
             self._run_search(evaluate_candidates)
 
+            # multimetric is determined here because in the case of a callable
+            # self.scoring the return type is only known after calling
+            first_test_score = all_out[0]["test_scores"]
+            self.multimetric_ = isinstance(first_test_score, dict)
+
         # For multi-metric evaluation, store the best_index_, best_params_ and
         # best_score_ iff refit is one of the scorer names
         # In single metric evaluation, refit_metric is "score"
-        if self.refit or not self.multimetric_:
-            # If callable, refit is expected to return the index of the best
-            # parameter set.
-            if callable(self.refit):
-                self.best_index_ = self.refit(results)
-
-                if not is_integer(self.best_index_):
-                    raise TypeError("best_index_ returned is not an integer")
-                if self.best_index_ < 0 or self.best_index_ >= len(results["params"]):
-                    raise IndexError("best_index_ index out of range")
-            else:
-                self.best_index_ = results[f"rank_test_{refit_metric}"].argmin()
-                self.best_score_ = results[f"mean_test_{refit_metric}"][
-                    self.best_index_
-                ]
+        if self.refit:
+            self.best_index_ = results["rank_test_%s" % refit_metric].argmin()
+            self.best_score_ = results["mean_test_%s" % refit_metric][self.best_index_]
             self.best_params_ = results["params"][self.best_index_]
 
-        if self.refit:
             # we clone again after setting params in case some
             # of the params are estimators as well.
-            self.best_estimator_ = clone(
-                clone(base_estimator).set_params(**self.best_params_)
+            self.best_estimator_ = deepcopy(
+                deepcopy(base_estimator).set_params(**self.best_params_)
             )
             refit_start_time = time.time()
-            if y is not None:
-                self.best_estimator_.fit(X, y, **fit_params)
-            else:
-                self.best_estimator_.fit(X, **fit_params)
+
+            self.best_estimator_.fit(X, **fit_params)
+
             refit_end_time = time.time()
             self.refit_time_ = refit_end_time - refit_start_time
 
         # Store the only scorer not as a dict for single metric evaluation
-        self.scorer_ = scorers if self.multimetric_ else scorers["score"]
+        self.scorer_ = scorers
 
         self.cv_results_ = results
         self.n_splits_ = n_splits
