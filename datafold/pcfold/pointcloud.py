@@ -121,7 +121,10 @@ class PCManifold(np.ndarray):
     def __repr__(self):
         # att information about PCManifold kernels
         attributes_line = " | ".join(
-            [f"kernel={self.kernel}", f"dist_kwargs={str(self.dist_kwargs)}",]
+            [
+                f"kernel={self.kernel}",
+                f"dist_kwargs={str(self.dist_kwargs)}",
+            ]
         )
 
         repr = "\n".join([attributes_line, super(PCManifold, self).__repr__()])
@@ -137,7 +140,10 @@ class PCManifold(np.ndarray):
         pickled_state = super(PCManifold, self).__reduce__()
 
         # Create own tuple to pass to __setstate__ (see below)
-        new_state = pickled_state[2] + (self.kernel, self.dist_kwargs,)  # -2  # -1
+        new_state = pickled_state[2] + (
+            self.kernel,
+            self.dist_kwargs,
+        )  # -2  # -1
 
         # Return a tuple that replaces the parent's __setstate__ tuple with own
         return (pickled_state[0], pickled_state[1], new_state)
@@ -200,7 +206,12 @@ class PCManifold(np.ndarray):
         Union[np.ndarray, scipy.sparse.csr_matrix]
             distance matrix
         """
-        return compute_distance_matrix(X=self, Y=Y, metric=metric, **self.dist_kwargs,)
+        return compute_distance_matrix(
+            X=self,
+            Y=Y,
+            metric=metric,
+            **self.dist_kwargs,
+        )
 
     def compute_kernel_matrix(self, Y=None, **kernel_kwargs):
         """Compute the kernel matrix on the point cloud.
@@ -214,7 +225,7 @@ class PCManifold(np.ndarray):
 
         **kernel_kwargs
             Keyword arguments passed passed to the kernel.
-            
+
         Returns
         -------
         Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -236,7 +247,7 @@ class PCManifold(np.ndarray):
         inplace: bool = True,
     ) -> Tuple[float, float]:
         """Estimates ``cut_off`` and kernel bandwidth ``epsilon`` for a Gaussian kernel.
-        
+
         Parameters
         ----------
 
@@ -259,7 +270,7 @@ class PCManifold(np.ndarray):
         inplace
             If True, the `cut_off` and `kernel.epsilon` parameters are set for this
             instance.
-            
+
         Returns
         -------
         float

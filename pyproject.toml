@@ -1,4 +1,15 @@
+[tool.isort]
+# https://pycqa.github.io/isort/
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 88
+combine_star = true
+combine_as_imports = true
+
 [tool.black]
+# https://black.readthedocs.io/en/stable/?badge=stable
 exclude = '''
 (
   /(
@@ -13,3 +24,4 @@ exclude = '''
   )/
 )
 '''
+

@@ -3,8 +3,6 @@
 """Helper functions for testing. """
 
 import logging
-import os
-import sys
 from typing import Optional
 
 import diffusion_maps as legacy_dmap
@@ -13,15 +11,14 @@ import numpy.testing as nptest
 from scipy.sparse import csr_matrix
 
 from datafold.dynfold.dmap import DiffusionMaps
+from datafold.pcfold import GaussianKernel
 from datafold.utils.general import assert_equal_eigenvectors
 
 
 def make_strip(
     xmin: float, ymin: float, width: float, height: float, num_samples: int
 ) -> np.ndarray:
-    """Draw samples from a 2D strip with uniform distribution.
-
-    """
+    """Draw samples from a 2D strip with uniform distribution."""
     x = width * np.random.rand(num_samples) - xmin
     y = height * np.random.rand(num_samples) - ymin
 
@@ -38,9 +35,7 @@ def make_points(
 
 
 def swiss_roll(nt: int, ns: int, freq: Optional[float] = 2.0) -> np.ndarray:
-    """Draw samples from the swiss roll manifold.
-
-    """
+    """Draw samples from the swiss roll manifold."""
     tt = np.linspace(0.0, 2.0 * np.pi, nt)
     ss = np.linspace(-0.5, 0.5, ns)
     t, s = np.meshgrid(tt, ss)
@@ -74,7 +69,11 @@ def print_problem(a1, a2, cmp_str=""):
 def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
 
     nptest.assert_allclose(
-        dmap1.eigenvalues_, dmap2.eigenvalues, rtol=1e-10, atol=1e-15, equal_nan=False,
+        dmap1.eigenvalues_,
+        dmap2.eigenvalues,
+        rtol=1e-10,
+        atol=1e-15,
+        equal_nan=False,
     )
 
     try:
@@ -138,6 +137,8 @@ def cmp_dmap_legacy(
 
 
 def cmp_dmap(dmap1: DiffusionMaps, dmap2: DiffusionMaps):
+    assert isinstance(dmap1.kernel, GaussianKernel)
+    assert isinstance(dmap2.kernel, GaussianKernel)
 
     nptest.assert_equal(dmap1.kernel.epsilon, dmap2.kernel.epsilon)
 

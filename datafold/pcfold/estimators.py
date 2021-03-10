@@ -89,10 +89,10 @@ def estimate_cutoff(
         # _kth_nearest_neighbor_dist
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix.T, k)
     else:
+        # distance matrix is assumed to be symmetric here (no transpose required)
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
 
     est_cutoff = np.max(k_smallest_values)
-
     return float(est_cutoff)
 
 
@@ -109,7 +109,7 @@ def estimate_scale(
 
     tol
         Tolerance where the cut_off should be made.
-        
+
     cut_off
         The `tol` parameter is ignored and the cut-off is used directly
 

@@ -241,7 +241,7 @@ class TestDistAlgorithms(unittest.TestCase):
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
 
-            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int):
+            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int_):
 
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros
@@ -263,12 +263,16 @@ class TestDistAlgorithms(unittest.TestCase):
 
                     rows, columns = distance_matrix.nonzero()
                     actual = scipy.sparse.csr_matrix(
-                        (pdist_distance_matrix[rows, columns].A1, (rows, columns),),
+                        (
+                            pdist_distance_matrix[rows, columns].A1,
+                            (rows, columns),
+                        ),
                         shape=distance_matrix.shape,
                     )
                     self.assertTrue(is_symmetric_matrix(actual))
                     nptest.assert_array_equal(
-                        actual.toarray(), distance_matrix.toarray(),
+                        actual.toarray(),
+                        distance_matrix.toarray(),
                     )
                 except AssertionError as e:
                     print(f"Failed for quantile={quantile} and kmin={kmin}")
@@ -281,7 +285,7 @@ class TestDistAlgorithms(unittest.TestCase):
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
 
-            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int):
+            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int_):
 
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros
@@ -302,7 +306,10 @@ class TestDistAlgorithms(unittest.TestCase):
 
                     rows, columns = distance_matrix.nonzero()
                     actual = scipy.sparse.csr_matrix(
-                        (cdist_distance_matrix[rows, columns].A1, (rows, columns),),
+                        (
+                            cdist_distance_matrix[rows, columns].A1,
+                            (rows, columns),
+                        ),
                         shape=distance_matrix.shape,
                     )
                     nptest.assert_array_equal(

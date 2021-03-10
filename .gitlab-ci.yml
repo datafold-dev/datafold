@@ -1,21 +1,36 @@
 stages:
-  - setup_remote
+  - remote_setup
   - test
   - code_analysis
   - deploy
 
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  # https://pre-commit.com/#gitlab-ci-example  (TODO: caching does not work for pre-commit)
+  PRE_COMMIT_HOME: "${CI_PROJECT_DIR}/.cache/pre-commit"
+
+cache:
+  paths:
+    - .cache/pip
+    - ${PRE_COMMIT_HOME}
+    - venv/
+
 setup:
-  stage: setup_remote
+  stage: remote_setup
   script:
-    - python3 -m pip uninstall datafold
-    - python3 -m pip install --upgrade pip --user
-    - python3 -m pip install --upgrade twine --user
-    - python3 -m pip install --upgrade setuptools --user
-    - python3 -m pip install -r requirements-dev.txt --user
-  allow_failure: false
+    - virtualenv venv -p ~/Python-3.7.9/python
+    - source venv/bin/activate
+    - python -V
+    - python -m pip install --upgrade pip
+    - python -m pip install --upgrade setuptools
+    - python -m pip install --upgrade twine
+    - python -m pip install -r requirements-dev.txt
 
 unittests:
   stage: test
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
     - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ --cover-html --cover-html-dir="./coverage/" datafold/ -v
   allow_failure: false
@@ -26,21 +41,21 @@ unittests:
     when: on_success
 
 functional_tests:
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
     - export PYTHONPATH=`pwd`
     - echo $PYTHONPATH
     - nosetests tutorials/ -v
 
-black_check:
+code_checks:
   stage: code_analysis
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
-    - black ./datafold/ --check --diff
-  allow_failure: true
-
-mypy_check:
-  stage: code_analysis
-  script:
-    - mypy ./
+    - pre-commit run --all
   allow_failure: true
 
 docu_check:
@@ -66,8 +81,10 @@ pages:
 # requires to set TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD variables
 pypi_upload:
   stage: deploy
+  before_script:
+    - source venv/bin/activate
   script:
-    - python3 setup.py sdist bdist_wheel
+    - python setup.py sdist bdist_wheel
     - twine upload dist/*
   only:
     - master

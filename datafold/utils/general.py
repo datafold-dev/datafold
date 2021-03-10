@@ -49,6 +49,7 @@ def is_df_same_index(
     df_right: pd.DataFrame,
     check_index=True,
     check_column=True,
+    check_names=True,
     handle="raise",
 ):
 
@@ -59,7 +60,9 @@ def is_df_same_index(
 
     if check_index:
         try:
-            pdtest.assert_index_equal(df_left.index, df_right.index, check_names=True)
+            pdtest.assert_index_equal(
+                df_left.index, df_right.index, check_names=check_names
+            )
         except AssertionError:
             if handle == "raise":
                 raise
@@ -68,7 +71,7 @@ def is_df_same_index(
     if check_column:
         try:
             pdtest.assert_index_equal(
-                df_left.columns, df_right.columns, check_names=True
+                df_left.columns, df_right.columns, check_names=check_names
             )
         except AssertionError:
             if handle == "raise":
@@ -240,7 +243,7 @@ def sort_eigenpairs(
 def mat_dot_diagmat(
     matrix: np.ndarray, diag_elements: np.ndarray, out: Optional[np.ndarray] = None
 ) -> np.ndarray:
-    """Efficient computation of matrix time diagonal matrix.
+    """Efficient computation of "matrix times diagonal matrix".
 
     This computes
 
@@ -251,12 +254,15 @@ def mat_dot_diagmat(
 
     Parameters
     ----------
-    matrix, diag_elements
-        elements of computation
+    matrix
+        Dense matrix of shape `(I,J)`.
+
+    diag_elements
+        Diagonal elements in 1 dim. array of `J` elements.
 
     out
-        select where to write the result, Usual choice is setting it to matrix,
-        which simply overwrites matrix and is therefore more memory efficient
+        Select where to write the result. Usual choice is setting it to the full matrix
+        input for better memory efficient.
 
     Returns
     -------
@@ -266,7 +272,7 @@ def mat_dot_diagmat(
 
 
 def diagmat_dot_mat(diag_elements: np.ndarray, matrix: np.ndarray, out=None):
-    """Efficient computation of diagonal matrix times matrix.
+    """Efficient computation of "diagonal matrix times matrix".
 
     This computes
 
@@ -277,12 +283,15 @@ def diagmat_dot_mat(diag_elements: np.ndarray, matrix: np.ndarray, out=None):
 
     Parameters
     ----------
-    diag_elements, matrix,
-        elements of computation
+    diag_elements
+         Diagonal elements in 1 dim. array of `I` elements.
+
+    matrix
+        Dense matrix of shape `(I,J)`.
 
     out
-        select where to write the result, Usual choice is setting it to matrix,
-        which simply overwrites matrix and is therefore more memory efficient
+        Select where to write the result. Usual choice is setting it to the full matrix
+        input for better memory efficient.
 
     Returns
     -------
@@ -430,7 +439,11 @@ def random_subsample(
         indices in the subsample from the original array
     """
 
-    data = check_array(data, force_all_finite=False, ensure_min_samples=2,)
+    data = check_array(
+        data,
+        force_all_finite=False,
+        ensure_min_samples=2,
+    )
     assert isinstance(data, np.ndarray)  # for mypy
 
     n_samples_data = data.shape[0]

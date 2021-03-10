@@ -13,6 +13,9 @@ __pycache__/
 .mypy_cache/
 .ipynb_checkpoints/
 
+# Default folder for Python virtual environment (as used in the README)
+.venv/
+
 # Files for testing
 .coverage
 coverage/
@@ -25,11 +28,7 @@ doc/source/api/
 doc/build/
 public/
 
-# Virtual environments
-venv/
-.venv/
-
-# General files and folders
+# General files
 *.csv
 *.jar
 *.mat
