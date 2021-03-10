@@ -26,7 +26,6 @@ def read_datafold_version():
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/
 
 author = "datafold development team"
-# TODO: maybe there is a more general email to use?
 email = "daniel.lehmberg@hm.edu"
 
 path_to_pkg_requirements = os.path.join(
@@ -50,11 +49,11 @@ The package provides:
 
 * (Extended-) Dynamic Mode Decomposition (EDMD) to approximate the Koopman operator for 
   system identification. 
-* Diffusion Maps to find meaningful geometric descriptions in point clouds, such as the 
-  eigenfunctions of the Laplace-Beltrami operator. 
+* Diffusion Maps (DMAP) to find meaningful geometric descriptions in point clouds, 
+  such as the eigenfunctions of the Laplace-Beltrami operator. 
 * Data structure for time series collections (TSCDataFrame) and dedicated 
   transformations, such as time-delay embeddings (TSCTakensEmbedding). The data 
-  structures operate with both EDMD and DMAP.  
+  structures operates with both EDMD and DMAP.  
 """
 
 setup(
@@ -67,7 +66,8 @@ setup(
     url="https://datafold-dev.gitlab.io/datafold",
     keywords=[
         "machine learning, dynamical system, data-driven, time series, time series "
-        "regression, time series forecasting, manifold learning, koopman operator"
+        "regression, time series forecasting, manifold learning, diffusion map, "
+        "koopman operator, nonlinear"
     ],
     author_email=email,
     packages=find_packages(),
