@@ -392,6 +392,17 @@ class EDMDTest(unittest.TestCase):
         if plot:
             plt.show()
 
+    def test_attach_illegal_id(self):
+        _edmd = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity()),
+            ],
+            include_id_state=True,  # cannot be attached to identity (same feature names)
+        )
+
+        with self.assertRaises(ValueError):
+            _edmd.fit(X=self.sine_wave_tsc)
+
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd = EDMD(
             dict_steps=[
@@ -614,6 +625,52 @@ class EDMDTest(unittest.TestCase):
         )
 
         pdtest.assert_frame_equal(expected_results, actual_results)
+
+    def test_edmdcv_fail_all(self):
+        edmd = EDMD(
+            dict_steps=[
+                ("timedelay", TSCTakensEmbedding(delays=1)),  # make fail
+            ]
+        )
+
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")  # suppress error messages
+            edmdcv = EDMDCV(
+                estimator=edmd,
+                param_grid={"timedelay__delays": [9999999]},  # raises error
+                cv=TSCKfoldSeries(2),
+                verbose=False,
+                refit=False,
+                return_train_score=True,
+                error_score=np.nan,
+                n_jobs=1,
+            ).fit(self.multi_sine_wave_tsc)
+
+        df = pd.DataFrame(edmdcv.cv_results_).T
+
+        self.assertTrue(np.isnan(df.loc["split1_test_score", :][0]))
+        self.assertTrue(np.isnan(df.loc["split1_test_score", :][0]))
+        self.assertTrue(np.isnan(df.loc["mean_test_score", :][0]))
+        self.assertTrue(np.isnan(df.loc["std_test_score", :][0]))
+
+        self.assertTrue(np.isnan(df.loc["split0_train_score", :][0]))
+        self.assertTrue(np.isnan(df.loc["split1_train_score", :][0]))
+        self.assertTrue(np.isnan(df.loc["mean_train_score", :][0]))
+        self.assertTrue(np.isnan(df.loc["std_train_score", :][0]))
+
+        with self.assertRaises(TSCException):
+            EDMDCV(
+                estimator=edmd,
+                param_grid={"timedelay__delays": [9999999]},
+                cv=TSCKfoldSeries(2),
+                verbose=False,
+                refit=False,
+                return_train_score=True,
+                error_score="raise",
+                n_jobs=1,
+            ).fit(self.multi_sine_wave_tsc)
 
     def test_edmdcv_seriescv_no_error(self):
         edmd = EDMD(

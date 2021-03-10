@@ -318,13 +318,12 @@ class EDMD(
         return eval_eigenfunction
 
     def _validate_dictionary(self):
-        # Check that all are TSCTransformer
+        # Check that elements in the EDMD-dictionary are TSCTransformer
         for (_, trans_str, transformer) in self._iter(with_final=False):
             if not isinstance(transformer, TSCTransformerMixin):
                 raise TypeError(
-                    "Currently, in the pipeline only supports transformers "
-                    "that can handle indexed data structures (pd.DataFrame "
-                    "and TSCDataFrame)"
+                    "The EDMD-dictionary only supports transformers that can handle "
+                    "indexed data structures (pd.DataFrame and TSCDataFrame)"
                 )
 
     @property
@@ -586,7 +585,7 @@ class EDMD(
         X = X.loc[X_dict.index, :]
         try:
             X = pd.concat([X, X_dict], axis=1)
-        except AttributeError as e:
+        except AttributeError:
             all_columns = X_dict.columns.append(X.columns)
             duplicates = all_columns[all_columns.duplicated()]
             raise ValueError(
@@ -635,6 +634,9 @@ class EDMD(
             ensure_tsc=True,
             tsc_kwargs={"ensure_const_delta_time": True},
         )
+
+        self._validate_dictionary()
+
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
         # the pipeline. The time values are set separately here:

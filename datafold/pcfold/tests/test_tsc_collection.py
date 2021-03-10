@@ -1265,14 +1265,24 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_datetime_time_indices(self):
         simple_df = self.simple_df.copy(deep=True)
 
+        # set datetime index
         dates = pd.to_datetime(
             "2019-11-" + (self.simple_df.index.levels[1] + 1).astype(str).str.zfill(2),
             format="%Y-%m-%d",
         )
-
         simple_df.index = simple_df.index.set_levels(dates, level=1)
 
-        self.assertIsInstance(TSCDataFrame(simple_df), TSCDataFrame)
+        actual = TSCDataFrame(simple_df)
+
+        self.assertIsInstance(actual.delta_time, np.timedelta64)
+        self.assertEqual(actual.delta_time, np.timedelta64(1, "D"))
+        self.assertTrue(actual.is_datetime_index())
+
+        new_ts_wo_datetime_index = pd.DataFrame(
+            np.random.rand(2, 2), columns=simple_df.columns
+        )
+        with self.assertRaises(ValueError):
+            actual.insert_ts(new_ts_wo_datetime_index)
 
 
 class TestInitialCondition(unittest.TestCase):

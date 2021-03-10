@@ -608,7 +608,7 @@ class TSCDataFrame(pd.DataFrame):
         ref_df = frame_list[0]
         for _df in frame_list[1:]:
             if not isinstance(_df, pd.DataFrame):
-                raise TypeError("all objects in list must be of type DataFrame")
+                raise TypeError("All elements in list must be of type DataFrame.")
 
             is_df_same_index(
                 ref_df,
@@ -657,18 +657,17 @@ class TSCDataFrame(pd.DataFrame):
             or len(np.unique(ts_ids)) != len(final_list)
         ):
             raise ValueError(
-                "ts_ids must be unique time series IDs of same length as frame_list"
+                "Parameter 'ts_ids' must contain unique time series IDs with same "
+                "length than 'frame_list'"
             )
 
         tsc_list = list()
-
         for _id, df in zip(ts_ids, final_list):
             # TODO: can be done without loop and would be more efficient
             df.index = pd.MultiIndex.from_product([[_id], df.index.to_numpy()])
             tsc_list.append(TSCDataFrame(df))
 
-        tsc = pd.concat(tsc_list, axis=0)
-        return cls(tsc)
+        return cls(pd.concat(tsc_list, axis=0))
 
     @staticmethod
     def unique_delta_times(
@@ -1439,6 +1438,12 @@ class TSCDataFrame(pd.DataFrame):
             _index = df.index.get_level_values(self.tsc_time_idx_name)
         else:
             raise ValueError("The input parameter 'df' is of wrong format.")
+
+        if self.is_datetime_index() ^ np.issubdtype(_index.dtype, np.datetime64):
+            raise ValueError(
+                "If the existing index is datetime64, but the new time "
+                f"series has dype={_index.dtype} for time values."
+            )
 
         # Add the id to the first level of the MultiIndex
         df.index = pd.MultiIndex.from_arrays(
