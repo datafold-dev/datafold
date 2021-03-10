@@ -60,6 +60,9 @@ code_checks:
 
 docu_check:
   stage: code_analysis
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
     - cd doc/ && make html
   except:
