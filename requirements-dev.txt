@@ -1,5 +1,5 @@
 -r requirements.txt
-coverage==4.5.4
+coverage[toml]==5.5.0
 jupyter>=1.0.0,<2.0.0
 jupyter-client>=6.0.0,<7.0.0
 jupyter-core>=4.6.3,<5.0.0
