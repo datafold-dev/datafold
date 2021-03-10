@@ -13,7 +13,7 @@ def read_datafold_version():
     # code parts taken from here https://stackoverflow.com/a/67692
 
     path2setup = os.path.dirname(__file__)
-    version_file = os.path.join(path2setup, "datafold", "version.py")
+    version_file = os.path.join(path2setup, "datafold", "_version.py")
     version_file = os.path.abspath(version_file)
 
     spec = importlib.util.spec_from_file_location("version", version_file)
