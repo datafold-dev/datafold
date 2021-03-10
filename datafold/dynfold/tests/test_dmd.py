@@ -399,9 +399,9 @@ class DMDTest(unittest.TestCase):
         first = DMDFull(is_diagonalize=True, approx_generator=True).fit(
             tsc_df,
         )
-        # extremely high score to get to a similar error
+        # extremely high accuracy to get to a similar error
         second = gDMDFull(
-            is_diagonalize=True, kwargs_fd=dict(scheme="center", accuracy=15)
+            is_diagonalize=True, kwargs_fd=dict(scheme="center", accuracy=16)
         ).fit(tsc_df)
 
         score_dmd = first.score(tsc_df)
@@ -409,8 +409,7 @@ class DMDTest(unittest.TestCase):
 
         # also fails if there are changes in the implementation that includes small
         # numerical noise
-        self.assertLessEqual(score_dmd, -2.7948873860123647e-12)
-        self.assertLessEqual(score_gdmd, -4.936551434810456e-11)
+        self.assertLessEqual(np.abs(score_dmd - score_gdmd), 5.938548264250443e-11)
 
         if plot:
             print(score_dmd)

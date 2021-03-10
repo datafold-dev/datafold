@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pandas.testing as pdtest
+from pandas.api.types import is_datetime64_dtype
 from sklearn.base import TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
@@ -42,7 +43,7 @@ class TSCBaseMixin(object):
                 return_values.append(fit_params.pop(attr[0], attr[1]))
 
         if fit_params != {}:
-            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
+            raise KeyError(f"fit_params.keys = {fit_params.keys()} not supported")
 
         if len(return_values) == 0:
             return None
@@ -77,8 +78,8 @@ class TSCBaseMixin(object):
         self,
         X: Union[TSCDataFrame, np.ndarray],
         ensure_tsc: bool = False,
-        validate_array_kwargs: Optional[dict] = None,
-        validate_tsc_kwargs: Optional[dict] = None,
+        array_kwargs: Optional[dict] = None,
+        tsc_kwargs: Optional[dict] = None,
     ):
         """Provides a general function to validate data that is input to datafold
         functions -- it can be overwritten if a concrete implementation requires
@@ -91,8 +92,8 @@ class TSCBaseMixin(object):
         ----------
         X
         ensure_feature_name_type
-        validate_array_kwargs
-        validate_tsc_kwargs
+        array_kwargs
+        tsc_kwargs
 
         Returns
         -------
@@ -100,8 +101,8 @@ class TSCBaseMixin(object):
         """
 
         # defaults to empty dictionary if None
-        validate_array_kwargs = validate_array_kwargs or {}
-        validate_tsc_kwargs = validate_tsc_kwargs or {}
+        array_kwargs = array_kwargs or {}
+        tsc_kwargs = tsc_kwargs or {}
 
         if ensure_tsc and not isinstance(X, TSCDataFrame):
             raise TypeError(
@@ -117,7 +118,7 @@ class TSCBaseMixin(object):
             #  * pandas.DataFrame (Note a TSCDataFrame is also a pandas.DataFrame,
             #                      but not strictly)
 
-            validate_tsc_kwargs = {}  # no need to check -> overwrite to empty dict
+            tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
             if type(X) == pd.DataFrame:
                 # special handling of pandas.DataFrame (strictly, not including
@@ -131,18 +132,16 @@ class TSCBaseMixin(object):
 
             X = check_array(
                 X,
-                accept_sparse=validate_array_kwargs.pop("accept_sparse", False),
-                accept_large_sparse=validate_array_kwargs.pop(
-                    "accept_large_sparse", False
-                ),
-                dtype=validate_array_kwargs.pop("dtype", "numeric"),
-                order=validate_array_kwargs.pop("order", None),
-                copy=validate_array_kwargs.pop("copy", False),
-                force_all_finite=validate_array_kwargs.pop("force_all_finite", True),
-                ensure_2d=validate_array_kwargs.pop("ensure_2d", True),
-                allow_nd=validate_array_kwargs.pop("allow_nd", False),
-                ensure_min_samples=validate_array_kwargs.pop("ensure_min_samples", 1),
-                ensure_min_features=validate_array_kwargs.pop("ensure_min_features", 1),
+                accept_sparse=array_kwargs.pop("accept_sparse", False),
+                accept_large_sparse=array_kwargs.pop("accept_large_sparse", False),
+                dtype=array_kwargs.pop("dtype", "numeric"),
+                order=array_kwargs.pop("order", None),
+                copy=array_kwargs.pop("copy", False),
+                force_all_finite=array_kwargs.pop("force_all_finite", True),
+                ensure_2d=array_kwargs.pop("ensure_2d", True),
+                allow_nd=array_kwargs.pop("allow_nd", False),
+                ensure_min_samples=array_kwargs.pop("ensure_min_samples", 1),
+                ensure_min_features=array_kwargs.pop("ensure_min_features", 1),
                 estimator=self,
             )
 
@@ -151,39 +150,32 @@ class TSCBaseMixin(object):
 
         else:
 
-            validate_array_kwargs = {}  # no need to check -> overwrite to empty dict
+            array_kwargs = {}  # no need to check -> overwrite to empty dict
 
             X = X.tsc.check_tsc(
-                ensure_all_finite=validate_tsc_kwargs.pop("ensure_all_finite", True),
-                ensure_same_length=validate_tsc_kwargs.pop("ensure_same_length", False),
-                ensure_const_delta_time=validate_tsc_kwargs.pop(
+                ensure_all_finite=tsc_kwargs.pop("ensure_all_finite", True),
+                ensure_min_samples=tsc_kwargs.pop("ensure_min_samples", None),
+                ensure_same_length=tsc_kwargs.pop("ensure_same_length", False),
+                ensure_const_delta_time=tsc_kwargs.pop(
                     "ensure_const_delta_time", False
                 ),
-                ensure_delta_time=validate_tsc_kwargs.pop("ensure_delta_time", None),
-                ensure_same_time_values=validate_tsc_kwargs.pop(
+                ensure_delta_time=tsc_kwargs.pop("ensure_delta_time", None),
+                ensure_same_time_values=tsc_kwargs.pop(
                     "ensure_same_time_values", False
                 ),
-                ensure_normalized_time=validate_tsc_kwargs.pop(
-                    "ensure_normalized_time", False
-                ),
-                ensure_n_timeseries=validate_tsc_kwargs.pop(
-                    "ensure_n_timeseries", None
-                ),
-                ensure_min_timesteps=validate_tsc_kwargs.pop(
-                    "ensure_min_timesteps", None
-                ),
-                ensure_no_degenerate_ts=validate_tsc_kwargs.pop(
+                ensure_normalized_time=tsc_kwargs.pop("ensure_normalized_time", False),
+                ensure_n_timeseries=tsc_kwargs.pop("ensure_n_timeseries", None),
+                ensure_min_timesteps=tsc_kwargs.pop("ensure_min_timesteps", None),
+                ensure_no_degenerate_ts=tsc_kwargs.pop(
                     "ensure_no_degenerate_ts", False
                 ),
             )
 
-        if validate_array_kwargs != {} or validate_tsc_kwargs != {}:
+        if array_kwargs != {} or tsc_kwargs != {}:
             # validate_kwargs have to be empty and must only contain key-values that can
             # be handled to check_array / check_tsc
 
-            left_over_keys = list(validate_array_kwargs.keys()) + list(
-                validate_tsc_kwargs.keys()
-            )
+            left_over_keys = list(array_kwargs.keys()) + list(tsc_kwargs.keys())
             raise ValueError(
                 f"{left_over_keys} are no valid validation keys. Please report bug."
             )
@@ -255,7 +247,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
                 # (better code readability than pd.Index)
                 features_out = pd.Index(
                     features_out,
-                    dtype=np.str,
+                    dtype=np.str_,
                     name=TSCDataFrame.tsc_feature_col_name,
                 )
 
@@ -371,10 +363,6 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             else:
                 return values
 
-    # def get_feature_names(self):
-    #     check_is_fitted(self, "feature_names_in_")
-    #     return self.feature_names_in_
-
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
         """Fit to data, then transform it.
 
@@ -488,20 +476,21 @@ class TSCPredictMixin(TSCBaseMixin):
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
             raise TypeError(f"time_values.dtype {time_values.dtype} not supported")
 
-        _is_datetime = time_values.dtype.kind == "M"
+        if not is_datetime64_dtype(time_values) and (time_values < 0).any():
+            # "datetime" cannot be negative and raises error when checked with "< 0"
+            raise ValueError("In 'time_values' all values must be non-negative.")
 
-        if not _is_datetime and (time_values < 0).any():
-            # "datetime" cannot be negative and cannot be checked with "< 0"
-            raise ValueError("in time_values no negative values are allowed")
+        if not np.isfinite(time_values).all():
+            raise ValueError("'time_values' contains invalid numbers (inf/nan).")
 
         if time_values.ndim != 1:
-            raise ValueError("time_values must be be one dimensional")
+            raise ValueError("'time_values' must be be an 1-dim. array")
 
         if not (np.diff(time_values).astype(np.float64) > 0).all():
             # as "float64" is required in case of datetime where the differences are in
             # terms of "np.timedelta"
             raise ValueError(
-                "Parameter 'time_values' must be sorted with increasing unique values."
+                "'time_values' must be sorted with increasing unique values"
             )
 
         return time_values
@@ -536,6 +525,29 @@ class TSCPredictMixin(TSCBaseMixin):
         except AssertionError as e:
             raise ValueError(e.args[0])
 
+    def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
+
+        if qois is not None:
+            try:
+                qois = np.asarray(qois)
+            except:
+                raise TypeError("parameter 'qois' must be list-like")
+
+            if qois.ndim != 1:
+                raise ValueError(
+                    f"'qois' must be a 1-dim. array. " f"Got qois.ndim={qois.ndim}"
+                )
+
+            mask_valid_qois = np.isin(qois, valid_feature_names)
+
+            if not mask_valid_qois.all():
+                raise ValueError(
+                    f"The qois={qois[~mask_valid_qois]} are invalid. Valid "
+                    f"feature names are {valid_feature_names}."
+                )
+
+        return qois
+
     def _validate_features_and_time_values(
         self, X: TSCDataFrame, time_values: Optional[np.ndarray]
     ):
@@ -548,7 +560,7 @@ class TSCPredictMixin(TSCBaseMixin):
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")
 
-        self._validate_time_values(time_values=time_values)
+        time_values = self._validate_time_values(time_values=time_values)
         self._validate_feature_names(X)
 
         return X, time_values

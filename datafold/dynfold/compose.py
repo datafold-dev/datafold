@@ -5,9 +5,24 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 import sklearn.compose as compose
+import sklearn.pipeline as pipeline
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
+
+
+class TSCPipeline(pipeline.Pipeline, TSCTransformerMixin):  # pragma: no cover
+    @property
+    def feature_names_in_(self):
+        return self.steps[0][1].feature_names_in_
+
+    @property
+    def n_features_out_(self):
+        return self.steps[-1][1].n_features_out_
+
+    @property
+    def feature_names_out_(self):
+        return self.steps[-1][1].feature_names_out_
 
 
 class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
@@ -20,7 +35,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html>`__
 
     .. note::
-        The parameter ``sparse_threshold`` of the super class is supported this class.
+        The parameter ``sparse_threshold`` of the super class is not supported.
 
     Parameters
     ----------

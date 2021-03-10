@@ -27,7 +27,10 @@ Classes
    .. automethod:: assign_ids_sequential
    .. automethod:: assign_ids_train_test
    .. automethod:: check_const_time_delta
+   .. automethod:: check_equal_delta_time
+   .. automethod:: check_equal_timevalues
    .. automethod:: check_finite
+   .. automethod:: check_min_samples
    .. automethod:: check_no_degenerate_ts
    .. automethod:: check_non_overlapping_timeseries
    .. automethod:: check_normalized_time
@@ -36,9 +39,9 @@ Classes
    .. automethod:: check_required_n_timesteps
    .. automethod:: check_required_time_delta
    .. automethod:: check_timeseries_same_length
-   .. automethod:: check_timeseries_same_timevalues
    .. automethod:: check_tsc
    .. automethod:: compute_shift_matrices
+   .. automethod:: equal_const_delta_time
    .. automethod:: iter_timevalue_window
    .. automethod:: normalize_time
    .. automethod:: plot_density2d

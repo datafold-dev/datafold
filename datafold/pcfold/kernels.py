@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 import scipy.spatial
-from scipy.special import xlogy
 from sklearn.gaussian_process.kernels import Kernel
 from sklearn.preprocessing import normalize
 from sklearn.utils import check_scalar
 
 from datafold.pcfold.distance import compute_distance_matrix
+from datafold.pcfold.timeseries.accessor import TSCAccessor
 from datafold.utils.general import (
     df_type_and_indices_from,
     diagmat_dot_mat,
@@ -112,7 +112,7 @@ def _symmetric_matrix_division(
     if (vec == 0.0).any():
         if value_zero_division == "raise":
             raise ZeroDivisionError(
-                f"Encountered zero values in division in {(vec == 0).sum()}"
+                f"Encountered zero values in division in {(vec == 0).sum()} points."
             )
         else:
             # division results into 'nan' without ZeroDivisionWarning and will
@@ -329,13 +329,13 @@ def _kth_nearest_neighbor_dist(
     Parameters
     ----------
     distance_matrix
-        Matrix of shape `(n_samples_Y, n_samples_X)` to partition to find the distance of
-        the `k`-th nearest neighbor. If the matrix is sparse each point must have a
-        minimum number of `k` non-zero elements.
+        Distance matrix of shape `(n_samples_Y, n_samples_X)` from which to find the
+        `k`-th nearest neighbor and its corresponding distance to return. If the matrix is
+        sparse each point must have a minimum number of `k` neighbours (i.e. non-zero
+        elements per row).
 
     k
-        The distance of the `k`-th nearest neighbor is returned. The value must be a
-        positive integer.
+        The distance of the `k`-th nearest neighbor.
 
     Returns
     -------
@@ -825,17 +825,27 @@ class GaussianKernel(RadialBasisKernel):
         # or other computations...)
 
         if callable(self.epsilon):
-            self.epsilon = self.epsilon(distance_matrix)
+            if isinstance(distance_matrix, scipy.sparse.csr_matrix):
+                self.epsilon = self.epsilon(distance_matrix.data)
+            elif isinstance(distance_matrix, np.ndarray):
+                self.epsilon = self.epsilon(distance_matrix)
+            else:
+                raise TypeError(
+                    f"Invalid type: type(distance_matrix)={type(distance_matrix)}."
+                    f"Please report bug."
+                )
 
         self.epsilon = self._check_bandwidth_parameter(
             parameter=self.epsilon, name="epsilon"
         )
 
-        return _apply_kernel_function_numexpr(
+        kernel_matrix = _apply_kernel_function_numexpr(
             distance_matrix,
             expr="exp((- 1 / (2*eps)) * D)",
             expr_dict={"eps": self.epsilon},
         )
+
+        return kernel_matrix
 
 
 class MultiquadricKernel(RadialBasisKernel):
@@ -1000,39 +1010,6 @@ class QuinticKernel(RadialBasisKernel):
         """
         # r**5
         return _apply_kernel_function_numexpr(distance_matrix, "D ** 5")
-
-
-# class ThinPlateKernel(RadialBasisKernel):
-#     r"""Thin plate radial basis kernel.
-#
-#     .. math::
-#         K = xlogy(D^2, D)
-#
-#
-#     where :math:`D` is the Euclidean distance matrix and argument for
-#     :class:`scipy.special.xlogy`.
-#
-#     See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
-#     for more functionality and documentation.
-#     """
-#
-#     def __init__(self):
-#         super(ThinPlateKernel, self).__init__(distance_metric="euclidean")
-#
-#     def eval(self, distance_matrix: np.ndarray) -> np.ndarray:
-#         """Evaluate the kernel on pre-computed distance matrix.
-#
-#         Parameters
-#         ----------
-#         distance_matrix
-#             Matrix of pairwise distances of shape `(n_samples_Y, n_samples_X)`.
-#
-#         Returns
-#         -------
-#         Union[np.ndarray, scipy.sparse.csr_matrix]
-#             Kernel matrix of same shape and type as `distance_matrix`.
-#         """
-#         return xlogy(np.square(distance_matrix), distance_matrix)
 
 
 class ContinuousNNKernel(PCManifoldKernel):
@@ -1355,7 +1332,8 @@ class DmapKernelFixed(BaseManifoldKernel):
         row_sums = kernel_matrix.sum(axis=1)
 
         if scipy.sparse.issparse(kernel_matrix):
-            # np.matrix (deprecated but used in scipy sparse matrix) to np.ndarray
+            # np.matrix to np.ndarray
+            # (np.matrix is deprecated but still used in scipy.sparse)
             row_sums = row_sums.A1
 
         if self.alpha < 1:
@@ -1418,12 +1396,11 @@ class DmapKernelFixed(BaseManifoldKernel):
             else:
                 internal_kernel = _stochastic_kernel_matrix(internal_kernel)
 
-            assert (
+            # check that if     "is symmetric pdist" -> require basis change
+            #            else   no basis change
+            assert not (
                 (is_pdist and self.is_symmetric_transform())
-                and basis_change_matrix is not None
-            ) or (
-                not (is_pdist and self.is_symmetric_transform())
-                and basis_change_matrix is None
+                ^ (basis_change_matrix is not None)
             )
 
         if is_pdist and self.is_symmetric:
@@ -1454,7 +1431,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         )
 
         if isinstance(kernel_matrix, pd.DataFrame):
-            # store indices and save into same type later
+            # store indices and cast to same type later
             _type = type(kernel_matrix)
             rows_idx, columns_idx = kernel_matrix.index, kernel_matrix.columns
             kernel_matrix = kernel_matrix.to_numpy()
@@ -1717,25 +1694,16 @@ class ConeKernel(TSCManifoldKernel):
         if Y is not None:
             is_df_same_index(X, Y, check_index=False, check_column=True, handle="raise")
 
-        # checks that they are scalar:
-        X_dt = X.delta_time
-
-        if not is_float(X_dt):
-            # raises error:
-            X.tsc.check_const_time_delta()
-
-        if Y is not None:
-            Y_dt = Y.delta_time
-
-            if not is_float(X_dt):
-                # raises error:
-                Y.tsc.check_const_time_delta()
-
-            if Y_dt != X_dt:
-                raise TSCException(
-                    f"'X.delta_time={X_dt}' and 'Y.delta_time={Y_dt}' "
-                    f"have not the same time sampling."
-                )
+        # checks that if scalar, if yes returns delta_time
+        if Y is None:
+            X_dt = X.tsc.check_const_time_delta()
+        else:
+            X_dt, _ = TSCAccessor.check_equal_delta_time(
+                X,
+                Y,
+                atol=1e-15,
+                require_const=True,
+            )
 
         # return here to not compute delta_time again
         return X_dt
@@ -1760,11 +1728,8 @@ class ConeKernel(TSCManifoldKernel):
         if is_compute_distance:
             distance_matrix = np.zeros_like(cos_matrix)
 
-        # only allocate memory in first iteration, afterwards use already
-        # existing array via "out" parameter
-        diff_matrix = None
-        division = None
-        zero_mask = None
+        # define names and init as None to already to use in "out"
+        diff_matrix, denominator, zero_mask = [None] * 3
 
         for row_idx in range(cos_matrix.shape[0]):
             diff_matrix = np.subtract(X_numpy, Y_numpy[row_idx, :], out=diff_matrix)
@@ -1775,12 +1740,12 @@ class ConeKernel(TSCManifoldKernel):
                     diff_matrix, axis=1, check_finite=False
                 )
 
-            # denominator of cos: norm of time_derivative * norm_difference
-            division = np.multiply(
-                norm_timederiv_Y[row_idx], distance_matrix[row_idx, :], out=division
+            # norm of time_derivative * norm_difference
+            denominator = np.multiply(
+                norm_timederiv_Y[row_idx], distance_matrix[row_idx, :], out=denominator
             )
 
-            # nominator of cos: scalar product (time_derivative, differences)
+            # nominator: scalar product (time_derivative, differences)
             # in paper: (\xi, \omega)
             cos_matrix[row_idx, :] = np.dot(
                 timederiv_Y[row_idx, :],
@@ -1788,12 +1753,12 @@ class ConeKernel(TSCManifoldKernel):
                 out=cos_matrix[row_idx, :],
             )
 
-            # special handling of duplicates -> division by zero leads to nan
-            zero_mask = np.equal(division, 0.0, out=zero_mask)
-            cos_matrix[row_idx, zero_mask] = 0
-            cos_matrix[row_idx, ~zero_mask] /= division[~zero_mask]
+            # special handling of (almost) duplicates -> denominator by zero leads to nan
+            zero_mask = np.less_equal(denominator, 1e-14, out=zero_mask)
+            cos_matrix[row_idx, zero_mask] = 0.0  # -> np.cos(0) = 1 later
+            cos_matrix[row_idx, ~zero_mask] /= denominator[~zero_mask]
 
-        # memory and cache efficient solving of (no intermediate memory allocations):
+        # memory and cache efficient solving with no intermediate memory allocations:
         # cos_matrix = 1 - self.zeta * np.square(np.cos(cos_matrix))
         cos_matrix = np.cos(cos_matrix, out=cos_matrix)
         cos_matrix = np.square(cos_matrix, out=cos_matrix)
