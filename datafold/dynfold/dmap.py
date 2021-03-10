@@ -443,10 +443,10 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         self.dist_kwargs_.setdefault("kmin", 0)
         self.dist_kwargs_.setdefault("backend", "guess_optimal")
 
-    def _select_target_coords_eigenpairs(self):
+    def _select_eigenpairs_target_coords(self):
         """Returns either
         * all eigenpairs, or
-        * the ones that were selected during set_target_coordds
+        * the ones that were selected during set_target_coords
 
         It is assumed that the model is already fit.
         """
@@ -470,7 +470,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         Parameters
         ----------
         indices
-            Index values of eigenparirs (``eigenvalues_`` and ``eigenvectors_``) to map
+            Index values of eigenpairs (``eigenvalues_`` and ``eigenvectors_``) to map
             new points to.
 
         Returns
@@ -671,7 +671,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         else:
             index_from = None
 
-        eigvec, eigvals = self._select_target_coords_eigenpairs()
+        eigvec, eigvals = self._select_eigenpairs_target_coords()
 
         eigvec_nystroem = self._nystrom(
             kernel_matrix_cdist,
@@ -705,7 +705,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
         self.fit(X=X, y=y, **fit_params)
 
-        eigvec, _ = self._select_target_coords_eigenpairs()
+        eigvec, _ = self._select_eigenpairs_target_coords()
         return self._perform_dmap_embedding(eigvec)
 
     def inverse_transform(self, X: TransformType) -> TransformType:
@@ -738,7 +738,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             else:
                 _X = self.X_fit_
 
-            eigvec, _ = self._select_target_coords_eigenpairs()
+            eigvec, _ = self._select_eigenpairs_target_coords()
 
             self.inv_coeff_matrix_ = scipy.linalg.lstsq(
                 np.asarray(eigvec), _X, cond=None

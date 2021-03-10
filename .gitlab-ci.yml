@@ -60,6 +60,9 @@ code_checks:
 
 docu_check:
   stage: code_analysis
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
     - cd doc/ && make html
   except:
@@ -68,6 +71,9 @@ docu_check:
 
 pages:
   stage: deploy
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
     - export DATAFOLD_NBSPHINX_EXECUTE=always
     - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
