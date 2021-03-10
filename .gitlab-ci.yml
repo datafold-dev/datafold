@@ -68,6 +68,9 @@ docu_check:
 
 pages:
   stage: deploy
+  before_script:
+    - source venv/bin/activate
+    - python -V
   script:
     - export DATAFOLD_NBSPHINX_EXECUTE=always
     - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
