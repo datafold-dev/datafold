@@ -423,7 +423,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
 
 @NotImplementedError
-class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
+class MultiScaleGeometricHarmonicsInterpolator(
+    GeometricHarmonicsInterpolator
+):  # pragma: no cover
     """
     .. warning::
         This class is not documented and in experimental state. Contributions are welcome:
@@ -997,7 +999,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
         return y_hat
 
-    def plot_eps_vs_residual(self) -> None:
+    def plot_eps_vs_residual(self) -> None:  # pragma: no cover
         """Plot residuals versus kernel scales (epsilon) from model fit."""
 
         check_is_fitted(self)

@@ -1942,7 +1942,7 @@ class ConeKernel(TSCManifoldKernel):
         return kernel_matrix, ret_cdist
 
 
-class DmapKernelVariable(BaseManifoldKernel):
+class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
     """Diffusion maps kernel with variable kernel bandwidth.
 
     .. warning::

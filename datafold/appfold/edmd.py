@@ -1529,7 +1529,7 @@ class EDMDWindowPrediction(object):
                 self.offset, name="offset", target_type=(np.integer, int), min_val=1
             )
         elif self.window_size is not None or self.offset is not None:
-            raise ValueError("'time_horizon' and 'offset' must be provided together")
+            raise ValueError("'window_size' and 'offset' must be provided together")
 
     def _window_reconstruct(
         self,
