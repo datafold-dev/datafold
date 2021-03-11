@@ -2,6 +2,7 @@
 
 import tempfile
 import unittest
+import warnings
 import webbrowser
 from copy import deepcopy
 
@@ -78,6 +79,7 @@ class EDMDTest(unittest.TestCase):
             dict_steps=[("id", TSCIdentity())],
             include_id_state=False,
             use_transform_inverse=False,
+            verbose=2,
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
@@ -101,6 +103,7 @@ class EDMDTest(unittest.TestCase):
             dict_steps=[("id", TSCIdentity())],
             include_id_state=False,
             use_transform_inverse=True,  # different to test_id_dict1
+            verbose=2,
         ).fit(self.sine_wave_tsc)
 
         pdtest.assert_frame_equal(
@@ -629,11 +632,9 @@ class EDMDTest(unittest.TestCase):
     def test_edmdcv_fail_all(self):
         edmd = EDMD(
             dict_steps=[
-                ("timedelay", TSCTakensEmbedding(delays=1)),  # make fail
+                ("timedelay", TSCTakensEmbedding(delays=1)),
             ]
         )
-
-        import warnings
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")  # suppress error messages
@@ -641,7 +642,7 @@ class EDMDTest(unittest.TestCase):
                 estimator=edmd,
                 param_grid={"timedelay__delays": [9999999]},  # raises error
                 cv=TSCKfoldSeries(2),
-                verbose=False,
+                verbose=2,
                 refit=False,
                 return_train_score=True,
                 error_score=np.nan,
@@ -684,7 +685,7 @@ class EDMDTest(unittest.TestCase):
             estimator=edmd,
             param_grid={"pca__n_components": [5, 7]},
             cv=TSCKfoldSeries(4),
-            verbose=False,
+            verbose=2,
             return_train_score=True,
             n_jobs=1,
         ).fit(self.multi_sine_wave_tsc)
