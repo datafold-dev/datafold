@@ -31,8 +31,9 @@ unittests:
     - source venv/bin/activate
     - python -V
   script:
-    - coverage run -m pytest datafold/
+    - coverage run -m --source pytest datafold/
     - coverage report
+    - coverage html -d ./coverage/
   allow_failure: false
   artifacts:
     paths:
@@ -47,7 +48,7 @@ functional_tests:
   script:
     - export PYTHONPATH=`pwd`
     - echo $PYTHONPATH
-    - python pytest tutorials/
+    - python -m pytest tutorials/
 
 code_checks:
   stage: code_analysis

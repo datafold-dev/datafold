@@ -15,6 +15,13 @@ exclude = '''
 )
 '''
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+
 [tool.coverage.run]
 omit=["*/tests/*",
       "datafold/_version.py",
