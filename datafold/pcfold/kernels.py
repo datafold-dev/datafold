@@ -107,7 +107,7 @@ def _symmetric_matrix_division(
             "If 'matrix' is non-square, then 'vec_right' must be provided."
         )
 
-    vec = vec.astype(np.float64)
+    vec = vec.astype(float)
 
     if (vec == 0.0).any():
         if value_zero_division == "raise":
@@ -124,7 +124,7 @@ def _symmetric_matrix_division(
     if vec_right is None:
         vec_inv_right = vec_inv_left.view()
     else:
-        vec_right = vec_right.astype(np.float64)
+        vec_right = vec_right.astype(float)
         if (vec_right == 0.0).any():
             if value_zero_division == "raise":
                 raise ZeroDivisionError(
@@ -133,7 +133,7 @@ def _symmetric_matrix_division(
             else:
                 vec_right[vec_right == 0.0] = np.inf
 
-        vec_inv_right = np.reciprocal(vec_right.astype(np.float64))
+        vec_inv_right = np.reciprocal(vec_right.astype(float))
 
     if vec_inv_left.ndim != 1 or vec_inv_left.shape[0] != matrix.shape[0]:
         raise ValueError(
@@ -252,7 +252,7 @@ def _conjugate_stochastic_kernel_matrix(
         left_vec = left_vec.A1
 
     if left_vec.dtype.kind != "f":
-        left_vec = left_vec.astype(np.float)
+        left_vec = left_vec.astype(float)
 
     left_vec = np.sqrt(left_vec, out=left_vec)
 
@@ -729,8 +729,8 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
         check_scalar(
             parameter,
             name=name,
-            target_type=(int, float, np.integer, np.floating),
-            min_val=float(np.finfo(np.float64).eps),
+            target_type=(int, float),
+            min_val=np.finfo(float).eps,
         )
         return float(parameter)
 
@@ -1213,11 +1213,11 @@ class ContinuousNNKernel(PCManifoldKernel):
 
         if isinstance(distance_factors, np.ndarray):
             kernel_matrix = scipy.sparse.csr_matrix(
-                distance_factors < self.delta, dtype=np.bool
+                distance_factors < self.delta, dtype=bool
             )
         else:
             assert isinstance(distance_factors, scipy.sparse.csr_matrix)
-            distance_factors.data = (distance_factors.data < self.delta).astype(np.bool)
+            distance_factors.data = (distance_factors.data < self.delta).astype(bool)
             distance_factors.eliminate_zeros()
             kernel_matrix = distance_factors
 
@@ -1340,7 +1340,7 @@ class DmapKernelFixed(BaseManifoldKernel):
             if row_sums.dtype.kind != "f":
                 # This is required for case when 'row_sums' contains boolean or integer
                 # values; for inplace operations the type has to be the same
-                row_sums = row_sums.astype(np.float)
+                row_sums = row_sums.astype(float)
 
             row_sums_alpha = np.power(row_sums, self.alpha, out=row_sums)
         else:  # no need to power with 1
@@ -1659,7 +1659,7 @@ class ConeKernel(TSCManifoldKernel):
         check_scalar(
             self.zeta,
             name="zeta",
-            target_type=(int, np.integer, float, np.floating),
+            target_type=(int, float),
             min_val=0.0,
             max_val=1.0 - np.finfo(float).eps,
         )
@@ -1667,7 +1667,7 @@ class ConeKernel(TSCManifoldKernel):
         check_scalar(
             self.epsilon,
             name="epsilon",
-            target_type=(int, np.integer, float, np.floating),
+            target_type=(int, float),
             min_val=np.finfo(float).eps,
             max_val=None,
         )
@@ -1675,7 +1675,7 @@ class ConeKernel(TSCManifoldKernel):
         check_scalar(
             self.fd_accuracy,
             "fd_accuracy",
-            target_type=(int, np.integer),
+            target_type=int,
             min_val=1,
             max_val=None,
         )

@@ -173,7 +173,7 @@ class LinearDynamicalSystem(object):
             )
 
         if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
-            time_values = time_values.astype(np.int_)
+            time_values = time_values.astype(int)
 
         # TIME DELTA
         if self.is_differential_system():
@@ -394,7 +394,7 @@ class LinearDynamicalSystem(object):
         return self.sys_mode == "matrix"
 
     def is_spectral_mode(self) -> bool:
-        """Whether the set up linear system is in "spectral" mode.
+        r"""Whether the set up linear system is in "spectral" mode.
 
         The system uses the spectral components of either matrix :math:`A` for flowmap or
         :math:`\mathcal{A}` for differential.
@@ -857,11 +857,11 @@ class DMDBase(
         # Because hard-setting the time indices can be problematic, the following
         # assert makes sure that both ways match (up to numerical differences).
 
-        if time_values.dtype == np.floating:
+        if time_values.dtype == float:
             assert (
                 tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
             ).all()
-        elif time_values.dtype == np.integer:
+        elif time_values.dtype == int:
             assert (
                 tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values == 0
             ).all()

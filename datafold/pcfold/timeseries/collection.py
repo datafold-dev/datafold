@@ -645,7 +645,7 @@ class TSCDataFrame(pd.DataFrame):
                 final_list.append(df)
 
         if ts_ids is None:
-            ts_ids = np.arange(len(final_list)).astype(np.int_)
+            ts_ids = np.arange(len(final_list)).astype(int)
         else:
             ts_ids = np.asarray(ts_ids)
 
@@ -706,7 +706,7 @@ class TSCDataFrame(pd.DataFrame):
 
         unique_delta_times = np.unique(np.asarray(delta_times))
 
-        if delta_times.dtype == np.floating and len(unique_delta_times) > 1:
+        if unique_delta_times.dtype == float and len(unique_delta_times) > 1:
             # Note: unique_delta_times is already sorted by np.unique
             max_step = np.diff(unique_delta_times)
             rel_step = max_step / unique_delta_times[1:]
@@ -826,7 +826,7 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         # bool index to the start of new IDs
-        bool_new_id = np.append(1, np.diff(index.codes[0])).astype(np.bool)
+        bool_new_id = np.append(1, np.diff(index.codes[0])).astype(bool)
         _ids = ids_index[bool_new_id]
 
         if len(np.unique(_ids)) != len(_ids):
@@ -1447,7 +1447,7 @@ class TSCDataFrame(pd.DataFrame):
 
         # Add the id to the first level of the MultiIndex
         df.index = pd.MultiIndex.from_arrays(
-            [np.ones(df.shape[0], dtype=np.int_) * ts_id, _index],
+            [np.ones(df.shape[0], dtype=int) * ts_id, _index],
             names=[self.tsc_id_idx_name, self.tsc_time_idx_name],
         )
 
@@ -1515,7 +1515,7 @@ class TSCDataFrame(pd.DataFrame):
             _dtype = self.index.get_level_values(self.tsc_time_idx_name).dtype
 
             return np.arange(
-                start, np.nextafter(end, np.finfo(np.float64).max), self.delta_time
+                start, np.nextafter(end, np.finfo(float).max), self.delta_time
             ).astype(_dtype)
 
     def feature_to_array(
@@ -1914,6 +1914,4 @@ def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
     :py:meth:`TSCDataFrame.from_tensor`
 
     """
-    return np.zeros(
-        [n_time_series, n_timesteps, n_feature], order="C", dtype=np.float64
-    )
+    return np.zeros([n_time_series, n_timesteps, n_feature], order="C", dtype=float)

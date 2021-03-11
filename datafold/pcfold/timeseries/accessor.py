@@ -587,7 +587,7 @@ class TSCAccessor(object):
                     for k in range(len(offsets))
                 ]
 
-                data_dt = np.zeros_like(data, dtype=np.float)
+                data_dt = np.zeros_like(data, dtype=float)
 
                 if isinstance(data, pd.DataFrame):
                     data_numpy = data.to_numpy()
@@ -706,7 +706,7 @@ class TSCAccessor(object):
             bool_dim = _array.ndim == 1
             bool_positive = np.all(_array >= 0)
             bool_sorted = np.all(_array[:-1] < _array[1:])
-            bool_type = _array.dtype == np.integer
+            bool_type = _array.dtype == int
 
             if not (bool_dim and bool_positive and bool_sorted and bool_type):
                 raise ValueError(
@@ -738,10 +738,10 @@ class TSCAccessor(object):
         change_id_indicator = np.append(
             0,
             np.diff(self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)),
-        ).astype(np.bool)
+        ).astype(bool)
 
         # iii) detect switch of dropped indices
-        mask_dropped = np.ones(self._tsc_df.shape[0], dtype=np.bool)
+        mask_dropped = np.ones(self._tsc_df.shape[0], dtype=bool)
         mask_dropped[train_indices] = False
         mask_dropped[test_indices] = False
 

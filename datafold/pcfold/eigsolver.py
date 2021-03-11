@@ -114,7 +114,7 @@ def scipy_eigsolver(
         ) and kernel_matrix.data.dtype.kind not in ["fdFD"]:
             kernel_matrix = kernel_matrix.asfptype()
         elif isinstance(kernel_matrix, np.ndarray) and kernel_matrix.dtype != "f":
-            kernel_matrix = kernel_matrix.astype(np.float)
+            kernel_matrix = kernel_matrix.astype(float)
 
     eigvals, eigvects = scipy_eigvec_solver(kernel_matrix, **solver_kwargs)
 

@@ -6,7 +6,6 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  # https://pre-commit.com/#gitlab-ci-example  (TODO: caching does not work for pre-commit)
   PRE_COMMIT_HOME: "${CI_PROJECT_DIR}/.cache/pre-commit"
 
 cache:
@@ -84,7 +83,7 @@ pages:
   only:
     - master
 
-# requires to set TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD variables
+# Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:
   stage: deploy
   before_script:

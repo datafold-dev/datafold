@@ -478,7 +478,7 @@ class EDMD(
         return inverse_map
 
     def _compute_koopman_modes(self, inverse_map: np.ndarray) -> np.ndarray:
-        """Compute the Koopman modes.
+        r"""Compute Koopman modes.
 
         The Koopman modes :math:`V` are a computed with
 

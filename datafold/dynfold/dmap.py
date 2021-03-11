@@ -354,13 +354,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.time_exponent,
             "time_exponent",
-            target_type=(float, int, np.float, np.integer),
+            target_type=(float, int),
         )
 
         check_scalar(
             self.alpha,
             "alpha",
-            target_type=(float, int, np.float, np.integer),
+            target_type=(float, int),
             min_val=0,
             max_val=1,
         )
