@@ -75,8 +75,6 @@ setup(
     package_data={"": ["LICENSE"]},
     python_requires=">=3.7",
     install_requires=install_requires,
-    test_suite="nose.collector",
-    tests_require=["nose>=1.3.7,<1.4"],
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",

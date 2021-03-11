@@ -31,7 +31,8 @@ unittests:
     - source venv/bin/activate
     - python -V
   script:
-    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ --cover-html --cover-html-dir="./coverage/" datafold/ -v
+    - coverage run -m pytest datafold/
+    - coverage report
   allow_failure: false
   artifacts:
     paths:
@@ -46,7 +47,7 @@ functional_tests:
   script:
     - export PYTHONPATH=`pwd`
     - echo $PYTHONPATH
-    - nosetests tutorials/ -v
+    - python pytest tutorials/
 
 code_checks:
   stage: code_analysis
