@@ -423,7 +423,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
 
 
 class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
-    """Perform Takens time delay embedding on time series collection data.
+    r"""Perform Takens time delay embedding on time series collection data.
 
     Parameters
     ----------
