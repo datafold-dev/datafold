@@ -41,7 +41,7 @@ Contributors
   grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
   Applied Sciences and CeDoSIA of TUM Graduate School at the Technical
   University of Munich for their support.
-  
+
 * **Felix Dietrich** (2). FD thanks the Technical University of Munich for their support.
 
 

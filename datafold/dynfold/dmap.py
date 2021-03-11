@@ -923,7 +923,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
     intrinsic_dim
         Number of eigenvectors to select with largest residuals.
-        
+
     regress_threshold
         Threshold for local residual to include eigenvectors that are above,
         if strategy="threshold".

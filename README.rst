@@ -414,9 +414,10 @@ To test whether the tuturials run without raising an error run:
 All tests (unit and tutorials) can also be executed remotely in a gitlab "Continuous
 Integration" (CI) setup. The pipeline runs for every push to the main repository.
 
-Visit `"gitlab pipelines" <https://docs.gitlab.com/ee/ci/pipelines/>`__ for an
-introduction. *datafold*'s pipeline configuration is located in the file
-`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__.
+*datafold*'s CI configuration is located in the file
+`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__;
+see `CI/CD pipelines (gitlab.com) <https://docs.gitlab.com/ee/ci/pipelines/>`__
+for details.
 
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -433,7 +434,7 @@ development dependencies:
 * `mathjax <https://www.mathjax.org/>`__ to display equations in the browser
 * `graphviz <https://graphviz.org/>`__ to render class dependency graphs
 * `pandoc <https://pandoc.org/index.html>`__ to convert between formats (required by
-  `nbsphinx` extension that includes the tutorials to the web page).
+  `nbsphinx` Sphinx extension that includes the Jupyter tutorials to the web page).
 
 In a Linux environment, install the packages with
 

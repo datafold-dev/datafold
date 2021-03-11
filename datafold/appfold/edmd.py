@@ -1,18 +1,18 @@
 """This file contains code that is copied and modified from
 
 scikit-learn
-version 0.22.1.
+version 0.24.1.
 repository: https://github.com/scikit-learn/scikit-learn/
 project homepage: https://scikit-learn.org/stable/
 
-Specifically, this applies to the following files:
+Specifically, this applies to the following files and functions:
 
 *  sklearn.model_selection._validation.py, _fit_and_score
 *  sklearn.model_selection._search.py, BaseSearchCV.fit
 *  sklearn.sklearn.pipeline.pipeline.py Pipeline
 
 For the datafold module "edmd.py" (this file) the following license from the
-scikit-learn project is added in addition to the datafold license (see LICENSE file)
+scikit-learn project is in addition to the datafold license (see LICENSE file).
 
 -- scikit-learn license and copyright notice START
 

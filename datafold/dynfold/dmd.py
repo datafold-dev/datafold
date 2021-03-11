@@ -76,7 +76,7 @@ class LinearDynamicalSystem(object):
     ----------
 
     :cite:`kutz_dynamic_2016` (pages 3 ff.)
-    
+
     """
 
     _cls_valid_sys_type = ("differential", "flowmap")
@@ -1386,9 +1386,9 @@ class gDMDFull(DMDBase):
 
     References
     ----------
-    
+
     :cite:`klus_data-driven_2020`
-    
+
     """
 
     def __init__(

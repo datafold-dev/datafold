@@ -47,13 +47,13 @@ short_description = (
 long_description = """
 The package provides:
 
-* (Extended-) Dynamic Mode Decomposition (EDMD) to approximate the Koopman operator for 
-  system identification. 
-* Diffusion Maps (DMAP) to find meaningful geometric descriptions in point clouds, 
-  such as the eigenfunctions of the Laplace-Beltrami operator. 
-* Data structure for time series collections (TSCDataFrame) and dedicated 
-  transformations, such as time-delay embeddings (TSCTakensEmbedding). The data 
-  structures operates with both EDMD and DMAP.  
+* (Extended-) Dynamic Mode Decomposition (EDMD) to approximate the Koopman operator for
+  system identification.
+* Diffusion Maps (DMAP) to find meaningful geometric descriptions in point clouds,
+  such as the eigenfunctions of the Laplace-Beltrami operator.
+* Data structure for time series collections (TSCDataFrame) and dedicated
+  transformations, such as time-delay embeddings (TSCTakensEmbedding). The data
+  structures operates with both EDMD and DMAP.
 """
 
 setup(

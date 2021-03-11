@@ -56,7 +56,7 @@ Classes
 Modules
 ~~~~~~~
 
-.. Fill in classes that have 
+.. Fill in classes that have
        WARNING: autosummary: stub file not found 'XXXXX'. Check your autosummary_generate setting.
 
 .. automodapi:: datafold.dynfold.base
@@ -67,7 +67,3 @@ Modules
 
 .. automodapi:: datafold.pcfold.eigsolver
     :skip: Callable,sort_eigenpairs,is_symmetric_matrix,Tuple,Dict
-
-
-
-

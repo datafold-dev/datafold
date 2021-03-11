@@ -37,5 +37,3 @@ use_parentheses = true
 line_length = 88
 combine_star = true
 combine_as_imports = true
-
-

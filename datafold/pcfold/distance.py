@@ -909,7 +909,7 @@ def compute_distance_matrix(
     Y
         Reference point cloud for component-wise computation of shape \
         `(n_samples_Y, n_features_Y)`. If not given, then `Y=X` (pairwise computation)
-    
+
     metric
         Distance metric. Needs to be supported by backend.
 
