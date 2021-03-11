@@ -1839,8 +1839,9 @@ class PyDMDWrapper(DMDBase):
         self._setup_pydmd_model()
 
         if len(X.ids) > 1:
-            raise NotImplementedError(
-                "Provided DMD methods only allow single time series analysis."
+            raise ValueError(
+                "The PyDMD package only works for single coherent time series. See \n "
+                "https://github.com/mathLab/PyDMD/issues/86"
             )
 
         # data is column major
