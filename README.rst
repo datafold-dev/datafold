@@ -41,7 +41,7 @@ Any contribution (code/tutorials/documentation improvements), questions or feedb
 very welcome. Either use the
 `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
 `service desk email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
-See also the "Contributing" section further below.
+See also the "Contributing" section below for setting up the code basis for development.
 
 .. note::
     The project is under active development in a research-driven environment.
