@@ -355,18 +355,22 @@ To install the dependencies without a virtual environment run:
 Install git pre-commit hooks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The *datafold* source code is automatically formatted with
+The *datafold* source code and configuration files are automatically formatted and checked
+with
 
 * `black <https://black.readthedocs.io/en/stable/>`__ for general code formatting
 * `isort <https://timothycrosley.github.io/isort/>`__ for sorting Python :code:`import`
   statements alphabetically and in sections.
-* `nbstripout <https://github.com/kynan/nbstripout>`__ for removing potentially large
-  binary formatted output cells in a Jupyter notebook before the content gets into the git
-  history.
+* `nbstripout <https://github.com/kynan/nbstripout>`__ to remove potentially large
+  binary formatted output cells in Jupyter notebooks before the content bloats the
+  git history.
+* `mypy <http://mypy-lang.org/>`__ for static type checking (if applicable).
+* Diverse, such as removing trailing whitespaces, validating configuration files or
+  sorting the requirement files.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
 committed to the git history. The tools alter the source code in a deterministic
-way, meaning each tool should only format the code once to obtain the desired format.
+way. Each tool should therefore only format the code once to obtain the desired format.
 None of the tool should break the code.
 
 The most convenient way to set up the tools is to install the git commit-hooks via
@@ -388,36 +392,31 @@ development), run from the root directory:
 Run tests
 ^^^^^^^^^
 
-The tests are executed with Python package
-`nose <https://nose.readthedocs.io/en/latest/>`__ (installs with the development
-dependencies).
+The tests are executed with the test suite
+`pytest <https://docs.pytest.org/en/stable/contents.html>`__ and
+`coverage.py <https://coverage.readthedocs.io/en/latest/>`__
+(both install with ``requirements-dev.txt``)
 
-To execute all *datafold* unit tests locally run from the root directory:
-
-.. code-block:: bash
-
-    python setup.py test
-
-Alternatively, you can also run the tests using ``nosetests`` directly, which provides
-further options (see ``nosetests --help``)
+To execute all unit tests locally run from the root directory:
 
 .. code-block:: bash
 
-    nosetests datafold/ -v
+    coverage run -m pytest datafold/
+    coverage html -d coverage/
+    coverage report
 
 To test whether the tuturials run without raising an error run:
 
 .. code-block:: bash
 
-   nosetests tutorials/ -v
+   pytest tutorials/
 
-All tests (unit and tutorials) can also be executed remotely in a gitlab "Continuous
-Integration" (CI) setup. The pipeline runs for every push to the main repository.
-
-*datafold*'s CI configuration is located in the file
-`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__;
-see `CI/CD pipelines (gitlab.com) <https://docs.gitlab.com/ee/ci/pipelines/>`__
-for details.
+All tests can also be executed remotely in a gitlab
+`"Continuous Integration" (CI) setup <https://docs.gitlab.com/ee/ci/pipelines/>`__.
+The pipeline runs with every push to the main repository. The CI configuration is located
+in the file
+`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__
+.
 
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -427,7 +426,7 @@ various extensions (install with the development dependencies). The source
 code is documented with
 `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`__ style.
 
-Additional dependencies to build the documentation that *not* install with the
+Additional dependencies to build the documentation that do *not* install with the
 development dependencies:
 
 * `LaTex <https://www.latex-project.org/>`__ to render equations,
