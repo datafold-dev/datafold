@@ -11,28 +11,27 @@ learning and identification of dynamical systems. The source code is distributed
   meaningful structures from point cloud data, such as the eigenfunctions of the
   Laplace-Beltrami operator. As a distinguishing factor to other implementations, the
   model can handle a sparse kernel matrix and allows setting an arbitrary kernel,
-  including a standard Gaussian kernel,
+  including the standard Gaussian kernel,
   `continuous k-nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
   `dynamics-adapted cone kernel <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
 * Out-of-sample extensions for the Diffusion Maps model, such as the (auto-tuned)
   Laplacian Pyramids or Geometric Harmonics to interpolate general function values on a
   point cloud manifold.
-* The (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull`` or ``EDMD``) as
-  a data-driven model to identify dynamical systems from time series data.
-  The EDMD model subclasses from flexible scikit-learn
+* An implementation of the (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull``
+  or ``EDMD``) as a data-driven model to identify dynamical systems from time series
+  collection data. The EDMD model subclasses from flexible scikit-learn
   `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html>`__,
   which allows setting up and transforming time series collection data to a more suitable
-  feature state (see Koopman operator theory). Two interesting transformations are the
-  Diffusion Maps and time-delay embedding series for phase space reconstruction
-  (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
+  feature state (cf. Koopman operator theory). Two interesting transformations are the
+  Diffusion Maps and time-delay embedding series for phase space reconstruction.
 * ``EDMDCV`` allows model parameters (including the
   transformation model parameters) to be optimized with cross-validation that
   accounts for time series splittings.
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
-  model input/outputs. In contrast to solutions found in other projects, such as lists of
-  Numpy arrays, this makes it much easier to describe collected time data and associate
-  time information.
+  model input/outputs. In contrast to solutions of found in other projects,
+  resorting to lists of Numpy arrays, ``TSCDataFrame`` makes it much easier to describe
+  collected time series data by storing the data in a single object.
 
 See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
 For a mathematical thorough introduction, we refer to the `scientific literature
