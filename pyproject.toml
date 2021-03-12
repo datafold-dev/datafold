@@ -17,9 +17,9 @@ exclude = '''
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-testpaths = ["datafold"]
 
 [tool.coverage.run]
+source=["datafold"]
 omit=["*/tests/*",
       "datafold/_version.py",
       "datafold/_decorators.py",
