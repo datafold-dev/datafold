@@ -98,7 +98,9 @@ def is_integer(n: object) -> bool:
         True if `n` is an integer or a float without decimal places.
 
     """
-    return isinstance(n, int) or (isinstance(n, float) and n.is_integer())
+    return isinstance(n, (int, np.integer)) or (
+        isinstance(n, (float, np.floating)) and n / int(n) == 1.0
+    )
 
 
 def is_float(n: object) -> bool:
@@ -116,7 +118,7 @@ def is_float(n: object) -> bool:
 
     """
 
-    return isinstance(n, float)
+    return isinstance(n, (float, np.floating))
 
 
 def is_scalar(n: object):

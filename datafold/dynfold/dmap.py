@@ -347,18 +347,20 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
     def _validate_settings(self):
-        check_scalar(self.n_eigenpairs, "n_eigenpairs", target_type=int, min_val=1)
+        check_scalar(
+            self.n_eigenpairs, "n_eigenpairs", target_type=(int, np.integer), min_val=1
+        )
 
         check_scalar(
             self.time_exponent,
             "time_exponent",
-            target_type=(float, int),
+            target_type=(float, int, np.floating, np.integer),
         )
 
         check_scalar(
             self.alpha,
             "alpha",
-            target_type=(float, int),
+            target_type=(float, np.floating, int, np.integer),
             min_val=0,
             max_val=1,
         )
@@ -401,7 +403,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.time_exponent,
             "time_exponent",
-            target_type=(float, int),
+            target_type=(float, np.floating, int, np.integer),
         )
 
         if self.time_exponent == 0:
@@ -976,7 +978,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.eps_med_scale,
             name="eps_med_scale",
-            target_type=(float, int),
+            target_type=(float, np.floating, int, np.integer),
             min_val=np.finfo(float).eps,  # exclusive zero
             max_val=np.inf,
         )
@@ -985,7 +987,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             check_scalar(
                 self.n_subsample,
                 name="n_subsample",
-                target_type=int,
+                target_type=(int, np.integer),
                 min_val=1,
                 max_val=np.inf,
             )
@@ -997,7 +999,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             check_scalar(
                 self.intrinsic_dim,
                 name="intrinsic_dim",
-                target_type=int,
+                target_type=(int, np.integer),
                 min_val=1,
                 max_val=num_eigenvectors - 1,
             )
@@ -1006,7 +1008,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             check_scalar(
                 self.regress_threshold,
                 name="regress_threshold",
-                target_type=(float),
+                target_type=(float, np.floating),
                 min_val=np.finfo(float).eps,
                 max_val=1 - np.finfo(float).eps,
             )

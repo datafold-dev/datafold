@@ -80,7 +80,7 @@ class TestTSCCompose(unittest.TestCase):
         expected_index = pd.Index(["pca0", "pca0:d1", "pca0:d2"], name="features")
         nptest.assert_array_equal(expected_index, actual_result.columns)
 
-        self.assertEquals(actual_result.n_timesteps, X.n_timesteps - 2)
+        self.assertEqual(actual_result.n_timesteps, X.n_timesteps - 2)
 
     def test_column_transform(self):
 

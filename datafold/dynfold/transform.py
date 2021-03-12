@@ -476,12 +476,14 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     def _validate_parameter(self):
 
-        check_scalar(self.lag, name="lag", target_type=int, min_val=0, max_val=None)
+        check_scalar(
+            self.lag, name="lag", target_type=(int, np.integer), min_val=0, max_val=None
+        )
 
         check_scalar(
             self.delays,
             name="delays",
-            target_type=int,
+            target_type=(int, np.integer),
             min_val=1,
             max_val=None,
         )
@@ -489,7 +491,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.frequency,
             name="delays",
-            target_type=int,
+            target_type=(int, np.integer),
             min_val=1,
             max_val=None,
         )
@@ -497,7 +499,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.kappa,
             name="kappa",
-            target_type=(int, float),
+            target_type=(int, np.integer, float, np.floating),
             min_val=0.0,
             max_val=None,
         )
@@ -1279,7 +1281,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.spacing_,
             "spacing",
-            target_type=(int, float),
+            target_type=(int, np.integer, float, np.floating),
             min_val=np.finfo(float).eps,
             max_val=None,
         )
@@ -1288,7 +1290,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.diff_order,
             "diff_order",
-            target_type=int,
+            target_type=(int, np.integer),
             min_val=1,
             max_val=None,
         )
@@ -1296,7 +1298,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.accuracy,
             name="accuracy",
-            target_type=int,
+            target_type=(int, np.integer),
             min_val=1,
             max_val=None,
         )

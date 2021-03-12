@@ -218,7 +218,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         check_scalar(
             self.n_eigenpairs,
             "n_eigenpairs",
-            target_type=int,
+            target_type=(int, np.integer),
             min_val=1,
             max_val=self.X_.shape[0] - 1,
         )
@@ -634,7 +634,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
             check_scalar(
                 self.residual_tol,
                 name="residual_tol",
-                target_type=(float),
+                target_type=(float, np.floating),
                 min_val=0,
                 max_val=np.inf,
             )
@@ -642,7 +642,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         check_scalar(
             self.mu,
             "mu",
-            target_type=(int, float),
+            target_type=(int, np.integer, float, np.floating),
             min_val=1 + np.finfo(float).eps,
             max_val=np.inf,
         )

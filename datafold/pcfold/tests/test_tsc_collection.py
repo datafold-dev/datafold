@@ -89,10 +89,10 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertEqual(actual.kernel, None)
 
         actual = TSCDataFrame(self.simple_df, kernel=GaussianKernel(1))
-        self.assertEquals(actual.kernel, GaussianKernel(1))
+        self.assertEqual(actual.kernel, GaussianKernel(1))
 
         actual.kernel = GaussianKernel(999)
-        self.assertEquals(actual.kernel, GaussianKernel(999))
+        self.assertEqual(actual.kernel, GaussianKernel(999))
 
     def test_compute_kernel_matrix(self):
         kernel = GaussianKernel(1)
@@ -130,16 +130,16 @@ class TestTSCDataFrame(unittest.TestCase):
         other_kwargs["kmin"] = 100
 
         actual = TSCDataFrame(self.simple_df, dist_kwargs=other_kwargs)
-        self.assertEquals(actual.dist_kwargs, other_kwargs)
+        self.assertEqual(actual.dist_kwargs, other_kwargs)
 
         other_kwargs["cut_off"] = 100
         other_kwargs["kmin"] = 20
 
         actual.dist_kwargs = other_kwargs
-        self.assertEquals(actual.dist_kwargs, other_kwargs)
+        self.assertEqual(actual.dist_kwargs, other_kwargs)
 
         actual.dist_kwargs = default_kwargs
-        self.assertEquals(actual.dist_kwargs, default_kwargs)
+        self.assertEqual(actual.dist_kwargs, default_kwargs)
 
     def test_compute_distance_matrix(self):
         actual = TSCDataFrame(self.simple_df)
@@ -552,7 +552,7 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = 1
 
         self.assertEqual(actual, expected)
-        self.assertIsInstance(actual, int)
+        self.assertIsInstance(actual, np.integer)
 
     def test_is_normalized_time1(self):
         actual = TSCDataFrame(self.simple_df).is_normalized_time()
