@@ -358,7 +358,7 @@ class TestTSCTransform(unittest.TestCase):
             pd.DataFrame(
                 np.column_stack([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]]),
                 columns=["A", "B"],
-                dtype=np.float,
+                dtype=float,
             )
         )
 

@@ -98,9 +98,7 @@ def is_integer(n: object) -> bool:
         True if `n` is an integer or a float without decimal places.
 
     """
-    return isinstance(n, (int, np.integer)) or (
-        isinstance(n, (float, np.floating)) and n.is_integer()
-    )
+    return isinstance(n, int) or (isinstance(n, float) and n.is_integer())
 
 
 def is_float(n: object) -> bool:
@@ -118,7 +116,7 @@ def is_float(n: object) -> bool:
 
     """
 
-    return isinstance(n, (float, np.floating))
+    return isinstance(n, float)
 
 
 def is_scalar(n: object):
@@ -451,7 +449,7 @@ def random_subsample(
     check_scalar(
         n_samples,
         name="n_samples",
-        target_type=(int, np.integer),
+        target_type=int,
         min_val=1,
         max_val=n_samples_data - 1,
     )

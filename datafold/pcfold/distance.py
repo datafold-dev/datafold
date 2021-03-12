@@ -781,7 +781,7 @@ def _ensure_kmin_nearest_neighbor(
 
         # Note: duplicates and trivial self-distances in the pdist are assumed to already
         # covered by the DistanceAlgorithm (always contained in the radius!)
-        nnz_distance_mask = (distances != 0).astype(np.bool)
+        nnz_distance_mask = (distances != 0).astype(bool)
         distances = distances[nnz_distance_mask]
 
         knn_query_indices = np.repeat(knn_query_indices, kmin)[nnz_distance_mask]

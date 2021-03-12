@@ -241,7 +241,7 @@ class LinearDynamicalSystem(object):
 
             elif self.is_flowmap_system():  # self.system_type == "flowmap":
                 # Usually, for a differential system the eigenvalues are written as:
-                # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
+                # omegas = np.log(eigenvalues.astype(complex)) / time_delta
                 # --> evolve system with
                 #               exp(omegas * t)
                 # because this matches the notation of the differential system.
@@ -256,7 +256,7 @@ class LinearDynamicalSystem(object):
                 # --> evolve system with, using `float_power`
                 #               ev^(t / time_delta)
 
-                _eigenvalues = self.eigenvalues_.astype(np.complex_)
+                _eigenvalues = self.eigenvalues_.astype(complex)
 
                 for idx, time in enumerate(time_values):
                     time_series_tensor[:, idx, :] = np.real(
@@ -780,7 +780,7 @@ class DMDBase(
         assert not (post_map is not None and user_set_modes is not None)
 
         if post_map is not None:
-            post_map = post_map.astype(np.float64)
+            post_map = post_map.astype(float)
             modes = post_map @ self.eigenvectors_right_
         elif user_set_modes is not None:
             modes = user_set_modes
@@ -1248,7 +1248,7 @@ class DMDFull(DMDBase):
         if self.approx_generator:
             # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
             # Eq. 3.2 and 3.3.
-            eigenvalues_ = np.log(eigenvalues_.astype(np.complex)) / self.dt_
+            eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
 
         return eigenvectors_right_, eigenvalues_, eigenvectors_left_
 

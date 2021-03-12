@@ -241,7 +241,7 @@ class TestDistAlgorithms(unittest.TestCase):
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
 
-            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int_):
+            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(int):
 
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros
@@ -285,7 +285,7 @@ class TestDistAlgorithms(unittest.TestCase):
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
 
-            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(np.int_):
+            for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(int):
 
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros

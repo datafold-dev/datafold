@@ -2031,7 +2031,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
                 distance_matrix = distance_matrix * distance_matrix
             else:  # self.k == self.N
                 np.fill_diagonal(distance_matrix, np.nan)
-                bool_mask = ~np.diag(np.ones(nr_samples)).astype(np.bool)
+                bool_mask = ~np.diag(np.ones(nr_samples)).astype(bool)
                 distance_matrix = distance_matrix[bool_mask].reshape(
                     distance_matrix.shape[0], distance_matrix.shape[1] - 1
                 )

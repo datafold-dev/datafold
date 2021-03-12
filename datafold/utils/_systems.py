@@ -230,7 +230,7 @@ class Pendulum(DynamicalSystem):
         self.pendulum_length_m_ = self.rod_length_m + self.radius_mass_
 
         self.fixation_point_ = np.array(
-            [self.pendulum_length_m_, self.pendulum_length_m_], dtype=np.float
+            [self.pendulum_length_m_, self.pendulum_length_m_], dtype=float
         )
         self.equilibrium_point_ = np.array([self.pendulum_length_m_, self.radius_mass_])
 

@@ -182,7 +182,7 @@ class TestTscAccessor(unittest.TestCase):
             X.tsc.assign_ids_train_test(train_indices_invalid, test_indices)
 
         with self.assertRaises(ValueError):
-            train_indices_invalid = train_indices.astype(np.float).copy()
+            train_indices_invalid = train_indices.astype(float).copy()
             X.tsc.assign_ids_train_test(train_indices_invalid, test_indices)
 
     def test_assign_ids_const_delta1(self):

@@ -1523,13 +1523,11 @@ class EDMDWindowPrediction(object):
             check_scalar(
                 self.window_size,
                 name="time_horizon",
-                target_type=(np.integer, int),
+                target_type=int,
                 min_val=1,
             )
 
-            check_scalar(
-                self.offset, name="offset", target_type=(np.integer, int), min_val=1
-            )
+            check_scalar(self.offset, name="offset", target_type=int, min_val=1)
         elif self.window_size is not None or self.offset is not None:
             raise ValueError("'window_size' and 'offset' must be provided together")
 

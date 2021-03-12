@@ -526,7 +526,7 @@ class DMDTest(unittest.TestCase):
 
         dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
 
-        time_values = np.arange(500, dtype=np.float)
+        time_values = np.arange(500, dtype=float)
 
         with self.assertRaises(ValueError):
             _values = time_values.copy()
@@ -549,7 +549,7 @@ class DMDTest(unittest.TestCase):
             dmd.predict(predict_ic, _values)
 
         with self.assertRaises(TypeError):
-            _values = time_values.copy().astype(np.complex)
+            _values = time_values.copy().astype(complex)
             _values[-1] = _values[-1] + 1j
             dmd.predict(predict_ic, _values)
 
