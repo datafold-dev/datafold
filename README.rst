@@ -66,7 +66,8 @@ See also the "Contributing" section below for setting up the code basis for deve
 Quick links
 ===========
 
-* `Project repository <https://gitlab.com/datafold-dev/datafold>`__
+* `Project repository on gitlab <https://gitlab.com/datafold-dev/datafold>`__
+* `Python Package Index page <https://pypi.org/project/datafold/>`__
 * `Software documentation <https://datafold-dev.gitlab.io/datafold/>`__
 * `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
 * Feedback of any kind, usage questions, feature requests and bug reports

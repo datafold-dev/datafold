@@ -216,7 +216,7 @@ intersphinx_mapping = {
 #  https://github.com/agronholm/sphinx-autodoc-typehints/issues/47
 #  in order to have not a mix between some links that work and many that don't
 #  pandas is unfortunately excluded for now
-#  a solution would be to make an own .inv fil, that replaces the short links to
+#  a solution would be to make an own .inv file, that replaces the short links to
 #  deep-links (see github issue)
 #  "pandas": ("http://pandas.pydata.org/pandas-docs/dev", None)
 #  ~
@@ -290,6 +290,22 @@ exclude_patterns = ["README.rst", "setup.py"]
 # html_theme = "sphinx_rtd_theme" # alternative theme
 html_theme = "pydata_sphinx_theme"
 html_logo = "_static/img/datafold_logo_pre.svg"
+
+html_theme_options = {
+    "icon_links": [
+        {
+            "name": "GitLab",
+            "url": "https://gitlab.com/datafold-dev/datafold/",
+            "icon": "fab fa-gitlab",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/datafold/",
+            "icon": "fab fa-python",
+        },
+    ],
+    "icon_links_label": "Quick Links",
+}
 
 
 # Add any paths that contain custom static files (such as style sheets) here,
