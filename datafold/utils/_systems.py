@@ -216,7 +216,7 @@ class Pendulum(DynamicalSystem):
         self.friction = friction
         self.gravity = gravity
 
-    def integrate_pendulum_sim(self, theta_init, t):
+    def _integrate_pendulum_sim(self, theta_init, t):
         theta_dot_1 = theta_init[1]
         theta_dot_2 = -self.friction / self.mass_kg * theta_init[
             1
@@ -254,7 +254,7 @@ class Pendulum(DynamicalSystem):
 
         for ic_idx in range(initial_conditions.shape[0]):
             theta_coord = odeint(
-                self.integrate_pendulum_sim, initial_conditions[ic_idx, :], time_values
+                self._integrate_pendulum_sim, initial_conditions[ic_idx, :], time_values
             )
 
             cartesian_coord = self._convert_cartesian(theta_coord[:, 0].copy())

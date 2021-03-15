@@ -109,34 +109,34 @@ BibTeX:
 How to get it?
 ==============
 
-Installation of *datafold* requires `Python>=3.7 <https://www.python.org/>`__ with
+Installation requires `Python>=3.7 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
-`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed (both
-packages usually ship with a standard Python installation). The *datafold*
-dependencies are listed in the next section.
+`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed. Both
+packages usually ship with a standard Python installation. The dependencies of *datafold*
+are listed in the next section.
 
 There are two ways to install *datafold*.
 
 1. **PyPI**: install the core package (excluding tutorials and tests). This
-   is the standard way for users. To download the tutorial files separately go to
+   is the standard way for users. To download the tutorial files go to
    `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
 2. **Source**: download or git-clone the entire repository. This way is recommended if you
    want to access the latest (but potentially unstable) development, run tests
-   or contribute to *datafold* (see Contributing for details).
+   or wish to contribute (see section "Contributing" for details).
 
 From PyPI
 ---------
 
 *datafold* is hosted on the official Python package index (PyPI)
-(https://pypi.org/project/datafold/). To install *datafold* and its dependencies with
-:code:`pip` run
+(https://pypi.org/project/datafold/). To install the package and its dependencies with
+:code:`pip`, run
 
 .. code-block:: bash
 
    pip install datafold
 
 .. note::
-    If you use Python in an Anaconda set up, also consider
+    If you use Python in an Anaconda setting, also consider
     `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
 
 From source
@@ -151,7 +151,7 @@ From source
 
         git clone https://gitlab.com/datafold-dev/datafold.git
 
-   b. Download the source code from the ``master`` branch
+   b. If you only want to access the source code from the ``master`` branch
       (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
@@ -171,7 +171,7 @@ Dependencies
 
 The *datafold* dependencies are managed in the file
 `requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
-and install during *datafold* installation. The tests and tutorials require further
+and install with *datafold*. The tests and tutorials require further
 dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
@@ -190,17 +190,17 @@ dependencies which are managed in
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__
    as a base class for ``TSCDataFrame``, which captures time series data and
    collections thereof. The data structure indexes time, time series ID and
-   one-or-many spatial spatial features. *datafold* includes specific methods for the time
-   series context, but is also compatible with pandas rich functionality.
+   one-or-many spatial features. It includes specific time series collection functionality
+   and is compatible with pandas rich functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`__.
    This is done by deriving the models from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
-   and appropriate ``MixIns``. *datafold* defines own base classes that align with the
-   API in a duck-typing fashion to allow identifying dynamical systems from time series
-   data in ``TSCDataFrame`` objects.
+   and appropriate `MixIns`. *datafold* defines own `MixIns` that align with the
+   API in a duck-typing fashion to allow identifying dynamical systems from temporal data
+   in ``TSCDataFrame``.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`__
    The package is used for elementary numerical algorithms and data structures in
@@ -278,7 +278,7 @@ set up.
    cd ./datafold/
 
    # Optional: set up virtual environment
-   # Note: if you use Python with Anaconda create a conda environment instead and install pip in it
+   # Note: If you use Python with Anaconda create a conda environment instead and install pip in it
    #       https://datafold-dev.gitlab.io/datafold/conda_install_info.html
    python -m venv .venv
    source .venv/bin/activate

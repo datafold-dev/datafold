@@ -372,12 +372,17 @@ def remove_numeric_noise_symmetric_matrix(
 ) -> Union[np.ndarray, scipy.sparse.spmatrix]:
     r"""Remove numerical noise from (almost) symmetric matrix.
 
-    Noise can get sometimes be introduced in symmetric operations. The operations are
-    then exectued in a different order (e.g. due to optimizations) and can then break
-    exact symmetry.
+    Even symmetric operations can sometimes introduce noise. The
+    operations are often executed in different order, for example, evaluations such as in
 
-    This function is intended for "almost" symmetric matrices to recover symmetry.
-    Like in the following situation:
+    .. math::
+        D^{-1} M D^{-1}
+
+    where :math:`D` is a diagonal matrix. This can then break the exact floating point
+    symmetry in the matrix.
+
+    This function is intended to make recover an exact symmetry of "almost" symmetric
+    matrices, such as in the following situation:
 
     .. code::
         np.max(np.abs(matrix - matrix.T)) # 1.1102230246251565e-16

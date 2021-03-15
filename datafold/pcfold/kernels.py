@@ -185,7 +185,7 @@ def _symmetric_matrix_division(
         matrix = remove_numeric_noise_symmetric_matrix(matrix)
 
     if scalar != 1.0:
-        scalar = 1 / scalar
+        scalar = 1.0 / scalar
         matrix = np.multiply(matrix, scalar, out=matrix)
     return matrix
 
@@ -2098,7 +2098,6 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         kernel_eps_alpha_s = _symmetric_matrix_division(
             matrix=kernel_eps_s, vec=np.power(q_eps_s, self.alpha)
         )
-        assert is_symmetric_matrix(kernel_eps_alpha_s)
 
         return kernel_eps_alpha_s
 
@@ -2186,6 +2185,9 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         kernel_eps_s = self._compute_kernel_eps_s(distance_matrix, rho)
         q_eps_s = self._compute_q_eps_s(kernel_eps_s, rho)
         kernel_eps_alpha_s = self._compute_kernel_eps_alpha_s(kernel_eps_s, q_eps_s)
+
+        # can be expensive
+        assert is_symmetric_matrix(kernel_eps_alpha_s)
 
         if self.is_symmetric:
             q_eps_alpha_s = kernel_eps_alpha_s.sum(axis=1)
