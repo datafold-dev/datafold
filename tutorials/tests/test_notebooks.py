@@ -65,7 +65,7 @@ def _find_all_notebooks_to_run():
                 insert_path = os.path.join(current_path, file)
                 assert os.path.exists(insert_path)
 
-                if os.path.basename(insert_path) not in IGNORED_TESTED_NOTEBOOKS:
+                if os.path.basename(insert_path) not in IGNORE_NOTEBOOKS:
                     example_notebooks.append(insert_path)
 
     return example_notebooks
