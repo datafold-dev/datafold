@@ -11,6 +11,7 @@ datafold.egg-info/
 *.pyc
 __pycache__/
 .mypy_cache/
+.pytest_cache/
 .ipynb_checkpoints/
 
 # Default folder for Python virtual environment (as used in the README)
