@@ -4,19 +4,17 @@ of access to multiple sub-models captured in the class. The models at this layer
 at the end of the machine learning process and are intended to solve complex
 data-driven use-cases or analysis tasks.
 
-The modularization in *datafold's* software of the first and
+The modularization in *datafold*'s software of the first and
 the second layer becomes profitable for the meta-models: the data process pipeline can be
 combined with greater flexibility, which makes it easier to test model
 configurations and model accuracies in a parameter space.
 
-**Base classes and important implementations:**
+**Relevant base classes from scikit-learn:**
 
 * :class:`sklearn.pipeline.Pipeline`
-  The pipeline (meta-estimator) is a base class of :class:`.EDMD` (Extended Dynamic Mode
-  Decomposition). The EDMD dictionary corresponds to the transform functions and the
-  final estimator is a DMD algorithm (see :class:`DMDBase`) which approximates the Koopman
-  operator with a matrix. A fitted EDMD model, which also derives
-  from :py:class:`TSCPredictMixin`, can then perform time series predictions.
+  The pipeline (meta-estimator) is a base class of :py:class:`.EDMD` (Extended Dynamic
+  Mode Decomposition), along the mixins :py:class:`TSCPredictMixin` (time series
+  predictions) and :py:class:`TSCTransformMixin` (for the EDMD dictionary).
 
 * :class:`sklearn.model_selection.GridSearchCV`
   Building upon the meta-model approach, an :class:`EDMD` instance can be integrated

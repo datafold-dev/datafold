@@ -16,14 +16,9 @@ Contents
    :maxdepth: 2
 
    api
-   devapi
+   contributing
    tutorial_index
    references
-
-.. toctree::
-   :hidden:
-
-   conda_install_info
 
 -----
 

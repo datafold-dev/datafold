@@ -1,3 +1,6 @@
+
+.. _install_conda:
+
 Installation with Anaconda
 ==========================
 
