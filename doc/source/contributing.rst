@@ -7,8 +7,8 @@ Contributing
 All code contributors are listed in the
 `contributors file <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-Get in touch
-------------
+Getting in touch
+----------------
 
 Any code contribution (bug fixes/tutorials/documentation changes) and feedback is very
 welcome. Please open a new issue via
