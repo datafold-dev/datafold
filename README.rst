@@ -1,5 +1,5 @@
 Quick links
------------
+^^^^^^^^^^^
 
 `Source repository <https://gitlab.com/datafold-dev/datafold>`__ |
 `Contributing and Feedback <https://datafold-dev.gitlab.io/datafold/contribute.html>`__ |
@@ -124,8 +124,14 @@ From PyPI
    pip install datafold
 
 .. note::
-    If you use Python in an Anaconda setting, also consider
-    `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
+    If you run Python in an Anaconda environment you can use pip from within an ``conda``
+    environment
+
+    .. code-block:: bash
+
+        conda install pip
+        pip install datafold
+
 
 From source
 -----------
@@ -139,7 +145,8 @@ From source
 
         git clone https://gitlab.com/datafold-dev/datafold.git
 
-   b. If you only want to access the source code from the ``master`` branch
+   b. If you only want access the source code, download the source code of the current
+      ``master`` branch
       (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,

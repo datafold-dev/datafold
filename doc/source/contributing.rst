@@ -4,24 +4,18 @@
 Contributing
 ============
 
-.. toctree::
-   :hidden:
-
-   conda_install_info
-
 All code contributors are listed in the
 `contributors file <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-Bug reports, feature requests and user questions
-------------------------------------------------
+Get in touch
+------------
 
 Any contribution (code/tutorials/documentation changes) and feedback is very
-welcome. Please open a new issue in the
+welcome. Please open a new issue via
 
 * `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-* `email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you do
-  not have a gitlab account (this opens a confidential issue).
-
+* `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you
+  have no gitlab account (this opens a confidential issue).
 
 Setting up *datafold* for development
 -------------------------------------
@@ -36,41 +30,84 @@ Quick set up
 The following bash commands include all steps described in detail below for a quick
 set up.
 
-.. code-block:: bash
+.. tabbed:: pip
 
-   # Clone repository (replace FORK_NAMESPACE after forking datafold)
-   git clone git@gitlab.com:[FORK_NAMESPACE]/datafold.git
-   cd ./datafold/
+    .. code-block:: bash
 
-   # Optional: set up virtual environment
-   # Note: If you use Python with Anaconda create a conda environment instead and install pip in it
-   #       https://datafold-dev.gitlab.io/datafold/conda_install_info.html
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install --upgrade pip
+       # Clone repository (replace [NAMESPACE] with your fork or "datafold-dev")
+       git clone git@gitlab.com:[NAMESPACE]/datafold.git
+       cd ./datafold/
 
-   # Optional: install datafold
-   #   not required if the repository path is included in `PYTHONPATH`
-   python setup.py install
+       # Recommended but optional: set up virtual environment
+       python -m venv .venv
+       source .venv/bin/activate
+       pip install --upgrade pip
 
-   # Install development dependencies and code
-   pip install -r requirements-dev.txt
+       # Install package and development dependencies
+       pip install -r requirements-dev.txt
 
-   # Install and run code formatting tools (pre-commit is included in requirements-dev)
-   pre-commit install
-   pre-commit run --all-files
+       # Install and run code formatting tools (pre-commit is included in requirements-dev)
+       pre-commit install
+       pre-commit run --all-files
 
-   # Optional: run tests
-   python setup.py test
+       # Optional: run tests with pytest and record coverage
+       coverage run -m pytest datafold/
+       coverage html -d coverage/
+       coverage report
 
-   # Optional: build documentation
-   sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
-   sphinx-build -b html ./doc/source/ ./public/
+       # Optional: test if tutorials run without error
+       pytest tutorials/
+
+       # Optional: build documentation
+       sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
+       sphinx-build -b html ./doc/source/ ./public/
+
+.. tabbed:: conda
+
+        **datafold is not available from the conda package manager**. If you run
+        Python with Anaconda, this page highlights how to install *datafold* with a
+        ``conda`` environment and ``pip``.
+
+        Also note the
+        `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html>`__
+        for package management in Anaconda, particularly section
+        `"Installing non-conda packages" <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__.
+
+        .. code-block:: bash
+
+           # Clone repository (replace [NAMESPACE] with your fork or "datafold-dev")
+           git clone git@gitlab.com:[NAMESPACE]/datafold.git
+           cd ./datafold/
+
+           # Create new conda environment with pip installed
+           conda create -n .venv
+           conda activate .venv
+           conda install pip  # use pip from within the conda environment
+
+           # Install development dependencies and code
+           pip install -r requirements-dev.txt
+
+           # Install and run code formatting tools (pre-commit is included in requirements-dev)
+           pre-commit install
+           pre-commit run --all-files
+
+           # Optional: run tests with pytest and record coverage
+           coverage run -m pytest datafold/
+           coverage html -d coverage/
+           coverage report
+
+           # Optional: test if tutorials run without error
+           pytest tutorials/
+
+           # Optional: build documentation
+           sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
+           sphinx-build -b html ./doc/source/ ./public/
+
 
 Fork and create merge requests to *datafold*
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Please read and follow the steps of gitlab's
+Plase read and follow the steps of gitlab's
 `"Project forking workflow" <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html>`__.
 
 * `How to create a fork <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#creating-a-fork>`__
@@ -82,11 +119,12 @@ Please read and follow the steps of gitlab's
     background see
     `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
 
-After you have created a fork you can clone the repository with
+After you have created a fork you can clone the repository with (replace [NAMESPACE]
+accordingly):
 
  .. code-block:: bash
 
-   git clone git@gitlab.com:[FORK_NAMESPACE]/datafold.git
+   git clone git@gitlab.com:[NAMESPACE]/datafold.git
 
 
 Install development dependencies
@@ -99,18 +137,36 @@ The recommended (but optional) way is to install all dependencies into a
 `virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
 with other installed packages. Run from the root directory:
 
-.. code-block:: bash
+.. tabbed:: pip
 
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements-dev.txt
+    .. code-block:: bash
 
-To install the dependencies without a virtual environment only run the last statement.
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements-dev.txt
 
-.. note::
-    If you are using Python with Anaconda go to :ref:`install_conda`
-    to set up a ``conda`` environment instead of a ``virtualenv``.
+    To install the dependencies without a virtual environment only run the last statement.
+
+.. tabbed:: conda
+
+    .. code-block:: bash
+
+           # Create new conda environment with pip installed
+           conda create -n .venv
+           conda activate .venv
+           conda install pip  # use pip from within the conda environment
+
+           # Install development dependencies and code
+           pip install -r requirements-dev.txt
+
+    .. note::
+        While the above procedure works, to follow the best practices from
+        `here <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
+        more strictly, it is recommended to install all packages available from ``conda``
+        first, before installing packages via ``pip``. This means, it is recommended to
+        install *datafold*'s dependencies (listed in ``requirements-dev.txt``) separately
+        with :code:`conda install package_name` if the package is hosted on ``conda``.
 
 
 Install git pre-commit hooks
@@ -126,8 +182,8 @@ with
   binary formatted output cells in Jupyter notebooks before the content bloats the
   git history.
 * `mypy <http://mypy-lang.org/>`__ for static type checking (if applicable).
-* Diverse, such as removing trailing whitespaces, validating configuration files or
-  sorting the requirement files.
+* Diverse hooks, such as removing trailing whitespaces, validating configuration
+  files or sorting the requirement files.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
 committed to the git history. The tools alter the source code in a deterministic
@@ -172,12 +228,11 @@ To test whether the tuturials run without raising an error run:
 
    pytest tutorials/
 
-All tests can also be executed remotely in a gitlab
+All tests can also be executed remotely in a
 `"Continuous Integration" (CI) setup <https://docs.gitlab.com/ee/ci/pipelines/>`__.
 The pipeline runs with every push to the main repository. The CI configuration is located
 in the file
-`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__
-.
+`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__.
 
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

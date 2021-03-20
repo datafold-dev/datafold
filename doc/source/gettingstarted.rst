@@ -14,6 +14,5 @@ Getting started
 
    intro
 
------
 
 .. include:: ../../README.rst

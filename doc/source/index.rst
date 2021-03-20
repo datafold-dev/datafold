@@ -18,12 +18,23 @@
    tutorial_index
    references
 
+.. see docu for panels: https://sphinx-panels.readthedocs.io/en/latest/
+.. see and select (free) fontawesome icons https://fontawesome.com/
+
+
+Install with
+
+.. code-block::
+
+    pip install datafold
+
 .. panels::
 
     .. raw:: html
 
         <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
 
+    +++++++++++++++++++++++++++++++++++++++++
     :ref:`gettingstarted` | :ref:`tutorialnb`
 
     ---
@@ -32,6 +43,7 @@
 
         <div class="documentation"><i class="fas fa-chalkboard-teacher fa-7x"></i></i></div>
 
+    +++++++++++++++++++++
     :ref:`documentation`
 
     ---
@@ -40,6 +52,7 @@
 
         <div class="contribution"><i class="fas fa-laptop-code fa-7x"></i></i></div>
 
+    +++++++++++++++++++
     :ref:`contribution`
 
     ---
@@ -48,6 +61,7 @@
 
         <div class="references"><i class="fas fa-graduation-cap fa-7x"></i></i></div>
 
+    +++++++++++++++++
     :ref:`references`
 
 Cite
@@ -60,21 +74,21 @@ If you use *datafold* in your research, please cite
 *Lehmberg et al., (2020). datafold: data-driven models for point clouds and time series on
 manifolds. Journal of Open Source Software, 5(51), 2283,* https://doi.org/10.21105/joss.02283
 
-BibTeX:
+.. dropdown:: Bibtex
 
-.. code-block:: latex
+    .. code-block:: latex
 
-    @article{Lehmberg2020,
-             doi       = {10.21105/joss.02283},
-             url       = {https://doi.org/10.21105/joss.02283},
-             year      = {2020},
-             publisher = {The Open Journal},
-             volume    = {5},
-             number    = {51},
-             pages     = {2283},
-             author    = {Daniel Lehmberg and Felix Dietrich and Gerta K{\"o}ster and Hans-Joachim Bungartz},
-             title     = {datafold: data-driven models for point clouds and time series on manifolds},
-             journal   = {Journal of Open Source Software}}
+        @article{Lehmberg2020,
+                 doi       = {10.21105/joss.02283},
+                 url       = {https://doi.org/10.21105/joss.02283},
+                 year      = {2020},
+                 publisher = {The Open Journal},
+                 volume    = {5},
+                 number    = {51},
+                 pages     = {2283},
+                 author    = {Daniel Lehmberg and Felix Dietrich and Gerta K{\"o}ster and Hans-Joachim Bungartz},
+                 title     = {datafold: data-driven models for point clouds and time series on manifolds},
+                 journal   = {Journal of Open Source Software}}
 
 Affiliations
 ============
@@ -84,7 +98,7 @@ Affiliations
   Applied Sciences and CeDoSIA of TUM Graduate School at the Technical
   University of Munich for their support.
 
-* **Felix Dietrich** (2). FD thanks the Technical University of Munich for their support.
+* **Felix Dietrich** (2) FD thanks the Technical University of Munich for their support.
 
 
 1. Munich University of Applied Sciences

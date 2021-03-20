@@ -54,7 +54,7 @@ master_doc = "index"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
     # See build_full.sh file to execute sphinx-apidoc which fetches
-    # the documentation automatically.
+    # the documentation from the Python source code automatically.
     "sphinx.ext.autodoc",
     # generates function/method/attribute summary lists
     "sphinx.ext.autosummary",
@@ -62,6 +62,7 @@ extensions = [
     "sphinx.ext.todo",
     # See below for configuration
     "sphinx.ext.imgmath",
+    # Include bibtex citations
     # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html#overview
     "sphinxcontrib.bibtex",
     # 'napoleon' allows NumPy and Google style documentation (no external Sphinx
@@ -70,26 +71,23 @@ extensions = [
     # numpydoc docstring guide
     #  -> https://numpydoc.readthedocs.io/en/latest/format.html
     "sphinx.ext.napoleon",
-    # Faciliates the automatic generation of API documentation pages for Python package
+    # Provides automatic generation of API documentation pages for Python package
     # modules. https://sphinx-automodapi.readthedocs.io/en/latest/
     "sphinx_automodapi.automodapi",
-    # "sphinx_automodapi.smart_resolver",
     # Allows to use type-hinting for documenting acceptable argument types and return
     # value types of functions.
     # https://github.com/agronholm/sphinx-autodoc-typehints
-    # NOTE: sphinx_autodoc_typehints must be AFTER "sphinx.ext.napoleon" include!!
-    # https://github.com/agronholm/sphinx-autodoc-typehints/issues/15#issuecomment\
-    # -298224484
+    # NOTE: sphinx_autodoc_typehints must be AFTER the "sphinx.ext.napoleon" include!!
+    # https://github.com/agronholm/sphinx-autodoc-typehints/issues/15#issuecomment\-298224484
     "sphinx_autodoc_typehints",
     # Tries to find the source files where the objects are contained. When found,
     # a separate HTML page will be output for each module with a highlighted version of
     # the source code.
     # https://www.sphinx-doc.org/en/master/usage/extensions/viewcode.html
     "sphinx.ext.viewcode",
-    # "numpydoc",
-    # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
     # Generate automatic links to the documentation of objects in other projects.
     # see options below
+    # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
     "sphinx.ext.intersphinx",
     # https://nbsphinx.readthedocs.io/en/0.6.0/
     # provides a source parser for *.ipynb files
@@ -97,7 +95,12 @@ extensions = [
     # Include notebook files from outside the sphinx source root.
     # https://github.com/vidartf/nbsphinx-link
     "nbsphinx_link",
+    # Include panels in a grid layout or as drop-downs
+    # https://sphinx-panels.readthedocs.io/en/latest/
     "sphinx_panels",
+    # Include copy buttons in code blocks
+    # https://sphinx-copybutton.readthedocs.io/en/latest/
+    "sphinx_copybutton",
 ]
 
 # If the API folder is not removed, classes that were renamed can produce errors
