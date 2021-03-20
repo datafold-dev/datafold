@@ -230,6 +230,9 @@ def generate_docs_str(target):
         f"to this file, if you wish to change the content.\n\n"
     )
 
+    tutorial_page_content += ".. _tutorialnb:\n"
+    tutorial_page_content += "\n"
+    tutorial_page_content += "=========\n"
     tutorial_page_content += "Tutorials\n"
     tutorial_page_content += "=========\n"
     tutorial_page_content += "\n"

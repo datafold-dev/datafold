@@ -1,3 +1,6 @@
+
+.. _documentation:
+
 ======================
 Software documentation
 ======================

@@ -1,3 +1,13 @@
+Quick links
+-----------
+
+`Source repository <https://gitlab.com/datafold-dev/datafold>`__ |
+`Contributing and Feedback <https://datafold-dev.gitlab.io/datafold/contribute.html>`__ |
+`PyPI <https://pypi.org/project/datafold/>`__ |
+`Documentation <https://datafold-dev.gitlab.io/datafold/>`__ |
+`Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__ |
+`Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__
+
 What is *datafold*?
 ====================
 
@@ -57,22 +67,6 @@ For a mathematical thorough introduction, we refer to the `scientific literature
 
       We do not intend to indicate a feature complete milestone with version `1.0`.
 
-Quick links
-===========
-
-* `Project repository on gitlab <https://gitlab.com/datafold-dev/datafold>`__
-* `Python Package Index page <https://pypi.org/project/datafold/>`__
-* `Software documentation <https://datafold-dev.gitlab.io/datafold/>`__
-* `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
-* Feedback of any kind, usage questions, feature requests and bug reports
-
-  * `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__,
-    requires gitlab account
-  * `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__,
-    requires no gitlab account and creates a confident issue via gitlab's
-    `service desk <https://docs.gitlab.com/ee/user/project/service_desk.html#how-it-works>`__.
-
-* `Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__
 
 Cite
 ====
@@ -170,7 +164,7 @@ very welcome. Either use the
 `service desk email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
 
 Instructions to set up *datafold* for development can be found
-`here <https://datafold-dev.gitlab.io/datafold/contribute.html>`.
+`here <https://datafold-dev.gitlab.io/datafold/contribute.html>`__.
 
 
 Dependencies

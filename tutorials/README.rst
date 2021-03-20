@@ -1,5 +1,8 @@
 .. NOTE: this file was automatically generated with 'generate_tutorials_page.py' (located in 'datafold/doc/source/'). Navigate to this file, if you wish to change the content.
 
+.. _tutorialnb:
+
+=========
 Tutorials
 =========
 

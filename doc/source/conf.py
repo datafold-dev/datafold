@@ -97,6 +97,7 @@ extensions = [
     # Include notebook files from outside the sphinx source root.
     # https://github.com/vidartf/nbsphinx-link
     "nbsphinx_link",
+    "sphinx_panels",
 ]
 
 # If the API folder is not removed, classes that were renamed can produce errors
