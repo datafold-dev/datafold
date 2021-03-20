@@ -10,7 +10,7 @@ All code contributors are listed in the
 Get in touch
 ------------
 
-Any contribution (code/tutorials/documentation changes) and feedback is very
+Any code contribution (bug fixes/tutorials/documentation changes) and feedback is very
 welcome. Please open a new issue via
 
 * `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
@@ -20,15 +20,12 @@ welcome. Please open a new issue via
 Setting up *datafold* for development
 -------------------------------------
 
-This section describes all steps for code development and should be
-read before contributing. The *datafold* repository must be cloned via ``git``
-(see section to install *datafold* from source above).
+This section describes all steps for code development.
 
 Quick set up
 ^^^^^^^^^^^^
 
-The following bash commands include all steps described in detail below for a quick
-set up.
+The following bash script includes all steps, which are detailed below.
 
 .. tabbed:: pip
 
@@ -46,11 +43,11 @@ set up.
        # Install package and development dependencies
        pip install -r requirements-dev.txt
 
-       # Install and run code formatting tools (pre-commit is included in requirements-dev)
+       # Install git hooks and code formatting tools
        pre-commit install
        pre-commit run --all-files
 
-       # Optional: run tests with pytest and record coverage
+       # Optional: run tests with coverage and pytest
        coverage run -m pytest datafold/
        coverage html -d coverage/
        coverage report
@@ -65,8 +62,8 @@ set up.
 .. tabbed:: conda
 
         **datafold is not available from the conda package manager**. If you run
-        Python with Anaconda, this page highlights how to install *datafold* with a
-        ``conda`` environment and ``pip``.
+        Python with Anaconda, this page highlights how to install *datafold* in a
+        ``conda`` environment by using ``pip``.
 
         Also note the
         `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html>`__
@@ -87,11 +84,11 @@ set up.
            # Install development dependencies and code
            pip install -r requirements-dev.txt
 
-           # Install and run code formatting tools (pre-commit is included in requirements-dev)
+           # Install git hooks and code formatting tools
            pre-commit install
            pre-commit run --all-files
 
-           # Optional: run tests with pytest and record coverage
+           # Optional: run tests with coverage and pytest
            coverage run -m pytest datafold/
            coverage html -d coverage/
            coverage report
@@ -107,7 +104,7 @@ set up.
 Fork and create merge requests to *datafold*
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Plase read and follow the steps of gitlab's
+Please read and follow the steps of gitlab's
 `"Project forking workflow" <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html>`__.
 
 * `How to create a fork <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#creating-a-fork>`__

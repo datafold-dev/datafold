@@ -4,23 +4,25 @@
 
 **Date**: |today| **Version**: |version|
 
+.. this toctree defines the order and pages that are set at the top of the page
+
 .. toctree::
    :maxdepth: 1
    :hidden:
 
    gettingstarted
-.. toctree::
-   :maxdepth: 2
-   :hidden:
-
+   tutorial_index
    api
    contributing
-   tutorial_index
    references
 
 .. see docu for panels: https://sphinx-panels.readthedocs.io/en/latest/
 .. see and select (free) fontawesome icons https://fontawesome.com/
 
+*datafold* is a `MIT-licensed <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__
+Python package containing operator-theoretic, data-driven models to identify dynamical
+systems from time series data and to infer geometrical structures from point clouds
+with manifold assumption.
 
 Install with
 

@@ -11,9 +11,9 @@ Quick links
 What is *datafold*?
 ====================
 
-*datafold* is a Python library providing data-driven models for kernel-based manifold
-learning and identification of dynamical systems. The source code is distributed under the
-`MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
+*datafold* is a `MIT-licensed <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__
+Python package containing operator-theoretic, data-driven models to identify dynamical
+systems from time series data and to infer geometrical structures in point clouds.
 
 The package includes:
 
@@ -34,9 +34,8 @@ The package includes:
   which allows setting up and transforming time series collection data to a more suitable
   feature state (cf. Koopman operator theory). Two interesting transformations are the
   Diffusion Maps and time-delay embedding series for phase space reconstruction.
-* ``EDMDCV`` allows model parameters (including the
-  transformation model parameters) to be optimized with cross-validation that
-  accounts for time series splittings.
+* ``EDMDCV`` allows model parameters to be optimized with cross-validation splittings that
+  account for the temporal order in time series collections.
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
   model input/outputs. In contrast to solutions of found in other projects,
@@ -115,9 +114,8 @@ There are two ways to install *datafold*.
 From PyPI
 ---------
 
-*datafold* is hosted on the official Python package index (PyPI)
-(https://pypi.org/project/datafold/). To install the package and its dependencies with
-:code:`pip`, run
+*datafold* is hosted on the official Python package index (PyPI). To install the package
+and its dependencies with :code:`pip`, run
 
 .. code-block:: bash
 
@@ -125,10 +123,12 @@ From PyPI
 
 .. note::
     If you run Python in an Anaconda environment you can use pip from within an ``conda``
-    environment
+    environment. See also
+    `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
 
     .. code-block:: bash
 
+        conda activate venv
         conda install pip
         pip install datafold
 
@@ -136,7 +136,7 @@ From PyPI
 From source
 -----------
 
-1. Download the git repository
+1. Download the repository
 
    a. If you wish to contribute code, it is required to have
       `git <https://git-scm.com/>`__ installed. Clone the repository with
@@ -145,12 +145,12 @@ From source
 
         git clone https://gitlab.com/datafold-dev/datafold.git
 
-   b. If you only want access the source code, download the source code of the current
-      ``master`` branch
-      (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
+   b. If you only want access to the source code (current master), download one of the
+      the compressed files
+      `zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
-      `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__)
+      `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__
 
 2. Install *datafold* from the repository with
 
@@ -159,7 +159,7 @@ From source
        python setup.py install
 
    Optionally, add a :code:`--user` flag to install the package and dependencies for the
-   current user only.
+   current OS user only.
 
 
 Contributing
@@ -168,19 +168,18 @@ Contributing
 Any contribution (code/tutorials/documentation improvements), questions or feedback is
 very welcome. Either use the
 `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-`service desk email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
+`Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
 
 Instructions to set up *datafold* for development can be found
 `here <https://datafold-dev.gitlab.io/datafold/contribute.html>`__.
 
-
 Dependencies
 ============
 
-The *datafold* dependencies are managed in the file
+The dependencies of the core package are managed in
 `requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
-and install with *datafold*. The tests and tutorials require further
-dependencies which are managed in
+and install with *datafold*. The tests, tutorials, documentation and code analysis
+require additional dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
 *datafold* integrates with common packages from the
@@ -219,7 +218,7 @@ dependencies which are managed in
 How does it compare to other software?
 ======================================
 
-*Note: the selection only includes other Python packages.*
+*The selection only includes other Python packages.*
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    provides algorithms and models along the entire machine learning pipeline, with a
