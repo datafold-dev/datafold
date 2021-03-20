@@ -22,7 +22,7 @@
 
     .. raw:: html
 
-        <div class="tutorials"><i class="fas fa-book-reader fa-7x"></i></i></div>
+        <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
 
     :ref:`gettingstarted` | :ref:`tutorialnb`
 
