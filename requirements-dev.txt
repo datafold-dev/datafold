@@ -1,6 +1,7 @@
 -r requirements.txt
 coverage[toml]==5.5.0
 git+git://github.com/jmbr/diffusion-maps@master
+identify==2.2.0
 jupyter-client>=6.0.0,<7.0.0
 jupyter-core>=4.6.3,<5.0.0
 jupyter>=1.0.0,<2.0.0

@@ -2,7 +2,7 @@ Quick links
 ^^^^^^^^^^^
 
 `Source repository <https://gitlab.com/datafold-dev/datafold>`__ |
-`Contributing and Feedback <https://datafold-dev.gitlab.io/datafold/contribute.html>`__ |
+`Contributing and feedback <https://datafold-dev.gitlab.io/datafold/contributing.html>`__ |
 `PyPI <https://pypi.org/project/datafold/>`__ |
 `Documentation <https://datafold-dev.gitlab.io/datafold/>`__ |
 `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__ |

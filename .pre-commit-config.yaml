@@ -12,15 +12,15 @@ repos:
 -   repo: https://github.com/python/black
     rev: 20.8b1
     hooks:
-    -   id: black
+    - id: black
 
--   repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.7.0
+-   repo: https://github.com/pycqa/isort
+    rev: 5.8.0
     hooks:
-    -   id: isort
+    - id: isort
 
 -   repo: https://github.com/kynan/nbstripout
-    rev: master
+    rev: 0.3.9
     hooks:
     - id: nbstripout
       files: ".ipynb"
