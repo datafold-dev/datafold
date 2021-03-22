@@ -20,12 +20,12 @@ welcome. Please open a new issue via
 Setting up *datafold* for development
 -------------------------------------
 
-This section describes all steps for code development.
+This section describes all steps to set up *datafold* for code development.
 
 Quick set up
 ^^^^^^^^^^^^
 
-The following bash script includes all steps, which are detailed below.
+The bash script includes all steps that are detailed below.
 
 .. tabbed:: pip
 
@@ -35,12 +35,12 @@ The following bash script includes all steps, which are detailed below.
        git clone git@gitlab.com:[NAMESPACE]/datafold.git
        cd ./datafold/
 
-       # Recommended but optional: set up virtual environment
+       # Recommended: set up virtual environment
        python -m venv .venv
        source .venv/bin/activate
        pip install --upgrade pip
 
-       # Install package and development dependencies
+       # Install package and extra dependencies
        pip install -r requirements-dev.txt
 
        # Install git hooks and code formatting tools
@@ -62,13 +62,14 @@ The following bash script includes all steps, which are detailed below.
 .. tabbed:: conda
 
         **datafold is not available from the conda package manager**. If you run
-        Python with Anaconda, this page highlights how to install *datafold* in a
-        ``conda`` environment by using ``pip``.
+        Python with Anaconda's package manager, the below code installs
+        *datafold* in a ``conda`` environment by using ``pip``.
 
         Also note the
         `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html>`__
-        for package management in Anaconda, particularly section
-        `"Installing non-conda packages" <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__.
+        for package management in Anaconda, particularly section on how to
+        `install non-conda packages <https://docs.conda
+        .io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__.
 
         .. code-block:: bash
 
@@ -81,7 +82,7 @@ The following bash script includes all steps, which are detailed below.
            conda activate .venv
            conda install pip  # use pip from within the conda environment
 
-           # Install development dependencies and code
+           # Install package and extra dependencies
            pip install -r requirements-dev.txt
 
            # Install git hooks and code formatting tools
@@ -113,16 +114,16 @@ Please read and follow the steps of gitlab's
 .. note::
     We have set up a "Continuous Integration" (CI) pipeline. However, the worker (a
     `gitlab-runner`) of the parent repository is not available for forked projects (for
-    background see
+    background information see
     `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
 
-After you have created a fork you can clone the repository with (replace [NAMESPACE]
-accordingly):
+After you have created a fork you can clone the repository with:
 
  .. code-block:: bash
 
    git clone git@gitlab.com:[NAMESPACE]/datafold.git
 
+(replace [NAMESPACE] accordingly)
 
 Install development dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -130,17 +131,20 @@ Install development dependencies
 The file ``requirements-dev.txt`` in the root directory of the repository contains all
 developing dependencies and is readable with :code:`pip`.
 
-The recommended (but optional) way is to install all dependencies into a
-`virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
-with other installed packages. Run from the root directory:
-
 .. tabbed:: pip
+
+    The recommended (but optional) way is to install all dependencies into a
+    `virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
+    with other installed packages.
 
     .. code-block:: bash
 
+        # Create and activate new virtual environment
         python -m venv .venv
         source .venv/bin/activate
         pip install --upgrade pip
+
+        # Install package and extra dependencies
         pip install -r requirements-dev.txt
 
     To install the dependencies without a virtual environment only run the last statement.
@@ -154,16 +158,15 @@ with other installed packages. Run from the root directory:
            conda activate .venv
            conda install pip  # use pip from within the conda environment
 
-           # Install development dependencies and code
+           # Install package and extra dependencies
            pip install -r requirements-dev.txt
 
     .. note::
-        While the above procedure works, to follow the best practices from
-        `here <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
-        more strictly, it is recommended to install all packages available from ``conda``
-        first, before installing packages via ``pip``. This means, it is recommended to
-        install *datafold*'s dependencies (listed in ``requirements-dev.txt``) separately
-        with :code:`conda install package_name` if the package is hosted on ``conda``.
+        While the above procedure works, you may also want to follow the best practices
+        from `Anaconda <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
+        more strictly. In particular, it is recommended to install package dependencies
+        listed in ``requirements-dev.txt`` separately with
+        :code:`conda install package_name`, if the package is hosted on ``conda``.
 
 
 Install git pre-commit hooks
@@ -183,21 +186,23 @@ with
   files or sorting the requirement files.
 
 It is highly recommended that the tools inspect and format the code *before* the code is
-committed to the git history. The tools alter the source code in a deterministic
-way. Each tool should therefore only format the code once to obtain the desired format.
-None of the tool should break the code.
+committed to the git history. The git hooks alter the source code in a deterministic
+way. Each hook should therefore only format the code once to obtain the desired format and
+none of the tool should break the code.
 
-The most convenient way to set up the tools is to install the git commit-hooks via
-`pre-commit <https://pre-commit.com/>`__ (installs with the development
-dependencies). To install the git-hooks run from root directory:
+Conveniently, all of this is managed via `pre-commit <https://pre-commit.com/>`__
+(installs with ``requirements-dev.txt``) and the configuration in
+`.pre-commit-config.yaml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.pre-commit-config.yaml>`__
+
+To install the git-hooks locally run from the root directory:
 
 .. code-block:: bash
 
    pre-commit install
 
-The installed git-hooks then run automatically prior to each ``git commit``. To format
-the current source code without a commit (e.g., for testing purposes or during
-development), run from the root directory:
+The git-hooks then run automatically prior to each ``git commit``. To format the
+current source code without a commit (e.g. for testing purposes or during development),
+run from the root directory:
 
 .. code-block:: bash
 
@@ -206,7 +211,7 @@ development), run from the root directory:
 Run tests
 ^^^^^^^^^
 
-The tests are executed with the test suite
+The unit tests are executed with the test suite
 `pytest <https://docs.pytest.org/en/stable/contents.html>`__ and
 `coverage.py <https://coverage.readthedocs.io/en/latest/>`__
 (both install with ``requirements-dev.txt``)
@@ -217,16 +222,16 @@ To execute all unit tests locally run from the root directory:
 
     coverage run -m pytest datafold/
     coverage html -d coverage/
-    coverage report
 
-To test whether the tuturials run without raising an error run:
+A html coverage report is then located in the folder ``coverage/``. To test if the
+tutorials run without raising an error run:
 
 .. code-block:: bash
 
    pytest tutorials/
 
 All tests can also be executed remotely in a
-`"Continuous Integration" (CI) setup <https://docs.gitlab.com/ee/ci/pipelines/>`__.
+`Continuous Integration (CI) setup <https://docs.gitlab.com/ee/ci/pipelines/>`__.
 The pipeline runs with every push to the main repository. The CI configuration is located
 in the file
 `.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__.
@@ -234,9 +239,9 @@ in the file
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The documentation is built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`__ and
-various extensions (install with the development dependencies). The source
-code is documented with
+The `documentation page <https://datafold-dev.gitlab.io/datafold/index.html>`__ is
+built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`__ and various extensions
+(install with ``requirements-dev.txt``). The source code is documented with
 `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`__ style.
 
 Additional dependencies to build the documentation that do *not* install with the
@@ -246,9 +251,11 @@ development dependencies:
 * `mathjax <https://www.mathjax.org/>`__ to display equations in the browser
 * `graphviz <https://graphviz.org/>`__ to render class dependency graphs
 * `pandoc <https://pandoc.org/index.html>`__ to convert between formats (required by
-  `nbsphinx` Sphinx extension that includes the Jupyter tutorials to the web page).
+  `nbsphinx` Sphinx extension that includes the
+  `Jupyter tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
+  to the web page).
 
-In a Linux environment, install the packages with
+On a debian-like platform, install the packages with
 
 .. code-block:: bash
 
@@ -256,7 +263,7 @@ In a Linux environment, install the packages with
 
 (This excludes the Latex installation, see available `texlive` packages).
 
-To build the documentation with `Sphinx <https://www.sphinx-doc.org/en/master/>`__:
+To build the documentation run:
 
 .. code-block:: bash
 
@@ -264,4 +271,4 @@ To build the documentation with `Sphinx <https://www.sphinx-doc.org/en/master/>`
    sphinx-build -b html ./doc/source/ ./public/
 
 The page entry is then located at ``./public/index.html``. Please make sure that the
-installation of Sphinx is in the path environment variable.
+required Sphinx programs are included in the path environment variable.

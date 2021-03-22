@@ -41,6 +41,6 @@ specifications that align to the scikit-learn API in a duck-typing fashion
   The mixin is intended for models that identify dynamical systems from time series
   data. For predictions, an initial condition and the time values to evaluate the model
   at are required.
-* :class:`sklearn.RegressorMixin` and :class:``sklearn.MultiOutputMixin``
+* :class:`sklearn.RegressorMixin` and :class:`sklearn.MultiOutputMixin`
   The scikit-learn mixins are used in *datafold* models that interpolate or regress
   function values high-dimensional point clouds with manifold assumption.
