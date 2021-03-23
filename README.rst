@@ -169,9 +169,8 @@ Any contribution (code/tutorials/documentation improvements), questions or feedb
 very welcome. Either use the
 `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
 `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
-
 Instructions to set up *datafold* for development can be found
-`here <https://datafold-dev.gitlab.io/datafold/contribute.html>`__.
+`here <https://datafold-dev.gitlab.io/datafold/contributing.html>`__.
 
 Dependencies
 ============

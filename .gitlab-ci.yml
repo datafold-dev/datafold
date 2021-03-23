@@ -25,6 +25,7 @@ setup:
     - python -m pip install --upgrade twine
     - python -m pip install -r requirements-dev.txt
 
+
 unittests:
   stage: test
   before_script:
@@ -41,6 +42,7 @@ unittests:
     expire_in: 1 week
     when: on_success
 
+
 functional_tests:
   before_script:
     - source venv/bin/activate
@@ -49,6 +51,8 @@ functional_tests:
     - export PYTHONPATH=`pwd`
     - echo $PYTHONPATH
     - python -m pytest tutorials/
+  allow_failure: false
+
 
 code_checks:
   stage: code_analysis
@@ -58,6 +62,7 @@ code_checks:
   script:
     - pre-commit run --all
   allow_failure: true
+
 
 docu_check:
   stage: code_analysis
@@ -69,6 +74,7 @@ docu_check:
   except:
     - master
   allow_failure: false
+
 
 pages:
   stage: deploy
@@ -82,8 +88,9 @@ pages:
   artifacts:
     paths:
     - public
-  only:
-    - master
+#  only:
+#    - master
+
 
 # Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:

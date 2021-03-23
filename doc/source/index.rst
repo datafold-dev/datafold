@@ -43,7 +43,7 @@ Install with
 
     .. raw:: html
 
-        <div class="documentation"><i class="fas fa-chalkboard-teacher fa-7x"></i></i></div>
+        <div class="documentation"><i class="fas fa-book fa-7x"></i></i></div>
 
     +++++++++++++++++++++
     :ref:`documentation`
