@@ -22,7 +22,7 @@
 *datafold* is a `MIT-licensed <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__
 Python package containing operator-theoretic models that can identify
 dynamical systems from time series data and infer geometrical structures from point
-clouds with manifold assumption.
+clouds.
 
 Install with
 
