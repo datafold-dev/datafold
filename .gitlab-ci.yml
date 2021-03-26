@@ -14,6 +14,15 @@ cache:
     - ${PRE_COMMIT_HOME}
     - venv/
 
+
+# https://gitlab.com/gitlab-org/gitlab/-/issues/33694#note_335120563
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: always
+
+
 setup:
   stage: remote_setup
   script:
