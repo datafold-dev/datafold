@@ -88,9 +88,14 @@ pages:
   artifacts:
     paths:
     - public
-  only:
-    - master
-
+  rules:
+    # from: https://forum.gitlab.com/t/how-to-setup-manual-job-from-feature-branch-that-runs-automatically-on-master/38892
+    # always update pages if on master
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: always
+    # manual option if push to branches other than master
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: manual
 
 # Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:
