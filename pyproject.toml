@@ -1,3 +1,8 @@
+[build-system]
+# Minimum requirements for the build system to execute.
+requires = ["setuptools", "wheel"]  # PEP 508 specifications.
+
+
 [tool.black]
 # https://black.readthedocs.io/en/stable/?badge=stable
 exclude = '''
@@ -15,8 +20,10 @@ exclude = '''
 )
 '''
 
+
 [tool.pytest.ini_options]
 minversion = "6.0"
+
 
 [tool.coverage.run]
 source=["datafold"]
@@ -31,6 +38,7 @@ omit=["*/tests/*",
 [tool.coverage.report]
 exclude_lines =["pragma: no cover",
                 "if __name__ == .__main__.:"]
+
 
 [tool.isort]
 # https://pycqa.github.io/isort/

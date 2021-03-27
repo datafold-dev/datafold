@@ -19,10 +19,14 @@
 .. see docu for panels: https://sphinx-panels.readthedocs.io/en/latest/
 .. see and select (free) fontawesome icons https://fontawesome.com/
 
-*datafold* is a `MIT-licensed <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__
-Python package containing operator-theoretic models that can identify
+*datafold* is a Python package containing operator-theoretic models that can identify
 dynamical systems from time series data and infer geometrical structures from point
-clouds.
+clouds. |MIT-license|
+
+.. inline useage of the badge
+.. |MIT-license| image:: https://img.shields.io/badge/license-MIT-blue
+   :target: https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE
+   :alt: license
 
 Install with
 
@@ -66,12 +70,45 @@ Install with
     +++++++++++++++++
     :ref:`references`
 
+
+**Overview of datafold's software management:**
+
+.. list-table::
+   :widths: 25 25
+   :header-rows: 1
+
+   * -
+     - Badge (Link)
+   * - Packaging
+     - .. image:: https://badge.fury.io/py/datafold.svg
+          :target: https://pypi.org/project/datafold/
+          :alt: pypi
+   * - Latest pipeline (branch ``master``)
+     - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/pipeline.svg
+          :target: https://gitlab.com/datafold-dev/datafold/pipelines/master/latest
+          :alt: pipeline status
+   * - Latest coverage (branch ``master``)
+     - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/coverage.svg
+          :target: https://gitlab.com/datafold-dev/datafold/-/jobs/artifacts/master/file/coverage/index.html?job=unittests
+          :alt: coverage report
+   * - Code management
+     - .. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
+          :target: https://pre-commit.com/
+          :alt: pre-commit
+       .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+          :target: https://black.readthedocs.io/en/stable/
+          :alt: python-black
+
+
 Cite
 ====
 
-If you use *datafold* in your research, please cite
-`this paper <https://joss.theoj.org/papers/10.21105/joss.02283>`__ published in the
-*Journal of Open Source Software* (`JOSS <https://joss.theoj.org/>`__).
+If you use *datafold* in your research, please cite the paper |joss-paper| that we
+published in the *Journal of Open Source Software* (`JOSS <https://joss.theoj.org/>`__).
+
+.. |joss-paper| image:: https://joss.theoj.org/papers/10.21105/joss.02283/status.svg
+   :target: https://doi.org/10.21105/joss.02283
+   :alt: joss-paper
 
 *Lehmberg et al., (2020). datafold: data-driven models for point clouds and time series on
 manifolds. Journal of Open Source Software, 5(51), 2283,* https://doi.org/10.21105/joss.02283
