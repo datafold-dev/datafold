@@ -1173,10 +1173,10 @@ class TSCDataFrame(pd.DataFrame):
         return is_datetime64_dtype(self.index.get_level_values(self.tsc_time_idx_name))
 
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
-        """Generator over time series (id, pandas.DataFrame).
+        """Generator of contained time series.
 
-        .. note::
-            Each time series is a ``pandas.DataFrame`` (not a ``TSCDataFrame``).
+        Each iteration returns the time series ID and the corresponding
+        time series (a :class:`pd.DataFrame` instead of a ``TSCDataFrame``).
 
         Yields
         ------
@@ -1189,7 +1189,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_equal_length(self) -> bool:
         """Indicates if all time series in the collection have the same number of
-        timesteps.
+        time steps.
         """
         return len(np.unique(self.n_timesteps)) == 1
 

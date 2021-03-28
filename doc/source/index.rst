@@ -144,7 +144,7 @@ Affiliations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Faculty of Computer Science and Mathematics in
-research group "Pedestrian Dynamics" `www.vadere.org <http://www.vadere.org/>`_,
+Pedestrian Dynamics Research Group  (`web <http://www.vadere.org/>`__)
 
 .. image:: _static/img/hm_logo.png
    :height: 81px
@@ -155,6 +155,7 @@ research group "Pedestrian Dynamics" `www.vadere.org <http://www.vadere.org/>`_,
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Chair of Scientific Computing in Computer Science
+(`web <https://www.in.tum.de/en/i05/home/>`__)
 
 .. image:: _static/img/tum_logo.png
    :height: 75px

@@ -38,19 +38,19 @@ with open(path_to_pkg_requirements, "r") as f:
 
 install_requires = [req.replace("\n", "") for req in install_requires]
 
-short_description = (
-    "A package providing manifold parametrization in the Diffusion Maps framework "
-    "and identification of dynamical systems in the Koopman operator view with the "
-    "Extended Dynamic Mode Decomposition."
-)
+short_description = """A Python package containing operator-theoretic models that can
+identify dynamical systems from time series data and infer geometrical structures from
+point clouds."""
 
 long_description = """
-The package provides:
+The package contains:
 
-* (Extended-) Dynamic Mode Decomposition (EDMD) to approximate the Koopman operator for
-  system identification.
-* Diffusion Maps (DMAP) to find meaningful geometric descriptions in point clouds,
+* (Extended-) Dynamic Mode Decomposition (E-DMD) to approximate the Koopman
+  operator from time series data.
+* Diffusion Map (DMAP) to find meaningful geometric descriptions in point clouds,
   such as the eigenfunctions of the Laplace-Beltrami operator.
+* Out-of-sample extensions of point cloud manifolds, such as Geometric Harmonics
+  interpolator and (auto-tuned) Laplacian Pyramids.
 * Data structure for time series collections (TSCDataFrame) and dedicated
   transformations, such as time-delay embeddings (TSCTakensEmbedding). The data
   structures operates with both EDMD and DMAP.
@@ -65,9 +65,9 @@ setup(
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
     keywords=[
-        "machine learning, dynamical system, data-driven, time series, time series "
-        "regression, time series forecasting, manifold learning, diffusion map, "
-        "koopman operator, nonlinear"
+        "mathematics, machine learning, dynamical system, data-driven, time series, "
+        "regression, forecasting, manifold learning, diffusion map, koopman operator, "
+        "nonlinear"
     ],
     author_email=email,
     packages=find_packages(),
