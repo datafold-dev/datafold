@@ -41,6 +41,8 @@ project = "datafold"
 copyright = f"2019-{datetime.now().year}, the datafold contributors"
 author = "datafold contributors"
 version = __version__
+release = version  # no need to make it separate
+today_fmt = "%d %B %Y"
 
 # -- General configuration ---------------------------------------------------------------
 

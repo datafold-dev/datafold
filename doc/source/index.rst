@@ -91,7 +91,7 @@ Install with
      - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/coverage.svg
           :target: https://gitlab.com/datafold-dev/datafold/-/jobs/artifacts/master/file/coverage/index.html?job=unittests
           :alt: coverage report
-   * - Code management
+   * - Code-related
      - .. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
           :target: https://pre-commit.com/
           :alt: pre-commit
