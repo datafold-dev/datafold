@@ -159,7 +159,7 @@ with open(filepath_literature_file, "r") as file:
 # leave out 'file' keys out
 new_content = []
 for line in content.splitlines(keepends=True):
-    if not line.lstrip().startswith("file"):
+    if not line.lstrip().startswith("file") and not line.lstrip().startswith("urldate"):
         new_content.append(line)
 
 # write content back to file
