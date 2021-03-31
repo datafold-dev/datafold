@@ -203,6 +203,17 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(tsc_df.set_index(new_idx_degenerated_ts).has_degenerate())
         self.assertFalse(tsc_df.has_degenerate())
 
+    def test_set_index3(self):
+        tsc_df = TSCDataFrame(self.simple_df.copy())
+
+        with self.assertRaises(AttributeError):
+            # only pd.Index is allowed (this is a restriction)
+            tsc_df.index = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        with self.assertRaises(AttributeError):
+            # go in index checks
+            tsc_df.index = pd.Index([1, 2, 3, 4, 5, 6, 7, 8, 9])
+
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         pdtest.assert_series_equal(

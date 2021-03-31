@@ -331,9 +331,9 @@ class TSCDataFrame(pd.DataFrame):
                 raise e
 
     def __setattr__(self, key, value):
-        if key == "index" and isinstance(value, pd.Index):
+        if key == "index":
             value = self._validate_index(value)
-        elif key == "columns" and isinstance(value, pd.Index):
+        elif key == "columns":
             value = self._validate_columns(value)
 
         # Note: validation of data is not necessary here because this is done
@@ -763,6 +763,9 @@ class TSCDataFrame(pd.DataFrame):
 
     def _validate_index(self, index: Union[pd.MultiIndex, pd.Index]) -> pd.MultiIndex:
 
+        if not isinstance(index, pd.MultiIndex):
+            raise AttributeError("index must be of type pd.MultiIndex")
+
         if index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(
@@ -839,6 +842,9 @@ class TSCDataFrame(pd.DataFrame):
         return index
 
     def _validate_columns(self, columns: pd.Index) -> pd.Index:
+
+        if not isinstance(columns, pd.Index):
+            raise AttributeError("columns must be of type pd.Index")
 
         if columns.nlevels != 1:
             # must exactly have two levels [ID, time]

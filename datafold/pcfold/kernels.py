@@ -62,7 +62,7 @@ def _symmetric_matrix_division(
     scalar: float = 1.0,
     value_zero_division: Union[str, float] = "raise",
 ) -> Union[np.ndarray, scipy.sparse.csr_matrix,]:
-    r"""Symmetric division, which often appears in kernels.
+    r"""Symmetric division, often appearing in kernels.
 
     .. math::
         \frac{M_{i, j}}{a v^(l)_i v^(r)_j}
@@ -71,8 +71,8 @@ def _symmetric_matrix_division(
     (left and right) vector elements :math:`v` and scalar :math:`a`.
 
     .. warning::
-        The function is in-place and may therefore overwrite the matrix. Make a copy
-        beforehand if the old values are still required.
+        The implementation is in-place and can overwrites the input matrix. Make a copy
+        beforehand if the matrix values are still required.
 
     Parameters
     ----------
@@ -115,8 +115,8 @@ def _symmetric_matrix_division(
                 f"Encountered zero values in division in {(vec == 0).sum()} points."
             )
         else:
-            # division results into 'nan' without ZeroDivisionWarning and will
-            # be repaced later
+            # division results into 'nan' without raising a ZeroDivisionWarning. The
+            # nan values will be replaced later
             vec[vec == 0.0] = np.nan
 
     vec_inv_left = np.reciprocal(vec)
@@ -172,7 +172,7 @@ def _symmetric_matrix_division(
             matrix.data[np.isnan(matrix.data)] = value_zero_division
 
     else:
-        # Solves efficiently:
+        # This computes efficiently:
         # np.diag(1/vector_elements) @ matrix @ np.diag(1/vector_elements)
         matrix = diagmat_dot_mat(vec_inv_left, matrix, out=matrix)
         matrix = mat_dot_diagmat(matrix, vec_inv_right, out=matrix)
@@ -187,6 +187,7 @@ def _symmetric_matrix_division(
     if scalar != 1.0:
         scalar = 1.0 / scalar
         matrix = np.multiply(matrix, scalar, out=matrix)
+
     return matrix
 
 
