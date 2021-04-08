@@ -729,6 +729,30 @@ class TSCDataFrame(pd.DataFrame):
 
         return unique_delta_times
 
+    def to_csv(self, **kwargs) -> Optional[str]:
+        """Write object to a comma-separated values (csv) file.
+
+        Internaly, the method casts the object (self) to pd.Dataframe before the csv is
+        written. The reason is that for larger files it could be observed that the
+        internals of ``to_csv`` could lead to invalid TSCDataFrame objects (which
+        raise an error).
+
+        Parameters
+        ----------
+        **kwargs
+            All keyword arguments are passed to the super class. See
+            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_csv.html>`__
+
+        Returns
+        -------
+        None or str
+            If path is None, returns the resulting csv format as a
+            string. Otherwise returns None.
+
+        """
+
+        return pd.DataFrame(self).to_csv(**kwargs)
+
     @classmethod
     def from_csv(cls, filepath, **kwargs) -> "TSCDataFrame":
         """Initialize time series collection from csv file.
