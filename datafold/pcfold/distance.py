@@ -944,7 +944,12 @@ def compute_distance_matrix(
     X = if1dim_colvec(X)
 
     is_pdist = Y is None
-    is_sparse = cut_off is not None
+
+    if cut_off is None or np.isinf(cut_off):
+        cut_off = None  # default to None and use dense case if np.isinf(cut_off)
+        is_sparse = False
+    else:
+        is_sparse = True
 
     if not is_pdist and not isinstance(Y, np.ndarray):
         Y = np.asarray(Y)
@@ -974,10 +979,6 @@ def compute_distance_matrix(
             cut_off = float(cut_off)  # make sure to only deal with Python built-in
         except ValueError:
             raise TypeError(f"type(cut_off)={type(cut_off)} must be of type float")
-
-        if np.isinf(cut_off):
-            # use dense case if cut_off is infinite
-            cut_off = None
 
         kmin = int(kmin)  # use Python built-in
         if not is_integer(kmin):
