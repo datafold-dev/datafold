@@ -949,6 +949,10 @@ def compute_distance_matrix(
         cut_off = None  # default to None and use dense case if np.isinf(cut_off)
         is_sparse = False
     else:
+        try:
+            cut_off = float(cut_off)  # make sure to only deal with Python built-in
+        except ValueError:
+            raise TypeError(f"type(cut_off)={type(cut_off)} must be of type float")
         is_sparse = True
 
     if not is_pdist and not isinstance(Y, np.ndarray):
@@ -969,16 +973,12 @@ def compute_distance_matrix(
 
     if is_sparse:
         assert isinstance(cut_off, float)
+
         if cut_off <= 0:
             raise ValueError(
                 f"cut_off={cut_off} must be a positive number number of "
                 f"type 'float'"
             )
-
-        try:
-            cut_off = float(cut_off)  # make sure to only deal with Python built-in
-        except ValueError:
-            raise TypeError(f"type(cut_off)={type(cut_off)} must be of type float")
 
         kmin = int(kmin)  # use Python built-in
         if not is_integer(kmin):
