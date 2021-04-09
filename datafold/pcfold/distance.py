@@ -10,7 +10,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import BallTree, NearestNeighbors
 
-from datafold.utils.general import if1dim_colvec, if1dim_rowvec
+from datafold.utils.general import if1dim_colvec, if1dim_rowvec, is_integer
 
 try:
     # rdist is an optional distance algorithm backend -- an import error is raised only
@@ -812,7 +812,7 @@ def _ensure_kmin_nearest_neighbor(
         )
 
         # TODO: This changes the sparsity structure and raises a warning. I am not sure
-        #  how to do make it right. For this attempt the tests fail:
+        #  how to make this right. For this attempt the tests fail:
         #  distance_matrix.tolil(copy=False)[
         #      kmin_elements_csr.nonzero()
         #  ] = kmin_elements_csr.data
@@ -922,8 +922,8 @@ def compute_distance_matrix(
             cut-off must be stated in in Eucledian distance (not squared cut-off).
 
     kmin
-        Minimum number of neighbors. Ignored if `cut_off=np.inf` to indicate a dense
-        distance matrix, where all distance pairs are computed.
+        Minimum number of neighbors per point. Ignored if `cut_off=np.inf` to indicate
+        a dense distance matrix, where all distance pairs are computed.
 
     backend
         Backend to compute distance matrix.
@@ -940,40 +940,54 @@ def compute_distance_matrix(
 
     if not isinstance(X, np.ndarray):
         X = np.asarray(X)
+
     X = if1dim_colvec(X)
 
-    if Y is not None and not isinstance(Y, np.ndarray):
+    is_pdist = Y is None
+    is_sparse = cut_off is not None
+
+    if not is_pdist and not isinstance(Y, np.ndarray):
         Y = np.asarray(Y)
 
-    if Y is not None:
+    if not is_pdist:
+        assert Y is not None
         Y = if1dim_rowvec(Y)
 
         if X.shape[1] != Y.shape[1]:
             raise ValueError(
-                "Mismatch in point dimension: "
+                f"Mismatch in point dimension: "
                 f"X.shape[1]={X.shape[1]} != Y.shape[1]={Y.shape[1]} "
             )
 
     if X.shape[0] <= 1:
-        raise ValueError(
-            f"number of samples has to be greater than 1. Got {X.shape[0]}"
-        )
+        raise ValueError(f"Number of samples has to be greater than 1.")
 
-    if cut_off is not None:
+    if is_sparse:
+        assert isinstance(cut_off, float)
         if cut_off <= 0:
-            raise ValueError(f"cut_off={cut_off} must be a positive float.")
+            raise ValueError(
+                f"cut_off={cut_off} must be a positive number number of "
+                f"type 'float'"
+            )
 
         try:
             cut_off = float(cut_off)  # make sure to only deal with Python built-in
-        except:
+        except ValueError:
             raise TypeError(f"type(cut_off)={type(cut_off)} must be of type float")
 
         if np.isinf(cut_off):
             # use dense case if cut_off is infinite
             cut_off = None
 
-    is_pdist = Y is None
-    is_sparse = cut_off is not None
+        kmin = int(kmin)  # use Python built-in
+        if not is_integer(kmin):
+            raise TypeError(f"kmin must be an integer type. Got: {type(kmin)}")
+
+        if kmin >= X.shape[0]:
+            raise ValueError(
+                "kmin must be smaller than the number of points available. "
+                f"Got {kmin} and X.shape[0]={X.shape[0]}"
+            )
 
     if metric == "sqeuclidean":
         if cut_off is not None:
@@ -1019,17 +1033,17 @@ def compute_distance_matrix(
 
         # sort_indices returns immediately if indices are already sorted.
         # If not sorted, the call could be costly (depending on nnz), but is better for
-        # follow-up handling.
+        # follow-up computations.
         distance_matrix.sort_indices()
 
-        n_elements_stored = (
-            distance_matrix.nnz
-            + len(distance_matrix.indptr)
-            + len(distance_matrix.indices)
-        )
+        # n_elements_stored = (
+        #     distance_matrix.nnz
+        #     + len(distance_matrix.indptr)
+        #     + len(distance_matrix.indices)
+        # )
 
         # There are also other reasons than memory savings for sparse matrices --
-        # therfore the warning is comment out for now.
+        # therefore the warning is comment out for now.
 
         # if n_elements_stored > np.product(distance_matrix.shape):
         #     warnings.warn(

@@ -145,7 +145,7 @@ def if1dim_colvec(vec: np.ndarray) -> np.ndarray:
         return vec
 
 
-def if1dim_rowvec(vec: np.ndarray):
+def if1dim_rowvec(vec: np.ndarray) -> np.ndarray:
     if vec.ndim == 1:
         return vec[np.newaxis, :]
     else:
