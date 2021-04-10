@@ -67,7 +67,7 @@ The bash script includes all steps that are detailed below.
 
         Also note the
         `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html>`__
-        for package management in Anaconda, particularly section on how to
+        for package management in Anaconda, particularly the subsection on how to
         `install non-conda packages <https://docs.conda
         .io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__.
 
