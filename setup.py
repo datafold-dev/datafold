@@ -10,7 +10,7 @@ from setuptools import find_packages, setup
 def read_datafold_version():
     """This reads the version from datafold/version.py without importing parts of
     datafold (which would require some of the dependencies already installed)."""
-    # code parts taken from here https://stackoverflow.com/a/67692
+    # code parts taken from https://stackoverflow.com/a/67692
 
     path2setup = os.path.dirname(__file__)
     version_file = os.path.join(path2setup, "datafold", "_version.py")
@@ -38,22 +38,22 @@ with open(path_to_pkg_requirements, "r") as f:
 
 install_requires = [req.replace("\n", "") for req in install_requires]
 
-short_description = """A Python package containing operator-theoretic models that can
+short_description = """The package contains operator-theoretic models that can
 identify dynamical systems from time series data and infer geometrical structures from
 point clouds."""
 
 long_description = """
-The package contains:
+Models implemented in datafold:
 
 * (Extended-) Dynamic Mode Decomposition (E-DMD) to approximate the Koopman
-  operator from time series data.
+  operator from time series data or collections thereof.
 * Diffusion Map (DMAP) to find meaningful geometric descriptions in point clouds,
   such as the eigenfunctions of the Laplace-Beltrami operator.
-* Out-of-sample extensions of point cloud manifolds, such as Geometric Harmonics
-  interpolator and (auto-tuned) Laplacian Pyramids.
-* Data structure for time series collections (TSCDataFrame) and dedicated
+* Out-of-sample extensions to interpolate functions on point cloud manifolds, such as
+  Geometric Harmonics interpolator and (auto-tuned) Laplacian Pyramids.
+* Data structure for time series collections (TSCDataFrame) and data
   transformations, such as time-delay embeddings (TSCTakensEmbedding). The data
-  structures operates with both EDMD and DMAP.
+  structures operates with both E-DMD and DMAP (internally or as input).
 """
 
 setup(
