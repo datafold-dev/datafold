@@ -158,7 +158,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
     def _setup_kernels_for_observations(self, observations):
         self.observations_ = []
 
-        if not self.kernel:  # TODO cleanup
+        if self.kernel is None:
             self.observations_ = [
                 PCManifold(observation, dist_kwargs=self.dist_kwargs)
                 for observation in observations
@@ -315,9 +315,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         f_m_star /= len(alphas)
         return f_m_star
 
-    def fit(
-        self, X: TransformType, y=None, **fit_params
-    ) -> "JointlySmoothFunctions":  # TODO List von PCManifolds wäre schöner
+    def fit(self, X: TransformType, y=None, **fit_params) -> "JointlySmoothFunctions":
         """Compute the jointly smooth functions.
 
         Parameters
@@ -339,14 +337,9 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         """
         X = self._validate_datafold_data(
             X=X,
-            array_kwargs=dict(ensure_min_samples=2),
-            tsc_kwargs=dict(ensure_min_samples=2),
+            array_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
+            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
         )
-
-        if X.shape[0] <= self.n_kernel_eigenvectors:
-            raise ValueError(
-                "There were as many or more kernel eigenvectors specified than the number of data samples"
-            )
 
         self._setup_features_fit(
             X=X,
@@ -452,8 +445,8 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         """
         X = self._validate_datafold_data(
             X,
-            array_kwargs=dict(ensure_min_samples=2),
-            tsc_kwargs=dict(ensure_min_samples=2),
+            array_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
+            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
         )
         self.fit(X=X, y=y, **fit_params)
 
