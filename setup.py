@@ -83,4 +83,7 @@ setup(
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Scientific/Engineering",
     ],
+    # the requirements.txt is needed during setup.py and must also be copied to
+    # source distributions (setup.py install sdist)
+    data_files=[(".", ["requirements.txt"])],
 )
