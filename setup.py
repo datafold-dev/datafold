@@ -72,7 +72,7 @@ setup(
     author_email=email,
     packages=find_packages(),
     package_dir={"datafold": "datafold"},
-    package_data={"": ["LICENSE"]},
+    # package_data={"": ["LICENSE"]},
     python_requires=">=3.7",
     install_requires=install_requires,
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
@@ -85,5 +85,5 @@ setup(
     ],
     # the requirements.txt is needed during setup.py and must also be copied to
     # source distributions (setup.py install sdist)
-    data_files=[(".", ["requirements.txt"])],
+    package_data={".": ["requirements.txt", "LICENSE", "LICENSES_bundled"]},
 )

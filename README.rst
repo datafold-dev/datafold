@@ -156,10 +156,7 @@ From source
 
    .. code-block:: bash
 
-       python setup.py install
-
-   Optionally, add a :code:`--user` flag to install the package and dependencies for the
-   current OS user only.
+       pip install .
 
 
 Contributing
