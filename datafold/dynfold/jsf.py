@@ -83,9 +83,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
     Attributes
     ----------
-    n_features_: int
-        The number of features (columns) of the data.
-
     ending_points_: List[int]
         The ending point of each observation. This is needed, as :py:meth`.fit`,
         :py:meth`.transform`, and :py:meth`.fit_transform` accept a single data array.
@@ -341,7 +338,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
         )
 
-        self._setup_features_fit(
+        self._setup_feature_attrs_fit(
             X=X,
             features_out=[f"jsf{i}" for i in range(self.n_jointly_smooth_functions)],
         )
@@ -391,7 +388,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         check_is_fitted(
             self,
             (
-                "n_features_",
                 "ending_points_",
                 "observations_",
                 "kernel_matrices_",
