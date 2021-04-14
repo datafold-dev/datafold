@@ -9,22 +9,10 @@ from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
+from datafold.dynfold.dmap import _DmapKernelAlgorithms
 from datafold.pcfold import PCManifold
 from datafold.pcfold.kernels import GaussianKernel, PCManifoldKernel
 from datafold.utils.general import mat_dot_diagmat
-
-
-def get_ending_points(Xs: List[TransformType]):
-    ending_point = 0
-    ending_points = []
-    for X_n in Xs:
-        if isinstance(X_n, DataFrame):
-            ending_point += np.array(X_n).shape[1]
-        else:
-            ending_point += X_n.shape[1]
-        ending_points.append(ending_point)
-
-    return ending_points
 
 
 def normalize_csr_matrix(sparse_kernel_matrix: scipy.sparse.csr_matrix):
@@ -55,6 +43,19 @@ def sort_eigensystem(eigenvalues, eigenvectors):
     return sorted_eigenvalues, sorted_eigenvectors
 
 
+class ColumnSplitter:
+    def __init__(self, transformers: List[Tuple[str, slice]]):
+        self.transformers = transformers
+
+    def fit_transform(self, X: TransformType, y=None) -> List[TransformType]:
+        result = []
+
+        for _, columns in self.transformers:
+            result.append(X[:, columns])
+
+        return result
+
+
 class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
     """Calculate smooth functions on multimodal data/observations.
 
@@ -83,13 +84,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
     Attributes
     ----------
-    ending_points_: List[int]
-        The ending point of each observation. This is needed, as :py:meth`.fit`,
-        :py:meth`.transform`, and :py:meth`.fit_transform` accept a single data array.
-        Thus, the multimodal data is passed in as a single array and separated inside the
-        methods. :py:meth`get_ending_points` of this module provide a convenience method
-        to obtain the ending points of a list of observations.
-
     observations_: List[PCManifold]
         The :py:class:`PCManifolds` containing the separated observations with the
         specified, corresponding :py:class:`PCManifoldKernel`.
@@ -123,6 +117,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self,
         n_kernel_eigenvectors: int = 100,
         n_jointly_smooth_functions: int = 10,
+        column_splitter: Optional[ColumnSplitter] = None,
         kernel: Optional[Union[PCManifoldKernel, List[PCManifoldKernel]]] = None,
         kernel_eigenvalue_cut_off: float = 0,
         eigenvector_tolerance: float = 1e-6,
@@ -130,6 +125,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
     ) -> None:
         self.n_kernel_eigenvectors = n_kernel_eigenvectors
         self.n_jointly_smooth_functions = n_jointly_smooth_functions
+        self.column_splitter = column_splitter
         self.kernel = kernel
         self.kernel_eigenvalue_cut_off = kernel_eigenvalue_cut_off
         self.eigenvector_tolerance = eigenvector_tolerance
@@ -184,14 +180,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         for pcm in self.observations_:
             if isinstance(pcm.kernel, GaussianKernel):
                 pcm.optimize_parameters(inplace=True)  # TODO Add result_scaling
-
-    def _separate_X(self, X: TransformType) -> List[TransformType]:
-        X_separated = [X[:, : self.ending_points_[0]]]
-        for i in range(1, len(self.ending_points_)):
-            X_separated.append(
-                X[:, self.ending_points_[i - 1] : self.ending_points_[i]]
-            )
-        return X_separated
 
     def _calculate_kernel_matrices(self):
         self._cdist_kwargs_ = []
@@ -324,8 +312,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             ignored
 
         **fit_params: Dict[str, object]
-            - ending_points: ``List[int]``
-                The ending points of the observations.
+            ignored
 
         Returns
         -------
@@ -343,19 +330,11 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             features_out=[f"jsf{i}" for i in range(self.n_jointly_smooth_functions)],
         )
 
-        self.ending_points_ = self._read_fit_params(
-            attrs=[
-                ("ending_points", None),
-            ],
-            fit_params=fit_params,
+        observations = (
+            self.column_splitter.fit_transform(X)
+            if self.column_splitter is not None
+            else [X]
         )
-
-        if self.ending_points_ is None:
-            raise ValueError("Please specify the ending_points of each observation")
-        if self.ending_points_[-1] != X.shape[1]:
-            raise ValueError("Final endpoint must be the same as X.shape[1]")
-
-        observations = self._separate_X(X)
 
         self._setup_kernels_for_observations(observations)
 
@@ -388,7 +367,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         check_is_fitted(
             self,
             (
-                "ending_points_",
                 "observations_",
                 "kernel_matrices_",
                 "_cdist_kwargs_",
@@ -413,7 +391,11 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
         self._validate_feature_input(X, direction="transform")
 
-        new_observations = self._separate_X(X)
+        new_observations = (
+            self.column_splitter.fit_transform(X)
+            if self.column_splitter is not None
+            else [X]
+        )
 
         indices = list(range(len(self.observations_)))
         indexed_observations = dict(zip(indices, new_observations))
