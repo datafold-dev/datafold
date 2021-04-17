@@ -729,7 +729,7 @@ class TSCDataFrame(pd.DataFrame):
 
         return unique_delta_times
 
-    def to_csv(self, **kwargs) -> Optional[str]:
+    def to_csv(self, *args, **kwargs) -> Optional[str]:
         """Write object to a comma-separated values (csv) file.
 
         Internaly, the method casts the object (self) to pd.Dataframe before the csv is
@@ -751,7 +751,7 @@ class TSCDataFrame(pd.DataFrame):
 
         """
 
-        return pd.DataFrame(self).to_csv(**kwargs)
+        return pd.DataFrame(self).to_csv(*args, **kwargs)
 
     @classmethod
     def from_csv(cls, filepath, **kwargs) -> "TSCDataFrame":
