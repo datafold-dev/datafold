@@ -1742,7 +1742,7 @@ class PyDMDWrapper(DMDBase):
             raise ImportError(
                 "The optional Python package 'pydmd' (https://github.com/mathLab/PyDMD) "
                 "could not be imported. Please check your installation or install "
-                "with 'pip install pydmd'."
+                "with 'python -m pip install pydmd'."
             )
         else:
             assert pydmd is not None  # mypy

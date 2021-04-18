@@ -156,7 +156,7 @@ From source
 
    .. code-block:: bash
 
-       pip install .
+       python -m pip install .
 
 
 Contributing
