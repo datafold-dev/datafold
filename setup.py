@@ -42,8 +42,7 @@ short_description = """The package contains operator-theoretic models that can
 identify dynamical systems from time series data and infer geometrical structures from
 point clouds."""
 
-long_description = """
-Models implemented in datafold:
+long_description = """Main models in datafold:
 
 * (Extended-) Dynamic Mode Decomposition (E-DMD) to approximate the Koopman
   operator from time series data or collections thereof.
@@ -54,6 +53,7 @@ Models implemented in datafold:
 * Data structure for time series collections (TSCDataFrame) and data
   transformations, such as time-delay embeddings (TSCTakensEmbedding). The data
   structures operates with both E-DMD and DMAP (internally or as input).
+
 """
 
 setup(
@@ -61,6 +61,7 @@ setup(
     author=author,
     version=read_datafold_version(),
     description=short_description,
+    long_description_content_type="text/x-rst",
     long_description=long_description,
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
