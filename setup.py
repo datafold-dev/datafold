@@ -61,6 +61,7 @@ setup(
     author=author,
     version=read_datafold_version(),
     description=short_description,
+    long_description_content_type="text/x-rst",
     long_description=long_description,
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
