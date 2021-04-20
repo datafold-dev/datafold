@@ -6,7 +6,6 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  # https://pre-commit.com/#gitlab-ci-example  (TODO: caching does not work for pre-commit)
   PRE_COMMIT_HOME: "${CI_PROJECT_DIR}/.cache/pre-commit"
 
 cache:
@@ -14,6 +13,15 @@ cache:
     - .cache/pip
     - ${PRE_COMMIT_HOME}
     - venv/
+
+
+# https://gitlab.com/gitlab-org/gitlab/-/issues/33694#note_335120563
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: always
+
 
 setup:
   stage: remote_setup
@@ -26,19 +34,23 @@ setup:
     - python -m pip install --upgrade twine
     - python -m pip install -r requirements-dev.txt
 
+
 unittests:
   stage: test
   before_script:
     - source venv/bin/activate
     - python -V
   script:
-    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ --cover-html --cover-html-dir="./coverage/" datafold/ -v
+    - coverage run -m pytest datafold/
+    - coverage html -d ./coverage/
+    - coverage report
   allow_failure: false
   artifacts:
     paths:
       - ./coverage/
     expire_in: 1 week
     when: on_success
+
 
 functional_tests:
   before_script:
@@ -47,7 +59,9 @@ functional_tests:
   script:
     - export PYTHONPATH=`pwd`
     - echo $PYTHONPATH
-    - nosetests tutorials/ -v
+    - python -m pytest tutorials/
+  allow_failure: false
+
 
 code_checks:
   stage: code_analysis
@@ -57,6 +71,7 @@ code_checks:
   script:
     - pre-commit run --all
   allow_failure: true
+
 
 docu_check:
   stage: code_analysis
@@ -68,6 +83,7 @@ docu_check:
   except:
     - master
   allow_failure: false
+
 
 pages:
   stage: deploy
@@ -81,10 +97,16 @@ pages:
   artifacts:
     paths:
     - public
-  only:
-    - master
+  rules:
+    # from: https://forum.gitlab.com/t/how-to-setup-manual-job-from-feature-branch-that-runs-automatically-on-master/38892
+    # always update pages if on master
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: always
+    # manual option if push to branches other than master
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: manual
 
-# requires to set TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD variables
+# Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:
   stage: deploy
   before_script:

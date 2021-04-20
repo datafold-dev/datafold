@@ -331,9 +331,9 @@ class TSCDataFrame(pd.DataFrame):
                 raise e
 
     def __setattr__(self, key, value):
-        if key == "index" and isinstance(value, pd.Index):
+        if key == "index":
             value = self._validate_index(value)
-        elif key == "columns" and isinstance(value, pd.Index):
+        elif key == "columns":
             value = self._validate_columns(value)
 
         # Note: validation of data is not necessary here because this is done
@@ -608,7 +608,7 @@ class TSCDataFrame(pd.DataFrame):
         ref_df = frame_list[0]
         for _df in frame_list[1:]:
             if not isinstance(_df, pd.DataFrame):
-                raise TypeError("all objects in list must be of type DataFrame")
+                raise TypeError("All elements in list must be of type DataFrame.")
 
             is_df_same_index(
                 ref_df,
@@ -645,7 +645,7 @@ class TSCDataFrame(pd.DataFrame):
                 final_list.append(df)
 
         if ts_ids is None:
-            ts_ids = np.arange(len(final_list)).astype(np.int_)
+            ts_ids = np.arange(len(final_list)).astype(int)
         else:
             ts_ids = np.asarray(ts_ids)
 
@@ -657,18 +657,17 @@ class TSCDataFrame(pd.DataFrame):
             or len(np.unique(ts_ids)) != len(final_list)
         ):
             raise ValueError(
-                "ts_ids must be unique time series IDs of same length as frame_list"
+                "Parameter 'ts_ids' must contain unique time series IDs with same "
+                "length than 'frame_list'"
             )
 
         tsc_list = list()
-
         for _id, df in zip(ts_ids, final_list):
             # TODO: can be done without loop and would be more efficient
             df.index = pd.MultiIndex.from_product([[_id], df.index.to_numpy()])
             tsc_list.append(TSCDataFrame(df))
 
-        tsc = pd.concat(tsc_list, axis=0)
-        return cls(tsc)
+        return cls(pd.concat(tsc_list, axis=0))
 
     @staticmethod
     def unique_delta_times(
@@ -707,7 +706,7 @@ class TSCDataFrame(pd.DataFrame):
 
         unique_delta_times = np.unique(np.asarray(delta_times))
 
-        if delta_times.dtype == np.floating and len(unique_delta_times) > 1:
+        if unique_delta_times.dtype == float and len(unique_delta_times) > 1:
             # Note: unique_delta_times is already sorted by np.unique
             max_step = np.diff(unique_delta_times)
             rel_step = max_step / unique_delta_times[1:]
@@ -729,6 +728,30 @@ class TSCDataFrame(pd.DataFrame):
             unique_delta_times = _unique_dt
 
         return unique_delta_times
+
+    def to_csv(self, *args, **kwargs) -> Optional[str]:
+        """Write object to a comma-separated values (csv) file.
+
+        Internaly, the method casts the object (self) to pd.Dataframe before the csv is
+        written. The reason is that for larger files it could be observed that the
+        internals of ``to_csv`` could lead to invalid TSCDataFrame objects (which
+        raise an error).
+
+        Parameters
+        ----------
+        **kwargs
+            All keyword arguments are passed to the super class. See
+            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_csv.html>`__
+
+        Returns
+        -------
+        None or str
+            If path is None, returns the resulting csv format as a
+            string. Otherwise returns None.
+
+        """
+
+        return pd.DataFrame(self).to_csv(*args, **kwargs)
 
     @classmethod
     def from_csv(cls, filepath, **kwargs) -> "TSCDataFrame":
@@ -763,6 +786,9 @@ class TSCDataFrame(pd.DataFrame):
         raise NotImplementedError("expanddim is not supported for TSCDataFrame")
 
     def _validate_index(self, index: Union[pd.MultiIndex, pd.Index]) -> pd.MultiIndex:
+
+        if not isinstance(index, pd.MultiIndex):
+            raise AttributeError("index must be of type pd.MultiIndex")
 
         if index.nlevels != 2:
             # must exactly have two levels [ID, time]
@@ -827,7 +853,7 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         # bool index to the start of new IDs
-        bool_new_id = np.append(1, np.diff(index.codes[0])).astype(np.bool)
+        bool_new_id = np.append(1, np.diff(index.codes[0])).astype(bool)
         _ids = ids_index[bool_new_id]
 
         if len(np.unique(_ids)) != len(_ids):
@@ -840,6 +866,9 @@ class TSCDataFrame(pd.DataFrame):
         return index
 
     def _validate_columns(self, columns: pd.Index) -> pd.Index:
+
+        if not isinstance(columns, pd.Index):
+            raise AttributeError("columns must be of type pd.Index")
 
         if columns.nlevels != 1:
             # must exactly have two levels [ID, time]
@@ -1174,10 +1203,10 @@ class TSCDataFrame(pd.DataFrame):
         return is_datetime64_dtype(self.index.get_level_values(self.tsc_time_idx_name))
 
     def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
-        """Generator over time series (id, pandas.DataFrame).
+        """Generator of contained time series.
 
-        .. note::
-            Each time series is a ``pandas.DataFrame`` (not a ``TSCDataFrame``).
+        Each iteration returns the time series ID and the corresponding
+        time series (a :class:`pd.DataFrame` instead of a ``TSCDataFrame``).
 
         Yields
         ------
@@ -1190,7 +1219,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_equal_length(self) -> bool:
         """Indicates if all time series in the collection have the same number of
-        timesteps.
+        time steps.
         """
         return len(np.unique(self.n_timesteps)) == 1
 
@@ -1440,9 +1469,15 @@ class TSCDataFrame(pd.DataFrame):
         else:
             raise ValueError("The input parameter 'df' is of wrong format.")
 
+        if self.is_datetime_index() ^ np.issubdtype(_index.dtype, np.datetime64):
+            raise ValueError(
+                "If the existing index is datetime64, but the new time "
+                f"series has dype={_index.dtype} for time values."
+            )
+
         # Add the id to the first level of the MultiIndex
         df.index = pd.MultiIndex.from_arrays(
-            [np.ones(df.shape[0], dtype=np.int_) * ts_id, _index],
+            [np.ones(df.shape[0], dtype=int) * ts_id, _index],
             names=[self.tsc_id_idx_name, self.tsc_time_idx_name],
         )
 
@@ -1510,7 +1545,7 @@ class TSCDataFrame(pd.DataFrame):
             _dtype = self.index.get_level_values(self.tsc_time_idx_name).dtype
 
             return np.arange(
-                start, np.nextafter(end, np.finfo(np.float64).max), self.delta_time
+                start, np.nextafter(end, np.finfo(float).max), self.delta_time
             ).astype(_dtype)
 
     def feature_to_array(
@@ -1909,6 +1944,4 @@ def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
     :py:meth:`TSCDataFrame.from_tensor`
 
     """
-    return np.zeros(
-        [n_time_series, n_timesteps, n_feature], order="C", dtype=np.float64
-    )
+    return np.zeros([n_time_series, n_timesteps, n_feature], order="C", dtype=float)

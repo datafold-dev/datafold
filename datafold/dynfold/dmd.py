@@ -76,7 +76,7 @@ class LinearDynamicalSystem(object):
     ----------
 
     :cite:`kutz_dynamic_2016` (pages 3 ff.)
-    
+
     """
 
     _cls_valid_sys_type = ("differential", "flowmap")
@@ -173,7 +173,7 @@ class LinearDynamicalSystem(object):
             )
 
         if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
-            time_values = time_values.astype(np.int_)
+            time_values = time_values.astype(int)
 
         # TIME DELTA
         if self.is_differential_system():
@@ -241,7 +241,7 @@ class LinearDynamicalSystem(object):
 
             elif self.is_flowmap_system():  # self.system_type == "flowmap":
                 # Usually, for a differential system the eigenvalues are written as:
-                # omegas = np.log(eigenvalues.astype(np.complex)) / time_delta
+                # omegas = np.log(eigenvalues.astype(complex)) / time_delta
                 # --> evolve system with
                 #               exp(omegas * t)
                 # because this matches the notation of the differential system.
@@ -256,7 +256,7 @@ class LinearDynamicalSystem(object):
                 # --> evolve system with, using `float_power`
                 #               ev^(t / time_delta)
 
-                _eigenvalues = self.eigenvalues_.astype(np.complex_)
+                _eigenvalues = self.eigenvalues_.astype(complex)
 
                 for idx, time in enumerate(time_values):
                     time_series_tensor[:, idx, :] = np.real(
@@ -394,7 +394,7 @@ class LinearDynamicalSystem(object):
         return self.sys_mode == "matrix"
 
     def is_spectral_mode(self) -> bool:
-        """Whether the set up linear system is in "spectral" mode.
+        r"""Whether the set up linear system is in "spectral" mode.
 
         The system uses the spectral components of either matrix :math:`A` for flowmap or
         :math:`\mathcal{A}` for differential.
@@ -780,7 +780,7 @@ class DMDBase(
         assert not (post_map is not None and user_set_modes is not None)
 
         if post_map is not None:
-            post_map = post_map.astype(np.float64)
+            post_map = post_map.astype(float)
             modes = post_map @ self.eigenvectors_right_
         elif user_set_modes is not None:
             modes = user_set_modes
@@ -857,11 +857,11 @@ class DMDBase(
         # Because hard-setting the time indices can be problematic, the following
         # assert makes sure that both ways match (up to numerical differences).
 
-        if time_values.dtype == np.floating:
+        if time_values.dtype == float:
             assert (
                 tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
             ).all()
-        elif time_values.dtype == np.integer:
+        elif time_values.dtype == int:
             assert (
                 tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values == 0
             ).all()
@@ -1248,7 +1248,7 @@ class DMDFull(DMDBase):
         if self.approx_generator:
             # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
             # Eq. 3.2 and 3.3.
-            eigenvalues_ = np.log(eigenvalues_.astype(np.complex)) / self.dt_
+            eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
 
         return eigenvectors_right_, eigenvalues_, eigenvectors_left_
 
@@ -1386,9 +1386,9 @@ class gDMDFull(DMDBase):
 
     References
     ----------
-    
+
     :cite:`klus_data-driven_2020`
-    
+
     """
 
     def __init__(
@@ -1742,7 +1742,7 @@ class PyDMDWrapper(DMDBase):
             raise ImportError(
                 "The optional Python package 'pydmd' (https://github.com/mathLab/PyDMD) "
                 "could not be imported. Please check your installation or install "
-                "with 'pip install pydmd'."
+                "with 'python -m pip install pydmd'."
             )
         else:
             assert pydmd is not None  # mypy
@@ -1839,8 +1839,9 @@ class PyDMDWrapper(DMDBase):
         self._setup_pydmd_model()
 
         if len(X.ids) > 1:
-            raise NotImplementedError(
-                "Provided DMD methods only allow single time series analysis."
+            raise ValueError(
+                "The PyDMD package only works for single coherent time series. See \n "
+                "https://github.com/mathLab/PyDMD/issues/86"
             )
 
         # data is column major

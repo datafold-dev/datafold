@@ -423,7 +423,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
 
 
 class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
-    """Perform Takens time delay embedding on time series collection data.
+    r"""Perform Takens time delay embedding on time series collection data.
 
     Parameters
     ----------
@@ -477,13 +477,13 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     def _validate_parameter(self):
 
         check_scalar(
-            self.lag, name="lag", target_type=(np.integer, int), min_val=0, max_val=None
+            self.lag, name="lag", target_type=(int, np.integer), min_val=0, max_val=None
         )
 
         check_scalar(
             self.delays,
             name="delays",
-            target_type=(np.integer, int),
+            target_type=(int, np.integer),
             min_val=1,
             max_val=None,
         )
@@ -491,7 +491,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.frequency,
             name="delays",
-            target_type=(np.integer, int),
+            target_type=(int, np.integer),
             min_val=1,
             max_val=None,
         )
@@ -499,7 +499,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.kappa,
             name="kappa",
-            target_type=(np.integer, int, np.floating, float),
+            target_type=(int, np.integer, float, np.floating),
             min_val=0.0,
             max_val=None,
         )
@@ -689,7 +689,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             )
 
             if self.kappa > 0:
-                delayed_data = delayed_data.astype(np.float)
+                delayed_data = delayed_data.astype(float)
                 delayed_data *= kappa_vec
 
             # go back to DataFrame, and adapt the index be excluding removed indices
@@ -824,7 +824,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 raise ValueError("The center points were not provided in 'fit_params'.")
 
             try:
-                self.centers_ = np.asarray(_centers).astype(np.float)
+                self.centers_ = np.asarray(_centers).astype(float)
             except TypeError:
                 raise TypeError(
                     "centers were not passed to fit_params or not array-like."
@@ -1281,8 +1281,8 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.spacing_,
             "spacing",
-            target_type=(int, float, np.integer, np.floating),
-            min_val=np.finfo(np.float64).eps,
+            target_type=(int, np.integer, float, np.floating),
+            min_val=np.finfo(float).eps,
             max_val=None,
         )
         self.spacing_ = float(self.spacing_)

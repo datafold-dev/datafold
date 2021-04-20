@@ -9,9 +9,9 @@ PATH2DOC = os.path.abspath(".")
 PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
 PATH2TUTORIAL = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
 
-rst_text_before_tutorials_list = """This page contains tutorials and code snippets to showcase 
-*datafold's* API. All tutorials can be viewed online or downloaded in from the list 
-below. If you want to execute the notebooks in Jupyter, please also note the 
+rst_text_before_tutorials_list = """This page contains tutorials and code snippets to showcase
+*datafold's* API. All tutorials can be viewed online or downloaded in from the list
+below. If you want to execute the notebooks in Jupyter, please also note the
 instructions in "Run notebooks with Jupyter".
 """
 
@@ -24,31 +24,31 @@ Download files
 ^^^^^^^^^^^^^^
 
 * **If datafold was installed via PyPI, ...**
- 
-  then the tutorials must be downloaded separately from the list above (i.e., they are 
-  not included in the installed package). You can also navigate to the 
-  `tutorials repository page <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`__, 
-  to download the files from there. 
+
+  then the tutorials must be downloaded separately from the list above (i.e., they are
+  not included in the installed package). You can also navigate to the
+  `tutorials repository page <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`__,
+  to download the files from there.
 
 * **If the datafold repository was downloaded, ...**
-  
-  navigate to the folder ``[root_repository]/tutorials/``. Before executing the 
-  tutorials, please make sure that *datafold* is either installed 
-  (:code:`python setup.py install`) or that the ``[root_repository]`` folder path is 
-  included in the environment variable `PYTHONPATH` 
-  (:code:`export PYTHONPATH=$PYTHONPATH:/path/to/datafold/repository/`). 
+
+  navigate to the folder ``[root_repository]/tutorials/``. Before executing the
+  tutorials, please make sure that *datafold* is either installed
+  (:code:`python setup.py install`) or that the ``[root_repository]`` folder path is
+  included in the environment variable `PYTHONPATH`
+  (:code:`export PYTHONPATH=$PYTHONPATH:/path/to/datafold/repository/`).
 
 Start Jupyter
 ^^^^^^^^^^^^^
 
-All tutorials are written as Jupyter notebooks (``.ipynb`` file ending). The Jupyter 
-software installs with  
+All tutorials are written as Jupyter notebooks (``.ipynb`` file ending). The Jupyter
+software installs with
 
 .. code-block:: bash
 
-    pip install jupyter
+    python -m pip install jupyter
 
-For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a 
+For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a
 Jupyter notebook in a web browser, run
 
 .. code-block:: bash
@@ -230,6 +230,9 @@ def generate_docs_str(target):
         f"to this file, if you wish to change the content.\n\n"
     )
 
+    tutorial_page_content += ".. _tutorialnb:\n"
+    tutorial_page_content += "\n"
+    tutorial_page_content += "=========\n"
     tutorial_page_content += "Tutorials\n"
     tutorial_page_content += "=========\n"
     tutorial_page_content += "\n"

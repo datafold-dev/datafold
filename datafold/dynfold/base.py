@@ -486,7 +486,7 @@ class TSCPredictMixin(TSCBaseMixin):
         if time_values.ndim != 1:
             raise ValueError("'time_values' must be be an 1-dim. array")
 
-        if not (np.diff(time_values).astype(np.float64) > 0).all():
+        if not (np.diff(time_values).astype(float) > 0).all():
             # as "float64" is required in case of datetime where the differences are in
             # terms of "np.timedelta"
             raise ValueError(

@@ -3,5 +3,3 @@ Todo List
 *********
 
 .. todolist::
-      
-

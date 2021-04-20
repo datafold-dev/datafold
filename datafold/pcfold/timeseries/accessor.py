@@ -500,13 +500,11 @@ class TSCAccessor(object):
             raise TSCException.not_const_delta_time()
 
         if self._tsc_df.is_datetime_index():
-            convert_times = convert_times.astype(np.int64)
-            min_time = min_time.astype(np.int64)
-            delta_time = delta_time.astype(np.int64)
+            convert_times = convert_times.astype(int)
+            min_time = min_time.astype(int)
+            delta_time = delta_time.astype(int)
 
-        convert_times = np.array(
-            (convert_times - min_time) / delta_time, dtype=np.int64
-        )
+        convert_times = np.array((convert_times - min_time) / delta_time, dtype=int)
         convert_times = pd.Index(convert_times, name=TSCDataFrame.tsc_time_idx_name)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
@@ -587,7 +585,7 @@ class TSCAccessor(object):
                     for k in range(len(offsets))
                 ]
 
-                data_dt = np.zeros_like(data, dtype=np.float)
+                data_dt = np.zeros_like(data, dtype=float)
 
                 if isinstance(data, pd.DataFrame):
                     data_numpy = data.to_numpy()
@@ -706,7 +704,7 @@ class TSCAccessor(object):
             bool_dim = _array.ndim == 1
             bool_positive = np.all(_array >= 0)
             bool_sorted = np.all(_array[:-1] < _array[1:])
-            bool_type = _array.dtype == np.integer
+            bool_type = _array.dtype == int
 
             if not (bool_dim and bool_positive and bool_sorted and bool_type):
                 raise ValueError(
@@ -732,16 +730,16 @@ class TSCAccessor(object):
         # -- both change detections are required to reassign new IDs
 
         # i) detect switch between test / train
-        change_fold_indicator = np.append(0, np.diff(mask_test)).astype(np.bool)
+        change_fold_indicator = np.append(0, np.diff(mask_test)).astype(bool)
 
         # ii) detect switch of new ID
         change_id_indicator = np.append(
             0,
             np.diff(self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)),
-        ).astype(np.bool)
+        ).astype(bool)
 
         # iii) detect switch of dropped indices
-        mask_dropped = np.ones(self._tsc_df.shape[0], dtype=np.bool)
+        mask_dropped = np.ones(self._tsc_df.shape[0], dtype=bool)
         mask_dropped[train_indices] = False
         mask_dropped[test_indices] = False
 
@@ -840,7 +838,7 @@ class TSCAccessor(object):
             )
 
             if local_tsc_df.is_datetime_index():
-                first_diff = first_diff.astype(np.int_)
+                first_diff = first_diff.astype(int)
 
             first_diff = np.append(np.inf, first_diff)
 
@@ -860,8 +858,8 @@ class TSCAccessor(object):
 
             # remove the indentifications of the first kind from the second diff
             # from the example above remove the 6 and the neighboring -6
-            second_diff[np.append(0, indicator).astype(np.bool)] = 0
-            second_diff[np.append(indicator, 0).astype(np.bool)] = 0
+            second_diff[np.append(0, indicator).astype(bool)] = 0
+            second_diff[np.append(indicator, 0).astype(bool)] = 0
 
             indicator = np.append(0, indicator)
 
@@ -874,7 +872,7 @@ class TSCAccessor(object):
             # I.e. there is a single difference (without a neighboring)
             # We simply take the second_diff (after removals of the first case) as
             # indicator for the start of a new time series ID).
-            indicator = np.logical_or(indicator, second_diff.astype(np.bool))
+            indicator = np.logical_or(indicator, second_diff.astype(bool))
 
             new_ids = np.cumsum(indicator)
             new_ids += min_id
@@ -990,7 +988,7 @@ class TSCAccessor(object):
 
         if is_integer(ts_counts):
             ts_counts = pd.Series(
-                np.ones(self._tsc_df.n_timeseries, dtype=np.int_) * ts_counts,
+                np.ones(self._tsc_df.n_timeseries, dtype=int) * ts_counts,
                 index=self._tsc_df.ids,
             )
 

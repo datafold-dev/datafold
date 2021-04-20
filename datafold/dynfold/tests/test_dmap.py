@@ -952,7 +952,7 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
     def test_num_eigenpairs(self):
 
         data, _ = make_swiss_roll(1000)
-        all_n_eigenpairs = np.linspace(10, 50, 5).astype(np.int_)
+        all_n_eigenpairs = np.linspace(10, 50, 5).astype(int)
 
         for n_eigenpairs in all_n_eigenpairs:
             actual = DiffusionMaps(

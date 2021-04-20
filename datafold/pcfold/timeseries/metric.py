@@ -49,7 +49,7 @@ class TSCMetric(object):
     """
 
     _cls_valid_modes = ["timeseries", "timestep", "feature"]
-    _cls_valid_metrics = ["rmse", "rrmse", "mse", "mae", "medae", "max", "l2"]
+    _cls_valid_metrics = ["rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2"]
     _cls_valid_scaling = ["id", "min-max", "standard", "l2_normalize"]
 
     def __init__(self, metric: str, mode: str, scaling: str = "id"):
@@ -204,6 +204,8 @@ class TSCMetric(object):
             error_metric_handle = partial(metrics.mean_squared_error, squared=False)
         elif error_metric == "rrmse":  # relative root mean squared error
             error_metric_handle = self._rrmse_metric  # type: ignore
+        elif error_metric == "mape":  # mean absolute percentage error
+            error_metric_handle = metrics.mean_absolute_percentage_error  # type: ignore
         elif error_metric == "mse":
             error_metric_handle = metrics.mean_squared_error
         elif error_metric == "mae":
@@ -387,7 +389,7 @@ class TSCMetric(object):
         multioutput: Union[str, np.ndarray] = "raw_values",
     ) -> Union[pd.Series, pd.DataFrame]:
         """Compute metric between two time series collections.
-        
+
         Parameters
         ----------
         y_true

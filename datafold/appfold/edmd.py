@@ -1,18 +1,18 @@
 """This file contains code that is copied and modified from
 
 scikit-learn
-version 0.22.1.
+version 0.24.1.
 repository: https://github.com/scikit-learn/scikit-learn/
 project homepage: https://scikit-learn.org/stable/
 
-Specifically, this applies to the following files:
+Specifically, this applies to the following files and functions:
 
 *  sklearn.model_selection._validation.py, _fit_and_score
 *  sklearn.model_selection._search.py, BaseSearchCV.fit
 *  sklearn.sklearn.pipeline.pipeline.py Pipeline
 
 For the datafold module "edmd.py" (this file) the following license from the
-scikit-learn project is added in addition to the datafold license (see LICENSE file)
+scikit-learn project is in addition to the datafold license (see LICENSE file).
 
 -- scikit-learn license and copyright notice START
 
@@ -318,13 +318,12 @@ class EDMD(
         return eval_eigenfunction
 
     def _validate_dictionary(self):
-        # Check that all are TSCTransformer
+        # Check that elements in the EDMD-dictionary are TSCTransformer
         for (_, trans_str, transformer) in self._iter(with_final=False):
             if not isinstance(transformer, TSCTransformerMixin):
                 raise TypeError(
-                    "Currently, in the pipeline only supports transformers "
-                    "that can handle indexed data structures (pd.DataFrame "
-                    "and TSCDataFrame)"
+                    "The EDMD-dictionary only supports transformers that can handle "
+                    "indexed data structures (pd.DataFrame and TSCDataFrame)"
                 )
 
     @property
@@ -479,7 +478,7 @@ class EDMD(
         return inverse_map
 
     def _compute_koopman_modes(self, inverse_map: np.ndarray) -> np.ndarray:
-        """Compute the Koopman modes.
+        r"""Compute Koopman modes.
 
         The Koopman modes :math:`V` are a computed with
 
@@ -586,7 +585,7 @@ class EDMD(
         X = X.loc[X_dict.index, :]
         try:
             X = pd.concat([X, X_dict], axis=1)
-        except AttributeError as e:
+        except AttributeError:
             all_columns = X_dict.columns.append(X.columns)
             duplicates = all_columns[all_columns.duplicated()]
             raise ValueError(
@@ -635,6 +634,9 @@ class EDMD(
             ensure_tsc=True,
             tsc_kwargs={"ensure_const_delta_time": True},
         )
+
+        self._validate_dictionary()
+
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
         # the pipeline. The time values are set separately here:
@@ -1529,7 +1531,7 @@ class EDMDWindowPrediction(object):
                 self.offset, name="offset", target_type=(np.integer, int), min_val=1
             )
         elif self.window_size is not None or self.offset is not None:
-            raise ValueError("'time_horizon' and 'offset' must be provided together")
+            raise ValueError("'window_size' and 'offset' must be provided together")
 
     def _window_reconstruct(
         self,

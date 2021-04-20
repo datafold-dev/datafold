@@ -51,7 +51,7 @@ def plot_eigenvalues(
     plot_kwargs.setdefault("marker", "+")
     plot_kwargs.setdefault("linewidth", 0)
 
-    if eigenvalues.dtype == np.complexfloating:
+    if eigenvalues.dtype == complex:
 
         ax.plot(np.real(eigenvalues), np.imag(eigenvalues), **plot_kwargs)
 
@@ -64,7 +64,7 @@ def plot_eigenvalues(
             ax.set_xlabel("$\\Re(\\lambda)$")
             ax.set_ylabel("$\\Im(\\lambda)$")
 
-    elif eigenvalues.dtype == np.floating:
+    elif eigenvalues.dtype == float:
 
         if plot_unit_circle:
             warnings.warn(

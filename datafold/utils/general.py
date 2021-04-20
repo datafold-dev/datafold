@@ -99,7 +99,7 @@ def is_integer(n: object) -> bool:
 
     """
     return isinstance(n, (int, np.integer)) or (
-        isinstance(n, (float, np.floating)) and n.is_integer()
+        isinstance(n, (float, np.floating)) and n / int(n) == 1.0
     )
 
 
@@ -145,7 +145,7 @@ def if1dim_colvec(vec: np.ndarray) -> np.ndarray:
         return vec
 
 
-def if1dim_rowvec(vec: np.ndarray):
+def if1dim_rowvec(vec: np.ndarray) -> np.ndarray:
     if vec.ndim == 1:
         return vec[np.newaxis, :]
     else:
@@ -155,7 +155,7 @@ def if1dim_rowvec(vec: np.ndarray):
 def projection_matrix_from_features(
     features_all: pd.Index, features_select: pd.Index
 ) -> scipy.sparse.csr_matrix:
-    """Compute a sparse projection matrix that maps that selects columns from a matrix.
+    r"""Compute a sparse projection matrix that maps that selects columns from a matrix.
 
     .. math::
         A \cdot P = A^*
@@ -372,12 +372,17 @@ def remove_numeric_noise_symmetric_matrix(
 ) -> Union[np.ndarray, scipy.sparse.spmatrix]:
     r"""Remove numerical noise from (almost) symmetric matrix.
 
-    Noise can get sometimes be introduced in symmetric operations. The operations are
-    then exectued in a different order (e.g. due to optimizations) and can then break
-    exact symmetry.
+    Even symmetric operations can sometimes introduce noise. The
+    operations are often executed in different order, for example, evaluations such as in
 
-    This function is intended for "almost" symmetric matrices to recover symmetry.
-    Like in the following situation:
+    .. math::
+        D^{-1} M D^{-1}
+
+    where :math:`D` is a diagonal matrix. This can then break the exact floating point
+    symmetry in the matrix.
+
+    This function is intended to make recover an exact symmetry of "almost" symmetric
+    matrices, such as in the following situation:
 
     .. code::
         np.max(np.abs(matrix - matrix.T)) # 1.1102230246251565e-16
@@ -451,7 +456,7 @@ def random_subsample(
     check_scalar(
         n_samples,
         name="n_samples",
-        target_type=(int, np.integer),
+        target_type=int,
         min_val=1,
         max_val=n_samples_data - 1,
     )

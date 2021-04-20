@@ -218,7 +218,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         check_scalar(
             self.n_eigenpairs,
             "n_eigenpairs",
-            target_type=(np.integer, int),
+            target_type=(int, np.integer),
             min_val=1,
             max_val=self.X_.shape[0] - 1,
         )
@@ -423,7 +423,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
 
 @NotImplementedError
-class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
+class MultiScaleGeometricHarmonicsInterpolator(
+    GeometricHarmonicsInterpolator
+):  # pragma: no cover
     """
     .. warning::
         This class is not documented and in experimental state. Contributions are welcome:
@@ -843,7 +845,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
     def _laplacian_pyramid(self, X, y):
 
-        func_approx = np.zeros_like(y, dtype=np.float)
+        func_approx = np.zeros_like(y, dtype=float)
 
         # compute once and only apply eval
         distance_matrix = self._distance_matrix(X)
@@ -997,7 +999,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
         return y_hat
 
-    def plot_eps_vs_residual(self) -> None:
+    def plot_eps_vs_residual(self) -> None:  # pragma: no cover
         """Plot residuals versus kernel scales (epsilon) from model fit."""
 
         check_is_fitted(self)

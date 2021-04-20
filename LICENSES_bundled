@@ -57,4 +57,3 @@ Source: https://github.com/scikit-learn/scikit-learn
 Files: datafold/appfold/edmd.py
 License: 2-clause BSD
     For details, see the header inside "datafold/appfold/edmd.py"
-

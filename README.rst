@@ -1,48 +1,50 @@
+Quick links
+^^^^^^^^^^^
+
+`Source repository <https://gitlab.com/datafold-dev/datafold>`__ |
+`Contributing and feedback <https://datafold-dev.gitlab.io/datafold/contributing.html>`__ |
+`PyPI <https://pypi.org/project/datafold/>`__ |
+`Documentation <https://datafold-dev.gitlab.io/datafold/>`__ |
+`Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__ |
+`Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__
+
 What is *datafold*?
 ====================
 
-*datafold* is a Python library providing data-driven models for kernel-based manifold
-learning and identification of dynamical systems. The source code is distributed under the
-`MIT license <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__.
+*datafold* is a `MIT-licensed <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE>`__
+Python package containing operator-theoretic, data-driven models to identify dynamical
+systems from time series data and to infer geometrical structures in point clouds.
 
-*datafold* includes:
+The package includes:
 
 * An efficient implementation of the ``DiffusionMaps`` model to infer geometric
   meaningful structures from point cloud data, such as the eigenfunctions of the
   Laplace-Beltrami operator. As a distinguishing factor to other implementations, the
   model can handle a sparse kernel matrix and allows setting an arbitrary kernel,
-  including a standard Gaussian kernel,
+  including the standard Gaussian kernel,
   `continuous k-nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
   `dynamics-adapted cone kernel <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
 * Out-of-sample extensions for the Diffusion Maps model, such as the (auto-tuned)
   Laplacian Pyramids or Geometric Harmonics to interpolate general function values on a
   point cloud manifold.
-* The (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull`` or ``EDMD``) as
-  a data-driven model to identify dynamical systems from time series data.
-  The EDMD model subclasses from flexible scikit-learn
+* An implementation of the (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull``
+  or ``EDMD``) as a data-driven model to identify dynamical systems from time series
+  collection data. The EDMD model subclasses from flexible scikit-learn
   `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html>`__,
   which allows setting up and transforming time series collection data to a more suitable
-  feature state (see Koopman operator theory). Two interesting transformations are the
-  Diffusion Maps and time-delay embedding series for phase space reconstruction
-  (cf. `Takens theorem <https://en.wikipedia.org/wiki/Takens%27s_theorem>`__).
-* ``EDMDCV`` allows model parameters (including the
-  transformation model parameters) to be optimized with cross-validation that
-  accounts for time series splittings.
+  feature state (cf. Koopman operator theory). Two interesting transformations are the
+  Diffusion Maps and time-delay embedding series for phase space reconstruction.
+* ``EDMDCV`` allows model parameters to be optimized with cross-validation splittings that
+  account for the temporal order in time series collections.
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
-  model input/outputs. In contrast to solutions found in other projects, such as lists of
-  Numpy arrays, this makes it much easier to describe collected time data and associate
-  time information.
+  model input/outputs. In contrast to solutions of found in other projects,
+  resorting to lists of Numpy arrays, ``TSCDataFrame`` makes it much easier to describe
+  collected time series data by storing the data in a single object.
 
 See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
 For a mathematical thorough introduction, we refer to the `scientific literature
 <https://datafold-dev.gitlab.io/datafold/references.html>`__.
-
-Any contribution (code/tutorials/documentation improvements), questions or feedback is
-very welcome. Either use the
-`issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-`service desk email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
-See also the "Contributing" section further below.
 
 .. note::
     The project is under active development in a research-driven environment.
@@ -64,21 +66,6 @@ See also the "Contributing" section further below.
 
       We do not intend to indicate a feature complete milestone with version `1.0`.
 
-Quick links
-===========
-
-* `Project repository <https://gitlab.com/datafold-dev/datafold>`__
-* `Software documentation <https://datafold-dev.gitlab.io/datafold/>`__
-* `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
-* Feedback of any kind, usage questions, feature requests and bug reports
-
-  * `Issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__,
-    requires gitlab account
-  * `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__,
-    requires no gitlab account and creates a confident issue via gitlab's
-    `service desk <https://docs.gitlab.com/ee/user/project/service_desk.html#how-it-works>`__.
-
-* `Scientific literature <https://datafold-dev.gitlab.io/datafold/references.html>`__
 
 Cite
 ====
@@ -109,40 +96,47 @@ BibTeX:
 How to get it?
 ==============
 
-Installation of *datafold* requires `Python>=3.7 <https://www.python.org/>`__ with
+Installation requires `Python>=3.7 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
-`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed (both
-packages usually ship with a standard Python installation). The *datafold*
-dependencies are listed in the next section.
+`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed. Both
+packages usually ship with a standard Python installation. The dependencies of *datafold*
+are listed in the next section.
 
 There are two ways to install *datafold*.
 
 1. **PyPI**: install the core package (excluding tutorials and tests). This
-   is the standard way for users. To download the tutorial files separately go to
+   is the standard way for users. To download the tutorial files go to
    `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
 2. **Source**: download or git-clone the entire repository. This way is recommended if you
    want to access the latest (but potentially unstable) development, run tests
-   or contribute to *datafold* (see Contributing for details).
+   or wish to contribute (see section "Contributing" for details).
 
 From PyPI
 ---------
 
-*datafold* is hosted on the official Python package index (PyPI)
-(https://pypi.org/project/datafold/). To install *datafold* and its dependencies with
-:code:`pip` run
+*datafold* is hosted on the official Python package index (PyPI). To install the package
+and its dependencies with :code:`pip`, run
 
 .. code-block:: bash
 
    pip install datafold
 
 .. note::
-    If you use Python in an Anaconda set up, also consider
-    `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__.
+    If you run Python in an Anaconda environment you can use pip from within an ``conda``
+    environment. See also
+    `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
+
+    .. code-block:: bash
+
+        conda activate venv
+        conda install pip
+        pip install datafold
+
 
 From source
 -----------
 
-1. Download the git repository
+1. Download the repository
 
    a. If you wish to contribute code, it is required to have
       `git <https://git-scm.com/>`__ installed. Clone the repository with
@@ -151,28 +145,37 @@ From source
 
         git clone https://gitlab.com/datafold-dev/datafold.git
 
-   b. Download the source code from the ``master`` branch
-      (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
+   b. If you only want access to the source code (current master), download one of the
+      the compressed files
+      `zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
-      `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__)
+      `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__
 
 2. Install *datafold* from the repository with
 
    .. code-block:: bash
 
-       python setup.py install
+       python -m pip install .
 
-   Optionally, add a :code:`--user` flag to install the package and dependencies for the
-   current user only.
+
+Contributing
+============
+
+Any contribution (code/tutorials/documentation improvements), questions or feedback is
+very welcome. Either use the
+`issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
+`Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
+Instructions to set up *datafold* for development can be found
+`here <https://datafold-dev.gitlab.io/datafold/contributing.html>`__.
 
 Dependencies
 ============
 
-The *datafold* dependencies are managed in the file
+The dependencies of the core package are managed in
 `requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
-and install during *datafold* installation. The tests and tutorials require further
-dependencies which are managed in
+and install with *datafold*. The tests, tutorials, documentation and code analysis
+require additional dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
 *datafold* integrates with common packages from the
@@ -190,17 +193,17 @@ dependencies which are managed in
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__
    as a base class for ``TSCDataFrame``, which captures time series data and
    collections thereof. The data structure indexes time, time series ID and
-   one-or-many spatial spatial features. *datafold* includes specific methods for the time
-   series context, but is also compatible with pandas rich functionality.
+   one-or-many spatial features. It includes specific time series collection functionality
+   and is compatible with pandas rich functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`__.
    This is done by deriving the models from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
-   and appropriate ``MixIns``. *datafold* defines own base classes that align with the
-   API in a duck-typing fashion to allow identifying dynamical systems from time series
-   data in ``TSCDataFrame`` objects.
+   and appropriate `MixIns`. *datafold* defines own `MixIns` that align with the
+   API in a duck-typing fashion to allow identifying dynamical systems from temporal data
+   in ``TSCDataFrame``.
 
 * `SciPy <https://docs.scipy.org/doc/scipy/reference/index.html>`__
    The package is used for elementary numerical algorithms and data structures in
@@ -211,7 +214,7 @@ dependencies which are managed in
 How does it compare to other software?
 ======================================
 
-*Note: the selection only includes other Python packages.*
+*The selection only includes other Python packages.*
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    provides algorithms and models along the entire machine learning pipeline, with a
@@ -241,214 +244,3 @@ How does it compare to other software?
 * `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__
    specializes on a *sparse* system identification of nonlinear dynamical systems to
    infer governing equations.
-
-
-Contributing
-============
-
-Bug reports, feature requests and user questions
-------------------------------------------------
-
-Any contribution (code/tutorials/documentation changes) and feedback is very
-welcome. For all correspondence regarding the software please open a new issue in the
-*datafold* `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-`email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if do not
-have a gitlab account (this opens a confidential issue).
-
-All code contributors are listed in the
-`contributors file <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
-
-Setting up *datafold* for development
--------------------------------------
-
-This section describes all steps to set up *datafold* for code development and should be
-read before contributing. The *datafold* repository must be cloned via ``git``
-(see section to install *datafold* from source above).
-
-Quick set up
-^^^^^^^^^^^^
-
-The following bash commands include all steps described in detail below for a quick
-set up.
-
-.. code-block:: bash
-
-   # Clone repository (replace FORK_NAMESPACE after forking datafold)
-   git clone git@gitlab.com:[FORK_NAMESPACE]/datafold.git
-   cd ./datafold/
-
-   # Optional: set up virtual environment
-   # Note: if you use Python with Anaconda create a conda environment instead and install pip in it
-   #       https://datafold-dev.gitlab.io/datafold/conda_install_info.html
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install --upgrade pip
-
-   # Optional: install datafold
-   #   not required if the repository path is included in `PYTHONPATH`
-   python setup.py install
-
-   # Install development dependencies and code
-   pip install -r requirements-dev.txt
-
-   # Install and run code formatting tools (pre-commit is included in requirements-dev)
-   pre-commit install
-   pre-commit run --all-files
-
-   # Optional: run tests
-   python setup.py test
-
-   # Optional: build documentation
-   sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
-   sphinx-build -b html ./doc/source/ ./public/
-
-Fork and create merge requests to *datafold*
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Please read and follow the steps of gitlab's
-`"Project forking workflow" <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html>`__.
-
-* `How to create a fork <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#creating-a-fork>`__
-* `How to create a merge request <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#merging-upstream>`__
-
-.. note::
-    We have set up a "Continuous Integration" (CI) pipeline. However, the worker (a
-    `gitlab-runner`) of the parent repository is not available for forked projects (for
-    background see
-    `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
-
-After you have created a fork you can clone the repository with
-
- .. code-block:: bash
-
-   git clone git@gitlab.com:[FORK_NAMESPACE]/datafold.git
-
-
-Install developer dependencies
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The file ``requirements-dev.txt`` in the root directory of the repository contains all
-developing dependencies and is readable with :code:`pip`.
-
-The recommended (but optional) way is to install all dependencies into a
-`virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
-with other installed packages. Run from the root directory:
-
-.. code-block:: bash
-
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements-dev.txt
-
-.. note::
-    If you are using Python with Anaconda go to
-    `Installation with Anaconda <https://datafold-dev.gitlab.io/datafold/conda_install_info.html>`__,
-    to set up a ``conda`` environment instead of a ``virtualenv``.
-
-To install the dependencies without a virtual environment run:
-
-.. code-block:: bash
-
-   pip install -r requirements-dev.txt
-
-Install git pre-commit hooks
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The *datafold* source code is automatically formatted with
-
-* `black <https://black.readthedocs.io/en/stable/>`__ for general code formatting
-* `isort <https://timothycrosley.github.io/isort/>`__ for sorting Python :code:`import`
-  statements alphabetically and in sections.
-* `nbstripout <https://github.com/kynan/nbstripout>`__ for removing potentially large
-  binary formatted output cells in a Jupyter notebook before the content gets into the git
-  history.
-
-It is highly recommended that the tools inspect and format the code *before* the code is
-committed to the git history. The tools alter the source code in a deterministic
-way, meaning each tool should only format the code once to obtain the desired format.
-None of the tool should break the code.
-
-The most convenient way to set up the tools is to install the git commit-hooks via
-`pre-commit <https://pre-commit.com/>`__ (installs with the development
-dependencies). To install the git-hooks run from root directory:
-
-.. code-block:: bash
-
-   pre-commit install
-
-The installed git-hooks then run automatically prior to each ``git commit``. To format
-the current source code without a commit (e.g., for testing purposes or during
-development), run from the root directory:
-
-.. code-block:: bash
-
-   pre-commit run --all-files
-
-Run tests
-^^^^^^^^^
-
-The tests are executed with Python package
-`nose <https://nose.readthedocs.io/en/latest/>`__ (installs with the development
-dependencies).
-
-To execute all *datafold* unit tests locally run from the root directory:
-
-.. code-block:: bash
-
-    python setup.py test
-
-Alternatively, you can also run the tests using ``nosetests`` directly, which provides
-further options (see ``nosetests --help``)
-
-.. code-block:: bash
-
-    nosetests datafold/ -v
-
-To test whether the tuturials run without raising an error run:
-
-.. code-block:: bash
-
-   nosetests tutorials/ -v
-
-All tests (unit and tutorials) can also be executed remotely in a gitlab "Continuous
-Integration" (CI) setup. The pipeline runs for every push to the main repository.
-
-Visit `"gitlab pipelines" <https://docs.gitlab.com/ee/ci/pipelines/>`__ for an
-introduction. *datafold*'s pipeline configuration is located in the file
-`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__.
-
-Compile and build documentation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The documentation is built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`__ and
-various extensions (install with the development dependencies). The source
-code is documented with
-`numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`__ style.
-
-Additional dependencies to build the documentation that *not* install with the
-development dependencies:
-
-* `LaTex <https://www.latex-project.org/>`__ to render equations,
-* `mathjax <https://www.mathjax.org/>`__ to display equations in the browser
-* `graphviz <https://graphviz.org/>`__ to render class dependency graphs
-* `pandoc <https://pandoc.org/index.html>`__ to convert between formats (required by
-  `nbsphinx` extension that includes the tutorials to the web page).
-
-In a Linux environment, install the packages with
-
-.. code-block:: bash
-
-    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
-
-(This excludes the Latex installation, see available `texlive` packages).
-
-To build the documentation with `Sphinx <https://www.sphinx-doc.org/en/master/>`__:
-
-.. code-block:: bash
-
-   sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
-   sphinx-build -b html ./doc/source/ ./public/
-
-The page entry is then located at ``./public/index.html``. Please make sure that the
-installation of Sphinx is in the path environment variable.

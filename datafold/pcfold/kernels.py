@@ -62,7 +62,7 @@ def _symmetric_matrix_division(
     scalar: float = 1.0,
     value_zero_division: Union[str, float] = "raise",
 ) -> Union[np.ndarray, scipy.sparse.csr_matrix,]:
-    r"""Symmetric division, which often appears in kernels.
+    r"""Symmetric division, often appearing in kernels.
 
     .. math::
         \frac{M_{i, j}}{a v^(l)_i v^(r)_j}
@@ -71,8 +71,8 @@ def _symmetric_matrix_division(
     (left and right) vector elements :math:`v` and scalar :math:`a`.
 
     .. warning::
-        The function is in-place and may therefore overwrite the matrix. Make a copy
-        beforehand if the old values are still required.
+        The implementation is in-place and can overwrites the input matrix. Make a copy
+        beforehand if the matrix values are still required.
 
     Parameters
     ----------
@@ -107,7 +107,7 @@ def _symmetric_matrix_division(
             "If 'matrix' is non-square, then 'vec_right' must be provided."
         )
 
-    vec = vec.astype(np.float64)
+    vec = vec.astype(float)
 
     if (vec == 0.0).any():
         if value_zero_division == "raise":
@@ -115,8 +115,8 @@ def _symmetric_matrix_division(
                 f"Encountered zero values in division in {(vec == 0).sum()} points."
             )
         else:
-            # division results into 'nan' without ZeroDivisionWarning and will
-            # be repaced later
+            # division results into 'nan' without raising a ZeroDivisionWarning. The
+            # nan values will be replaced later
             vec[vec == 0.0] = np.nan
 
     vec_inv_left = np.reciprocal(vec)
@@ -124,7 +124,7 @@ def _symmetric_matrix_division(
     if vec_right is None:
         vec_inv_right = vec_inv_left.view()
     else:
-        vec_right = vec_right.astype(np.float64)
+        vec_right = vec_right.astype(float)
         if (vec_right == 0.0).any():
             if value_zero_division == "raise":
                 raise ZeroDivisionError(
@@ -133,7 +133,7 @@ def _symmetric_matrix_division(
             else:
                 vec_right[vec_right == 0.0] = np.inf
 
-        vec_inv_right = np.reciprocal(vec_right.astype(np.float64))
+        vec_inv_right = np.reciprocal(vec_right.astype(float))
 
     if vec_inv_left.ndim != 1 or vec_inv_left.shape[0] != matrix.shape[0]:
         raise ValueError(
@@ -172,7 +172,7 @@ def _symmetric_matrix_division(
             matrix.data[np.isnan(matrix.data)] = value_zero_division
 
     else:
-        # Solves efficiently:
+        # This computes efficiently:
         # np.diag(1/vector_elements) @ matrix @ np.diag(1/vector_elements)
         matrix = diagmat_dot_mat(vec_inv_left, matrix, out=matrix)
         matrix = mat_dot_diagmat(matrix, vec_inv_right, out=matrix)
@@ -185,8 +185,9 @@ def _symmetric_matrix_division(
         matrix = remove_numeric_noise_symmetric_matrix(matrix)
 
     if scalar != 1.0:
-        scalar = 1 / scalar
+        scalar = 1.0 / scalar
         matrix = np.multiply(matrix, scalar, out=matrix)
+
     return matrix
 
 
@@ -252,7 +253,7 @@ def _conjugate_stochastic_kernel_matrix(
         left_vec = left_vec.A1
 
     if left_vec.dtype.kind != "f":
-        left_vec = left_vec.astype(np.float)
+        left_vec = left_vec.astype(float)
 
     left_vec = np.sqrt(left_vec, out=left_vec)
 
@@ -729,8 +730,8 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
         check_scalar(
             parameter,
             name=name,
-            target_type=(int, float, np.integer, np.floating),
-            min_val=float(np.finfo(np.float64).eps),
+            target_type=(float, np.floating, int, np.integer),
+            min_val=np.finfo(float).eps,
         )
         return float(parameter)
 
@@ -1213,11 +1214,11 @@ class ContinuousNNKernel(PCManifoldKernel):
 
         if isinstance(distance_factors, np.ndarray):
             kernel_matrix = scipy.sparse.csr_matrix(
-                distance_factors < self.delta, dtype=np.bool
+                distance_factors < self.delta, dtype=bool
             )
         else:
             assert isinstance(distance_factors, scipy.sparse.csr_matrix)
-            distance_factors.data = (distance_factors.data < self.delta).astype(np.bool)
+            distance_factors.data = (distance_factors.data < self.delta).astype(bool)
             distance_factors.eliminate_zeros()
             kernel_matrix = distance_factors
 
@@ -1340,7 +1341,7 @@ class DmapKernelFixed(BaseManifoldKernel):
             if row_sums.dtype.kind != "f":
                 # This is required for case when 'row_sums' contains boolean or integer
                 # values; for inplace operations the type has to be the same
-                row_sums = row_sums.astype(np.float)
+                row_sums = row_sums.astype(float)
 
             row_sums_alpha = np.power(row_sums, self.alpha, out=row_sums)
         else:  # no need to power with 1
@@ -1659,7 +1660,7 @@ class ConeKernel(TSCManifoldKernel):
         check_scalar(
             self.zeta,
             name="zeta",
-            target_type=(int, np.integer, float, np.floating),
+            target_type=(float, np.floating, int, np.integer),
             min_val=0.0,
             max_val=1.0 - np.finfo(float).eps,
         )
@@ -1667,7 +1668,7 @@ class ConeKernel(TSCManifoldKernel):
         check_scalar(
             self.epsilon,
             name="epsilon",
-            target_type=(int, np.integer, float, np.floating),
+            target_type=(float, np.floating, int, np.integer),
             min_val=np.finfo(float).eps,
             max_val=None,
         )
@@ -1942,7 +1943,7 @@ class ConeKernel(TSCManifoldKernel):
         return kernel_matrix, ret_cdist
 
 
-class DmapKernelVariable(BaseManifoldKernel):
+class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
     """Diffusion maps kernel with variable kernel bandwidth.
 
     .. warning::
@@ -2031,7 +2032,7 @@ class DmapKernelVariable(BaseManifoldKernel):
                 distance_matrix = distance_matrix * distance_matrix
             else:  # self.k == self.N
                 np.fill_diagonal(distance_matrix, np.nan)
-                bool_mask = ~np.diag(np.ones(nr_samples)).astype(np.bool)
+                bool_mask = ~np.diag(np.ones(nr_samples)).astype(bool)
                 distance_matrix = distance_matrix[bool_mask].reshape(
                     distance_matrix.shape[0], distance_matrix.shape[1] - 1
                 )
@@ -2098,7 +2099,6 @@ class DmapKernelVariable(BaseManifoldKernel):
         kernel_eps_alpha_s = _symmetric_matrix_division(
             matrix=kernel_eps_s, vec=np.power(q_eps_s, self.alpha)
         )
-        assert is_symmetric_matrix(kernel_eps_alpha_s)
 
         return kernel_eps_alpha_s
 
@@ -2186,6 +2186,9 @@ class DmapKernelVariable(BaseManifoldKernel):
         kernel_eps_s = self._compute_kernel_eps_s(distance_matrix, rho)
         q_eps_s = self._compute_q_eps_s(kernel_eps_s, rho)
         kernel_eps_alpha_s = self._compute_kernel_eps_alpha_s(kernel_eps_s, q_eps_s)
+
+        # can be expensive
+        assert is_symmetric_matrix(kernel_eps_alpha_s)
 
         if self.is_symmetric:
             q_eps_alpha_s = kernel_eps_alpha_s.sum(axis=1)

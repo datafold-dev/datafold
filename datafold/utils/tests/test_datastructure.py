@@ -56,7 +56,7 @@ class TestDataStructureUtils(unittest.TestCase):
         self.assertTrue(is_integer(6.0))
 
     def test_is_integer2(self):
-        self.assertTrue(is_integer(np.float64(5)))
+        self.assertTrue(is_integer(np.float_(5)))
 
     def test_is_integer3(self):
         self.assertFalse(is_integer(1.3))

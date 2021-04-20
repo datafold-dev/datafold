@@ -56,18 +56,14 @@ Classes
 Modules
 ~~~~~~~
 
-.. Fill in classes that have 
+.. Fill in classes that have
        WARNING: autosummary: stub file not found 'XXXXX'. Check your autosummary_generate setting.
 
 .. automodapi:: datafold.dynfold.base
     :skip: List,NotFittedError,TSCDataFrame,TSCMetric,TSCScoring,TimePredictType,TransformerMixin,Tuple,TSCException
 
 .. automodapi:: datafold.pcfold.distance
-    :skip: NearestNeighbors,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec
+    :skip: NearestNeighbors,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec,is_integer
 
 .. automodapi:: datafold.pcfold.eigsolver
     :skip: Callable,sort_eigenpairs,is_symmetric_matrix,Tuple,Dict
-
-
-
-

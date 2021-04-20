@@ -354,13 +354,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.time_exponent,
             "time_exponent",
-            target_type=(float, int, np.float, np.integer),
+            target_type=(float, int, np.floating, np.integer),
         )
 
         check_scalar(
             self.alpha,
             "alpha",
-            target_type=(float, int, np.float, np.integer),
+            target_type=(float, np.floating, int, np.integer),
             min_val=0,
             max_val=1,
         )
@@ -482,7 +482,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         indices = np.asarray(indices)
         indices = np.sort(indices)
 
-        if indices.dtype != np.int_:
+        if indices.dtype != int:
             raise TypeError(f"The indices must be integers. Got type {indices.dtype}.")
 
         if indices[0] < 0 or indices[-1] >= self.n_eigenpairs:
@@ -923,7 +923,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
     intrinsic_dim
         Number of eigenvectors to select with largest residuals.
-        
+
     regress_threshold
         Threshold for local residual to include eigenvectors that are above,
         if strategy="threshold".
@@ -979,7 +979,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             self.eps_med_scale,
             name="eps_med_scale",
             target_type=(float, np.floating, int, np.integer),
-            min_val=np.finfo(np.float64).eps,  # exclusive zero
+            min_val=np.finfo(float).eps,  # exclusive zero
             max_val=np.inf,
         )
 
@@ -1009,8 +1009,8 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
                 self.regress_threshold,
                 name="regress_threshold",
                 target_type=(float, np.floating),
-                min_val=np.finfo(np.float64).eps,
-                max_val=1 - np.finfo(np.float64).eps,
+                min_val=np.finfo(float).eps,
+                max_val=1 - np.finfo(float).eps,
             )
 
         if self.bandwidth_type not in self._cls_valid_bandwidth:
@@ -1047,7 +1047,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             )
 
         if eps_regression == 0:
-            eps_regression = np.finfo(np.float64).eps
+            eps_regression = np.finfo(float).eps
 
         # equation 11 in referenced paper, corresponding to the weights
         kernel_eigvec = np.exp(-1 * np.square(distance_matrix_eigvec) / eps_regression)

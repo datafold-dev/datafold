@@ -411,8 +411,8 @@ class TestTSCCV(unittest.TestCase):
             self.assertEqual(test_part.n_timeseries, 2)
 
             # should keep original length:
-            self.assertEquals(train_part.n_timesteps, 4)
-            self.assertEquals(test_part.n_timesteps, 4)
+            self.assertEqual(train_part.n_timesteps, 4)
+            self.assertEqual(test_part.n_timesteps, 4)
 
             # checks that no time series id is in train and also test
             self.assertFalse(np.in1d(train_part.ids, test_part.ids).any())

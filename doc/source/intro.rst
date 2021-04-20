@@ -99,9 +99,9 @@ data. The latter refers to the image and pre-image mapping between the
 original and latent space (e.g., see analysis in :cite:`chiavazzo_reduced_2014`). This
 so-called "out-of-sample" extension interpolates general function values
 on manifold point clouds and, therefore, has to handle large input data
-dimensions :cite:`coifman_geometric_2006`, :cite:`fernandez_auto-adaptative_2014`, 
-:cite:`rabin_heterogeneous_2012`. In *datafold*, out-of-sample extensions are 
-implemented efficiently, so that interpolated function values for 
+dimensions :cite:`coifman_geometric_2006`, :cite:`fernandez_auto-adaptative_2014`,
+:cite:`rabin_heterogeneous_2012`. In *datafold*, out-of-sample extensions are
+implemented efficiently, so that interpolated function values for
 millions of points can be computed in seconds on a standard desktop computer.
 
 2. Time series data
@@ -114,14 +114,14 @@ regression. Usually, the phase space of the dynamical system, underlying
 the time series observations, is assumed to be a manifold (see a
 conceptual illustration in the figure.
 *datafold* focuses on the algorithms "Dynamic Mode Decomposition" (DMD)
-:cite:`schmid_dynamic_2010`, :cite:`tu_dynamic_2014`, :cite:`kutz_dynamic_2016` 
-and "Extended Dynamic Mode Decomposition" (E-DMD) 
+:cite:`schmid_dynamic_2010`, :cite:`tu_dynamic_2014`, :cite:`kutz_dynamic_2016`
+and "Extended Dynamic Mode Decomposition" (E-DMD)
 :cite:`williams_datadriven_2015`. DMD linearly decomposes the available time series
 data into spatio-temporal components, which then define a linear
 dynamical system. Many DMD based variants address even more general,
 non-linear underlying dynamical systems. This is usually done by
 changing the time series coordinates in a step before DMD is applied
-:cite:`williams_datadriven_2015`, :cite:`champion_discovery_2019`, 
+:cite:`williams_datadriven_2015`, :cite:`champion_discovery_2019`,
 :cite:`le_clainche_higher_2017`, :cite:`giannakis_data-driven_2019`.
 The justification of this workflow is covered by operator theory and functional analysis,
 specifically the Koopman operator. In practice, the E-DMD algorithm
@@ -133,4 +133,3 @@ flexibility in setting up the data processing pipeline. The flexibility
 of setting an arbitrary dictionary combined with a selection of the
 provided DMD variants is a core feature of *datafold's* implementation
 of E-DMD.
-
