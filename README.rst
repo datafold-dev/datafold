@@ -148,12 +148,12 @@ access the latest (but potentially unstable) development, run tests or wish to c
 
         git clone https://gitlab.com/datafold-dev/datafold.git
 
-   b. If you only want access to the source code (current master), download one of the
-      the compressed files
+   b. If you only want access to the source code (current ``master`` branch), download one
+      of the the compressed files (
       `zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
-      `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__
+      `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__)
 
 2. Install *datafold* from the repository with
 
@@ -175,7 +175,7 @@ Instructions to set up *datafold* for development can be found
 Dependencies
 ============
 
-The dependencies of the core package are managed in
+The dependencies of the core package are managed in the file
 `requirements.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements.txt>`__
 and install with *datafold*. The tests, tutorials, documentation and code analysis
 require additional dependencies which are managed in
