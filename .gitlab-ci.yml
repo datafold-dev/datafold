@@ -6,14 +6,14 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  PRE_COMMIT_HOME: "${CI_PROJECT_DIR}/.cache/pre-commit"
+  PRE_COMMIT_DIR: "${CI_PROJECT_DIR}/.cache/pre-commit"
+  VENV_DIR: "${CI_PROJECT_DIR}/venv"
 
 cache:
   paths:
-    - .cache/pip
-    - ${PRE_COMMIT_HOME}
-    - venv/
-
+    - ${PIP_CACHE_DIR}
+    - ${PRE_COMMIT_DIR}
+    - ${VENV_DIR}
 
 # https://gitlab.com/gitlab-org/gitlab/-/issues/33694#note_335120563
 workflow:

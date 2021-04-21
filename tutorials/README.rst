@@ -80,7 +80,7 @@ software installs with
 
 .. code-block:: bash
 
-    pip install jupyter
+    python -m pip install jupyter
 
 For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a
 Jupyter notebook in a web browser, run

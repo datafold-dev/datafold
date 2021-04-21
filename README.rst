@@ -49,10 +49,11 @@ For a mathematical thorough introduction, we refer to the `scientific literature
 .. note::
     The project is under active development in a research-driven environment.
 
-    * Code quality varies ranging from "experimental/early stage" to "well-tested". In
-      general, well tested classes are listed in the software documentation and are
-      directly accessible through the package levels `pcfold`, `dynfold` or `appfold`
-      (e.g. :code:`from datafold.dynfold import ...`. Experimental code is only
+    * Code quality varies from "experimental/early stage" to "well-tested". Well tested
+      code is listed in the
+      `software documentation <https://datafold-dev.gitlab.io/datafold/api.html>`__ and are directly accessible
+      through the package levels ``pcfold``, ``dynfold`` or ``appfold``
+      (e.g. :code:`from datafold.dynfold import ...`). Experimental code is only
       accessible via "deep imports"
       (e.g. :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning
       when using it.
@@ -99,29 +100,27 @@ How to get it?
 Installation requires `Python>=3.7 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
 `setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed. Both
-packages usually ship with a standard Python installation. The dependencies of *datafold*
-are listed in the next section.
+packages usually ship with a standard Python installation. The package dependencies
+install automatically, the main dependencies are listed below in "Dependencies".
 
-There are two ways to install *datafold*.
+There are two ways to install *datafold*:
 
-1. **PyPI**: install the core package (excluding tutorials and tests). This
-   is the standard way for users. To download the tutorial files go to
-   `Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
-2. **Source**: download or git-clone the entire repository. This way is recommended if you
-   want to access the latest (but potentially unstable) development, run tests
-   or wish to contribute (see section "Contributing" for details).
+1. From PyPI
+------------
 
-From PyPI
----------
+Installs the core package (excluding tutorials and tests). This is the standard way for
+users. To download the tutorial files go to
+`Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
 
 *datafold* is hosted on the official Python package index (PyPI). To install the package
 and its dependencies with :code:`pip`, run
 
 .. code-block:: bash
 
-   pip install datafold
+   python -m pip install datafold
 
 .. note::
+
     If you run Python in an Anaconda environment you can use pip from within an ``conda``
     environment. See also
     `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
@@ -133,8 +132,12 @@ and its dependencies with :code:`pip`, run
         pip install datafold
 
 
-From source
------------
+2. From source
+--------------
+
+Download or git-clone the source code repository. This way is recommended if you want to
+access the latest (but potentially unstable) development, run tests or wish to contribute
+(see section "Contributing" for details).
 
 1. Download the repository
 
