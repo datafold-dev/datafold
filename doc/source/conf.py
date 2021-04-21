@@ -2,9 +2,6 @@
 # type: ignore
 
 # Configuration file for the Sphinx documentation builder.
-#
-# For a full list of Sphinx configuration see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # -- Path setup --------------------------------------------------------------
 
@@ -35,7 +32,8 @@ try:
 except ImportError:
     raise ImportError(f"The path to datafold is not correct \npath:" f"{PATH2ROOT}")
 
-
+# For a full list of Sphinx configuration see the documentation:
+# https://www.sphinx-doc.org/en/master/usage/configuration.html
 # -- Project information -----------------------------------------------------------------
 project = "datafold"
 copyright = f"2019-{datetime.now().year}, the datafold contributors"

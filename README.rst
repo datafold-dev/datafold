@@ -51,10 +51,10 @@ For a mathematical thorough introduction, we refer to the `scientific literature
 
     * Code quality varies from "experimental/early stage" to "well-tested". Well tested
       code is listed in the
-      `software documentation <https://datafold-dev.gitlab.io/datafold/api.html>`__ and are directly accessible
-      through the package levels ``pcfold``, ``dynfold`` or ``appfold``
-      (e.g. :code:`from datafold.dynfold import ...`). Experimental code is only
-      accessible via "deep imports"
+      `software documentation <https://datafold-dev.gitlab.io/datafold/api.html>`__
+      and are directly accessible through the package levels ``pcfold``, ``dynfold`` or
+      ``appfold`` (e.g. :code:`from datafold.dynfold import ...`). Experimental code is
+      only accessible via "deep imports"
       (e.g. :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning
       when using it.
     * There is no deprecation cycle. Backwards compatibility is indicated by the
@@ -108,12 +108,12 @@ There are two ways to install *datafold*:
 1. From PyPI
 ------------
 
-Installs the core package (excluding tutorials and tests). This is the standard way for
-users. To download the tutorial files go to
-`Tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
+This is the standard way for users. The package is hosted on the official Python package
+index (PyPI) and installs the core package (excluding tutorials and tests). The tutorial
+files can be downloaded separately
+`here <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__.
 
-*datafold* is hosted on the official Python package index (PyPI). To install the package
-and its dependencies with :code:`pip`, run
+To install the package and its dependencies with :code:`pip`, run
 
 .. code-block:: bash
 
@@ -135,9 +135,9 @@ and its dependencies with :code:`pip`, run
 2. From source
 --------------
 
-Download or git-clone the source code repository. This way is recommended if you want to
-access the latest (but potentially unstable) development, run tests or wish to contribute
-(see section "Contributing" for details).
+This way is recommended if you want to access the latest (but potentially unstable)
+development, run tests or wish to contribute (see section "Contributing" for details).
+Download or git-clone the source code repository.
 
 1. Download the repository
 
@@ -149,13 +149,13 @@ access the latest (but potentially unstable) development, run tests or wish to c
         git clone https://gitlab.com/datafold-dev/datafold.git
 
    b. If you only want access to the source code (current ``master`` branch), download one
-      of the the compressed files (
+      of the compressed files (
       `zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
       `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__)
 
-2. Install *datafold* from the repository with
+2. Install the package from the downloaded repository
 
    .. code-block:: bash
 
