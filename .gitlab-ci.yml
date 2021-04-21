@@ -108,7 +108,11 @@ pages:
       allow_failure: true
 
 
-# Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
+# For infos of testPyPI see here: https://packaging.python.org/guides/using-testpypi/
+# Note that
+#  "The database for TestPyPI may be periodically pruned, so it is not unusual for user
+#   accounts to be deleted." -- it is best to use the same account and password as for
+#   the real PyPI, so that the TWINE variables (see below) can be re-used
 pypi_upload_test:  # uploads to test.pypi.org to see how everything renders
   stage: deploy
   before_script:
@@ -116,10 +120,10 @@ pypi_upload_test:  # uploads to test.pypi.org to see how everything renders
   script:
     - python setup.py sdist bdist_wheel
     - twine check dist/*
-    - twine upload --repository testpypi dist/*
+    - twine upload --verbose --repository testpypi dist/*
   when: manual
 
-
+# Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:
   stage: deploy
   before_script:

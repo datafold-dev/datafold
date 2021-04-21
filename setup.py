@@ -39,8 +39,9 @@ with open(path_to_pkg_requirements, "r") as f:
 install_requires = [req.replace("\n", "") for req in install_requires]
 
 short_description = """Operator-theoretic models to identify dynamical systems and
-describe geometry in point clouds"""
+parametrize point cloud geometry"""
 
+# use README.rst for text in PyPI:
 with open(os.path.join(setuppy_filepath, "README.rst")) as readme_file:
     long_description = readme_file.read()
 
@@ -73,7 +74,10 @@ setup(
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Scientific/Engineering",
     ],
-    # the requirements.txt is needed during setup.py and must also be copied to
+    # see https://stackoverflow.com/a/14159430
+    # Both a MANIFEST.in and package_data is required that bdist and sdist
+    # installations include the files.
+    # The requirements.txt is required for setup.py and must also be copied to
     # source distributions (setup.py install sdist)
     package_data={
         ".": ["requirements.txt", "LICENSE", "LICENSES_bundled", "CONTRIBUTORS"]
