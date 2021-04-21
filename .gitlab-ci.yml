@@ -105,8 +105,21 @@ pages:
     # manual option if push to branches other than master
     - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
       when: manual
+      allow_failure: true
+
 
 # Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
+pypi_upload_test:  # uploads to test.pypi.org to see how everything renders
+  stage: deploy
+  before_script:
+    - source venv/bin/activate
+  script:
+    - python setup.py sdist bdist_wheel
+    - twine check dist/*
+    - twine upload --repository testpypi dist/*
+  when: manual
+
+
 pypi_upload:
   stage: deploy
   before_script:

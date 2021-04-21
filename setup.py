@@ -28,9 +28,9 @@ def read_datafold_version():
 author = "datafold development team"
 email = "daniel.lehmberg@hm.edu"
 
-path_to_pkg_requirements = os.path.join(
-    Path(__file__).absolute().parent, "requirements.txt"
-)
+setuppy_filepath = Path(__file__).absolute().parent
+
+path_to_pkg_requirements = os.path.join(setuppy_filepath, "requirements.txt")
 path_to_pkg_requirements = os.path.abspath(path_to_pkg_requirements)
 
 with open(path_to_pkg_requirements, "r") as f:
@@ -38,23 +38,11 @@ with open(path_to_pkg_requirements, "r") as f:
 
 install_requires = [req.replace("\n", "") for req in install_requires]
 
-short_description = """The package contains operator-theoretic models that can
-identify dynamical systems from time series data and infer geometrical structures from
-point clouds."""
+short_description = """Operator-theoretic models to identify dynamical systems and
+describe geometry in point clouds"""
 
-long_description = """Main models in datafold:
-
-* (Extended-) Dynamic Mode Decomposition (E-DMD) to approximate the Koopman
-  operator from time series data or collections thereof.
-* Diffusion Map (DMAP) to find meaningful geometric descriptions in point clouds,
-  such as the eigenfunctions of the Laplace-Beltrami operator.
-* Out-of-sample extensions to interpolate functions on point cloud manifolds, such as
-  Geometric Harmonics interpolator and (auto-tuned) Laplacian Pyramids.
-* Data structure for time series collections (TSCDataFrame) and data
-  transformations, such as time-delay embeddings (TSCTakensEmbedding). The data
-  structures operates with both E-DMD and DMAP (internally or as input).
-
-"""
+with open(os.path.join(setuppy_filepath, "README.rst")) as readme_file:
+    long_description = readme_file.read()
 
 setup(
     name="datafold",
@@ -65,6 +53,7 @@ setup(
     long_description=long_description,
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
+    download_url="https://pypi.org/project/datafold/",
     keywords=[
         "mathematics, machine learning, dynamical system, data-driven, time series, "
         "regression, forecasting, manifold learning, diffusion map, koopman operator, "
@@ -86,5 +75,7 @@ setup(
     ],
     # the requirements.txt is needed during setup.py and must also be copied to
     # source distributions (setup.py install sdist)
-    package_data={".": ["requirements.txt", "LICENSE", "LICENSES_bundled"]},
+    package_data={
+        ".": ["requirements.txt", "LICENSE", "LICENSES_bundled", "CONTRIBUTORS"]
+    },
 )
