@@ -131,12 +131,12 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self.eigenvector_tolerance = eigenvector_tolerance
         self.dist_kwargs = dist_kwargs  # TODO List
 
-        self.ending_points_: List[int] = []
-        self.observations_: List[PCManifold] = []
-        self.kernel_matrices_: List[scipy.sparse.csr_matrix] = []
-        self._cdist_kwargs_: List[Dict] = []
-        self.kernel_eigenvectors_: List[scipy.sparse.csr_matrix] = []
-        self.kernel_eigenvalues_: List[scipy.sparse.csr_matrix] = []
+        self.ending_points_: List[int]
+        self.observations_: List[PCManifold]
+        self.kernel_matrices_: List[scipy.sparse.csr_matrix]
+        self._cdist_kwargs_: List[Dict]
+        self.kernel_eigenvectors_: List[scipy.sparse.csr_matrix]
+        self.kernel_eigenvalues_: List[scipy.sparse.csr_matrix]
         self._jointly_smooth_functions_: np.ndarray
         self._eigenvalues_: np.ndarray
 
