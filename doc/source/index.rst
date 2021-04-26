@@ -28,7 +28,7 @@ clouds. |MIT-license|
    :target: https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE
    :alt: license
 
-Install with (``Python>=3.7``)
+Install with (requires ``Python>=3.7``)
 
 .. code-block::
 
