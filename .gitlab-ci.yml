@@ -23,6 +23,10 @@ workflow:
     - when: always
 
 
+# See keyword reference for the .gitlab-ci.yml file
+# https://docs.gitlab.com/ee/ci/yaml/
+
+
 setup:
   stage: remote_setup
   script:
@@ -50,7 +54,7 @@ unittests:
       - ./coverage/
     expire_in: 1 week
     when: on_success
-
+  interruptible: true
 
 functional_tests:
   before_script:
@@ -61,6 +65,7 @@ functional_tests:
     - echo $PYTHONPATH
     - python -m pytest tutorials/
   allow_failure: false
+  interruptible: true
 
 
 code_checks:
@@ -71,6 +76,7 @@ code_checks:
   script:
     - pre-commit run --all
   allow_failure: true
+  interruptible: true
 
 
 docu_check:
@@ -83,6 +89,7 @@ docu_check:
   except:
     - master
   allow_failure: false
+  interruptible: true
 
 
 pages:

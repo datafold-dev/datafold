@@ -40,7 +40,7 @@ The bash script includes all steps that are detailed below.
        source .venv/bin/activate
        pip install --upgrade pip
 
-       # Install package and extra dependencies
+       # Install package and development dependencies
        pip install -r requirements-dev.txt
 
        # Install git hooks and code formatting tools
@@ -82,7 +82,7 @@ The bash script includes all steps that are detailed below.
            conda activate .venv
            conda install pip  # use pip from within the conda environment
 
-           # Install package and extra dependencies
+           # Install package and development dependencies
            pip install -r requirements-dev.txt
 
            # Install git hooks and code formatting tools
