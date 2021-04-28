@@ -62,7 +62,7 @@ The bash script includes all steps that are detailed below.
 .. tabbed:: conda
 
         **datafold is not available from the conda package manager**. If you run
-        Python with Anaconda's package manager, the below code installs
+        Python with Anaconda's package manager, the recommended way is to set up
         *datafold* in a ``conda`` environment by using ``pip``.
 
         Also note the

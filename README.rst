@@ -165,7 +165,7 @@ Download or git-clone the source code repository.
 Contributing
 ============
 
-Any contribution (code/tutorials/documentation improvements), questions or feedback is
+Any contribution (code/tutorials/documentation improvements), question or feedback is
 very welcome. Either use the
 `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
 `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
