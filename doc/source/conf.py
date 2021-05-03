@@ -15,10 +15,6 @@ import shutil
 import sys
 from datetime import datetime
 
-# "read the doc" theme
-# -- https://sphinx-rtd-theme.readthedocs.io/en/stable/
-# import sphinx_rtd_theme
-
 PATH2DOC = os.path.abspath(".")
 PATH2ROOT = os.path.abspath(os.path.join(PATH2DOC, "..", ".."))
 PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
@@ -32,7 +28,7 @@ try:
 except ImportError:
     raise ImportError(f"The path to datafold is not correct \npath:" f"{PATH2ROOT}")
 
-# For a full list of Sphinx configuration see the documentation:
+# For a details on Sphinx configuration see documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 # -- Project information -----------------------------------------------------------------
 project = "datafold"
@@ -44,7 +40,7 @@ today_fmt = "%d %B %Y"
 
 # -- General configuration ---------------------------------------------------------------
 
-needs_sphinx = "2.0"
+needs_sphinx = "3.4.0"
 
 # document name of the “master” document, that is, the document that contains the root
 # toctree directive
