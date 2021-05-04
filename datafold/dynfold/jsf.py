@@ -4,36 +4,14 @@ import numpy as np
 import scipy.linalg
 import scipy.sparse
 import scipy.sparse.linalg
-from pandas import DataFrame
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
-from datafold.dynfold.dmap import _DmapKernelAlgorithms
 from datafold.pcfold import PCManifold
-from datafold.pcfold.kernels import GaussianKernel, PCManifoldKernel
+from datafold.pcfold.eigsolver import compute_kernel_eigenpairs
+from datafold.pcfold.kernels import PCManifoldKernel
 from datafold.utils.general import mat_dot_diagmat
-
-
-def normalize_csr_matrix(sparse_kernel_matrix: scipy.sparse.csr_matrix):
-    sparse_kernel_matrix = (
-        1 / 2 * scipy.sparse.csr_matrix(sparse_kernel_matrix + sparse_kernel_matrix.T)
-    )
-    sparse_kernel_matrix = (
-        scipy.sparse.diags(
-            np.sqrt(np.array(1 / sparse_kernel_matrix.sum(axis=0))).ravel(), 0
-        )
-        @ sparse_kernel_matrix
-        @ scipy.sparse.diags(
-            np.sqrt(np.array(1 / sparse_kernel_matrix.sum(axis=0))).ravel(), 0
-        )
-    )
-    sparse_kernel_matrix = (
-        scipy.sparse.diags(np.array(1 / sparse_kernel_matrix.sum(axis=0)).ravel(), 0)
-        @ sparse_kernel_matrix
-    )
-    sparse_kernel_matrix.eliminate_zeros()
-    return sparse_kernel_matrix
 
 
 def sort_eigensystem(eigenvalues, eigenvectors):
@@ -43,17 +21,45 @@ def sort_eigensystem(eigenvalues, eigenvectors):
     return sorted_eigenvalues, sorted_eigenvectors
 
 
+class JsfDataset:
+    def __init__(
+        self,
+        name: str,
+        columns: Union[slice, List],
+        kernel: Optional[PCManifoldKernel] = None,
+        result_scaling: float = 1.0,
+        **dist_kwargs: Dict,
+    ):
+        self.name = name
+        self.columns = columns
+        self.kernel = kernel
+        self.result_scaling = result_scaling
+        self.dist_kwargs = dist_kwargs
+
+    def fit_transform(self, X: TransformType, y=None):
+        data = X[:, self.columns]
+        pcm: PCManifold = PCManifold(
+            data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs
+        )
+        if self.kernel is None:
+            pcm.optimize_parameters(inplace=True, result_scaling=self.result_scaling)
+        return pcm
+
+
 class ColumnSplitter:
-    def __init__(self, transformers: List[Tuple[str, slice]]):
+    def __init__(self, transformers: List[JsfDataset]):
         self.transformers = transformers
 
     def fit_transform(self, X: TransformType, y=None) -> List[TransformType]:
-        result = []
+        if not self.transformers:
+            return [X]
 
-        for _, columns in self.transformers:
-            result.append(X[:, columns])
+        pcms: List[PCManifold] = []
 
-        return result
+        for transformer in self.transformers:
+            pcms.append(transformer.fit_transform(X))
+
+        return pcms
 
 
 class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
@@ -61,17 +67,15 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
     Parameters
     ----------
+    datasets: List[JsfDataset]
+        The :py:class:`JsfDataset`s used to split up the multimodal data.
+
     n_kernel_eigenvectors: int
         The number of eigenvectors to compute from the kernel matrices.
 
     n_jointly_smooth_functions: int
         The number of jointly smooth functions to compute from the eigenvectors of the
         kernel matrices.
-
-    kernel: Optional[Union[PCManifoldKernel, List[PCManifoldKernel]]]
-        The kernel(s) used to describe the proximity between points. You can specify one
-        kernel for all observations or one kernel for each observation. Defaults to the
-        default :py:class: `.GaussianKernel`.
 
     kernel_eigenvalue_cut_off: float
         The kernel eigenvectors with a eigenvalue smaller than or equal to
@@ -115,21 +119,17 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
     def __init__(
         self,
+        datasets: List[JsfDataset],
         n_kernel_eigenvectors: int = 100,
         n_jointly_smooth_functions: int = 10,
-        column_splitter: Optional[ColumnSplitter] = None,
-        kernel: Optional[Union[PCManifoldKernel, List[PCManifoldKernel]]] = None,
         kernel_eigenvalue_cut_off: float = 0,
         eigenvector_tolerance: float = 1e-6,
-        **dist_kwargs,
     ) -> None:
         self.n_kernel_eigenvectors = n_kernel_eigenvectors
         self.n_jointly_smooth_functions = n_jointly_smooth_functions
-        self.column_splitter = column_splitter
-        self.kernel = kernel
+        self.datasets = datasets
         self.kernel_eigenvalue_cut_off = kernel_eigenvalue_cut_off
         self.eigenvector_tolerance = eigenvector_tolerance
-        self.dist_kwargs = dist_kwargs  # TODO List
 
         self.ending_points_: List[int]
         self.observations_: List[PCManifold]
@@ -147,39 +147,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
     @property
     def eigenvalues(self) -> np.ndarray:
         return self._eigenvalues_
-
-    def _setup_kernels_for_observations(self, observations):
-        self.observations_ = []
-
-        if self.kernel is None:
-            self.observations_ = [
-                PCManifold(observation, dist_kwargs=self.dist_kwargs)
-                for observation in observations
-            ]
-        elif isinstance(self.kernel, PCManifoldKernel):
-            self.observations_ = [
-                PCManifold(
-                    observation, kernel=self.kernel, dist_kwargs=self.dist_kwargs
-                )
-                for observation in observations
-            ]
-        elif isinstance(self.kernel, List):
-            if len(self.kernel) == len(observations):
-                self.observations_ = [
-                    PCManifold(observation, kernel=kernel, dist_kwargs=self.dist_kwargs)
-                    for observation, kernel in zip(observations, self.kernel)
-                ]
-            else:
-                raise ValueError(
-                    "Kernel list must have the same length as observations list"
-                )
-
-        self._optimize_kernels()
-
-    def _optimize_kernels(self):
-        for pcm in self.observations_:
-            if isinstance(pcm.kernel, GaussianKernel):
-                pcm.optimize_parameters(inplace=True)  # TODO Add result_scaling
 
     def _calculate_kernel_matrices(self):
         self._cdist_kwargs_ = []
@@ -200,11 +167,15 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self.kernel_eigenvectors_ = []
         self.kernel_eigenvalues_ = []
         for kernel_matrix in self.kernel_matrices_:
-            kernel_eigenvalues, kernel_eigenvectors = scipy.sparse.linalg.eigsh(
+            is_symmetric = np.alltrue(kernel_matrix.A == kernel_matrix.T.A)
+            ones_row = np.ones(kernel_matrix.shape[0])
+            ones_col = np.ones(kernel_matrix.shape[1])
+            is_stochastic = np.alltrue(kernel_matrix @ ones_col == ones_row)
+            kernel_eigenvalues, kernel_eigenvectors = compute_kernel_eigenpairs(
                 kernel_matrix,
-                k=self.n_kernel_eigenvectors,
-                tol=self.eigenvector_tolerance,
-                which="LM",
+                n_eigenpairs=self.n_kernel_eigenvectors,
+                is_symmetric=is_symmetric,
+                is_stochastic=is_stochastic,
             )
             kernel_eigenvalues, kernel_eigenvectors = sort_eigensystem(
                 kernel_eigenvalues, kernel_eigenvectors
@@ -321,8 +292,10 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         """
         X = self._validate_datafold_data(
             X=X,
-            array_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
-            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
+            array_kwargs=dict(
+                ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)
+            ),
+            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)),
         )
 
         self._setup_feature_attrs_fit(
@@ -330,13 +303,8 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             features_out=[f"jsf{i}" for i in range(self.n_jointly_smooth_functions)],
         )
 
-        observations = (
-            self.column_splitter.fit_transform(X)
-            if self.column_splitter is not None
-            else [X]
-        )
-
-        self._setup_kernels_for_observations(observations)
+        column_splitter = ColumnSplitter(self.datasets)
+        self.observations_ = column_splitter.fit_transform(X)
 
         self._calculate_kernel_matrices()
 
@@ -391,11 +359,8 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
         self._validate_feature_input(X, direction="transform")
 
-        new_observations = (
-            self.column_splitter.fit_transform(X)
-            if self.column_splitter is not None
-            else [X]
-        )
+        column_splitter = ColumnSplitter(self.datasets)
+        new_observations = column_splitter.fit_transform(X)
 
         indices = list(range(len(self.observations_)))
         indexed_observations = dict(zip(indices, new_observations))
@@ -430,7 +395,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
         return self._jointly_smooth_functions_
 
-    def score(self):
+    def score_(self, X, y):
         """Compute a score for hyperparameter optimization.
 
         Returns
