@@ -349,6 +349,44 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), n_scale_tests=20) -> None:
     fig.tight_layout()
 
 
+@warn_experimental_function
+def plot_parameters_and_observations(
+    parameters: np.ndarray,
+    observations: np.ndarray,
+    effective_parameter: np.ndarray,
+    n_samples_plot: int = 3000,
+):
+    n_samples = parameters.shape[0]
+    idx_plot = np.random.permutation(n_samples)[:n_samples_plot]
+    scatter_size = 10
+
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(8, 3.5))
+
+    ax[0].scatter(
+        x=parameters[idx_plot, 0],
+        y=parameters[idx_plot, 1],
+        s=scatter_size,
+        c=effective_parameter[idx_plot],
+        cmap=plt.cm.Spectral,
+    )
+    ax[0].set_title("Parameters")
+    ax[0].set_xlabel(r"$p_A$")
+    ax[0].set_ylabel(r"$p_B$")
+
+    ax[1].scatter(
+        x=observations[idx_plot, 0],
+        y=observations[idx_plot, 1],
+        s=scatter_size,
+        c=effective_parameter[idx_plot],
+        cmap=plt.cm.Spectral,
+    )
+    ax[1].set_title("Observations")
+    ax[1].set_xlabel(r"$z_A$")
+    ax[1].set_ylabel(r"$z_B$")
+
+    plt.show()
+
+
 if __name__ == "__main__":
     plot_pairwise_eigenvector(eigenvectors=np.random.rand(500, 10), n=0, idx_start=1)
     plt.show()
