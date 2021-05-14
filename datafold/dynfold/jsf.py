@@ -45,25 +45,6 @@ class JsfDataset:
         Keyword arguments passed to the internal distance matrix computation. See
         :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
         arguments.
-
-    Attributes
-    ----------
-    name_: str
-        The name of the dataset.
-
-    columns_: Union[slice, List]
-        The columns that correspond to the dataset.
-
-    kernel_: Optional[PCManifoldKernel]
-        The (optional) kernel for the dataset.
-
-    result_scaling_: float
-        The (optional) result scaling for the parameter optimization.
-
-    dist_kwargs_: Dict
-        Keyword arguments passed to the internal distance matrix computation. See
-        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
-        arguments.
     """
 
     def __init__(
@@ -74,19 +55,20 @@ class JsfDataset:
         result_scaling: float = 1.0,
         **dist_kwargs: Dict,
     ):
-        self.name_ = name
-        self.columns_ = columns
-        self.kernel_ = kernel
-        self.result_scaling_ = result_scaling
-        self.dist_kwargs_ = dist_kwargs
+        self.name = name
+        self.columns = columns
+        self.kernel = kernel
+        self.result_scaling = result_scaling
+        self.dist_kwargs = dist_kwargs
 
     def extract_from(self, X: TransformType) -> PCManifold:
-        data = X[:, self.columns_]
+        # TODO add Index checks
+        data = X[:, self.columns]
         pcm: PCManifold = PCManifold(
-            data=data, kernel=self.kernel_, dist_kwargs=self.dist_kwargs_
+            data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs
         )
-        if self.kernel_ is None:
-            pcm.optimize_parameters(inplace=True, result_scaling=self.result_scaling_)
+        if self.kernel is None:
+            pcm.optimize_parameters(inplace=True, result_scaling=self.result_scaling)
         return pcm
 
 
@@ -97,23 +79,18 @@ class ColumnSplitter:
     ----------
     transformers: List[JsfDataset]
         The `JsfDataset`s used to split up the array X.
-
-    Attributes
-    ----------
-    transformers_: List[JsfDataset]
-        The `JsfDataset`s used to split up the array X.
     """
 
     def __init__(self, transformers: List[JsfDataset]):
-        self.transformers_ = transformers
+        self.transformers = transformers
 
     def split(self, X: TransformType, y=None) -> List[TransformType]:
-        if not self.transformers_:
+        if not self.transformers:
             return [X]
 
         pcms: List[PCManifold] = []
 
-        for transformer in self.transformers_:
+        for transformer in self.transformers:
             pcms.append(transformer.extract_from(X))
 
         return pcms
