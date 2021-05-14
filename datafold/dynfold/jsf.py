@@ -160,7 +160,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             sparse_kernel_matrix = scipy.sparse.csr_matrix(
                 kernel_matrix, dtype=np.float64
             )
-            # sparse_kernel_matrix = normalize_csr_matrix(sparse_kernel_matrix)
             self.kernel_matrices_.append(sparse_kernel_matrix)
 
     def _calculate_kernel_eigensystem(self):
