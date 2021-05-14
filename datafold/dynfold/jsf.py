@@ -22,6 +22,50 @@ def sort_eigensystem(eigenvalues, eigenvectors):
 
 
 class JsfDataset:
+    """`JsfDataset` does the slicing of multimodal data. This is needed, as `.fit`,
+    `.transform`, and `.fit_transform` of `JointlySmoothFunctions` accept a single
+    data array `X`. Thus, the multimodal data is passed in as a single array and is
+    then separated inside the methods.
+
+    Parameters
+    ----------
+    name: str
+        The name of the dataset.
+
+    columns: Union[slice, List]
+        The columns that correspond to the dataset.
+
+    kernel: Optional[PCManifoldKernel]
+        The (optional) kernel for the dataset.
+
+    result_scaling: float
+        The (optional) result scaling for the parameter optimization.
+
+    dist_kwargs: Dict
+        Keyword arguments passed to the internal distance matrix computation. See
+        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
+        arguments.
+
+    Attributes
+    ----------
+    name_: str
+        The name of the dataset.
+
+    columns_: Union[slice, List]
+        The columns that correspond to the dataset.
+
+    kernel_: Optional[PCManifoldKernel]
+        The (optional) kernel for the dataset.
+
+    result_scaling_: float
+        The (optional) result scaling for the parameter optimization.
+
+    dist_kwargs_: Dict
+        Keyword arguments passed to the internal distance matrix computation. See
+        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
+        arguments.
+    """
+
     def __init__(
         self,
         name: str,
@@ -30,34 +74,47 @@ class JsfDataset:
         result_scaling: float = 1.0,
         **dist_kwargs: Dict,
     ):
-        self.name = name
-        self.columns = columns
-        self.kernel = kernel
-        self.result_scaling = result_scaling
-        self.dist_kwargs = dist_kwargs
+        self.name_ = name
+        self.columns_ = columns
+        self.kernel_ = kernel
+        self.result_scaling_ = result_scaling
+        self.dist_kwargs_ = dist_kwargs
 
-    def fit_transform(self, X: TransformType, y=None):
-        data = X[:, self.columns]
+    def extract_from(self, X: TransformType) -> PCManifold:
+        data = X[:, self.columns_]
         pcm: PCManifold = PCManifold(
-            data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs
+            data=data, kernel=self.kernel_, dist_kwargs=self.dist_kwargs_
         )
-        if self.kernel is None:
-            pcm.optimize_parameters(inplace=True, result_scaling=self.result_scaling)
+        if self.kernel_ is None:
+            pcm.optimize_parameters(inplace=True, result_scaling=self.result_scaling_)
         return pcm
 
 
 class ColumnSplitter:
-    def __init__(self, transformers: List[JsfDataset]):
-        self.transformers = transformers
+    """Uses a `JsfDataset` list to split up a single data array X into a `PCManifold` list.
 
-    def fit_transform(self, X: TransformType, y=None) -> List[TransformType]:
-        if not self.transformers:
+    Parameters
+    ----------
+    transformers: List[JsfDataset]
+        The `JsfDataset`s used to split up the array X.
+
+    Attributes
+    ----------
+    transformers_: List[JsfDataset]
+        The `JsfDataset`s used to split up the array X.
+    """
+
+    def __init__(self, transformers: List[JsfDataset]):
+        self.transformers_ = transformers
+
+    def split(self, X: TransformType, y=None) -> List[TransformType]:
+        if not self.transformers_:
             return [X]
 
         pcms: List[PCManifold] = []
 
-        for transformer in self.transformers:
-            pcms.append(transformer.fit_transform(X))
+        for transformer in self.transformers_:
+            pcms.append(transformer.extract_from(X))
 
         return pcms
 
@@ -303,7 +360,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         )
 
         column_splitter = ColumnSplitter(self.datasets)
-        self.observations_ = column_splitter.fit_transform(X)
+        self.observations_ = column_splitter.split(X)
 
         self._calculate_kernel_matrices()
 
@@ -359,7 +416,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self._validate_feature_input(X, direction="transform")
 
         column_splitter = ColumnSplitter(self.datasets)
-        new_observations = column_splitter.fit_transform(X)
+        new_observations = column_splitter.split(X)
 
         indices = list(range(len(self.observations_)))
         indexed_observations = dict(zip(indices, new_observations))
