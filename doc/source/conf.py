@@ -85,7 +85,7 @@ extensions = [
     # see options below
     # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
     "sphinx.ext.intersphinx",
-    # https://nbsphinx.readthedocs.io/en/0.6.0/
+    # https://nbsphinx.readthedocs.io/en/0.8.5/
     # provides a source parser for *.ipynb files
     "nbsphinx",
     # Include notebook files from outside the sphinx source root.
