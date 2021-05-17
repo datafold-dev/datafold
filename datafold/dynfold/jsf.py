@@ -29,19 +29,19 @@ class JsfDataset:
 
     Parameters
     ----------
-    name: str
+    name
         The name of the dataset.
 
-    columns: Union[slice, List]
+    columns
         The columns that correspond to the dataset.
 
-    kernel: Optional[PCManifoldKernel]
+    kernel
         The (optional) kernel for the dataset.
 
-    result_scaling: float
+    result_scaling
         The (optional) result scaling for the parameter optimization.
 
-    dist_kwargs: Dict
+    dist_kwargs
         Keyword arguments passed to the internal distance matrix computation. See
         :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
         arguments.
@@ -49,8 +49,8 @@ class JsfDataset:
 
     def __init__(
         self,
-        name: str,
-        columns: Union[slice, List],
+        name: Optional[str] = None,
+        columns: Optional[slice] = None,
         kernel: Optional[PCManifoldKernel] = None,
         result_scaling: float = 1.0,
         **dist_kwargs: Dict,
@@ -62,8 +62,11 @@ class JsfDataset:
         self.dist_kwargs = dist_kwargs
 
     def extract_from(self, X: TransformType) -> PCManifold:
-        # TODO add Index checks
-        data = X[:, self.columns]
+        if self.columns:
+            data = X[:, self.columns]
+        else:
+            data = X
+
         pcm: PCManifold = PCManifold(
             data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs
         )
@@ -77,20 +80,21 @@ class ColumnSplitter:
 
     Parameters
     ----------
-    transformers: List[JsfDataset]
+    datasets
         The `JsfDataset`s used to split up the array X.
     """
 
-    def __init__(self, transformers: List[JsfDataset]):
-        self.transformers = transformers
+    def __init__(self, datasets: Optional[List[JsfDataset]] = None):
+        self.datasets = datasets
 
     def split(self, X: TransformType, y=None) -> List[TransformType]:
-        if not self.transformers:
-            return [X]
+        if not self.datasets:
+            dataset = JsfDataset()
+            return [dataset.extract_from(X)]
 
         pcms: List[PCManifold] = []
 
-        for transformer in self.transformers:
+        for transformer in self.datasets:
             pcms.append(transformer.extract_from(X))
 
         return pcms
@@ -101,22 +105,22 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
     Parameters
     ----------
-    datasets: List[JsfDataset]
+    datasets
         The :py:class:`JsfDataset`s used to split up the multimodal data.
 
-    n_kernel_eigenvectors: int
+    n_kernel_eigenvectors
         The number of eigenvectors to compute from the kernel matrices.
 
-    n_jointly_smooth_functions: int
+    n_jointly_smooth_functions
         The number of jointly smooth functions to compute from the eigenvectors of the
         kernel matrices.
 
-    kernel_eigenvalue_cut_off: float
+    kernel_eigenvalue_cut_off
         The kernel eigenvectors with a eigenvalue smaller than or equal to
         ``kernel_eigenvalue_cut_off`` will not be included in the calculation of the
         jointly smooth functions.
 
-    eigenvector_tolerance: float
+    eigenvector_tolerance
         The relative accuracy for eigenvalues, i.e. the stopping criterion. A value of
         0 implies machine precision.
 
