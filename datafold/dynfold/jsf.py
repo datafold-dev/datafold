@@ -53,7 +53,7 @@ class JsfDataset:
         columns: Optional[slice] = None,
         kernel: Optional[PCManifoldKernel] = None,
         result_scaling: float = 1.0,
-        **dist_kwargs: Dict,
+        **dist_kwargs,
     ):
         self.name = name
         self.columns = columns
@@ -67,9 +67,7 @@ class JsfDataset:
         else:
             data = X
 
-        pcm: PCManifold = PCManifold(
-            data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs
-        )
+        pcm = PCManifold(data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs)
         if self.kernel is None:
             pcm.optimize_parameters(inplace=True, result_scaling=self.result_scaling)
         return pcm
