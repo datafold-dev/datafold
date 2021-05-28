@@ -75,7 +75,7 @@ class JsfDataset:
         return pcm
 
 
-class ColumnSplitter:
+class _ColumnSplitter:
     """Uses a `JsfDataset` list to split up a single data array X into a `PCManifold` list.
 
     Parameters
@@ -157,7 +157,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        datasets: List[JsfDataset],
+        datasets: Optional[List[JsfDataset]] = None,
         n_kernel_eigenvectors: int = 100,
         n_jointly_smooth_functions: int = 10,
         kernel_eigenvalue_cut_off: float = 0,
@@ -230,17 +230,22 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         eigenvectors_matrix = scipy.sparse.csr_matrix(
             np.column_stack([eigenvector for eigenvector in self.kernel_eigenvectors_])
         )
+        rng = np.random.default_rng(seed=1)
         if len(self.kernel_eigenvectors_) == 2:
             ev0 = self.kernel_eigenvectors_[0]
             ev1 = self.kernel_eigenvectors_[1]
             n_jointly_smooth_functions = min(
                 [self.n_jointly_smooth_functions, ev0.shape[1] - 1, ev1.shape[1] - 1]
             )
+            evs = ev0.T @ ev1
+            min_ev_shape = min(evs.shape)
+            v0 = rng.normal(loc=0, scale=1 / min_ev_shape, size=min_ev_shape)
             Q, eigenvalues, R_t = scipy.sparse.linalg.svds(
-                ev0.T @ ev1,
+                evs,
                 k=n_jointly_smooth_functions,
                 which="LM",
                 tol=self.eigenvector_tolerance,
+                v0=v0,
             )
             center = np.row_stack(
                 [np.column_stack([Q, Q]), np.column_stack([R_t.T, -R_t.T])]
@@ -255,16 +260,20 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             n_jointly_smooth_functions = min(
                 [self.n_jointly_smooth_functions, eigenvectors_matrix.shape[1]]
             )
+            min_ev_shape = min(eigenvectors_matrix.shape)
+            v0 = rng.normal(loc=0, scale=1 / min_ev_shape, size=min_ev_shape)
             jointly_smooth_functions, eigenvalues, _ = scipy.sparse.linalg.svds(
                 eigenvectors_matrix,
                 k=n_jointly_smooth_functions,
                 which="LM",
                 tol=self.eigenvector_tolerance,
+                v0=v0,
             )
 
         eigenvalues, jointly_smooth_functions = sort_eigensystem(
             eigenvalues, jointly_smooth_functions
         )
+
         return jointly_smooth_functions, eigenvalues
 
     def nystrom(self, new_indexed_observations: Dict[int, TransformType]):
@@ -340,7 +349,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             features_out=[f"jsf{i}" for i in range(self.n_jointly_smooth_functions)],
         )
 
-        column_splitter = ColumnSplitter(self.datasets)
+        column_splitter = _ColumnSplitter(self.datasets)
         self.observations_ = column_splitter.split(X)
 
         self._calculate_kernel_matrices()
@@ -396,12 +405,15 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
         self._validate_feature_input(X, direction="transform")
 
-        column_splitter = ColumnSplitter(self.datasets)
+        column_splitter = _ColumnSplitter(self.datasets)
         new_observations = column_splitter.split(X)
 
         indices = list(range(len(self.observations_)))
         indexed_observations = dict(zip(indices, new_observations))
         f_m_star = self.nystrom(indexed_observations)
+        # f_m_star = f_m_star[
+        #     :, self.eigenvalues > self.calculate_E0()
+        # ]
         return f_m_star
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
