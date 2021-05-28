@@ -8,7 +8,8 @@ import numpy as np
 import numpy.testing as nptest
 
 from datafold.dynfold.base import TransformType
-from datafold.dynfold.jsf import ColumnSplitter, JointlySmoothFunctions, JsfDataset
+from datafold.dynfold.jsf import JointlySmoothFunctions, JsfDataset, _ColumnSplitter
+from datafold.pcfold.kernels import GaussianKernel
 
 
 def generate_parameters(_x, _y):
@@ -49,7 +50,7 @@ class ColumnSplittingTest(unittest.TestCase):
     def test_splitting(self):
         observations = [np.random.rand(1000, i + 1) for i in range(3)]
 
-        columns_splitter = ColumnSplitter(
+        columns_splitter = _ColumnSplitter(
             [
                 JsfDataset("observation0", slice(0, 1)),
                 JsfDataset("observation1", slice(1, 3)),
@@ -70,7 +71,9 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
         self.parameters, self.observations, self.effective_parameter = generate_points(
             1000
         )
+
         self.X = np.column_stack([self.parameters, self.observations])
+
         self.datasets = [
             JsfDataset("parameters", slice(0, 2)),
             JsfDataset("observations", slice(2, 4)),
@@ -133,8 +136,18 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
 
         self._test_accuracy(datasets, X)
 
-    def test_nystrom_out_of_sample(self):
-        pass
+    def test_is_valid_sklearn_estimator(self):
+        from sklearn.utils.estimator_checks import check_estimator
+
+        for estimator, check in check_estimator(
+            JointlySmoothFunctions(
+                n_kernel_eigenvectors=5,
+                n_jointly_smooth_functions=3,
+                datasets=[JsfDataset(kernel=GaussianKernel(epsilon=1.0))],
+            ),
+            generate_only=True,
+        ):
+            check(estimator)
 
 
 if __name__ == "__main__":
