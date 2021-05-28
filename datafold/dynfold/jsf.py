@@ -409,9 +409,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         indices = list(range(len(self.observations_)))
         indexed_observations = dict(zip(indices, new_observations))
         f_m_star = self.nystrom(indexed_observations)
-        # f_m_star = f_m_star[
-        #     :, self.eigenvalues > self.calculate_E0()
-        # ]
+
         return f_m_star
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
