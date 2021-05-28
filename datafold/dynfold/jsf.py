@@ -94,8 +94,8 @@ class _ColumnSplitter:
 
         pcms: List[PCManifold] = []
 
-        for transformer in self.datasets:
-            pcms.append(transformer.extract_from(X))
+        for dataset in self.datasets:
+            pcms.append(dataset.extract_from(X))
 
         return pcms
 
