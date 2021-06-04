@@ -341,9 +341,18 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
 
 class TestContinuousNNKernel(unittest.TestCase):
     @staticmethod
-    def plot_data(train_data, train_graph, test_data=None, test_graph=None):
+    def plot_data(train_data, train_graph, test_data=None, test_graph=None, ax=None):
 
-        fig, ax = plt.subplots()
+        if ax is None:
+            if train_data.shape[1] == 2:
+                fig, ax = plt.subplots()
+            elif train_data.shape[1] == 3:
+                from mpl_toolkits.mplot3d import Axes3D
+
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection="3d")
+            else:
+                raise RuntimeError("only 2d or 3d")
 
         def _plot_data(query_data, ref_data, graph, color):
 
@@ -365,7 +374,9 @@ class TestContinuousNNKernel(unittest.TestCase):
         if test_data is not None:
             _plot_data(test_data, train_data, test_graph, color="red")
 
-        ax.axis("equal")
+        if train_data.shape[1] == 2:
+            ax.axis("equal")
+        return ax
 
     def test_box_example(self, plot=False):
         train_data = generate_box_data(300, 300, 20, 1)
