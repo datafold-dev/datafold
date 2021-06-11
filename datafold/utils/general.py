@@ -225,11 +225,11 @@ def sort_eigenpairs(
         )
 
     # Sort eigenvectors according to (complex) value of eigenvalue
-    #  -- NOTE: the ordering according to the complex value is preferred over the
-    #           ordering of absolute value because often complex conjugate eigenvalues
-    #           have the same abs. value which makes sorting typically unstable (i.e.
-    #           there can be two equivalent abs values but different place according to
-    #           the complex order)
+    #  -- NOTE: sorting according to complex values is preferred over sorting
+    #           absolute complex value here. This is because complex conjugate eigenvalues
+    #           have the same absolute value which makes sorting unstable (i.e.
+    #           there can be two equivalent absolute values but the associate complex
+    #           values are at different places after separate sorting)
     idx = np.argsort(eigenvalues)
 
     if not ascending:
