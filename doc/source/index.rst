@@ -79,6 +79,11 @@ Install with (requires ``Python>=3.7``)
 
    * -
      - Badge (Link)
+   * - Reach out
+     - .. image:: https://img.shields.io/badge/gitlab-issue--tracker-blue?logo=gitlab
+          :target: https://gitlab.com/datafold-dev/datafold/-/issues
+       .. image:: https://img.shields.io/badge/gitlab-service--desk-blue?logo=Minutemailer
+          :target: mailto:incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com
    * - Packaging
      - .. image:: https://badge.fury.io/py/datafold.svg
           :target: https://pypi.org/project/datafold/
