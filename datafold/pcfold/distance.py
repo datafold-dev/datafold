@@ -115,6 +115,40 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
         return distance_matrix
 
+    def __call__(
+        self,
+        X: np.ndarray,
+        Y: Optional[np.ndarray] = None,
+        *,
+        cut_off: Optional[float] = None,
+        **backend_options,
+    ):
+        """Abstract method to compute the distance matrix.
+
+        Attributes
+        ----------
+
+        X
+            Reference dataset.
+
+        Y
+            Query dataset. If set then the computation is component-wise (cf. ``cdist``
+            function scipy) and if ``None``, the reference dataset is set to the query
+            (cf. ``pdist`` function in scipy)
+
+        cut_off
+            All distance pairs larger than this value are not stored in the resulting
+            sparse distance matrix (CSR format).
+
+        **backend_options
+            Additional kwargs for the method.
+        """
+
+        if Y is None:
+            return self.pdist(X, cut_off=cut_off, **backend_options)
+        else:
+            return self.cdist(X, Y, cut_off=cut_off, **backend_options)
+
     @abc.abstractmethod
     def pdist(
         self, X: np.ndarray, cut_off: Optional[float] = None, **backend_options
@@ -857,7 +891,7 @@ def _all_available_distance_algorithm():
     return return_backends
 
 
-def get_backend_distance_algorithm(backend):
+def get_backend_distance_algorithm(backend) -> Type[DistanceAlgorithm]:
     """Selects and validates the backend class for distance matrix computation.
 
     Parameters
@@ -999,11 +1033,7 @@ def compute_distance_matrix(
 
     backend_class = get_backend_distance_algorithm(backend)
     distance_method = backend_class(metric=metric)
-
-    if is_pdist:
-        distance_matrix = distance_method.pdist(X, cut_off, **backend_kwargs)
-    else:  # cdist
-        distance_matrix = distance_method.cdist(X, Y, cut_off, **backend_kwargs)
+    distance_matrix = distance_method(X, Y, cut_off=cut_off, **backend_kwargs)
 
     if scipy.sparse.issparse(distance_matrix) and cut_off is None:
         # dense case stored in a sparse distance matrix -> convert to np.ndarray
