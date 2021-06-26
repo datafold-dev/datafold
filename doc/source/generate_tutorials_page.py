@@ -3,7 +3,7 @@
 import glob
 import os
 
-import requests
+import requests  # type: ignore
 
 PATH2DOC = os.path.abspath(".")
 PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
