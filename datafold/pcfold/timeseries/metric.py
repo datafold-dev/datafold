@@ -590,6 +590,10 @@ class TSCScoring(object):
 class TSCCrossValidationSplit(metaclass=abc.ABCMeta):
     """Abstract base class for cross validation splits for time series data.
 
+    This class mimics ```BaseCrossValidator``
+    <https://github.com/scikit-learn/scikit-learn/blob/2beed55847ee70d363bdbfe14ee4401438fba057/sklearn/model_selection/_split.py#L49>`__
+    (undocumented) from scikit-learn.
+
     See sub-classes for details.
     """
 
