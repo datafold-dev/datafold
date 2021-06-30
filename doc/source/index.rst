@@ -28,11 +28,11 @@ clouds. |MIT-license|
    :target: https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE
    :alt: license
 
-Install with
+Install with (requires ``Python>=3.7``)
 
 .. code-block::
 
-    pip install datafold
+    python -m pip install datafold
 
 .. panels::
 
@@ -103,7 +103,7 @@ Install with
 Cite
 ====
 
-If you use *datafold* in your research, please cite the paper |joss-paper| that we
+If you use *datafold* in your research, please cite our paper |joss-paper| that we
 published in the *Journal of Open Source Software* (`JOSS <https://joss.theoj.org/>`__).
 
 .. |joss-paper| image:: https://joss.theoj.org/papers/10.21105/joss.02283/status.svg
@@ -111,7 +111,8 @@ published in the *Journal of Open Source Software* (`JOSS <https://joss.theoj.or
    :alt: joss-paper
 
 *Lehmberg et al., (2020). datafold: data-driven models for point clouds and time series on
-manifolds. Journal of Open Source Software, 5(51), 2283,* https://doi.org/10.21105/joss.02283
+manifolds. Journal of Open Source Software, 5(51), 2283,*
+https://doi.org/10.21105/joss.02283
 
 .. dropdown:: Bibtex
 
@@ -134,8 +135,8 @@ Affiliations
 
 * **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
   grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
-  Applied Sciences and CeDoSIA of TUM Graduate School at the Technical
-  University of Munich for their support.
+  Applied Sciences and the center of doctoral studies in informatics (CeDoSIA) of the
+  Technical University of Munich for their support.
 
 * **Felix Dietrich** (2) FD thanks the Technical University of Munich for their support.
 

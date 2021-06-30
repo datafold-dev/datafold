@@ -255,7 +255,7 @@ class TSCDataFrame(pd.DataFrame):
         ``pandas.DataFrame``, except the keyword arguments:
 
         * ``kernel`` :py:class:`.BaseManifoldKernel` - A kernel to describe the
-           point similarity. Defaults to ``None``.
+          point similarity. Defaults to ``None``.
         * ``dist_kwargs`` :class:`dict` - Keyword arguments passed to
           :py:meth:`.compute_distance_matrix`.
 
@@ -729,7 +729,7 @@ class TSCDataFrame(pd.DataFrame):
 
         return unique_delta_times
 
-    def to_csv(self, **kwargs) -> Optional[str]:
+    def to_csv(self, *args, **kwargs) -> Optional[str]:
         """Write object to a comma-separated values (csv) file.
 
         Internaly, the method casts the object (self) to pd.Dataframe before the csv is
@@ -751,7 +751,7 @@ class TSCDataFrame(pd.DataFrame):
 
         """
 
-        return pd.DataFrame(self).to_csv(**kwargs)
+        return pd.DataFrame(self).to_csv(*args, **kwargs)
 
     @classmethod
     def from_csv(cls, filepath, **kwargs) -> "TSCDataFrame":
@@ -1112,12 +1112,14 @@ class TSCDataFrame(pd.DataFrame):
     def iloc(self):
         """Index-based indexing.
 
-        Please visit
+        Visit
         `pd.DataFrame.iloc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.iloc.html#pandas.DataFrame.iloc>`_
-        for full documentation.
+        for documentation of how to index DataFrame.
 
         .. warning::
-            For single column slices, currently, the type changes to ``pandas.Series``.
+            For single column slices (e.g. ``tsc.iloc[:, 0]``), the type
+            changes to ``pandas.Series``, use ``tsc.iloc[:, [0]]`` instead to maintain a
+            ``TSCDataFrame``.
 
         Returns
         -------

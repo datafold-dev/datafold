@@ -10,7 +10,7 @@ repos:
     -   id: check-toml
 
 -   repo: https://github.com/python/black
-    rev: 20.8b1
+    rev: 21.5b0
     hooks:
     - id: black
 
@@ -24,6 +24,17 @@ repos:
     hooks:
     - id: nbstripout
       files: ".ipynb"
+
+# applies some formatting on Jupyter notebooks too
+- repo: https://github.com/nbQA-dev/nbQA
+  rev: 0.7.0
+  hooks:
+    - id: nbqa-isort
+      additional_dependencies: [ isort==5.8.0 ]
+      args: [ --nbqa-mutate ]
+    - id: nbqa-black
+      additional_dependencies: [black==21.5b0]
+      args: [ --nbqa-mutate ]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
     rev: v0.812

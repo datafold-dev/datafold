@@ -40,7 +40,7 @@ The bash script includes all steps that are detailed below.
        source .venv/bin/activate
        pip install --upgrade pip
 
-       # Install package and extra dependencies
+       # Install package and development dependencies
        pip install -r requirements-dev.txt
 
        # Install git hooks and code formatting tools
@@ -62,12 +62,12 @@ The bash script includes all steps that are detailed below.
 .. tabbed:: conda
 
         **datafold is not available from the conda package manager**. If you run
-        Python with Anaconda's package manager, the below code installs
+        Python with Anaconda's package manager, the recommended way is to set up
         *datafold* in a ``conda`` environment by using ``pip``.
 
         Also note the
         `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html>`__
-        for package management in Anaconda, particularly section on how to
+        for package management in Anaconda, particularly the subsection on how to
         `install non-conda packages <https://docs.conda
         .io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__.
 
@@ -82,7 +82,7 @@ The bash script includes all steps that are detailed below.
            conda activate .venv
            conda install pip  # use pip from within the conda environment
 
-           # Install package and extra dependencies
+           # Install package and development dependencies
            pip install -r requirements-dev.txt
 
            # Install git hooks and code formatting tools

@@ -10,22 +10,30 @@ class Version:
 
     # See also https://semver.org/
 
-    ###### TO UPDATE -- START
+    # TO UPDATE -- START
     major_version: int = 1  # making incompatible API changes,
     minor_version: int = 1  # adding functionality in a backwards-compatible manner
-    patch: int = 3  # for backwards-compatible bug fixes
+    patch: int = 4  # for backwards-compatible bug fixes
+
+    # additional release suffixes
+    post: int = 0  # for minor corrections
+    rc: int = 0  # for release candidate (e.g. for testing upload to PyPI)
 
     # Set date of release for longer version numbers.
     year: int = 2021
-    month: int = 3
-    day: int = 9
-    ###### TO UPDATE -- END
+    month: int = 4
+    day: int = 18
+    # TO UPDATE -- END
 
     assert major_version >= 0 and isinstance(major_version, int)
     assert minor_version >= 0 and isinstance(minor_version, int)
     assert patch >= 0 and isinstance(patch, int)
+    assert post >= 0 and isinstance(post, int)
+    assert rc >= 0 and isinstance(rc, int)
 
-    v_short = f"{major_version}.{minor_version}.{patch}"
+    attach_post = f".post{post}" if post > 0 else ""
+    attach_rc = f"rc{rc}" if rc > 0 else ""
+    v_short = f"{major_version}.{minor_version}.{patch}{attach_post}{attach_rc}"
 
     date_string = datetime.datetime(year=year, month=month, day=day).strftime(
         "%Y-%m-%d"
