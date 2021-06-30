@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
 import scipy.linalg
 import scipy.sparse
 import scipy.sparse.linalg
@@ -8,16 +9,19 @@ from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
-from datafold.pcfold import PCManifold
+from datafold.pcfold import PCManifold, TSCDataFrame
 from datafold.pcfold.eigsolver import compute_kernel_eigenpairs
-from datafold.pcfold.kernels import PCManifoldKernel
+from datafold.pcfold.kernels import GaussianKernel, PCManifoldKernel
 from datafold.utils.general import mat_dot_diagmat
 
 
 def sort_eigensystem(eigenvalues, eigenvectors):
     idx = np.argsort(np.abs(eigenvalues))[::-1]
     sorted_eigenvalues = eigenvalues[idx]
-    sorted_eigenvectors = eigenvectors[:, idx]
+    if isinstance(eigenvectors, pd.DataFrame):
+        sorted_eigenvectors = eigenvectors.iloc[:, idx]
+    else:
+        sorted_eigenvectors = eigenvectors[:, idx]
     return sorted_eigenvalues, sorted_eigenvectors
 
 
@@ -61,16 +65,29 @@ class JsfDataset:
         self.result_scaling = result_scaling
         self.dist_kwargs = dist_kwargs
 
-    def extract_from(self, X: TransformType) -> PCManifold:
+    def extract_from(self, X: TransformType) -> Union[TSCDataFrame, PCManifold]:
         if self.columns:
-            data = X[:, self.columns]
+            if isinstance(X, pd.DataFrame) or isinstance(X, TSCDataFrame):
+                data = X.iloc[:, self.columns]
+            else:
+                data = X[:, self.columns]
         else:
             data = X
 
-        pcm = PCManifold(data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs)
-        if self.kernel is None:
-            pcm.optimize_parameters(inplace=True, result_scaling=self.result_scaling)
-        return pcm
+        if isinstance(data, TSCDataFrame):
+            if self.kernel is None:
+                self.kernel = GaussianKernel()
+            data = TSCDataFrame(data, kernel=self.kernel, dist_kwargs=self.dist_kwargs)
+        elif isinstance(data, (np.ndarray, pd.DataFrame)):
+            data = PCManifold(
+                data=data, kernel=self.kernel, dist_kwargs=self.dist_kwargs
+            )
+            if self.kernel is None:
+                data.optimize_parameters(
+                    inplace=True, result_scaling=self.result_scaling
+                )
+
+        return data
 
 
 class _ColumnSplitter:
@@ -85,17 +102,17 @@ class _ColumnSplitter:
     def __init__(self, datasets: Optional[List[JsfDataset]] = None):
         self.datasets = datasets
 
-    def split(self, X: TransformType, y=None) -> List[TransformType]:
+    def split(self, X: TransformType, y=None) -> List[Union[TSCDataFrame, PCManifold]]:
         if not self.datasets:
             dataset = JsfDataset()
             return [dataset.extract_from(X)]
 
-        pcms: List[PCManifold] = []
+        X_split: List[Union[TSCDataFrame, PCManifold]] = []
 
         for dataset in self.datasets:
-            pcms.append(dataset.extract_from(X))
+            X_split.append(dataset.extract_from(X))
 
-        return pcms
+        return X_split
 
 
 class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
@@ -168,7 +185,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self.eigenvector_tolerance = eigenvector_tolerance
 
         self.ending_points_: List[int]
-        self.observations_: List[PCManifold]
+        self.observations_: List[Union[TSCDataFrame, PCManifold]]
         self.kernel_matrices_: List[scipy.sparse.csr_matrix]
         self._cdist_kwargs_: List[Dict]
         self.kernel_eigenvectors_: List[scipy.sparse.csr_matrix]
@@ -177,7 +194,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self._eigenvalues_: np.ndarray
 
     @property
-    def jointly_smooth_functions(self) -> np.ndarray:
+    def jointly_smooth_functions(self) -> TransformType:
         return self._jointly_smooth_functions_
 
     @property
@@ -201,7 +218,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
     def _calculate_kernel_eigensystem(self):
         self.kernel_eigenvectors_ = []
         self.kernel_eigenvalues_ = []
-        for kernel_matrix in self.kernel_matrices_:
+        for i, kernel_matrix in enumerate(self.kernel_matrices_):
             is_symmetric = np.alltrue(kernel_matrix.A == kernel_matrix.T.A)
             ones_row = np.ones(kernel_matrix.shape[0])
             ones_col = np.ones(kernel_matrix.shape[1])
@@ -212,12 +229,37 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
                 is_symmetric=is_symmetric,
                 is_stochastic=is_stochastic,
             )
+
+            if isinstance(kernel_matrix, TSCDataFrame):
+                index_from = kernel_matrix
+            elif (
+                isinstance(self.observations_[i], TSCDataFrame)
+                and kernel_matrix.shape[0] == self.observations_[i].shape[0]
+            ):
+                index_from = self.observations_[i]
+            else:
+                index_from = None
+
+            if index_from is not None:
+                kernel_eigenvectors = TSCDataFrame.from_same_indices_as(
+                    index_from,
+                    kernel_eigenvectors,
+                    except_columns=[
+                        f"kev{i}" for i in range(self.n_kernel_eigenvectors)
+                    ],
+                )
+
             kernel_eigenvalues, kernel_eigenvectors = sort_eigensystem(
                 kernel_eigenvalues, kernel_eigenvectors
             )
-            kernel_eigenvectors = kernel_eigenvectors[
-                :, kernel_eigenvalues > self.kernel_eigenvalue_cut_off
-            ]
+            if isinstance(kernel_eigenvectors, TSCDataFrame):
+                kernel_eigenvectors = kernel_eigenvectors.iloc[
+                    :, kernel_eigenvalues > self.kernel_eigenvalue_cut_off
+                ]
+            else:
+                kernel_eigenvectors = kernel_eigenvectors[
+                    :, kernel_eigenvalues > self.kernel_eigenvalue_cut_off
+                ]
             kernel_eigenvalues = kernel_eigenvalues[
                 kernel_eigenvalues > self.kernel_eigenvalue_cut_off
             ]
@@ -228,6 +270,13 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         eigenvectors_matrix = scipy.sparse.csr_matrix(
             np.column_stack([eigenvector for eigenvector in self.kernel_eigenvectors_])
         )
+
+        tsc_flag = isinstance(self.kernel_eigenvectors_[0], TSCDataFrame)
+        if tsc_flag:
+            index_from = self.kernel_eigenvectors_[0]
+        else:
+            index_from = None
+
         rng = np.random.default_rng(seed=1)
         if len(self.kernel_eigenvectors_) == 2:
             ev0 = self.kernel_eigenvectors_[0]
@@ -235,7 +284,10 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             n_jointly_smooth_functions = min(
                 [self.n_jointly_smooth_functions, ev0.shape[1] - 1, ev1.shape[1] - 1]
             )
-            evs = ev0.T @ ev1
+            if tsc_flag:
+                evs = ev0.to_numpy().T @ ev1.to_numpy()
+            else:
+                evs = ev0.T @ ev1
             min_ev_shape = min(evs.shape)
             v0 = rng.normal(loc=0, scale=1 / min_ev_shape, size=min_ev_shape)
             Q, eigenvalues, R_t = scipy.sparse.linalg.svds(
@@ -253,7 +305,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             )
             jointly_smooth_functions = (
                 1 / np.sqrt(2) * eigenvectors_matrix @ center @ right
-            )
+            )[:, :n_jointly_smooth_functions]
         else:
             n_jointly_smooth_functions = min(
                 [self.n_jointly_smooth_functions, eigenvectors_matrix.shape[1]]
@@ -266,6 +318,13 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
                 which="LM",
                 tol=self.eigenvector_tolerance,
                 v0=v0,
+            )
+
+        if index_from is not None:
+            jointly_smooth_functions = TSCDataFrame.from_same_indices_as(
+                index_from,
+                jointly_smooth_functions,
+                except_columns=[f"jsf{i}" for i in range(n_jointly_smooth_functions)],
             )
 
         eigenvalues, jointly_smooth_functions = sort_eigensystem(
@@ -294,8 +353,15 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         eigenvectors = []
         alphas = []
         for index, new_observation in new_indexed_observations.items():
-            kernel_eigenvector = self.kernel_eigenvectors_[index]
-            alpha = kernel_eigenvector.T @ self._jointly_smooth_functions_
+            kernel_eigenvectors = self.kernel_eigenvectors_[index]
+            if isinstance(kernel_eigenvectors, TSCDataFrame):
+                kernel_eigenvectors = kernel_eigenvectors.to_numpy()
+            if isinstance(self._jointly_smooth_functions_, TSCDataFrame):
+                alpha = (
+                    kernel_eigenvectors.T @ self._jointly_smooth_functions_.to_numpy()
+                )
+            else:
+                alpha = kernel_eigenvectors.T @ self._jointly_smooth_functions_
             alphas.append(alpha)
             observation = self.observations_[index]
             kernel_output = observation.compute_kernel_matrix(
@@ -305,9 +371,30 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
                 kernel_output=kernel_output
             )
             approx_eigenvectors = kernel_matrix @ mat_dot_diagmat(
-                self.kernel_eigenvectors_[index],
+                kernel_eigenvectors,
                 np.reciprocal(self.kernel_eigenvalues_[index]),
             )
+
+            if isinstance(kernel_matrix, TSCDataFrame):
+                index_from: Optional[TSCDataFrame] = kernel_matrix
+            elif (
+                isinstance(new_observation, TSCDataFrame)
+                and kernel_matrix.shape[0] == new_observation.shape[0]
+            ):
+                index_from = new_observation
+            else:
+                index_from = None
+
+            if index_from is not None:
+                approx_eigenvectors = TSCDataFrame.from_same_indices_as(
+                    index_from,
+                    approx_eigenvectors,
+                    except_columns=[
+                        f"aev{i}"
+                        for i in range(self.kernel_eigenvectors_[index].shape[1])
+                    ],
+                )
+
             eigenvectors.append(approx_eigenvectors)
         f_m_star = 0.0
         for i in range(len(alphas)):
