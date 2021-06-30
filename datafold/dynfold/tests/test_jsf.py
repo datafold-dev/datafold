@@ -2,13 +2,15 @@
 
 """
 import unittest
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import numpy.testing as nptest
+import pandas as pd
 
 from datafold.dynfold.base import TransformType
 from datafold.dynfold.jsf import JointlySmoothFunctions, JsfDataset, _ColumnSplitter
+from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.kernels import GaussianKernel
 
 
@@ -148,6 +150,62 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
             generate_only=True,
         ):
             check(estimator)
+
+    def _test_tsc_data(
+        self, tsc_data: TSCDataFrame, datasets: Optional[List[JsfDataset]] = None
+    ):
+        jsf = JointlySmoothFunctions(
+            n_kernel_eigenvectors=10, n_jointly_smooth_functions=2, datasets=datasets
+        ).fit(tsc_data)
+
+        for kernel_eigenvectors in jsf.kernel_eigenvectors_:
+            self.assertIsInstance(kernel_eigenvectors, TSCDataFrame)
+
+        self.assertIsInstance(jsf.jointly_smooth_functions, TSCDataFrame)
+        self.assertIsInstance(jsf.transform(tsc_data), TSCDataFrame)
+
+    def test_tsc_data_no_datasets(self):
+        _x = np.linspace(0, 2 * np.pi, 200)
+        df = pd.DataFrame(
+            np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
+        )
+        tsc_data = TSCDataFrame.from_single_timeseries(df=df)
+
+        self._test_tsc_data(tsc_data)
+
+    def test_tsc_data_two_datasets(self):
+        _x = np.linspace(0, 2 * np.pi, 200)
+        df = pd.DataFrame(
+            np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
+        )
+        tsc_data = TSCDataFrame.from_single_timeseries(df=df)
+        dataset1 = JsfDataset(columns=slice(0, 1), kernel=GaussianKernel())
+        dataset2 = JsfDataset(columns=slice(1, 2), kernel=GaussianKernel())
+
+        self._test_tsc_data(tsc_data, [dataset1, dataset2])
+
+    def test_tsc_data_more_than_two_datasets(self):
+        _x = np.linspace(0, 2 * np.pi, 200)
+        df = pd.DataFrame(
+            np.column_stack([np.sin(_x), np.cos(_x), np.tan(_x)]),
+            columns=["sin", "cos", "tan"],
+        )
+        tsc_data = TSCDataFrame.from_single_timeseries(df=df)
+        dataset1 = JsfDataset(columns=slice(0, 1), kernel=GaussianKernel())
+        dataset2 = JsfDataset(columns=slice(1, 2), kernel=GaussianKernel())
+        dataset3 = JsfDataset(columns=slice(2, 3), kernel=GaussianKernel())
+
+        self._test_tsc_data(tsc_data, [dataset1, dataset2, dataset3])
+
+    def test_tsc_data_multiple_time_series(self):
+        _x_1 = np.linspace(0, 2 * np.pi, 200)
+        _x_2 = np.linspace(2 * np.pi, 4 * np.pi, 200)
+        df1 = pd.DataFrame(np.column_stack([np.sin(_x_1), np.cos(_x_1)]))
+        df2 = pd.DataFrame(np.column_stack([np.sin(_x_2), np.cos(_x_2)]))
+
+        tsc_data = TSCDataFrame.from_frame_list([df1, df2])
+
+        self._test_tsc_data(tsc_data)
 
 
 if __name__ == "__main__":
