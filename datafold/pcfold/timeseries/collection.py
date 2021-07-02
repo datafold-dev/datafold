@@ -189,14 +189,14 @@ class TSCDataFrame(pd.DataFrame):
 
     * The row index must be a multi index of two levels, where the first indicates
       the time series ID (integer), and the second contains the time values of the time
-      series (non-negative numerical values)
+      series (non-negative and finite numerical values)
     * The column must be a one-dimensional column index that contains the feature
       names (accounting to the spatial axis)
     * There are no duplicates in both row and column index allowed (the flag
       `allows_duplicate_labels <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
       is set to True). Note, that this disables inplace operations on the labels (e.g.
       :code:`tsc.set_index(new_index, inplace=True` raises an error).
-    * All time series values must must be of a numeric dtype (`nan` or `inf` are allowed).
+    * All time series values must be of a numeric dtype (`nan` or `inf` are allowed).
 
     A single time series typically consists of two or more samples with unequal
     time values. However, it is also possible to store "degenerated time series",
@@ -793,9 +793,9 @@ class TSCDataFrame(pd.DataFrame):
         if index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(
-                "index.nlevels =! 1. Index has to be a pd.MultiIndex with two levels. "
-                "First level: time series ID. "
-                f"Second level: time. Got: {index.nlevels}"
+                "Index has to be a 'MultiIndex' with two levels (index.nlevels == 2). "
+                "First level for the time series ID, "
+                f"second level for the time values. Got: {index.nlevels}"
             )
 
         if index.duplicated().any():

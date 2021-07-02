@@ -1,8 +1,8 @@
-==========================
-**datafold** documentation
-==========================
+=======================
+Welcome to **datafold**
+=======================
 
-**Date**: |today| **Version**: |version|
+**Version**: |version| **Date**: |today|
 
 .. this toctree defines the order and pages that are set at the top of the page
 
@@ -19,16 +19,22 @@
 .. see docu for panels: https://sphinx-panels.readthedocs.io/en/latest/
 .. see and select (free) fontawesome icons https://fontawesome.com/
 
-*datafold* is a Python package containing operator-theoretic models that can identify
-dynamical systems from time series data and infer geometrical structures from point
-clouds. |MIT-license|
+**What is datafold?**
+
+*datafold* is a `Python <https://www.python.org/>`__ package containing operator-theoretic
+models to identify dynamical systems from time series data and infer geometrical
+structures from point clouds. |MIT-license|
 
 .. inline useage of the badge
 .. |MIT-license| image:: https://img.shields.io/badge/license-MIT-blue
    :target: https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE
    :alt: license
 
-Install with (requires ``Python>=3.7``)
+See also the `Introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`__ page.
+
+---------------------------------------------------------------------------------
+
+Install the package with ``Python>=3.7``:
 
 .. code-block::
 
@@ -79,15 +85,20 @@ Install with (requires ``Python>=3.7``)
 
    * -
      - Badge (Link)
+   * - Support and feedback
+     - .. image:: https://img.shields.io/badge/gitlab-issue--tracker-blue?logo=gitlab
+          :target: https://gitlab.com/datafold-dev/datafold/-/issues
+       .. image:: https://img.shields.io/badge/gitlab-service--desk-blue?logo=Minutemailer
+          :target: mailto:incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com
    * - Packaging
      - .. image:: https://badge.fury.io/py/datafold.svg
           :target: https://pypi.org/project/datafold/
           :alt: pypi
-   * - Latest pipeline (branch ``master``)
+   * - Latest CI pipeline (branch ``master``)
      - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/pipeline.svg
           :target: https://gitlab.com/datafold-dev/datafold/pipelines/master/latest
           :alt: pipeline status
-   * - Latest coverage (branch ``master``)
+   * - Latest test coverage (branch ``master``)
      - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/coverage.svg
           :target: https://gitlab.com/datafold-dev/datafold/-/jobs/artifacts/master/file/coverage/index.html?job=unittests
           :alt: coverage report

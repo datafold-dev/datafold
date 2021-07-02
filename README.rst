@@ -17,8 +17,13 @@ systems from time series data and to infer geometrical structures in point cloud
 
 The package includes:
 
+* Data structures to handle point clouds on manifolds (``PCManifold``) and time series
+  collections (``TSCDataFrame``). The data structures are used both internally and for
+  model input/outputs. In contrast to solutions of found in other projects,
+  resorting to lists of Numpy arrays, ``TSCDataFrame`` makes it much easier to describe
+  collected time series data by storing the data in a single object.
 * An efficient implementation of the ``DiffusionMaps`` model to infer geometric
-  meaningful structures from point cloud data, such as the eigenfunctions of the
+  meaningful structures from data, such as the eigenfunctions of the
   Laplace-Beltrami operator. As a distinguishing factor to other implementations, the
   model can handle a sparse kernel matrix and allows setting an arbitrary kernel,
   including the standard Gaussian kernel,
@@ -36,11 +41,6 @@ The package includes:
   Diffusion Maps and time-delay embedding series for phase space reconstruction.
 * ``EDMDCV`` allows model parameters to be optimized with cross-validation splittings that
   account for the temporal order in time series collections.
-* Data structures to handle point clouds on manifolds (``PCManifold``) and time series
-  collections (``TSCDataFrame``). The data structures are used both internally and for
-  model input/outputs. In contrast to solutions of found in other projects,
-  resorting to lists of Numpy arrays, ``TSCDataFrame`` makes it much easier to describe
-  collected time series data by storing the data in a single object.
 
 See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
 For a mathematical thorough introduction, we refer to the `scientific literature
