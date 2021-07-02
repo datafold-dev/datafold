@@ -993,13 +993,15 @@ class DMDBase(
         X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)
         return X_reconstruct_ts
 
-    def fit_predict(self, X: TSCDataFrame, **fit_params) -> TSCDataFrame:
+    def fit_predict(self, X: TSCDataFrame, y=None, **fit_params) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
 
         Parameters
         ----------
         X
             Training time series data.
+        y
+            ignored
 
         Returns
         -------
