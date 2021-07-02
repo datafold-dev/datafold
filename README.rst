@@ -121,8 +121,8 @@ To install the package and its dependencies with :code:`pip`, run
 
 .. note::
 
-    If you run Python in an Anaconda environment you can use pip from within an ``conda``
-    environment. See also
+    If you run Python in an Anaconda environment you can use pip from within ``conda``.
+    See also
     `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
 
     .. code-block:: bash
