@@ -167,7 +167,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     The model can be used for
 
     * non-linear dimension reduction
-    * approximation eigenfunctions of operators (see ``alpha`` parameter):
+    * approximating eigenfunctions of operators (see ``alpha`` parameter):
 
         - Laplace-Beltrami
         - Fokker-Plank
@@ -201,7 +201,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         * `alpha=0.5` Fokker-Plank operator,
         * `alpha=1` Laplace-Beltrami operator
 
-        Note, that ``is_stochastic=True`` is required for all three cases.
+        Note, that ``is_stochastic=True`` is required in all three cases.
 
     symmetrize_kernel
         If True, a symmetric conjugate transformation is performed, if the kernel

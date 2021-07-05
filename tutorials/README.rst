@@ -40,13 +40,13 @@ List
 * `04_basic_dmap_digitclustering.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/04_basic_dmap_digitclustering.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_04_basic_dmap_digitclustering.html>`__)
     We use the ``DiffusionMaps`` model to cluster data from handwritten digits and perform an out-of-sample embeddings. The example is taken from the scikit-learn project and can be compared against the other manifold learning algorithms.
 * `05_basic_gh_oos.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/05_basic_gh_oos.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_05_basic_gh_oos.html>`__)
-    We showcase the out-of-sample problem for manifold learning models such as the ``DiffusionMaps`` model. For this we use the ``GeometricHarmonicsInterpolator`` for forward and backwards interpolation mappings.
+    We showcase the out-of-sample extension for manifold learning models such as the ``DiffusionMaps`` model. For this we use the ``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.
 
     **Warning**
         The tutorial requires also the Python package `scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ which does not install with *datafold*.
 
 * `06_basic_edmd_limitcycle.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/06_basic_edmd_limitcycle.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_06_basic_edmd_limitcycle.html>`__)
-    We generate data from a dynamical system (Hopf system) and compare different dictionaries of the 'Extended Dynamic Mode Decomposition'. We perform out-of-sample predictions with time ranges exceeding the time horizon of the training data.
+    We generate data from a dynamical system (Hopf system) and compare different dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate out-of-sample predictions with time ranges exceeding the time horizon of the training data.
 
 
 
@@ -59,32 +59,30 @@ Download files
 
 * **If datafold was installed via PyPI, ...**
 
-  then the tutorials must be downloaded separately from the list above (i.e., they are
-  not included in the installed package). You can also navigate to the
-  `tutorials repository page <https://gitlab.com/datafold-dev/datafold/-/tree/master/tutorials>`__,
-  to download the files from there.
+  the tutorials are *not* included in the package. To download them separately,
+  download them from the list above.
 
 * **If the datafold repository was downloaded, ...**
 
-  navigate to the folder ``[root_repository]/tutorials/``. Before executing the
-  tutorials, please make sure that *datafold* is either installed
-  (:code:`python setup.py install`) or that the ``[root_repository]`` folder path is
-  included in the environment variable `PYTHONPATH`
-  (:code:`export PYTHONPATH=$PYTHONPATH:/path/to/datafold/repository/`).
+  navigate to the folder ``/path/to/datafold/tutorials/``. Before executing the
+  tutorials, please make sure that the package is either installed
+  (:code:`python setup.py install`) or that ``path/to/datafold/`` is
+  included in the `PYTHONPATH` environment variable
+  (:code:`export PYTHONPATH=$PYTHONPATH:/path/to/datafold/`).
 
 Start Jupyter
 ^^^^^^^^^^^^^
 
-All tutorials are written as Jupyter notebooks (``.ipynb`` file ending). The Jupyter
-software installs with
+All tutorials are Jupyter notebooks (``.ipynb`` file ending). The Jupyter
+package and dependencies install with
 
 .. code-block:: bash
 
-    pip install jupyter
+    python -m pip install jupyter
 
 For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a
 Jupyter notebook in a web browser, run
 
 .. code-block:: bash
 
-    jupyter notebook path/to/tutorials/folder
+    jupyter notebook path/to/datafold/tutorials

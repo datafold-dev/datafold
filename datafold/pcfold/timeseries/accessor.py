@@ -945,7 +945,7 @@ class TSCAccessor(object):
         else:
             return None
 
-    def compute_shift_matrices(
+    def shift_matrices(
         self, snapshot_orientation: str = "col"
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes shift matrices from time series data.

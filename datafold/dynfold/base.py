@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ from sklearn.base import TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from datafold.pcfold import TSCDataFrame, TSCMetric, TSCScoring
+from datafold.pcfold import InitialCondition, TSCDataFrame, TSCMetric, TSCScoring
 from datafold.pcfold.timeseries.collection import TSCException
 from datafold.utils.general import if1dim_rowvec
 
@@ -565,20 +565,36 @@ class TSCPredictMixin(TSCBaseMixin):
 
         return X, time_values
 
-    def fit(self, X: TimePredictType, **fit_params):
-        raise NotImplementedError("method not implemented")
-
     def predict(
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ):
+        # intended for duck-typing, but provides method layout
         raise NotImplementedError("method not implemented")
+
+    def fit_predict(
+        self,
+        X: InitialConditionType,
+        y=None,
+        **fit_params,
+    ) -> TSCDataFrame:
+        # overwrite if necessary
+        self.fit: Callable
+        return self.fit(X, **fit_params).predict(X.initial_states())
 
     def reconstruct(
         self,
         X: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
     ):
-        raise NotImplementedError("method not implemented")
+        X_reconstruct_ts = []
+
+        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
+            X, n_samples_ic=1
+        ):
+            X_ts = self.predict(X=X_ic, time_values=time_values)
+            X_reconstruct_ts.append(X_ts)
+
+        return pd.concat(X_reconstruct_ts, axis=0)

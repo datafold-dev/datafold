@@ -189,14 +189,14 @@ class TSCDataFrame(pd.DataFrame):
 
     * The row index must be a multi index of two levels, where the first indicates
       the time series ID (integer), and the second contains the time values of the time
-      series (non-negative numerical values)
+      series (non-negative and finite numerical values)
     * The column must be a one-dimensional column index that contains the feature
       names (accounting to the spatial axis)
     * There are no duplicates in both row and column index allowed (the flag
       `allows_duplicate_labels <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
       is set to True). Note, that this disables inplace operations on the labels (e.g.
       :code:`tsc.set_index(new_index, inplace=True` raises an error).
-    * All time series values must must be of a numeric dtype (`nan` or `inf` are allowed).
+    * All time series values must be of a numeric dtype (`nan` or `inf` are allowed).
 
     A single time series typically consists of two or more samples with unequal
     time values. However, it is also possible to store "degenerated time series",
@@ -255,7 +255,7 @@ class TSCDataFrame(pd.DataFrame):
         ``pandas.DataFrame``, except the keyword arguments:
 
         * ``kernel`` :py:class:`.BaseManifoldKernel` - A kernel to describe the
-           point similarity. Defaults to ``None``.
+          point similarity. Defaults to ``None``.
         * ``dist_kwargs`` :class:`dict` - Keyword arguments passed to
           :py:meth:`.compute_distance_matrix`.
 
@@ -793,9 +793,9 @@ class TSCDataFrame(pd.DataFrame):
         if index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(
-                "index.nlevels =! 1. Index has to be a pd.MultiIndex with two levels. "
-                "First level: time series ID. "
-                f"Second level: time. Got: {index.nlevels}"
+                "Index has to be a 'MultiIndex' with two levels (index.nlevels == 2). "
+                "First level for the time series ID, "
+                f"second level for the time values. Got: {index.nlevels}"
             )
 
         if index.duplicated().any():
@@ -1112,12 +1112,14 @@ class TSCDataFrame(pd.DataFrame):
     def iloc(self):
         """Index-based indexing.
 
-        Please visit
+        Visit
         `pd.DataFrame.iloc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.iloc.html#pandas.DataFrame.iloc>`_
-        for full documentation.
+        for documentation of how to index DataFrame.
 
         .. warning::
-            For single column slices, currently, the type changes to ``pandas.Series``.
+            For single column slices (e.g. ``tsc.iloc[:, 0]``), the type
+            changes to ``pandas.Series``, use ``tsc.iloc[:, [0]]`` instead to maintain a
+            ``TSCDataFrame``.
 
         Returns
         -------

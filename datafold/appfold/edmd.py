@@ -1461,14 +1461,14 @@ class EDMDCV(GridSearchCV):
             first_test_score = all_out[0]["test_scores"]
             self.multimetric_ = isinstance(first_test_score, dict)
 
+        self.best_index_ = results["rank_test_%s" % refit_metric].argmin()
+        self.best_score_ = results["mean_test_%s" % refit_metric][self.best_index_]
+        self.best_params_ = results["params"][self.best_index_]
+
         # For multi-metric evaluation, store the best_index_, best_params_ and
         # best_score_ iff refit is one of the scorer names
         # In single metric evaluation, refit_metric is "score"
         if self.refit:
-            self.best_index_ = results["rank_test_%s" % refit_metric].argmin()
-            self.best_score_ = results["mean_test_%s" % refit_metric][self.best_index_]
-            self.best_params_ = results["params"][self.best_index_]
-
             # we clone again after setting params in case some
             # of the params are estimators as well.
             self.best_estimator_ = deepcopy(

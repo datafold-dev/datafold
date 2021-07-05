@@ -6,14 +6,14 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  PRE_COMMIT_HOME: "${CI_PROJECT_DIR}/.cache/pre-commit"
+  PRE_COMMIT_DIR: "${CI_PROJECT_DIR}/.cache/pre-commit"
+  VENV_DIR: "${CI_PROJECT_DIR}/venv"
 
 cache:
   paths:
-    - .cache/pip
-    - ${PRE_COMMIT_HOME}
-    - venv/
-
+    - ${PIP_CACHE_DIR}
+    - ${PRE_COMMIT_DIR}
+    - ${VENV_DIR}
 
 # https://gitlab.com/gitlab-org/gitlab/-/issues/33694#note_335120563
 workflow:
@@ -21,6 +21,10 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
     - when: always
+
+
+# See keyword reference for the .gitlab-ci.yml file
+# https://docs.gitlab.com/ee/ci/yaml/
 
 
 setup:
@@ -41,16 +45,16 @@ unittests:
     - source venv/bin/activate
     - python -V
   script:
-    - coverage run -m pytest datafold/
-    - coverage html -d ./coverage/
-    - coverage report
+    - python -m coverage run -m pytest datafold/
+    - python -m coverage html -d ./coverage/
+    - python -m coverage report
   allow_failure: false
   artifacts:
     paths:
       - ./coverage/
     expire_in: 1 week
     when: on_success
-
+  interruptible: true
 
 functional_tests:
   before_script:
@@ -61,6 +65,7 @@ functional_tests:
     - echo $PYTHONPATH
     - python -m pytest tutorials/
   allow_failure: false
+  interruptible: true
 
 
 code_checks:
@@ -71,6 +76,7 @@ code_checks:
   script:
     - pre-commit run --all
   allow_failure: true
+  interruptible: true
 
 
 docu_check:
@@ -83,6 +89,7 @@ docu_check:
   except:
     - master
   allow_failure: false
+  interruptible: true
 
 
 pages:
@@ -105,6 +112,23 @@ pages:
     # manual option if push to branches other than master
     - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
       when: manual
+      allow_failure: true
+
+
+# For infos of testPyPI see here: https://packaging.python.org/guides/using-testpypi/
+# Note that
+#  "The database for TestPyPI may be periodically pruned, so it is not unusual for user
+#   accounts to be deleted." -- it is best to use the same account and password as for
+#   the real PyPI, so that the TWINE variables (see below) can be re-used
+pypi_upload_test:  # uploads to test.pypi.org to see how everything renders
+  stage: deploy
+  before_script:
+    - source venv/bin/activate
+  script:
+    - python setup.py sdist bdist_wheel
+    - python -m twine check dist/*
+    - python -m twine upload --verbose --repository testpypi dist/*
+  when: manual
 
 # Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:
@@ -113,8 +137,8 @@ pypi_upload:
     - source venv/bin/activate
   script:
     - python setup.py sdist bdist_wheel
-    - twine check dist/*
-    - twine upload --verbose dist/*
+    - python -m twine check dist/*
+    - python -m twine upload --verbose dist/*
   only:
     - master
   when: manual

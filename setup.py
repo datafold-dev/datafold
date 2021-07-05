@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import importlib.util
+import io
 import os
 from pathlib import Path
 
@@ -28,43 +29,49 @@ def read_datafold_version():
 author = "datafold development team"
 email = "daniel.lehmberg@hm.edu"
 
-path_to_pkg_requirements = os.path.join(
-    Path(__file__).absolute().parent, "requirements.txt"
-)
+setuppy_filepath = Path(__file__).absolute().parent
+
+path_to_pkg_requirements = os.path.join(setuppy_filepath, "requirements.txt")
 path_to_pkg_requirements = os.path.abspath(path_to_pkg_requirements)
 
-with open(path_to_pkg_requirements, "r") as f:
-    install_requires = f.readlines()
 
-install_requires = [req.replace("\n", "") for req in install_requires]
+def get_install_requirements():
+    with open(path_to_pkg_requirements, "r", newline="\n") as f:
+        install_requires = [req.replace("\n", "") for req in f.readlines()]
+    return install_requires
 
-short_description = """The package contains operator-theoretic models that can
-identify dynamical systems from time series data and infer geometrical structures from
-point clouds."""
 
-long_description = """Main models in datafold:
+def get_short_description():
+    short_description = (
+        "Operator-theoretic models to identify dynamical systems and parametrize point "
+        "cloud geometry"
+    )
 
-* (Extended-) Dynamic Mode Decomposition (E-DMD) to approximate the Koopman
-  operator from time series data or collections thereof.
-* Diffusion Map (DMAP) to find meaningful geometric descriptions in point clouds,
-  such as the eigenfunctions of the Laplace-Beltrami operator.
-* Out-of-sample extensions to interpolate functions on point cloud manifolds, such as
-  Geometric Harmonics interpolator and (auto-tuned) Laplacian Pyramids.
-* Data structure for time series collections (TSCDataFrame) and data
-  transformations, such as time-delay embeddings (TSCTakensEmbedding). The data
-  structures operates with both E-DMD and DMAP (internally or as input).
+    if "\n" in short_description:
+        # check and raise this because "twine check dist/*" gives unsuitable error message
+        # if this is the case
+        raise RuntimeError("The short description must not contain newline '\\n'")
 
-"""
+
+def get_long_description():
+    # use README.rst for text in PyPI:
+    with open(
+        os.path.join(setuppy_filepath, "README.rst"), "r", newline="\n"
+    ) as readme_file:
+        long_description = readme_file.read()
+    return long_description
+
 
 setup(
     name="datafold",
     author=author,
     version=read_datafold_version(),
-    description=short_description,
+    description=get_short_description(),
     long_description_content_type="text/x-rst",
-    long_description=long_description,
+    long_description=get_long_description(),
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
+    download_url="https://pypi.org/project/datafold/",
     keywords=[
         "mathematics, machine learning, dynamical system, data-driven, time series, "
         "regression, forecasting, manifold learning, diffusion map, koopman operator, "
@@ -75,7 +82,7 @@ setup(
     package_dir={"datafold": "datafold"},
     # package_data={"": ["LICENSE"]},
     python_requires=">=3.7",
-    install_requires=install_requires,
+    install_requires=get_install_requirements(),
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",
@@ -84,7 +91,12 @@ setup(
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Scientific/Engineering",
     ],
-    # the requirements.txt is needed during setup.py and must also be copied to
+    # see https://stackoverflow.com/a/14159430
+    # Both a MANIFEST.in and package_data is required that bdist and sdist
+    # installations include the files.
+    # The requirements.txt is required for setup.py and must also be copied to
     # source distributions (setup.py install sdist)
-    package_data={".": ["requirements.txt", "LICENSE", "LICENSES_bundled"]},
+    package_data={
+        ".": ["requirements.txt", "LICENSE", "LICENSES_bundled", "CONTRIBUTORS"]
+    },
 )

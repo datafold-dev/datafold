@@ -993,13 +993,15 @@ class DMDBase(
         X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)
         return X_reconstruct_ts
 
-    def fit_predict(self, X: TSCDataFrame, **fit_params) -> TSCDataFrame:
+    def fit_predict(self, X: TSCDataFrame, y=None, **fit_params) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
 
         Parameters
         ----------
         X
             Training time series data.
+        y
+            ignored
 
         Returns
         -------
@@ -1151,7 +1153,7 @@ class DMDFull(DMDBase):
 
         # It is more suitable to get the shift_start and shift_end in row orientation as
         # this is closer to the normal least squares parameter definition
-        shift_start_transposed, shift_end_transposed = X.tsc.compute_shift_matrices(
+        shift_start_transposed, shift_end_transposed = X.tsc.shift_matrices(
             snapshot_orientation="row"
         )
 
@@ -1610,9 +1612,7 @@ class DMDEco(DMDBase):
         #  2 more quantities than snapshots
         #  Currently it is optimized for the case 2.
 
-        shift_start, shift_end = X.tsc.compute_shift_matrices(
-            snapshot_orientation="col"
-        )
+        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="col")
         U, S, Vh = np.linalg.svd(shift_start, full_matrices=False)  # (1.18)
 
         U = U[:, : self.svd_rank]

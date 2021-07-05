@@ -480,6 +480,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             self.lag, name="lag", target_type=(int, np.integer), min_val=0, max_val=None
         )
 
+        # TODO also allow 0 delays? This would only "passthrough",
+        #  but makes it is easier in pipelines etc.
         check_scalar(
             self.delays,
             name="delays",
@@ -692,7 +694,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
                 delayed_data = delayed_data.astype(float)
                 delayed_data *= kappa_vec
 
-            # go back to DataFrame, and adapt the index be excluding removed indices
+            # go back to DataFrame, and adapt the index by excluding removed indices
             df = pd.DataFrame(
                 np.hstack([original_data, delayed_data]),
                 index=df.index[max_delay:],

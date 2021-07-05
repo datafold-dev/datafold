@@ -224,15 +224,12 @@ class Pendulum(DynamicalSystem):
         return theta_dot_1, theta_dot_2
 
     def _compute_cart_parameters(self):
+
+        # 10 * circle_area = mass -- the 10 is artificial
         self.radius_mass_ = np.sqrt(self.mass_kg / np.pi) / 10
 
-        # pendulum length includes the mass
-        self.pendulum_length_m_ = self.rod_length_m + self.radius_mass_
-
-        self.fixation_point_ = np.array(
-            [self.pendulum_length_m_, self.pendulum_length_m_], dtype=float
-        )
-        self.equilibrium_point_ = np.array([self.pendulum_length_m_, self.radius_mass_])
+        self.fixation_point_ = np.array([0, self.rod_length_m], dtype=float)
+        self.equilibrium_point_ = np.array([0, 0])
 
     def _convert_cartesian(self, theta_position):
         x = self.rod_length_m * np.cos(theta_position - np.pi / 2)
