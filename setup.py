@@ -34,27 +34,41 @@ setuppy_filepath = Path(__file__).absolute().parent
 path_to_pkg_requirements = os.path.join(setuppy_filepath, "requirements.txt")
 path_to_pkg_requirements = os.path.abspath(path_to_pkg_requirements)
 
-with io.open(path_to_pkg_requirements, "r", newline="\n") as f:
-    install_requires = f.readlines()
 
-install_requires = [req.replace("\n", "") for req in install_requires]
+def get_install_requirements():
+    with open(path_to_pkg_requirements, "r", newline="\n") as f:
+        install_requires = [req.replace("\n", "") for req in f.readlines()]
+    return install_requires
 
-short_description = """Operator-theoretic models to identify dynamical systems and
-parametrize point cloud geometry"""
 
-# use README.rst for text in PyPI:
-with io.open(
-    os.path.join(setuppy_filepath, "README.rst"), "r", newline="\n"
-) as readme_file:
-    long_description = readme_file.read()
+def get_short_description():
+    short_description = (
+        "Operator-theoretic models to identify dynamical systems and parametrize point "
+        "cloud geometry"
+    )
+
+    if "\n" in short_description:
+        # check and raise this because "twine check dist/*" gives unsuitable error message
+        # if this is the case
+        raise RuntimeError("The short description must not contain newline '\\n'")
+
+
+def get_long_description():
+    # use README.rst for text in PyPI:
+    with open(
+        os.path.join(setuppy_filepath, "README.rst"), "r", newline="\n"
+    ) as readme_file:
+        long_description = readme_file.read()
+    return long_description
+
 
 setup(
     name="datafold",
     author=author,
     version=read_datafold_version(),
-    description=short_description,
+    description=get_short_description(),
     long_description_content_type="text/x-rst",
-    long_description=long_description,
+    long_description=get_long_description(),
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
     download_url="https://pypi.org/project/datafold/",
@@ -68,7 +82,7 @@ setup(
     package_dir={"datafold": "datafold"},
     # package_data={"": ["LICENSE"]},
     python_requires=">=3.7",
-    install_requires=install_requires,
+    install_requires=get_install_requirements(),
     # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",
