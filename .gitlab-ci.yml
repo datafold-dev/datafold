@@ -102,9 +102,9 @@ pages:
     # flag to execute all tutorials
     - export DATAFOLD_NBSPHINX_EXECUTE=always
     # remove all old files to have a clean build
-    - rm -r ./public/
-    - rm ./doc/source/api/*.rst
-    - rm ./doc/source/_apidoc/*.rst
+    - rm -f -r ./public/
+    - rm -f ./doc/source/api/*.rst
+    - rm -f ./doc/source/_apidoc/*.rst
     # build docs
     - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
     - sphinx-build -b html ./doc/source/ ./public/
