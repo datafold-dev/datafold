@@ -40,7 +40,7 @@ Classes
    .. automethod:: check_required_time_delta
    .. automethod:: check_timeseries_same_length
    .. automethod:: check_tsc
-   .. automethod:: compute_shift_matrices
+   .. automethod:: shift_matrices
    .. automethod:: equal_const_delta_time
    .. automethod:: iter_timevalue_window
    .. automethod:: normalize_time
