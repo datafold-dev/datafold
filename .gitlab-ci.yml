@@ -103,10 +103,11 @@ pages:
     - export DATAFOLD_NBSPHINX_EXECUTE=always
     # remove all old files to have a clean build
     - rm -f -r ./public/
+    - rm -f -r ./doc/build/
     - rm -f ./doc/source/api/*.rst
     - rm -f ./doc/source/_apidoc/*.rst
     # build docs
-    - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
+    - # sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
     - sphinx-build -b html ./doc/source/ ./public/
   artifacts:
     paths:
