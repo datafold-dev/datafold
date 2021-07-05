@@ -77,7 +77,8 @@ Install the package with ``Python>=3.7``:
     :ref:`references`
 
 
-**Overview of datafold's software management:**
+Software management
+===================
 
 .. list-table::
    :widths: 25 25
