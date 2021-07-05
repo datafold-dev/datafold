@@ -84,10 +84,10 @@ def add_tutorial(filename, description, warning=None):
     web_link = f"https://datafold-dev.gitlab.io/datafold/{nblink_filename}.html"
 
     DESCRIPTIVE_TUTORIALS[filename] = dict(
-        description=description,
-        download_link=download_link,
-        web_link=web_link,
-        warning=warning,
+        description=description.rstrip(),
+        download_link=download_link.rstrip(),
+        web_link=web_link.rstrip(),
+        warning=warning.rstrip() if isinstance(warning, str) else None,
     )
 
     _req_download_file = requests.head(download_link)
