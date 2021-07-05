@@ -120,7 +120,7 @@ def get_tutorial_text_doc(filename, target):
         if _dict["warning"] is not None:
             _str += "\n \n"
             _str += f"{WHITESPACE}.. warning::\n"
-            _str += f"{WHITESPACE}{WHITESPACE}{_dict['warning']} \n"
+            _str += f"{WHITESPACE}{WHITESPACE}{_dict['warning']}\n"
 
     elif target == "readme":
         # "filename (download_link, doc_link)" in readme
@@ -131,9 +131,9 @@ def get_tutorial_text_doc(filename, target):
         _str += f"{WHITESPACE}{_dict['description']}"
 
         if _dict["warning"] is not None:
-            _str += "\n \n"
+            _str += "\n\n"
             _str += f"{WHITESPACE}**Warning**\n"
-            _str += f"{WHITESPACE}{WHITESPACE}{_dict['warning']} \n"
+            _str += f"{WHITESPACE}{WHITESPACE}{_dict['warning']}\n"
     else:
         raise ValueError(f"'target={target}' not known")
 
