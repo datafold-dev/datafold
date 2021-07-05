@@ -9,9 +9,9 @@ PATH2DOC = os.path.abspath(".")
 PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
 PATH2TUTORIAL = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
 
-rst_text_before_tutorials_list = """This page contains tutorials and code snippets to showcase
-*datafold's* API. All tutorials can be viewed online or downloaded in from the list
-below. If you want to execute the notebooks in Jupyter, please also note the
+rst_text_before_tutorials_list = """This page contains tutorials and code snippets to
+showcase *datafold's* API. All tutorials can be viewed online or downloaded in from the
+list below. If you want to execute the notebooks in Jupyter, please also note the
 instructions in "Run notebooks with Jupyter".
 """
 
@@ -75,7 +75,10 @@ def add_tutorial(filename, description, warning=None):
             f"The filepath {os.path.join(PATH2TUTORIAL, filename)} does not exist."
         )
 
-    download_link = f"https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/{filename}?inline=false"
+    download_link = (
+        f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
+        f"tutorials/{filename}?inline=false"
+    )
 
     nblink_filename = get_nblink(filename)
     web_link = f"https://datafold-dev.gitlab.io/datafold/{nblink_filename}.html"
@@ -140,10 +143,8 @@ def get_tutorial_text_doc(filename, target):
 
 add_tutorial(
     "01_basic_datastructures.ipynb",
-    "We introduce *datafold*'s data structures with manifold context. The "
-    "data structures are either used internally in model implementations, but can also "
-    "be required as a data format for model input/output or be useful to estimate model "
-    "parameters.",
+    "We introduce *datafold*'s basic data structures, which are either used internally, "
+    "in model implementations or used for model input/output.",
 )
 
 add_tutorial(
@@ -156,15 +157,15 @@ add_tutorial(
 
 add_tutorial(
     "03_basic_dmap_scurve.ipynb",
-    "We use a ``DiffusionMaps`` model to compute possible lower dimensional embeddings "
-    "of an S-curved point cloud manifold. We also select the best combination of "
-    "coordinates automatically with an optimization routine.",
+    "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
+    "S-curved point cloud manifold. We also select the best combination of intrinsic "
+    "parameters automatically with an optimization routine.",
 )
 
 add_tutorial(
     "04_basic_dmap_digitclustering.ipynb",
     "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
-    "perform an out-of-sample embeddings. The example is taken from the scikit-learn "
+    "perform an out-of-sample embedding. The example is taken from the scikit-learn "
     "project and can be compared against the other manifold learning algorithms.",
 )
 
@@ -188,10 +189,10 @@ add_tutorial(
 
 add_tutorial(
     filename="07_basic_jsf_common_eigensystem.ipynb",
-    description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions from multimodal"
-    "data. Also, we introduce ``JsfDataset``, which is used to make ``JointlySmoothFunctions"
-    "consistent with scikit-learn's  Estimator and Transformer APIs. Finally, we demonstrate"
-    "the out-of-sample extension.",
+    description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
+    "from multimodal data. Also, we introduce ``JsfDataset``, which is used to make "
+    "``JointlySmoothFunctions consistent with scikit-learn's estimator and transformer "
+    "APIs. Finally, we demonstrate the out-of-sample extension.",
     warning="The code for jointly smooth functions inside this notebook is experimental.",
 )
 
@@ -259,7 +260,6 @@ def generate_docs_str(target):
     tutorial_page_content += "???INSERT_TUTORIAL_LIST???\n"
     tutorial_page_content += "\n"
     tutorial_page_content += rst_text_after_tutorials_list
-    tutorial_page_content += "\n\n"
 
     abs_path_tutorial_files = sorted(glob.glob(os.path.join(PATH2TUTORIAL, "*.ipynb")))
 
@@ -270,7 +270,7 @@ def generate_docs_str(target):
         filename = os.path.basename(filepath)
         filename_nblink = get_nblink(filepath)
 
-        files_list += f"{WHITESPACE}{filename_nblink} \n"
+        files_list += f"{WHITESPACE}{filename_nblink}\n"
         tutorials_list += get_tutorial_text_doc(filename, target=target)
 
     tutorial_page_content = tutorial_page_content.replace(
