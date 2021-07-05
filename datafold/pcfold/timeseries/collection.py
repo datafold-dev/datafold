@@ -185,7 +185,7 @@ class TSCDataFrame(pd.DataFrame):
 
     The class inherits from pandas' data structure :class:`pandas.DataFrame` and provides
     additional functionality to manipulate and analyze a time series collection. The
-    main restrictions compared to the more general ``pandas.DataFrame`` are
+    main restrictions compared to the more general DataFrame are
 
     * The row index must be a multi index of two levels, where the first indicates
       the time series ID (integer), and the second contains the time values of the time
