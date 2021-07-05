@@ -141,8 +141,8 @@ https://doi.org/10.21105/joss.02283
                  title     = {datafold: data-driven models for point clouds and time series on manifolds},
                  journal   = {Journal of Open Source Software}}
 
-Affiliations
-============
+Maintainer and affiliations
+===========================
 
 * **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
   grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
@@ -151,6 +151,8 @@ Affiliations
 
 * **Felix Dietrich** (2) FD thanks the Technical University of Munich for their support.
 
+All source code contributors are listed
+`here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
 1. Munich University of Applied Sciences
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
