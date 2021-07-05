@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import importlib.util
+import io
 import os
 from pathlib import Path
 
@@ -33,7 +34,7 @@ setuppy_filepath = Path(__file__).absolute().parent
 path_to_pkg_requirements = os.path.join(setuppy_filepath, "requirements.txt")
 path_to_pkg_requirements = os.path.abspath(path_to_pkg_requirements)
 
-with open(path_to_pkg_requirements, "r") as f:
+with io.open(path_to_pkg_requirements, "r", newline="\n") as f:
     install_requires = f.readlines()
 
 install_requires = [req.replace("\n", "") for req in install_requires]
@@ -42,7 +43,9 @@ short_description = """Operator-theoretic models to identify dynamical systems a
 parametrize point cloud geometry"""
 
 # use README.rst for text in PyPI:
-with open(os.path.join(setuppy_filepath, "README.rst")) as readme_file:
+with io.open(
+    os.path.join(setuppy_filepath, "README.rst"), "r", newline="\n"
+) as readme_file:
     long_description = readme_file.read()
 
 setup(

@@ -45,9 +45,9 @@ unittests:
     - source venv/bin/activate
     - python -V
   script:
-    - coverage run -m pytest datafold/
-    - coverage html -d ./coverage/
-    - coverage report
+    - python -m coverage run -m pytest datafold/
+    - python -m coverage html -d ./coverage/
+    - python -m coverage report
   allow_failure: false
   artifacts:
     paths:
@@ -126,8 +126,8 @@ pypi_upload_test:  # uploads to test.pypi.org to see how everything renders
     - source venv/bin/activate
   script:
     - python setup.py sdist bdist_wheel
-    - twine check dist/*
-    - twine upload --verbose --repository testpypi dist/*
+    - python -m twine check dist/*
+    - python -m twine upload --verbose --repository testpypi dist/*
   when: manual
 
 # Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
@@ -137,8 +137,8 @@ pypi_upload:
     - source venv/bin/activate
   script:
     - python setup.py sdist bdist_wheel
-    - twine check dist/*
-    - twine upload --verbose dist/*
+    - python -m twine check dist/*
+    - python -m twine upload --verbose dist/*
   only:
     - master
   when: manual

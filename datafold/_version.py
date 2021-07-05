@@ -33,14 +33,15 @@ class Version:
 
     attach_post = f".post{post}" if post > 0 else ""
     attach_rc = f"rc{rc}" if rc > 0 else ""
-    v_short = f"{major_version}.{minor_version}.{patch}{attach_post}{attach_rc}"
+
+    v_short: str = f"{major_version}.{minor_version}.{patch}{attach_post}{attach_rc}"
 
     date_string = datetime.datetime(year=year, month=month, day=day).strftime(
         "%Y-%m-%d"
     )
 
-    v_long = f"{v_short} ({date_string})"
-    v_gnu = f"datafold {v_long}"
+    v_long: str = f"{v_short} ({date_string})"
+    v_gnu: str = f"datafold {v_long}"
 
     @staticmethod
     def print_version():
