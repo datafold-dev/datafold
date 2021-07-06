@@ -1,6 +1,6 @@
-=======================
-Welcome to **datafold**
-=======================
+===================
+Welcome to datafold
+===================
 
 **Version**: |version| **Date**: |today|
 
@@ -142,12 +142,12 @@ https://doi.org/10.21105/joss.02283
                  title     = {datafold: data-driven models for point clouds and time series on manifolds},
                  journal   = {Journal of Open Source Software}}
 
-Maintainer and affiliations
+Maintenance and affiliation
 ===========================
 
 * **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
   grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
-  Applied Sciences and the center of doctoral studies in informatics (CeDoSIA) of the
+  Applied Sciences HM and the center of doctoral studies in informatics (CeDoSIA) of the
   Technical University of Munich for their support.
 
 * **Felix Dietrich** (2) FD thanks the Technical University of Munich for their support.
@@ -155,8 +155,8 @@ Maintainer and affiliations
 All source code contributors are listed
 `here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-1. Munich University of Applied Sciences
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1. Munich University of Applied Sciences HM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Faculty of Computer Science and Mathematics in
 Pedestrian Dynamics Research Group  (`web <http://www.vadere.org/>`__)

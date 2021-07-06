@@ -10,9 +10,9 @@ PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
 PATH2TUTORIAL = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
 
 rst_text_before_tutorials_list = """This page contains tutorials and code snippets to
-showcase *datafold's* API. All tutorials can be viewed online or downloaded in from the
-list below. If you want to execute the notebooks in Jupyter, please also note the
-instructions in "Run notebooks with Jupyter".
+showcase *datafold's* API. All tutorials can be viewed online below. If you want to
+execute the notebooks in Jupyter, please also note the instructions in
+"Run notebooks with Jupyter".
 """
 
 rst_text_after_tutorials_list = """
@@ -25,8 +25,8 @@ Download files
 
 * **If datafold was installed via PyPI, ...**
 
-  the tutorials are *not* included in the package. To download them separately,
-  download them from the list above.
+  the tutorials are *not* included in the package. Download them separately from the
+   above list.
 
 * **If the datafold repository was downloaded, ...**
 
@@ -58,7 +58,7 @@ DESCRIPTIVE_TUTORIALS = dict()
 # prefix required to have pattern in .gitignore to ignore them
 PREFIX_DOC_FILES = "tutorial_"
 # Whitespace to format the .rst files
-WHITESPACE = "    "
+INDENT = "    "
 
 
 def get_nblink(filename):
@@ -94,14 +94,14 @@ def add_tutorial(filename, description, warning=None):
     if _req_download_file.status_code != 200:
         print(
             f"WARNING: The download link \n{download_link} \n does not exist. Check if "
-            f"the file will be included in a push/merge to 'master' the repository soon."
+            f"the tutorial will be published soon and that the link is correct."
         )
 
     _req_weblink_doc = requests.head(web_link)
     if _req_weblink_doc.status_code != 200:
         print(
-            f"WARNING: The web link \n{web_link} does not exist. Check if the page will "
-            "be included in a push/merge to 'master' to the repository soon."
+            f"WARNING: The web link \n{web_link} does not exist. Check if "
+            f"the tutorial will be published soon and that the link is correct."
         )
 
 
@@ -110,17 +110,18 @@ def get_tutorial_text_doc(filename, target):
     filename_nblink = get_nblink(filename)
     _dict = DESCRIPTIVE_TUTORIALS[filename]
 
+    # TODO: make more readable code by using string replacements
     if target == "docs":
         # "page_nblink (download_link)" in docs
         _str = (
             f"#. :doc:`{filename_nblink}` (`download <{_dict['download_link']}>`__)\n"
         )
-        _str += f"{WHITESPACE}{_dict['description']}"
+        _str += f"{INDENT}{_dict['description']}"
 
         if _dict["warning"] is not None:
-            _str += "\n \n"
-            _str += f"{WHITESPACE}.. warning::\n"
-            _str += f"{WHITESPACE}{WHITESPACE}{_dict['warning']}\n"
+            _str += "\n\n"
+            _str += f"{INDENT}.. warning::\n"
+            _str += f"{INDENT}{INDENT}{_dict['warning']}\n"
 
     elif target == "readme":
         # "filename (download_link, doc_link)" in readme
@@ -128,12 +129,12 @@ def get_tutorial_text_doc(filename, target):
             f"* `{filename}` (`download <{_dict['download_link']}>`__ , "
             f"`doc <{_dict['web_link']}>`__)\n"
         )
-        _str += f"{WHITESPACE}{_dict['description']}"
+        _str += f"{INDENT}{_dict['description']}"
 
         if _dict["warning"] is not None:
             _str += "\n\n"
-            _str += f"{WHITESPACE}**Warning**\n"
-            _str += f"{WHITESPACE}{WHITESPACE}{_dict['warning']}\n"
+            _str += f"{INDENT}**Warning**\n"
+            _str += f"{INDENT}{INDENT}{_dict['warning']}\n"
     else:
         raise ValueError(f"'target={target}' not known")
 
@@ -143,8 +144,9 @@ def get_tutorial_text_doc(filename, target):
 
 add_tutorial(
     "01_basic_datastructures.ipynb",
-    "We introduce *datafold*'s basic data structures, which are either used internally, "
-    "in model implementations or used for model input/output.",
+    "We introduce *datafold*'s basic data structures for time series collection data and "
+    "kernel-based algorithms. They are both used internally in model implementations and "
+    "for input/output.",
 )
 
 add_tutorial(
@@ -165,8 +167,8 @@ add_tutorial(
 add_tutorial(
     "04_basic_dmap_digitclustering.ipynb",
     "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
-    "perform an out-of-sample embedding. The example is taken from the scikit-learn "
-    "project and can be compared against the other manifold learning algorithms.",
+    "perform an out-of-sample embedding. This example is taken from the scikit-learn "
+    "project and can be compared against other manifold learning algorithms.",
 )
 
 add_tutorial(
@@ -235,7 +237,7 @@ def generate_docs_str(target):
     tutorial_page_content = (
         f".. NOTE: this file was automatically generated with "
         f"'{os.path.basename(__file__)}' (located in 'datafold/doc/source/'). Navigate "
-        f"to this file, if you wish to change the content.\n\n"
+        f"to this file, if you wish to change the content of this page.\n\n"
     )
 
     tutorial_page_content += ".. _tutorialnb:\n"
@@ -255,7 +257,8 @@ def generate_docs_str(target):
         "all tutorials in a zipped file.\n\n"
     )
     tutorial_page_content += ".. toctree::\n"
-    tutorial_page_content += f"{WHITESPACE}:hidden:\n"
+    tutorial_page_content += f"{INDENT}:hidden:\n"
+    # use easy replacement strings
     tutorial_page_content += "???INSERT_TOC_FILELIST???\n"
     tutorial_page_content += "???INSERT_TUTORIAL_LIST???\n"
     tutorial_page_content += "\n"
@@ -270,7 +273,7 @@ def generate_docs_str(target):
         filename = os.path.basename(filepath)
         filename_nblink = get_nblink(filepath)
 
-        files_list += f"{WHITESPACE}{filename_nblink}\n"
+        files_list += f"{INDENT}{filename_nblink}\n"
         tutorials_list += get_tutorial_text_doc(filename, target=target)
 
     tutorial_page_content = tutorial_page_content.replace(
@@ -287,23 +290,28 @@ def setup_tutorials():
 
     # PART 1: Online documentation
     tutorial_index_filename = "tutorial_index.rst"
+
+    # clean
     remove_existing_nblinks_and_indexfile(tutorial_index_filename)
 
+    # generate links to Jupyter files
     generate_nblink_files()
-    tutorial_page_content_docs = generate_docs_str(target="docs")
 
-    # write content to rst file
+    # generate and write content to rst file
+    tutorial_page_content_docs = generate_docs_str(target="docs")
     with open(tutorial_index_filename, "w") as indexfile:
         indexfile.write(tutorial_page_content_docs)
 
     # PART 2: README.rst file in tutorials
-    tutorial_page_content_readme = generate_docs_str(target="readme")
 
+    # clean
     tutorial_readme_filename = os.path.join(PATH2TUTORIAL, "README.rst")
     try:
         os.remove(tutorial_readme_filename)
     except FileNotFoundError:
         pass  # don't worry
+
+    tutorial_page_content_readme = generate_docs_str(target="readme")
 
     # write content to rst file
     with open(tutorial_readme_filename, "w") as indexfile:

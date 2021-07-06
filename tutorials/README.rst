@@ -1,4 +1,4 @@
-.. NOTE: this file was automatically generated with 'generate_tutorials_page.py' (located in 'datafold/doc/source/'). Navigate to this file, if you wish to change the content.
+.. NOTE: this file was automatically generated with 'generate_tutorials_page.py' (located in 'datafold/doc/source/'). Navigate to this file, if you wish to change the content of this page.
 
 .. _tutorialnb:
 
@@ -7,9 +7,9 @@ Tutorials
 =========
 
 This page contains tutorials and code snippets to
-showcase *datafold's* API. All tutorials can be viewed online or downloaded in from the
-list below. If you want to execute the notebooks in Jupyter, please also note the
-instructions in "Run notebooks with Jupyter".
+showcase *datafold's* API. All tutorials can be viewed online below. If you want to
+execute the notebooks in Jupyter, please also note the instructions in
+"Run notebooks with Jupyter".
 
 List
 ----
@@ -29,7 +29,7 @@ List
 
 
 * `01_basic_datastructures.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/01_basic_datastructures.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_01_basic_datastructures.html>`__)
-    We introduce *datafold*'s basic data structures, which are either used internally, in model implementations or used for model input/output.
+    We introduce *datafold*'s basic data structures for time series collection data and kernel-based algorithms. They are both used internally in model implementations and for input/output.
 * `02_basic_pcm_subsampling.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/02_basic_pcm_subsampling.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_02_basic_pcm_subsampling.html>`__)
     We show how the ``PCManifold`` data structure can be used to subsample a manifold point cloud uniformly.
 
@@ -39,7 +39,7 @@ List
 * `03_basic_dmap_scurve.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/03_basic_dmap_scurve.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_03_basic_dmap_scurve.html>`__)
     We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an S-curved point cloud manifold. We also select the best combination of intrinsic parameters automatically with an optimization routine.
 * `04_basic_dmap_digitclustering.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/04_basic_dmap_digitclustering.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_04_basic_dmap_digitclustering.html>`__)
-    We use the ``DiffusionMaps`` model to cluster data from handwritten digits and perform an out-of-sample embedding. The example is taken from the scikit-learn project and can be compared against the other manifold learning algorithms.
+    We use the ``DiffusionMaps`` model to cluster data from handwritten digits and perform an out-of-sample embedding. This example is taken from the scikit-learn project and can be compared against other manifold learning algorithms.
 * `05_basic_gh_oos.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/05_basic_gh_oos.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_05_basic_gh_oos.html>`__)
     We showcase the out-of-sample extension for manifold learning models such as the ``DiffusionMaps`` model. For this we use the ``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.
 
@@ -66,8 +66,8 @@ Download files
 
 * **If datafold was installed via PyPI, ...**
 
-  the tutorials are *not* included in the package. To download them separately,
-  download them from the list above.
+  the tutorials are *not* included in the package. Download them separately from the
+   above list.
 
 * **If the datafold repository was downloaded, ...**
 
