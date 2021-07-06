@@ -2,12 +2,14 @@
 
 import glob
 import os
+import pathlib
 
 import requests  # type: ignore
 
-PATH2DOC = os.path.abspath(".")
-PATH2ROOT = os.path.abspath(os.path.join(".", "..", ".."))
-PATH2TUTORIAL = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
+# path to current file location
+PATH2DOCSOURCE = pathlib.Path(__file__).parent.resolve()
+PATH2ROOT = PATH2DOCSOURCE.parent.parent
+PATH2TUTORIAL = PATH2ROOT.joinpath("tutorials")
 
 rst_text_before_tutorials_list = """This page contains tutorials and code snippets to
 showcase *datafold's* API. All tutorials can be viewed online below. If you want to
@@ -55,9 +57,9 @@ Jupyter notebook in a web browser, run
 """
 
 DESCRIPTIVE_TUTORIALS = dict()
-# prefix required to have pattern in .gitignore to ignore them
+# prefix required as a file pattern in .gitignore (change also there!)
 PREFIX_DOC_FILES = "tutorial_"
-# Whitespace to format the .rst files
+# Indentation for to easier format .rst file
 INDENT = "    "
 
 
@@ -200,7 +202,7 @@ add_tutorial(
 
 
 def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
-    for file in os.listdir(PATH2DOC):
+    for file in os.listdir(PATH2DOCSOURCE):
         if file.endswith(".nblink"):
             os.remove(file)
     try:
