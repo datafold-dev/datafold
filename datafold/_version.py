@@ -1,6 +1,27 @@
 import datetime
 
 
+def show_versions():
+    """Print all important dependency versions."""
+    import platform
+    import sys
+
+    import numpy as np
+    import pandas as pd
+    import scipy
+    import sklearn
+
+    python_version = sys.version.replace("\n", "    ")
+
+    print(f"Platform:       {platform.platform()}")
+    print(f"Python:         {python_version}")
+    print(f"numpy:          {np.__version__}")
+    print(f"pandas:         {pd.__version__}")
+    print(f"scipy:          {scipy.__version__}")
+    print(f"scikit-learn:   {sklearn.__version__}")
+    print(f"datafold:       {Version.v_short}")
+
+
 class Version:
     """Current datafold version."""
 
@@ -52,3 +73,5 @@ class Version:
 
 if __name__ == "__main__":
     Version.print_version()
+    print()
+    show_versions()
