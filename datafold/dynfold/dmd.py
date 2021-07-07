@@ -1333,13 +1333,14 @@ class gDMDFull(DMDBase):
         L &= \dot{X} X^{\dagger},
 
     where :math:`X` is the data with column oriented snapshots, :math:`\dagger`
-    the Moore–Penrose inverse, and :math:`\dot{X}` is the time derivative of the data.
+    the Moore–Penrose inverse, and :math:`\dot{X}` contains the time derivative.
 
     .. warning::
         The time derivative is currently computed with finite differences (using the
-        `findiff` package. For some systems the time derivatives is also available in
-        analytical form (or can be computed with automatic differentiation). These
-        cases are currently not supported and require further implementation.
+        ``findiff` <https://github.com/maroba/findiff>`__ package). For some systems the
+        time derivatives is also available in analytical form (or can be computed with
+        automatic differentiation). These cases are currently not supported and require
+        further implementation.
 
     ...
 
@@ -1396,7 +1397,7 @@ class gDMDFull(DMDBase):
     def __init__(
         self,
         *,  # keyword-only
-        sys_mode="spectral",
+        sys_mode: str = "spectral",
         is_diagonalize: bool = False,
         rcond: Optional[float] = None,
         kwargs_fd: Optional[dict] = None,
@@ -1460,7 +1461,7 @@ class gDMDFull(DMDBase):
         return ret_kwargs
 
     def fit(self, X: TimePredictType, y=None, **fit_params) -> "gDMDFull":
-        """Compute Koopman generator matrix and the spectral components.
+        """Compute Koopman generator matrix and spectral components.
 
         Parameters
         ----------
