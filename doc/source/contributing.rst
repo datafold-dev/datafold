@@ -112,9 +112,9 @@ Please read and follow the steps of gitlab's
 * `How to create a merge request <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#merging-upstream>`__
 
 .. note::
-    We have set up a "Continuous Integration" (CI) pipeline. However, the worker (a
-    `gitlab-runner`) of the parent repository is not available for forked projects (for
-    background information see
+    We set up a "Continuous Integration" (CI) pipeline. However, the worker (a
+    `gitlab-runner`) of the *datafold* repository is not available for forked projects
+    (for background information see
     `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
 
 After you have created a fork you can clone the repository with:

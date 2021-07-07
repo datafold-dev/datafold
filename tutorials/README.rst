@@ -49,7 +49,7 @@ List
 * `06_basic_edmd_limitcycle.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/06_basic_edmd_limitcycle.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_06_basic_edmd_limitcycle.html>`__)
     We generate data from a dynamical system (Hopf system) and compare different dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate out-of-sample predictions with time ranges exceeding the time horizon of the training data.
 * `07_basic_jsf_common_eigensystem.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/07_basic_jsf_common_eigensystem.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_07_basic_jsf_common_eigensystem.html>`__)
-    We use ``JointlySmoothFunctions`` to learn commonly smooth functions from multimodal data. Also, we introduce ``JsfDataset``, which is used to make ``JointlySmoothFunctions consistent with scikit-learn's estimator and transformer APIs. Finally, we demonstrate the out-of-sample extension.
+    We use ``JointlySmoothFunctions`` to learn commonly smooth functions from multimodal data. Also, we introduce ``JsfDataset``, which is used to make ``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer APIs. Finally, we demonstrate the out-of-sample extension.
 
     **Warning**
         The code for jointly smooth functions inside this notebook is experimental.
