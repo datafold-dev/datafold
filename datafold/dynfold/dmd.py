@@ -1337,7 +1337,7 @@ class gDMDFull(DMDBase):
 
     .. warning::
         The time derivative is currently computed with finite differences (using the
-        ``findiff` <https://github.com/maroba/findiff>`__ package). For some systems the
+        `findiff <https://github.com/maroba/findiff>`__ package). For some systems the
         time derivatives is also available in analytical form (or can be computed with
         automatic differentiation). These cases are currently not supported and require
         further implementation.
