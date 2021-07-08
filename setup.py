@@ -52,6 +52,8 @@ def get_short_description():
         # if this is the case
         raise RuntimeError("The short description must not contain newline '\\n'")
 
+    return short_description
+
 
 def get_long_description():
     # use README.rst for text in PyPI:
