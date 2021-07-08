@@ -78,18 +78,17 @@ code_checks:
   allow_failure: true
   interruptible: true
 
-# TODO: errors do not lead to an non-zero exit code and currently do not fail the
-#  pipeline.
+
 docu_check:
   stage: code_analysis
   before_script:
     - source venv/bin/activate
     - python -V
   script:
-    - cd doc/ && make html
+    - sphinx-build -W -b html ./doc/source/ ./public/
   except:
     - master
-  allow_failure: false
+  allow_failure: true
   interruptible: true
 
 
@@ -98,14 +97,14 @@ pages:
   before_script:
     - source venv/bin/activate
     - python -V
-  script:
-    # flag to execute all tutorials
-    - export DATAFOLD_NBSPHINX_EXECUTE=always
     # remove all old files to have a clean build
     - rm -f -r ./public/
     - rm -f -r ./doc/build/
     - rm -f ./doc/source/api/*.rst
     - rm -f ./doc/source/_apidoc/*.rst
+  script:
+    # flag to execute all tutorials
+    - export DATAFOLD_NBSPHINX_EXECUTE=always
     # build docs
     # - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
     - sphinx-build -b html ./doc/source/ ./public/
