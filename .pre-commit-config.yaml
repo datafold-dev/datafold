@@ -15,7 +15,7 @@ repos:
     - id: black
 
 -   repo: https://github.com/pycqa/isort
-    rev: 5.9.1
+    rev: 5.9.2
     hooks:
     - id: isort
 
@@ -30,7 +30,7 @@ repos:
   rev: 0.7.0
   hooks:
     - id: nbqa-isort
-      additional_dependencies: [ isort==5.9.1 ]
+      additional_dependencies: [ isort==5.9.2 ]
       args: [ --nbqa-mutate ]
     - id: nbqa-black
       additional_dependencies: [black==21.6b0]
