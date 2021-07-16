@@ -949,7 +949,7 @@ class DMDBase(
         self,
         X: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
-    ):
+    ) -> TSCDataFrame:
         """Reconstruct time series collection.
 
         Extract the same initial states from the time series in the collection and
@@ -990,8 +990,7 @@ class DMDBase(
             X_ts = self.predict(X=X_ic, time_values=time_values)
             X_reconstruct_ts.append(X_ts)
 
-        X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)
-        return X_reconstruct_ts
+        return pd.concat(X_reconstruct_ts, axis=0)
 
     def fit_predict(self, X: TSCDataFrame, y=None, **fit_params) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
@@ -1066,7 +1065,7 @@ class DMDFull(DMDBase):
          underlying process. On the downside this mode has numerical issues if the
          system matrix is badly conditioned.
        * "matrix" to use system matrix directly. The evaluation of the system is more
-         robust. The evaluation of the system is computationally more expensive.
+         robust, but the system evaluation is computationally more expensive.
 
     is_diagonalize
         If True, also the left eigenvectors are also computed if

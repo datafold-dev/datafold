@@ -517,7 +517,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     def _setup_delay_indices_array(self):
         # zero delay (original data) is not contained as an index
         # This makes it easier to just delay through the indices (instead of computing
-        # the indices during the delay.
+        # the indices during the delay).
         return self.lag + (
             np.arange(1, (self.delays * self.frequency) + 1, self.frequency)
         )
