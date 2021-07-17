@@ -13,16 +13,17 @@ import importlib
 import os
 import shutil
 import sys
+import pathlib
 from datetime import datetime
 
-PATH2DOC = os.path.abspath(".")
-PATH2ROOT = os.path.abspath(os.path.join(PATH2DOC, "..", ".."))
-PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
+PATH2DOC = pathlib.Path(__file__).parent.resolve()
+PATH2ROOT = PATH2DOC.parent.parent
+PATH2SRC = PATH2ROOT.joinpath("datafold")
 
 try:
-    sys.path.insert(0, PATH2DOC)
-    sys.path.insert(0, PATH2ROOT)
-    sys.path.insert(0, PATH2SRC)
+    sys.path.insert(0, PATH2DOC.as_posix())
+    sys.path.insert(0, PATH2ROOT.as_posix())
+    sys.path.insert(0, PATH2SRC.as_posix())
 
     from datafold import __version__
 except ImportError:
@@ -40,7 +41,7 @@ today_fmt = "%d %B %Y"
 
 # -- General configuration ---------------------------------------------------------------
 
-needs_sphinx = "3.4.0"
+needs_sphinx = "4.0.0"
 
 # document name of the “master” document, that is, the document that contains the root
 # toctree directive

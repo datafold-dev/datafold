@@ -66,12 +66,12 @@ Download files
 
 * **If datafold was installed via PyPI, ...**
 
-  the tutorials are *not* included in the package. Download them separately from the
-   above list.
+  ... the tutorials are *not* included in the package. Download them separately from the
+  above list.
 
 * **If the datafold repository was downloaded, ...**
 
-  navigate to the folder ``/path/to/datafold/tutorials/``. Before executing the
+  ... navigate to the folder ``/path/to/datafold/tutorials/``. Before executing the
   tutorials, please make sure that the package is either installed
   (:code:`python setup.py install`) or that ``path/to/datafold/`` is
   included in the `PYTHONPATH` environment variable

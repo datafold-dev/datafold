@@ -1182,8 +1182,8 @@ class DMDFull(DMDBase):
         G_dash = shift_start_transposed.T @ shift_end_transposed
         G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
 
-        # If the matrix is square and of full rank, then x is the exact solution of
-        # the linear equation system..
+        # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
+        # solution of the linear equation system.
         koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
 
         if rank != G.shape[1]:
@@ -1222,8 +1222,8 @@ class DMDFull(DMDBase):
 
         # The reason why it is transposed:
         # K * G_k = G_{k+1}
-        # (G_k)^T * K = G_{k+1}^T  (therefore the row snapshot orientation at the
-        #                           beginning)
+        # (G_k)^T * K^T = G_{k+1}^T  (therefore the row snapshot orientation at the
+        #                             beginning)
 
         koopman_matrix = koopman_matrix.conj().T
         return koopman_matrix
