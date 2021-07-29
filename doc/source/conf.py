@@ -11,9 +11,9 @@
 
 import importlib
 import os
+import pathlib
 import shutil
 import sys
-import pathlib
 from datetime import datetime
 
 PATH2DOC = pathlib.Path(__file__).parent.resolve()
