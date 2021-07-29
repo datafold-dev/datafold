@@ -104,7 +104,7 @@ class LinearDynamicalSystem(object):
                 f"Choose from {self._cls_valid_sys_mode}"
             )
 
-    def _check_and_set_evolve_system_params(
+    def _check_and_set_system_params(
         self,
         sys_matrix: Optional[np.ndarray],
         initial_condition: np.ndarray,
@@ -125,7 +125,7 @@ class LinearDynamicalSystem(object):
                 sys_matrix = self.sys_matrix_
 
         if not isinstance(sys_matrix, np.ndarray) or sys_matrix.ndim != 2:
-            raise ValueError("sys_matrix must be 2-dim.")
+            raise ValueError("'sys_matrix' must be 2-dim. and of type np.ndarray")
 
         n_features, state_length = sys_matrix.shape
 
@@ -218,7 +218,7 @@ class LinearDynamicalSystem(object):
             feature_names_out,
         )
 
-    def _compute_specified_system_states(
+    def _evolve_system_states(
         self,
         time_series_tensor: np.ndarray,
         sys_matrix: np.ndarray,
@@ -610,7 +610,7 @@ class LinearDynamicalSystem(object):
             state_length,
             time_series_ids,
             feature_names_out,
-        ) = self._check_and_set_evolve_system_params(
+        ) = self._check_and_set_system_params(
             sys_matrix=overwrite_sys_matrix,
             initial_condition=initial_conditions,
             time_values=time_values,
@@ -625,7 +625,7 @@ class LinearDynamicalSystem(object):
             n_feature=n_features,
         )
 
-        time_series_tensor = self._compute_specified_system_states(
+        time_series_tensor = self._evolve_system_states(
             time_series_tensor=time_series_tensor,
             sys_matrix=sys_matrix,
             initial_conditions=initial_conditions,
