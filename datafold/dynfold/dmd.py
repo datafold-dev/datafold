@@ -821,10 +821,7 @@ class DMDBase(
             )
 
         if self.time_invariant:
-            if time_values.dtype.kind in "mM":
-                shift = np.min(time_values)
-            else:
-                shift = 0
+            shift = np.min(time_values)
         else:
             # If the dmd time is shifted during data (e.g. the minimum processed data
             # starts with time=5, some positive value) then normalize the time_samples
