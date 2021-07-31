@@ -250,7 +250,7 @@ except KeyError:
     # default
     print(
         "INFO: no environment variable DATFOLD_NBSPHINX_EXECUTE. Defaulting to not "
-        "execute tutorial files."
+        "execute tutorial notebooks."
     )
     nbsphinx_execute = "never"
 
