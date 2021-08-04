@@ -86,7 +86,7 @@ Software management
 
    * -
      - Badge (Link)
-   * - Support and feedback
+   * - Feedback, questions and bug reports
      - .. image:: https://img.shields.io/badge/gitlab-issue--tracker-blue?logo=gitlab
           :target: https://gitlab.com/datafold-dev/datafold/-/issues
 

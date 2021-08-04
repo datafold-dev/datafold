@@ -325,15 +325,14 @@ class EDMDTest(unittest.TestCase):
 
         pdtest.assert_frame_equal(expected, actual)
 
-    def test_time_invariant(self):
+    def test_time_invariant_system(self):
+        # the system corresponds to the Pendulum example
         theta_init = np.array([[np.pi / 3, -4], [-3 * np.pi / 4, 2]])
         theta_init_oos = np.array([np.pi / 2, -2])
 
         t_eval = np.linspace(0, 8 * np.pi, 500)
 
         from datafold.utils._systems import Pendulum
-        from datafold.dynfold import DiffusionMaps
-        from datafold.pcfold import GaussianKernel
 
         system = Pendulum(friction=0.45)
         cart_df = system.predict(theta_init, time_values=t_eval).loc[:, ("x", "y")]
@@ -344,15 +343,6 @@ class EDMDTest(unittest.TestCase):
         edmd = EDMD(
             dict_steps=[
                 ("delay", TSCTakensEmbedding(delays=3, lag=0, kappa=0)),
-                (
-                    "dmap",
-                    DiffusionMaps(
-                        GaussianKernel(epsilon=5),
-                        time_exponent=0.0,
-                        n_eigenpairs=40,
-                        alpha=1,
-                    ),
-                ),
             ],
             dmd_model=DMDFull(approx_generator=False),
             include_id_state=False,

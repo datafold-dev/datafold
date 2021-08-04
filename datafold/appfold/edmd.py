@@ -596,7 +596,7 @@ class EDMD(
 
         return X
 
-    def fit(self, X: TimePredictType, y=None, **dict_fit_params) -> "EDMD":
+    def fit(self, X: TimePredictType, y=None, **fit_params) -> "EDMD":
         r"""Fit the model.
 
         Internally calls `fit_transform` of all models contained in the EDMD-dictionary (in
@@ -612,7 +612,7 @@ class EDMD(
         y : None
             ignored
 
-        **dict_fit_params: Dict[str, object]
+        **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
             each parameter name is prefixed such that parameter ``p`` for step
             ``s`` has key ``s__p``. To add parameters for the set DMD model use
@@ -646,11 +646,11 @@ class EDMD(
 
         # '_fit' calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu):
-        dict_fit_params = self._check_fit_params(**dict_fit_params or {})
-        dmd_fit_params = dict_fit_params.pop("dmd", None)
-        edmd_fit_params = dict_fit_params.pop("edmd", None)
+        fit_params = self._check_fit_params(**fit_params or {})
+        dmd_fit_params = fit_params.pop("dmd", None)
+        edmd_fit_params = fit_params.pop("edmd", None)
 
-        X_dict = self._fit(X, y, **dict_fit_params)
+        X_dict = self._fit(X, y, **fit_params)
 
         self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 
