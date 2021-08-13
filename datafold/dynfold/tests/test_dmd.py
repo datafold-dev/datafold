@@ -132,7 +132,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
     def test_time_values(self):
 
-        time_values = np.random.default_rng(1).uniform(size=(100)) * 100
+        time_values = np.random.default_rng(1).uniform(size=100) * 100
 
         actual = (
             LinearDynamicalSystem(
@@ -494,7 +494,7 @@ class DMDTest(unittest.TestCase):
 
         self.assertIsInstance(actual, TSCDataFrame)
         self.assertEqual(actual.n_timeseries, predict_ic.shape[0])
-        self.assertEqual(actual.n_timesteps, len(dmd.time_values_in_))
+        self.assertEqual(actual.n_timesteps, np.size(dmd.time_values_in_))
         nptest.assert_array_equal(actual.ids, np.arange(predict_ic.shape[0]))
 
         # provide own time series IDs in the initial condition and own time values
