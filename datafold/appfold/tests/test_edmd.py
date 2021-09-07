@@ -270,13 +270,17 @@ class EDMDTest(unittest.TestCase):
                 ("pca", TSCPrincipalComponent(n_components=2)),
             ],
             include_id_state=True,
-        ).fit(X=self.multi_waves)
+        ).fit(X=self.multi_waves, **dict(dmd__store_system_matrix=True))
 
         eval_waves = self.multi_waves.loc[pd.IndexSlice[0:1], :]
 
+        actual_matrix = _edmd.dmd_model.koopman_matrix_
         actual_modes = _edmd.koopman_modes
         actual_eigvals = _edmd.koopman_eigenvalues
         actual_eigfunc = _edmd.koopman_eigenfunction(X=eval_waves)
+
+        self.assertIsInstance(actual_matrix, np.ndarray)
+        self.assertTrue(actual_matrix.shape, (4, 4))
 
         # 2 original states
         # 4 eigenvectors in dictionary space (2 ID states + 2 PCA states)
