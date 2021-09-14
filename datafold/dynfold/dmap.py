@@ -371,7 +371,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         else:
             _kernel_cdist = kernel_cdist
 
-        _magic_tol = 1e-14  # need to adapt if not sufficient
+        _magic_tol = 1e-15  # need to adapt if not sufficient
         if (np.abs(eigvals) < _magic_tol).any():
             warnings.warn(
                 "Diffusion map eigenvalues are close to zero, which can cause "
