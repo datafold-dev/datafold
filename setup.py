@@ -80,10 +80,7 @@ def read_datafold_version():
     datafold (which would require some of the dependencies already installed)."""
     # code parts taken from https://stackoverflow.com/a/67692
 
-    path2setup = os.path.dirname(__file__)
-    version_file = os.path.join(path2setup, "datafold", "_version.py")
-    version_file = os.path.abspath(version_file)
-
+    version_file = Path.joinpath(setuppy_dir, "datafold", "_version.py")
     spec = importlib.util.spec_from_file_location("version", version_file)
     version = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(version)
@@ -139,7 +136,7 @@ setup(
     package_dir={"datafold": "datafold"},
     python_requires=">=3.7",
     install_requires=get_install_requirements(),
-    # taken from list: https://pypi.org/pypi?%3Aaction=list_classifiers
+    # classifiers from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",
@@ -149,9 +146,9 @@ setup(
     ],
     cmdclass={"build_docs": BuildDocs},
     # see https://stackoverflow.com/a/14159430
-    # Both a MANIFEST.in and package_data is required that bdist and sdist
-    # installations includes the additional files.
-    # The requirements.txt is required for setup.py and must also be copied to
+    # Both a MANIFEST.in and package_data is required such that an "bdist" or "sdist"
+    # installation includes the additional files.
+    # The "requirements.txt" is required for setup.py and must also be copied to
     # source distributions (setup.py install sdist)
     package_data={
         ".": ["requirements.txt", "LICENSE", "LICENSES_bundled", "CONTRIBUTORS"]
