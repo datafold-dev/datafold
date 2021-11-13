@@ -11,7 +11,7 @@ from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 
 import datafold.pcfold as pfold
-from datafold.dynfold.roseland import Roseland
+from datafold.dynfold import Roseland
 from datafold.dynfold.tests.helper import *
 from datafold.pcfold import GaussianKernel
 from datafold.utils.general import random_subsample
