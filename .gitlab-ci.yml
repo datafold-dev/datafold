@@ -1,3 +1,9 @@
+image: python:3.7.9
+
+before_script:
+  - python -V  # Print out python version for debugging
+  - pip install virtualenv
+
 stages:
   - remote_setup
   - test
