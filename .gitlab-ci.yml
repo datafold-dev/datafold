@@ -2,7 +2,11 @@ image: python:3.7.9
 
 before_script:
   - python -V  # Print out python version for debugging
+  - python -m pip install --upgrade pip
   - pip install virtualenv
+  - virtualenv venv
+
+
 
 stages:
   - remote_setup
@@ -36,10 +40,8 @@ workflow:
 setup:
   stage: remote_setup
   script:
-    - virtualenv venv -p ~/Python-3.7.9/python
     - source venv/bin/activate
     - python -V
-    - python -m pip install --upgrade pip
     - python -m pip install --upgrade setuptools
     - python -m pip install --upgrade twine
     - python -m pip install -r requirements-dev.txt
