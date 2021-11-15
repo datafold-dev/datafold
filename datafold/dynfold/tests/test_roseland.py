@@ -7,6 +7,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse.linalg
+from scipy.sparse.construct import random
 from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 
@@ -280,6 +281,28 @@ class RoselandTest(unittest.TestCase):
         )
 
         return 1
+
+    def test_landmark_selection(self):
+        landmark_random_state = 42
+        X_swiss_all, _ = make_swiss_roll(n_samples=500, noise=0, random_state=5)
+        data_landmark, _ = random_subsample(
+            X_swiss_all, 100, random_state=landmark_random_state
+        )
+
+        given_Y_case = Roseland(
+            GaussianKernel(epsilon=2.0), n_svdpairs=6, Y=data_landmark
+        ).fit(X_swiss_all)
+
+        given_gamma_case = Roseland(
+            GaussianKernel(epsilon=2.0),
+            n_svdpairs=6,
+            gamma=0.2,
+            random_state=landmark_random_state,
+        ).fit(X_swiss_all)
+
+        assert_equal_eigenvectors(
+            given_Y_case.svdvectors_, given_gamma_case.svdvectors_
+        )
 
 
 if __name__ == "__main__":

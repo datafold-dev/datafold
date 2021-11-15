@@ -114,6 +114,10 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
          .. math::
             |Y| = gamma|X|.
 
+    random_state
+        Random seed for the selection of the landmark set. If provided when Y is also given,
+        it is ignored. When Y is not provided it is used for the the subsampling of the landmarks.
+
     dist_kwargs
         Keyword arguments passed to the point clouds of the two sets. See
         :py:meth:`datafold.pcfold.PCManifold` for parameter arguments.
@@ -161,6 +165,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         time_exponent: float = 0,
         Y: np.ndarray = None,
         gamma: float = 0.25,
+        random_state: Optional[int] = None,
         dist_kwargs=None,
     ) -> None:
 
@@ -169,6 +174,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.time_exponent = time_exponent
         self.Y = Y
         self.gamma = gamma
+        self.random_state = random_state
         self.dist_kwargs = dist_kwargs
 
         self.svdvalues_: np.ndarray
@@ -260,7 +266,9 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         if nr_samples_landmark == len(X):
             Y = X
         else:
-            Y, _ = random_subsample(X, nr_samples_landmark)
+            Y, _ = random_subsample(
+                X, nr_samples_landmark, random_state=self.random_state
+            )
 
         if isinstance(Y, (np.ndarray, pd.DataFrame)):
             Y = PCManifold(Y)
