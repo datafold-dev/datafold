@@ -6,6 +6,8 @@ import unittest
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import pandas.testing as pdtest
 import scipy.sparse.linalg
 from scipy.sparse.construct import random
 from scipy.stats import norm
@@ -14,7 +16,7 @@ from sklearn.datasets import make_swiss_roll
 import datafold.pcfold as pfold
 from datafold.dynfold import Roseland
 from datafold.dynfold.tests.helper import *
-from datafold.pcfold import GaussianKernel
+from datafold.pcfold import GaussianKernel, TSCDataFrame
 from datafold.utils.general import random_subsample
 
 try:
@@ -23,6 +25,8 @@ except ImportError:
     IMPORTED_RDIST = False
 else:
     IMPORTED_RDIST = True
+
+# TODO: add tests using TSCDataFrame (have a look at test_dmap.py)
 
 
 class RoselandTest(unittest.TestCase):
@@ -303,6 +307,93 @@ class RoselandTest(unittest.TestCase):
         assert_equal_eigenvectors(
             given_Y_case.svdvectors_, given_gamma_case.svdvectors_
         )
+
+    def test_types_tsc(self):
+
+        # fit=TSCDataFrame
+        _x = np.linspace(0, 2 * np.pi, 20)
+        df = pd.DataFrame(
+            np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
+        )
+
+        tsc_data = TSCDataFrame.from_single_timeseries(df=df)
+
+        rose = Roseland(kernel=GaussianKernel(epsilon=0.4), n_svdpairs=4).fit(
+            tsc_data, store_kernel_matrix=True
+        )
+
+        self.assertIsInstance(rose.svdvectors_, TSCDataFrame)
+        self.assertIsInstance(rose.kernel_matrix_, TSCDataFrame)
+
+        # insert TSCDataFrame -> output TSCDataFrame
+        actual_tsc = rose.transform(tsc_data.iloc[:10, :])
+        self.assertIsInstance(actual_tsc, TSCDataFrame)
+
+        # insert np.ndarray -> output np.ndarray
+        actual_nd = rose.transform(tsc_data.iloc[:10, :].to_numpy())
+        self.assertIsInstance(actual_nd, np.ndarray)
+
+        # check that compuation it exactly the same
+        nptest.assert_array_equal(actual_tsc.to_numpy(), actual_nd)
+
+    def test_types_pcm(self):
+        # fit=TSCDataFrame
+        _x = np.linspace(0, 2 * np.pi, 20)
+        pcm_data = np.column_stack([np.sin(_x), np.cos(_x)])
+        tsc_data = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(pcm_data, columns=["sin", "cos"])
+        )
+
+        rose = Roseland(kernel=GaussianKernel(epsilon=0.4), n_svdpairs=4).fit(
+            pcm_data, store_kernel_matrix=True
+        )
+
+        self.assertIsInstance(rose.svdvectors_, np.ndarray)
+        self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
+
+        # insert np.ndarray -> output np.ndarray
+        actual_nd = rose.transform(pcm_data[:10, :])
+        self.assertIsInstance(actual_nd, np.ndarray)
+
+        # insert TSCDataFrame -> time information is returned, even when during fit no
+        # time series data was returned
+        actual_tsc = rose.transform(tsc_data.iloc[:10, :])
+        self.assertIsInstance(actual_tsc, TSCDataFrame)
+
+        nptest.assert_array_equal(actual_nd, actual_tsc)
+
+        single_sample = tsc_data.iloc[[0], :]
+        actual = rose.transform(single_sample)
+        self.assertIsInstance(actual, TSCDataFrame)
+
+    def test_sparse_time_series_collection(self):
+        X1 = pd.DataFrame(make_swiss_roll(n_samples=250)[0])
+        X2 = pd.DataFrame(make_swiss_roll(n_samples=250)[0])
+
+        X = TSCDataFrame.from_frame_list([X1, X2])
+
+        actual_rose = Roseland(
+            kernel=GaussianKernel(epsilon=1.25),
+            n_svdpairs=6,
+            dist_kwargs=dict(cut_off=10),
+        )
+        actual_result = actual_rose.fit_transform(X, store_kernel_matrix=True)
+
+        expected_rose = Roseland(
+            kernel=GaussianKernel(epsilon=1.25),
+            n_svdpairs=6,
+            dist_kwargs=dict(cut_off=10),
+        )
+        expected_result = expected_rose.fit_transform(
+            X.to_numpy(), store_kernel_matrix=True
+        )
+
+        self.assertIsInstance(actual_rose.kernel_matrix_, scipy.sparse.csr_matrix)
+        self.assertIsInstance(expected_rose.kernel_matrix_, scipy.sparse.csr_matrix)
+        self.assertIsInstance(actual_result, TSCDataFrame)
+        self.assertIsInstance(expected_result, np.ndarray)
+
+        nptest.assert_equal(actual_result.to_numpy(), expected_result)
 
 
 if __name__ == "__main__":

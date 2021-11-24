@@ -9,7 +9,7 @@ import scipy.sparse.linalg
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.dynfold.base import TSCTransformerMixin
+from datafold.dynfold.base import TransformType, TSCTransformerMixin
 from datafold.pcfold import PCManifold, TSCDataFrame
 from datafold.pcfold.eigsolver import NumericalMathError
 from datafold.pcfold.kernels import GaussianKernel, KernelType, PCManifoldKernel
@@ -28,8 +28,14 @@ class _RoselandKernelAlgorithms:
 
     @staticmethod
     def solve_svdproblem(
-        kernel_matrix: KernelType, n_svdtriplets: int, normalize_diagonal: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        kernel_matrix: KernelType,
+        n_svdtriplets: int,
+        normalize_diagonal: np.ndarray,
+        index_from_left: Optional[TSCDataFrame] = None,
+        index_from_right: Optional[TSCDataFrame] = None,
+    ) -> Tuple[
+        np.ndarray, Union[np.ndarray, TSCDataFrame], Union[np.ndarray, TSCDataFrame]
+    ]:
 
         svdvects, svdvals, right_svdvects = scipy.sparse.linalg.svds(
             kernel_matrix,
@@ -73,7 +79,23 @@ class _RoselandKernelAlgorithms:
         # Change coordinates of the left singular vectors by using the diagonal matrix
         svdvects = diagmat_dot_mat(normalize_diagonal, np.asarray(svdvects))
 
-        return svdvals, svdvects, right_svdvects.T
+        if index_from_left is not None:
+            svdvects = TSCDataFrame.from_same_indices_as(
+                index_from_left,
+                svdvects,
+                except_columns=[f"sv{i}" for i in range(n_svdtriplets)],
+            )
+
+        right_svdvects = right_svdvects.T
+
+        if index_from_right is not None:
+            right_svdvects = TSCDataFrame.from_same_indices_as(
+                index_from_right,
+                right_svdvects,
+                except_columns=[f"sv{i}" for i in range(n_svdtriplets)],
+            )
+
+        return svdvals, svdvects, right_svdvects
 
 
 class Roseland(BaseEstimator, TSCTransformerMixin):
@@ -228,14 +250,22 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             self.kernel if self.kernel is not None else self._get_default_kernel()
         )
 
-        if isinstance(X, (np.ndarray, pd.DataFrame)):
+        if isinstance(X, TSCDataFrame):
+            self.X_fit_ = TSCDataFrame(
+                X, kernel=internal_kernel, dist_kwargs=self.dist_kwargs_
+            )
+        elif isinstance(X, (np.ndarray, pd.DataFrame)):
             self.X_fit_ = PCManifold(
                 X,
                 kernel=internal_kernel,
                 dist_kwargs=self.dist_kwargs_,
             )
 
-        if isinstance(Y, (np.ndarray, pd.DataFrame)):
+        if isinstance(Y, TSCDataFrame):
+            self.Y_fit_ = TSCDataFrame(
+                Y, kernel=internal_kernel, dist_kwargs=self.dist_kwargs_
+            )
+        elif isinstance(Y, (np.ndarray, pd.DataFrame)):
             self.Y_fit_ = PCManifold(
                 Y,
                 kernel=internal_kernel,
@@ -266,9 +296,12 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         if nr_samples_landmark == len(X):
             Y = X
         else:
-            Y, _ = random_subsample(
+            Y, indices = random_subsample(
                 X, nr_samples_landmark, random_state=self.random_state
             )
+            # TODO: (until end of function) - reimplement with TSCManifoldKernel
+            if isinstance(X, TSCDataFrame):
+                Y_tsc = X.iloc[sorted(indices), :]
 
         if isinstance(Y, (np.ndarray, pd.DataFrame)):
             Y = PCManifold(Y)
@@ -281,11 +314,14 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         if self.dist_kwargs is None:
             self.dist_kwargs = dict(cut_off=Y.cut_off)
 
-        return Y
+        if isinstance(X, TSCDataFrame):
+            return Y_tsc
+        else:
+            return Y
 
     def fit(
         self,
-        X: np.ndarray,
+        X: TransformType,
         y=None,
         **fit_params,
     ) -> "Roseland":
@@ -293,7 +329,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         Parameters
         ----------
-        X: numpy.ndarray
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
             Training data.
 
         y: None
@@ -324,6 +360,27 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             kernel_matrix_, normalize_diagonal
         )
 
+        # try and match timestamps for timeseries data
+        if (
+            isinstance(self.X_fit_, TSCDataFrame)
+            and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
+        ):
+            # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
+            # series, then take incides from X_fit_ -- this only works if no samples are
+            # dropped in the kernel computation.
+            index_from_left: Optional[Union[TSCDataFrame, None]] = self.X_fit_
+        else:
+            index_from_left = None
+
+        if (
+            isinstance(self.Y_fit_, TSCDataFrame)
+            and kernel_matrix_.shape[1] == self.Y_fit_.shape[0]
+        ):
+            # as above for Y_fit_
+            index_from_right: Optional[TSCDataFrame] = self.Y_fit_
+        else:
+            index_from_right = None
+
         (
             self.svdvalues_,
             self.svdvectors_,
@@ -332,9 +389,22 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             kernel_matrix=kernel_matrix_,
             n_svdtriplets=self.n_svdpairs,
             normalize_diagonal=normalize_diagonal,
+            index_from_left=index_from_left,
+            index_from_right=index_from_right,
         )
 
         if store_kernel_matrix:
+            if (
+                isinstance(self.X_fit_, TSCDataFrame)
+                and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
+                and index_from_left is not None
+            ):
+                kernel_matrix_ = TSCDataFrame.from_same_indices_as(
+                    # TODO: fix from_same_indices_as to accept sparse input
+                    values=kernel_matrix_.todense(),
+                    indices_from=index_from_left,
+                    except_columns=range(len(self.Y_fit_)),
+                )
             self.kernel_matrix_ = kernel_matrix_
 
         return self
@@ -357,12 +427,12 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         return roseland_embedding
 
-    def fit_transform(self, X: np.ndarray, y=None, **fit_params) -> np.ndarray:
+    def fit_transform(self, X: TransformType, y=None, **fit_params) -> np.ndarray:
         """Compute Roseland fit from data and apply embedding on the same data.
 
         Parameters
         ----------
-        X: numpy.ndarray
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
             Training data.
 
         y: None
@@ -372,7 +442,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         Returns
         -------
-        numpy.ndarray
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
             the new coordinates of the points in X
 
         """
@@ -381,7 +451,16 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         svdvec, svdvals, _ = self._select_svdpairs_target_coords()
 
-        return self._perform_roseland_embedding(svdvec, svdvals)
+        roseland_embedding = self._perform_roseland_embedding(svdvec, svdvals)
+
+        if isinstance(X, TSCDataFrame):
+            roseland_embedding = TSCDataFrame.from_same_indices_as(
+                indices_from=X,
+                values=roseland_embedding,
+                except_columns=range(len(svdvals)),
+            )
+
+        return roseland_embedding
 
     def _select_svdpairs_target_coords(self):
         """Returns either
@@ -462,7 +541,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
         self.dist_kwargs_.setdefault("cut_off", np.inf)
 
-    def transform(self, X: np.ndarray) -> np.ndarray:
+    def transform(self, X: TransformType) -> TransformType:
 
         r"""Embed out-of-sample points with the Nyström extension:
 
@@ -476,12 +555,12 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         Parameters
         ----------
-        X: numpy.ndarray
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
             Data points to be embedded.
 
         Returns
         -------
-        numpy.ndarray
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
             the new coordinates of the points in X
         """
         check_is_fitted(
@@ -510,11 +589,24 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             svdvals=svdvals,
         )
 
-        svdvec_nystroem = diagmat_dot_mat(
-            normalize_diagonal, np.asarray(svdvec_nystroem)
-        )
+        # handle special case of single sample
+        if normalize_diagonal.size == 1:
+            svdvec_nystroem *= normalize_diagonal
+        else:
+            svdvec_nystroem = diagmat_dot_mat(
+                normalize_diagonal, np.asarray(svdvec_nystroem)
+            )
 
-        return self._perform_roseland_embedding(svdvec_nystroem, svdvals)
+        roseland_embedding = self._perform_roseland_embedding(svdvec_nystroem, svdvals)
+
+        if isinstance(X, TSCDataFrame) and kernel_matrix_cdist.shape[0] == X.shape[0]:
+            roseland_embedding = TSCDataFrame.from_same_indices_as(
+                indices_from=X,
+                values=roseland_embedding,
+                except_columns=range(len(svdvals)),
+            )
+
+        return roseland_embedding
 
     def _nystrom(self, kernel_cdist, right_svdvec, svdvals):
         _kernel_cdist = kernel_cdist
@@ -564,7 +656,13 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         """
 
         if scipy.sparse.issparse(kernel_matrix):
-            kernel_matrix = kernel_matrix.multiply(normalize_diagonal[:, np.newaxis])
+            # handle special case of single sample
+            if normalize_diagonal.size == 1:
+                kernel_matrix = kernel_matrix.multiply(normalize_diagonal)
+            else:
+                kernel_matrix = kernel_matrix.multiply(
+                    normalize_diagonal[:, np.newaxis]
+                )
         else:
             kernel_matrix = diagmat_dot_mat(normalize_diagonal, kernel_matrix)
 
