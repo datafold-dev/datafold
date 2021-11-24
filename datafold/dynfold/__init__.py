@@ -42,6 +42,7 @@ from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
 )
+from datafold.dynfold.roseland import Roseland
 from datafold.dynfold.transform import (
     TSCApplyLambdas,
     TSCFeaturePreprocess,
