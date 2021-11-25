@@ -31,11 +31,8 @@ class _RoselandKernelAlgorithms:
         kernel_matrix: KernelType,
         n_svdtriplets: int,
         normalize_diagonal: np.ndarray,
-        index_from_left: Optional[TSCDataFrame] = None,
-        index_from_right: Optional[TSCDataFrame] = None,
-    ) -> Tuple[
-        np.ndarray, Union[np.ndarray, TSCDataFrame], Union[np.ndarray, TSCDataFrame]
-    ]:
+        index_from: Optional[TSCDataFrame] = None,
+    ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame], np.ndarray]:
 
         svdvects, svdvals, right_svdvects = scipy.sparse.linalg.svds(
             kernel_matrix,
@@ -79,21 +76,14 @@ class _RoselandKernelAlgorithms:
         # Change coordinates of the left singular vectors by using the diagonal matrix
         svdvects = diagmat_dot_mat(normalize_diagonal, np.asarray(svdvects))
 
-        if index_from_left is not None:
+        if index_from is not None:
             svdvects = TSCDataFrame.from_same_indices_as(
-                index_from_left,
+                index_from,
                 svdvects,
                 except_columns=[f"sv{i}" for i in range(n_svdtriplets)],
             )
 
         right_svdvects = right_svdvects.T
-
-        if index_from_right is not None:
-            right_svdvects = TSCDataFrame.from_same_indices_as(
-                index_from_right,
-                right_svdvects,
-                except_columns=[f"sv{i}" for i in range(n_svdtriplets)],
-            )
 
         return svdvals, svdvects, right_svdvects
 
@@ -261,11 +251,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
                 dist_kwargs=self.dist_kwargs_,
             )
 
-        if isinstance(Y, TSCDataFrame):
-            self.Y_fit_ = TSCDataFrame(
-                Y, kernel=internal_kernel, dist_kwargs=self.dist_kwargs_
-            )
-        elif isinstance(Y, (np.ndarray, pd.DataFrame)):
+        if isinstance(Y, (np.ndarray, pd.DataFrame)):
             self.Y_fit_ = PCManifold(
                 Y,
                 kernel=internal_kernel,
@@ -299,9 +285,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             Y, indices = random_subsample(
                 X, nr_samples_landmark, random_state=self.random_state
             )
-            # TODO: (until end of function) - reimplement with TSCManifoldKernel
-            if isinstance(X, TSCDataFrame):
-                Y_tsc = X.iloc[sorted(indices), :]
 
         if isinstance(Y, (np.ndarray, pd.DataFrame)):
             Y = PCManifold(Y)
@@ -314,10 +297,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         if self.dist_kwargs is None:
             self.dist_kwargs = dict(cut_off=Y.cut_off)
 
-        if isinstance(X, TSCDataFrame):
-            return Y_tsc
-        else:
-            return Y
+        return Y
 
     def fit(
         self,
@@ -368,18 +348,9 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
             # series, then take incides from X_fit_ -- this only works if no samples are
             # dropped in the kernel computation.
-            index_from_left: Optional[Union[TSCDataFrame, None]] = self.X_fit_
+            index_from: Optional[Union[TSCDataFrame, None]] = self.X_fit_
         else:
-            index_from_left = None
-
-        if (
-            isinstance(self.Y_fit_, TSCDataFrame)
-            and kernel_matrix_.shape[1] == self.Y_fit_.shape[0]
-        ):
-            # as above for Y_fit_
-            index_from_right: Optional[TSCDataFrame] = self.Y_fit_
-        else:
-            index_from_right = None
+            index_from = None
 
         (
             self.svdvalues_,
@@ -389,20 +360,20 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             kernel_matrix=kernel_matrix_,
             n_svdtriplets=self.n_svdpairs,
             normalize_diagonal=normalize_diagonal,
-            index_from_left=index_from_left,
-            index_from_right=index_from_right,
+            index_from=index_from,
         )
 
         if store_kernel_matrix:
             if (
                 isinstance(self.X_fit_, TSCDataFrame)
                 and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
-                and index_from_left is not None
+                and index_from is not None
+                and not isinstance(kernel_matrix_, scipy.sparse.spmatrix)
             ):
                 kernel_matrix_ = TSCDataFrame.from_same_indices_as(
                     # TODO: fix from_same_indices_as to accept sparse input
                     values=kernel_matrix_.todense(),
-                    indices_from=index_from_left,
+                    indices_from=index_from,
                     except_columns=range(len(self.Y_fit_)),
                 )
             self.kernel_matrix_ = kernel_matrix_

@@ -376,6 +376,7 @@ class RoselandTest(unittest.TestCase):
             kernel=GaussianKernel(epsilon=1.25),
             n_svdpairs=6,
             dist_kwargs=dict(cut_off=10),
+            random_state=42,
         )
         actual_result = actual_rose.fit_transform(X, store_kernel_matrix=True)
 
@@ -383,17 +384,21 @@ class RoselandTest(unittest.TestCase):
             kernel=GaussianKernel(epsilon=1.25),
             n_svdpairs=6,
             dist_kwargs=dict(cut_off=10),
+            random_state=42,
         )
+
         expected_result = expected_rose.fit_transform(
             X.to_numpy(), store_kernel_matrix=True
         )
 
-        self.assertIsInstance(actual_rose.kernel_matrix_, scipy.sparse.csr_matrix)
-        self.assertIsInstance(expected_rose.kernel_matrix_, scipy.sparse.csr_matrix)
+        self.assertIsInstance(actual_rose.kernel_matrix_, scipy.sparse.spmatrix)
+        self.assertIsInstance(expected_rose.kernel_matrix_, scipy.sparse.spmatrix)
         self.assertIsInstance(actual_result, TSCDataFrame)
         self.assertIsInstance(expected_result, np.ndarray)
 
-        nptest.assert_equal(actual_result.to_numpy(), expected_result)
+        nptest.assert_allclose(
+            actual_result.to_numpy(), expected_result, rtol=1e-6, atol=1e-12
+        )
 
 
 if __name__ == "__main__":
