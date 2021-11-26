@@ -1,13 +1,3 @@
-image: python:3.7.9
-
-before_script:
-  - python -V  # Print out python version for debugging
-  - python -m pip install --upgrade pip
-  - pip install virtualenv
-  - virtualenv venv
-
-
-
 stages:
   - remote_setup
   - test
@@ -29,9 +19,7 @@ cache:
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: never    
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-      when: never  # Prevent pipeline run for push event
+      when: never
     - when: always
 
 
@@ -42,8 +30,10 @@ workflow:
 setup:
   stage: remote_setup
   script:
+    - virtualenv venv -p ~/Python-3.7.9/python
     - source venv/bin/activate
     - python -V
+    - python -m pip install --upgrade pip
     - python -m pip install --upgrade setuptools
     - python -m pip install --upgrade twine
     - python -m pip install -r requirements-dev.txt
