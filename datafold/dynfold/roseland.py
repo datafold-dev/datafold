@@ -364,18 +364,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         )
 
         if store_kernel_matrix:
-            if (
-                isinstance(self.X_fit_, TSCDataFrame)
-                and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
-                and index_from is not None
-                and not isinstance(kernel_matrix_, scipy.sparse.spmatrix)
-            ):
-                kernel_matrix_ = TSCDataFrame.from_same_indices_as(
-                    # TODO: fix from_same_indices_as to accept sparse input
-                    values=kernel_matrix_.todense(),
-                    indices_from=index_from,
-                    except_columns=range(len(self.Y_fit_)),
-                )
             self.kernel_matrix_ = kernel_matrix_
 
         return self

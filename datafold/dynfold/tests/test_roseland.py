@@ -323,7 +323,10 @@ class RoselandTest(unittest.TestCase):
         )
 
         self.assertIsInstance(rose.svdvectors_, TSCDataFrame)
-        self.assertIsInstance(rose.kernel_matrix_, TSCDataFrame)
+        # Change to sparse matrix behaviour wrt dmap:
+        # dmap returns sparse matrix only if cut-off is specified
+        # while roseland always specifies cut-off for the landmark set
+        self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
 
         # insert TSCDataFrame -> output TSCDataFrame
         actual_tsc = rose.transform(tsc_data.iloc[:10, :])
