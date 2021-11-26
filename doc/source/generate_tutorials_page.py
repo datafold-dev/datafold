@@ -200,6 +200,15 @@ add_tutorial(
     warning="The code for jointly smooth functions inside this notebook is experimental.",
 )
 
+add_tutorial(
+    "08_basic_roseland_scurve_digits.ipynb",
+    "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
+    "S-curved point cloud manifold and to cluster data from handwritten digit. "
+    "We also select the best combination of intrinsic parameters automatically "
+    "with an optimization routine and demonstrate how to do include this in an "
+    "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
+)
+
 
 def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
     for file in os.listdir(PATH2DOCSOURCE):
