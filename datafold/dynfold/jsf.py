@@ -15,6 +15,8 @@ from datafold.pcfold.kernels import GaussianKernel, PCManifoldKernel
 from datafold.utils.general import mat_dot_diagmat
 
 
+# TODO: replace with datafold.utils.general.sort_eigenpairs
+#  -- Note that one sorts abs. values, the other complex values directly
 def sort_eigensystem(eigenvalues, eigenvectors):
     idx = np.argsort(np.abs(eigenvalues))[::-1]
     sorted_eigenvalues = eigenvalues[idx]

@@ -19,9 +19,9 @@ The package includes:
 
 * Data structures to handle point clouds on manifolds (``PCManifold``) and time series
   collections (``TSCDataFrame``). The data structures are used both internally and for
-  model input/outputs. In contrast to solutions of found in other projects,
-  resorting to lists of Numpy arrays, ``TSCDataFrame`` makes it much easier to describe
-  collected time series data by storing the data in a single object.
+  model input/outputs. In contrast to solutions found in other projects, such as
+  lists of Numpy arrays, ``TSCDataFrame`` makes it much easier to describe many forms of
+  time series data in a single object.
 * An efficient implementation of the ``DiffusionMaps`` model to infer geometric
   meaningful structures from data, such as the eigenfunctions of the
   Laplace-Beltrami operator. As a distinguishing factor to other implementations, the
@@ -33,12 +33,11 @@ The package includes:
   Laplacian Pyramids or Geometric Harmonics to interpolate general function values on a
   point cloud manifold.
 * An implementation of the (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull``
-  or ``EDMD``) as a data-driven model to identify dynamical systems from time series
-  collection data. The EDMD model subclasses from flexible scikit-learn
+  or ``EDMD``) as data-driven methods to identify dynamical systems from time series
+  collection data. ``EDMD`` subclasses from the flexible scikit-learn
   `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html>`__,
   which allows setting up and transforming time series collection data to a more suitable
-  feature state (cf. Koopman operator theory). Two interesting transformations are the
-  Diffusion Maps and time-delay embedding series for phase space reconstruction.
+  feature state (cf. Koopman operator theory).
 * ``EDMDCV`` allows model parameters to be optimized with cross-validation splittings that
   account for the temporal order in time series collections.
 
@@ -101,7 +100,8 @@ Installation requires `Python>=3.7 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
 `setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed. Both
 packages usually ship with a standard Python installation. The package dependencies
-install automatically, the main dependencies are listed below in "Dependencies".
+install automatically. The main dependencies and their role in *datafold* are listed below
+in "Dependencies".
 
 There are two ways to install *datafold*:
 
@@ -123,7 +123,7 @@ To install the package and its dependencies with :code:`pip`, run
 
     If you run Python in an Anaconda environment you can use pip from within ``conda``.
     See also
-    `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
+    `official instructions <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__.
 
     .. code-block:: bash
 
@@ -149,8 +149,8 @@ Download or git-clone the source code repository.
         git clone https://gitlab.com/datafold-dev/datafold.git
 
    b. If you only want access to the source code (current ``master`` branch), download one
-      of the compressed files (
-      `zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
+      of the compressed files
+      (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
       `tar <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar>`__)

@@ -270,13 +270,17 @@ class EDMDTest(unittest.TestCase):
                 ("pca", TSCPrincipalComponent(n_components=2)),
             ],
             include_id_state=True,
-        ).fit(X=self.multi_waves)
+        ).fit(X=self.multi_waves, **dict(dmd__store_system_matrix=True))
 
         eval_waves = self.multi_waves.loc[pd.IndexSlice[0:1], :]
 
+        actual_matrix = _edmd.dmd_model.koopman_matrix_
         actual_modes = _edmd.koopman_modes
         actual_eigvals = _edmd.koopman_eigenvalues
         actual_eigfunc = _edmd.koopman_eigenfunction(X=eval_waves)
+
+        self.assertIsInstance(actual_matrix, np.ndarray)
+        self.assertTrue(actual_matrix.shape, (4, 4))
 
         # 2 original states
         # 4 eigenvectors in dictionary space (2 ID states + 2 PCA states)
@@ -324,6 +328,80 @@ class EDMDTest(unittest.TestCase):
         actual = _edmd_w_sort.reconstruct(self.multi_waves)
 
         pdtest.assert_frame_equal(expected, actual)
+
+    def test_time_invariant_system(self):
+        # the system corresponds to the Pendulum example
+        theta_init = np.array([[np.pi / 3, -4], [-3 * np.pi / 4, 2]])
+        theta_init_oos = np.array([np.pi / 2, -2])
+
+        t_eval = np.linspace(0, 8 * np.pi, 500)
+
+        from datafold.utils._systems import Pendulum
+
+        system = Pendulum(friction=0.45)
+        cart_df = system.predict(theta_init, time_values=t_eval).loc[:, ("x", "y")]
+        cart_df_oos = system.predict(theta_init_oos, time_values=t_eval).loc[
+            :, ("x", "y")
+        ]
+
+        edmd = EDMD(
+            dict_steps=[
+                ("delay", TSCTakensEmbedding(delays=3, lag=0, kappa=0)),
+            ],
+            dmd_model=DMDFull(approx_generator=False),
+            include_id_state=False,
+        )
+
+        edmd_floatindex = deepcopy(edmd)
+        edmd_floatindex.fit(cart_df)
+
+        # modes @ eigenfunctions(X_ic) is the reconstructed initial state
+        X_ic = cart_df_oos.initial_states(edmd_floatindex.n_samples_ic_)
+        expected = (
+            edmd_floatindex.koopman_modes.to_numpy()
+            @ edmd_floatindex.koopman_eigenfunction(X_ic).to_numpy().T
+        )
+        expected = np.real(expected)
+        actual = edmd_floatindex.reconstruct(cart_df_oos)
+
+        nptest.assert_equal(expected.ravel(), actual.iloc[0, :].ravel())
+        self.assertEqual(actual.time_values()[0], X_ic.time_values()[-1])
+
+        # -------------------------------------------------
+        # test that if also works with datetime index
+
+        datetime_index = np.arange(
+            np.datetime64("2021-02-15"),
+            np.datetime64("2021-02-15")
+            + np.timedelta64(1, "s") * (cart_df.n_timesteps),
+            np.timedelta64(1, "s"),
+        )
+        np.hstack([datetime_index, datetime_index])
+        cart_df.index = pd.MultiIndex.from_arrays(
+            [
+                cart_df.index.get_level_values(0),
+                np.hstack([datetime_index, datetime_index]),
+            ]
+        )
+        cart_df_oos.index = pd.MultiIndex.from_arrays(
+            [cart_df_oos.index.get_level_values(0), datetime_index]
+        )
+
+        edmd_dateindex = deepcopy(edmd)
+        edmd_dateindex.fit(cart_df)
+
+        # modes @ eigenfunctions(X_ic) is the reconstructed initial state
+        X_ic = cart_df_oos.initial_states(edmd_floatindex.n_samples_ic_)
+        expected = (
+            edmd_dateindex.koopman_modes.to_numpy()
+            @ edmd_dateindex.koopman_eigenfunction(X_ic).to_numpy().T
+        )
+        expected = np.real(expected)
+        actual = edmd_dateindex.reconstruct(cart_df_oos)
+
+        self.assertTrue(actual.index.get_level_values("time").dtype.kind == "M")
+        nptest.assert_equal(expected.ravel(), actual.iloc[0, :].ravel())
+        self.assertEqual(actual.time_values()[0], X_ic.time_values()[-1])
 
     def test_koopman_eigenfunction_eval(self):
         _edmd = EDMD(

@@ -1,6 +1,6 @@
-=======================
-Welcome to **datafold**
-=======================
+===================
+Welcome to datafold
+===================
 
 **Version**: |version| **Date**: |today|
 
@@ -77,7 +77,8 @@ Install the package with ``Python>=3.7``:
     :ref:`references`
 
 
-**Overview of datafold's software management:**
+Software management
+===================
 
 .. list-table::
    :widths: 25 25
@@ -85,9 +86,10 @@ Install the package with ``Python>=3.7``:
 
    * -
      - Badge (Link)
-   * - Support and feedback
+   * - Feedback, questions and bug reports
      - .. image:: https://img.shields.io/badge/gitlab-issue--tracker-blue?logo=gitlab
           :target: https://gitlab.com/datafold-dev/datafold/-/issues
+
        .. image:: https://img.shields.io/badge/gitlab-service--desk-blue?logo=Minutemailer
           :target: mailto:incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com
    * - Packaging
@@ -141,22 +143,25 @@ https://doi.org/10.21105/joss.02283
                  title     = {datafold: data-driven models for point clouds and time series on manifolds},
                  journal   = {Journal of Open Source Software}}
 
-Affiliations
-============
+Software maintainer and affiliation
+===================================
 
 * **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
   grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
-  Applied Sciences and the center of doctoral studies in informatics (CeDoSIA) of the
+  Applied Sciences HM and the center of doctoral studies in informatics (CeDoSIA) of the
   Technical University of Munich for their support.
 
-* **Felix Dietrich** (2) FD thanks the Technical University of Munich for their support.
+* **Felix Dietrich** (`link <https://fd-research.com/>`__) (2) FD thanks the Technical
+  University of Munich for their support.
 
+All source code contributors are listed
+`here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-1. Munich University of Applied Sciences
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1. Munich University of Applied Sciences HM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Faculty of Computer Science and Mathematics in
-Pedestrian Dynamics Research Group  (`web <http://www.vadere.org/>`__)
+Pedestrian Dynamics Research Group  (`link <http://www.vadere.org/>`__)
 
 .. image:: _static/img/hm_logo.png
    :height: 81px
@@ -167,7 +172,7 @@ Pedestrian Dynamics Research Group  (`web <http://www.vadere.org/>`__)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Chair of Scientific Computing in Computer Science
-(`web <https://www.in.tum.de/en/i05/home/>`__)
+(`link <https://www.in.tum.de/en/i05/home/>`__)
 
 .. image:: _static/img/tum_logo.png
    :height: 75px

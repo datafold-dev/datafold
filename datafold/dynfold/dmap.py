@@ -164,14 +164,10 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     """Define a diffusion process on point cloud to find meaningful
     geometric descriptions.
 
-    The model can be used for
+    The method can be used for
 
     * non-linear dimension reduction
-    * approximating eigenfunctions of operators (see ``alpha`` parameter):
-
-        - Laplace-Beltrami
-        - Fokker-Plank
-        - Graph Laplacian
+    * approximating eigenfunctions of various operators (see ``alpha`` parameter).
 
     Parameters
     ----------
@@ -217,9 +213,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     Attributes
     ----------
 
-    X_fit_: PCManifold
+    X_fit_: Untion[PCManifold, TSCDataFrame]
         The training data during fit. The data is required for out-of-sample mappings;
-        the :py:class:`PCManifold` is equipped with kernel :py:class:`DmapKernelFixed`.
+        the object is equipped with kernel :py:class:`DmapKernelFixed`;
         ``np.asarray(X_fit_)`` casts the object to a standard numpy array.
 
     eigenvalues_ : numpy.ndarray
@@ -375,7 +371,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         else:
             _kernel_cdist = kernel_cdist
 
-        _magic_tol = 1e-14  # need to adapt if not sufficient
+        _magic_tol = 1e-15  # need to adapt if not sufficient
         if (np.abs(eigvals) < _magic_tol).any():
             warnings.warn(
                 "Diffusion map eigenvalues are close to zero, which can cause "

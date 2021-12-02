@@ -38,10 +38,10 @@ The bash script includes all steps that are detailed below.
        # Recommended: set up virtual environment
        python -m venv .venv
        source .venv/bin/activate
-       pip install --upgrade pip
+       python -m pip install --upgrade pip
 
        # Install package and development dependencies
-       pip install -r requirements-dev.txt
+       python -m pip install -r requirements-dev.txt
 
        # Install git hooks and code formatting tools
        pre-commit install
@@ -55,9 +55,8 @@ The bash script includes all steps that are detailed below.
        # Optional: test if tutorials run without error
        pytest tutorials/
 
-       # Optional: build documentation
-       sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
-       sphinx-build -b html ./doc/source/ ./public/
+       # Optional: build documentation (writes to "docs/build/")
+       python setup.py build_docs
 
 .. tabbed:: conda
 
@@ -97,9 +96,8 @@ The bash script includes all steps that are detailed below.
            # Optional: test if tutorials run without error
            pytest tutorials/
 
-           # Optional: build documentation
-           sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
-           sphinx-build -b html ./doc/source/ ./public/
+           # Optional: build documentation (writes to "docs/build/")
+           python setup.py build_docs
 
 
 Fork and create merge requests to *datafold*
@@ -112,9 +110,9 @@ Please read and follow the steps of gitlab's
 * `How to create a merge request <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#merging-upstream>`__
 
 .. note::
-    We have set up a "Continuous Integration" (CI) pipeline. However, the worker (a
-    `gitlab-runner`) of the parent repository is not available for forked projects (for
-    background information see
+    We set up a "Continuous Integration" (CI) pipeline. However, the worker (a
+    `gitlab-runner`) of the *datafold* repository is not available for forked projects
+    (for background information see
     `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
 
 After you have created a fork you can clone the repository with:
@@ -267,8 +265,7 @@ To build the documentation run:
 
 .. code-block:: bash
 
-   sphinx-apigen -f -o ./doc/source/_apidoc/ ./datafold/
-   sphinx-build -b html ./doc/source/ ./public/
+    python setup.py build_docs --outdir="./public"
 
-The page entry is then located at ``./public/index.html``. Please make sure that the
-required Sphinx programs are included in the path environment variable.
+The page entry is then located at ``./public/index.html``. To include the executed
+cells of the tutorials, add the flag ``--runtutorials``.

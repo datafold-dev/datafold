@@ -104,7 +104,7 @@ class LinearDynamicalSystem(object):
                 f"Choose from {self._cls_valid_sys_mode}"
             )
 
-    def _check_and_set_evolve_system_params(
+    def _check_and_set_system_params(
         self,
         sys_matrix: Optional[np.ndarray],
         initial_condition: np.ndarray,
@@ -125,7 +125,7 @@ class LinearDynamicalSystem(object):
                 sys_matrix = self.sys_matrix_
 
         if not isinstance(sys_matrix, np.ndarray) or sys_matrix.ndim != 2:
-            raise ValueError("sys_matrix must be 2-dim.")
+            raise ValueError("'sys_matrix' must be 2-dim. and of type np.ndarray")
 
         n_features, state_length = sys_matrix.shape
 
@@ -218,7 +218,7 @@ class LinearDynamicalSystem(object):
             feature_names_out,
         )
 
-    def _compute_specified_system_states(
+    def _evolve_system_states(
         self,
         time_series_tensor: np.ndarray,
         sys_matrix: np.ndarray,
@@ -610,7 +610,7 @@ class LinearDynamicalSystem(object):
             state_length,
             time_series_ids,
             feature_names_out,
-        ) = self._check_and_set_evolve_system_params(
+        ) = self._check_and_set_system_params(
             sys_matrix=overwrite_sys_matrix,
             initial_condition=initial_conditions,
             time_values=time_values,
@@ -625,7 +625,7 @@ class LinearDynamicalSystem(object):
             n_feature=n_features,
         )
 
-        time_series_tensor = self._compute_specified_system_states(
+        time_series_tensor = self._evolve_system_states(
             time_series_tensor=time_series_tensor,
             sys_matrix=sys_matrix,
             initial_conditions=initial_conditions,
@@ -821,10 +821,7 @@ class DMDBase(
             )
 
         if self.time_invariant:
-            if time_values.dtype.kind in "mM":
-                shift = np.min(time_values)
-            else:
-                shift = 0
+            shift = np.min(time_values)
         else:
             # If the dmd time is shifted during data (e.g. the minimum processed data
             # starts with time=5, some positive value) then normalize the time_samples
@@ -949,7 +946,7 @@ class DMDBase(
         self,
         X: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
-    ):
+    ) -> TSCDataFrame:
         """Reconstruct time series collection.
 
         Extract the same initial states from the time series in the collection and
@@ -990,8 +987,7 @@ class DMDBase(
             X_ts = self.predict(X=X_ic, time_values=time_values)
             X_reconstruct_ts.append(X_ts)
 
-        X_reconstruct_ts = pd.concat(X_reconstruct_ts, axis=0)
-        return X_reconstruct_ts
+        return pd.concat(X_reconstruct_ts, axis=0)
 
     def fit_predict(self, X: TSCDataFrame, y=None, **fit_params) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
@@ -1066,7 +1062,7 @@ class DMDFull(DMDBase):
          underlying process. On the downside this mode has numerical issues if the
          system matrix is badly conditioned.
        * "matrix" to use system matrix directly. The evaluation of the system is more
-         robust. The evaluation of the system is computationally more expensive.
+         robust, but the system evaluation is computationally more expensive.
 
     is_diagonalize
         If True, also the left eigenvectors are also computed if
@@ -1183,8 +1179,8 @@ class DMDFull(DMDBase):
         G_dash = shift_start_transposed.T @ shift_end_transposed
         G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
 
-        # If the matrix is square and of full rank, then x is the exact solution of
-        # the linear equation system..
+        # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
+        # solution of the linear equation system.
         koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
 
         if rank != G.shape[1]:
@@ -1223,8 +1219,8 @@ class DMDFull(DMDBase):
 
         # The reason why it is transposed:
         # K * G_k = G_{k+1}
-        # (G_k)^T * K = G_{k+1}^T  (therefore the row snapshot orientation at the
-        #                           beginning)
+        # (G_k)^T * K^T = G_{k+1}^T  (therefore the row snapshot orientation at the
+        #                             beginning)
 
         koopman_matrix = koopman_matrix.conj().T
         return koopman_matrix
@@ -1333,13 +1329,14 @@ class gDMDFull(DMDBase):
         L &= \dot{X} X^{\dagger},
 
     where :math:`X` is the data with column oriented snapshots, :math:`\dagger`
-    the Moore–Penrose inverse, and :math:`\dot{X}` is the time derivative of the data.
+    the Moore–Penrose inverse, and :math:`\dot{X}` contains the time derivative.
 
     .. warning::
         The time derivative is currently computed with finite differences (using the
-        `findiff` package. For some systems the time derivatives is also available in
-        analytical form (or can be computed with automatic differentiation). These
-        cases are currently not supported and require further implementation.
+        `findiff <https://github.com/maroba/findiff>`__ package). For some systems the
+        time derivatives is also available in analytical form (or can be computed with
+        automatic differentiation). These cases are currently not supported and require
+        further implementation.
 
     ...
 
@@ -1396,7 +1393,7 @@ class gDMDFull(DMDBase):
     def __init__(
         self,
         *,  # keyword-only
-        sys_mode="spectral",
+        sys_mode: str = "spectral",
         is_diagonalize: bool = False,
         rcond: Optional[float] = None,
         kwargs_fd: Optional[dict] = None,
@@ -1460,7 +1457,7 @@ class gDMDFull(DMDBase):
         return ret_kwargs
 
     def fit(self, X: TimePredictType, y=None, **fit_params) -> "gDMDFull":
-        """Compute Koopman generator matrix and the spectral components.
+        """Compute Koopman generator matrix and spectral components.
 
         Parameters
         ----------

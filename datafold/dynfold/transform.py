@@ -462,8 +462,9 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     ----------
 
     * Original paper from Takens :cite:`takens_detecting_1981`
+    * Generalized to multiple observation :cite:`deyle_generalized_2011`
     * time delay embedding in the context of Koopman operator, e.g.
-      :cite:`champion_discovery_2019` or :cite:`arbabi_ergodic_2017`
+      :cite:`arbabi_ergodic_2017` or :cite:`champion_discovery_2019` or
     """
 
     def __init__(
@@ -516,7 +517,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     def _setup_delay_indices_array(self):
         # zero delay (original data) is not contained as an index
         # This makes it easier to just delay through the indices (instead of computing
-        # the indices during the delay.
+        # the indices during the delay).
         return self.lag + (
             np.arange(1, (self.delays * self.frequency) + 1, self.frequency)
         )

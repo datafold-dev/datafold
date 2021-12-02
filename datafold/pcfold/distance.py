@@ -799,7 +799,7 @@ def _ensure_kmin_nearest_neighbor(
             ):
                 raise ValueError("Mismatch between dataset and distance matrix.")
 
-        _ball_tree = BallTree(X, leaf_size=40, metric=metric)
+        _ball_tree = BallTree(X, leaf_size=40, metric="euclidean")
         distances, columns_indices = _ball_tree.query(
             Y[knn_query_indices, :],
             k=kmin,
