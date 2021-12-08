@@ -60,7 +60,7 @@ from copy import deepcopy
 from functools import partial
 from itertools import product
 from traceback import format_exc
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -83,10 +83,17 @@ from datafold.dynfold.base import (
     TSCPredictMixin,
     TSCTransformerMixin,
 )
-from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
+from datafold.pcfold import (
+    InitialCondition,
+    TSCDataFrame,
+    TSCKfoldSeries,
+    TSCKFoldTime,
+    allocate_time_series_tensor,
+)
 from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
+    diagmat_dot_mat,
     is_integer,
     projection_matrix_from_features,
 )
@@ -1970,3 +1977,96 @@ class EDMDPostObservable(object):  # pragma: no cover
         )
 
         return self.final_estimator_
+
+
+@warn_experimental_class
+class EDMDControl(object):  # pragma: no cover
+    # TODO: docstrings
+    def __init__(self, dict_steps: List[Tuple[str, object]]):
+        self.dict_steps = dict_steps
+        self._dmd_model = DMDControl()  # TODO: implement
+
+    def _compute_koopman_modes(self, inverse_map: np.ndarray) -> np.ndarray:
+        koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
+        return koopman_modes
+
+    def transform(self, X: TransformType) -> TransformType:
+        return self._edmd.transform(X)
+
+    def fit(self, X: TimePredictType, U=TimePredictType, **fit_params) -> "EDMDControl":
+        self._edmd = EDMD(
+            self.dict_steps, include_id_state=True, use_transform_inverse=False
+        )
+        # TODO: validate input further
+        assert X.time_delta == U.time_delta
+        assert isinstance(X.time_delta, float)
+        self._train_time_step = X.time_delta
+        fit_params = self._edmd._check_fit_params(**fit_params or {})
+        dmd_fit_params = fit_params.pop("dmd", None)
+        edmd_fit_params = fit_params.pop("edmd", None)
+        Xlift = self._edmd._fit(X, **fit_params)
+        self._dmd_model.fit(Xlift, U, **dmd_fit_params)
+        self.state_matrix = None  # TODO: state matrix A from DMDControl
+        self.input_matrix = None  # TODO: input matrix B from DMDControl
+        return self
+
+    def _step(
+        self,
+        X: InitialConditionType,
+        U: InitialConditionType,
+        qois: Optional[Union[pd.Index, List[str]]] = None,
+        **predict_params,
+    ):
+        X_dict = self.transform(X)
+        next_state_lifted = (
+            self.state_matrix_scaled @ X_dict + self.input_matrix_scaled @ U
+        )
+        next_state = self._edmd.inverse_transform(next_state_lifted)
+        return next_state
+
+    def _scale_system_for_timestep(self, time_step):
+        self.state_matrix_scaled = np.real(
+            scipy.linalg.fractional_matrix_power(
+                self.state_matrix, time_step / self._train_time_step
+            )
+        )
+        self.input_matrix_scaled = np.real(
+            scipy.linalg.fractional_matrix_power(
+                self.input_matrix, time_step / self._train_time_step
+            )
+        )
+
+    def control(
+        self,
+        X0: InitialConditionType,
+        control_func: Callable,
+        n_steps: int,
+        time_step: Optional[float] = None,
+        qois: Optional[Union[pd.Index, List[str]]] = None,
+        **predict_params,
+    ):
+        # TODO: validate input
+        #   (among ohters)
+        #   - control_func should satisfy U = control_func(t, X0)
+        #   - only single initial condition
+        time_step = time_step if time_step is not None else self._train_time_step
+        time_values = np.arange(1, n_steps + 1) * time_step
+
+        X_arr = allocate_time_series_tensor(
+            n_time_series=1,
+            n_timesteps=time_values.shape[0],
+            n_feature=X0.size,
+        )
+
+        self._scale_system_for_timestep(time_step)
+
+        for i, t in enumerate(time_values):
+            # TODO:  verify dimensions
+            X0 = self._step(X0, control_func(t, X0))
+            X_arr[:, i, :] = X0
+
+        X_ts = TSCDataFrame.from_tensor(
+            X_arr,
+            columns=self._edmd.feature_names_pred_,
+            time_values=time_values,
+        )
