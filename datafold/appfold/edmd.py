@@ -1998,9 +1998,9 @@ class EDMDControl(object):  # pragma: no cover
             self.dict_steps, include_id_state=True, use_transform_inverse=False
         )
         # TODO: validate input further
-        assert X.time_delta == U.time_delta
-        assert isinstance(X.time_delta, float)
-        self._train_time_step = X.time_delta
+        assert X.delta_time == U.delta_time
+        assert isinstance(X.delta_time, float)
+        self._train_time_step = X.delta_time
         fit_params = self._edmd._check_fit_params(**fit_params or {})
         dmd_fit_params = fit_params.pop("dmd", None)
         edmd_fit_params = fit_params.pop("edmd", None)
@@ -2036,6 +2036,40 @@ class EDMDControl(object):  # pragma: no cover
             )
         )
 
+    def predict(
+        self,
+        X0: InitialConditionType,
+        U: TimePredictType,
+        qois: Optional[Union[pd.Index, List[str]]] = None,
+        **predict_params,
+    ) -> TSCDataFrame:
+        # TODO: validate inputs
+        #   (among others)
+        #   - X0 should be only a single intial condition
+        #   - U should be a TSC of a single timeseries w/ constant delta
+        time_step = U.delta_time
+        time_values = U.time_values()
+
+        X_arr = allocate_time_series_tensor(
+            n_time_series=1,
+            n_timesteps=time_values.shape[0],
+            n_feature=X0.size,
+        )
+
+        self._scale_system_for_timestep(time_step)
+
+        for i, row in enumerate(U.iterrows()):
+            # TODO:  verify dimensions
+            X0 = self._step(X0, row[1].values)
+            X_arr[:, i, :] = X0
+
+        X_ts = TSCDataFrame.from_tensor(
+            X_arr,
+            columns=self._edmd.feature_names_pred_,
+            time_values=time_values,
+        )
+        return X_ts
+
     def control(
         self,
         X0: InitialConditionType,
@@ -2044,7 +2078,7 @@ class EDMDControl(object):  # pragma: no cover
         time_step: Optional[float] = None,
         qois: Optional[Union[pd.Index, List[str]]] = None,
         **predict_params,
-    ):
+    ) -> TSCDataFrame:
         # TODO: validate input
         #   (among ohters)
         #   - control_func should satisfy U = control_func(t, X0)
@@ -2070,3 +2104,4 @@ class EDMDControl(object):  # pragma: no cover
             columns=self._edmd.feature_names_pred_,
             time_values=time_values,
         )
+        return X_ts
