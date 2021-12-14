@@ -104,16 +104,7 @@ class LinearDynamicalSystem(object):
                 f"Choose from {self._cls_valid_sys_mode}"
             )
 
-    def _check_and_set_system_params(
-        self,
-        sys_matrix: Optional[np.ndarray],
-        initial_condition: np.ndarray,
-        time_values: np.ndarray,
-        time_delta: Optional[Union[float, int]],
-        time_series_ids,
-        feature_names_out,
-    ):
-        # SYSTEM MATRIX
+    def _check_sys_matrix(self, sys_matrix: Optional[np.ndarray]):
         if sys_matrix is None:
             # The system matrix can be overwritten from outside
             # (if sys_matrix is not None).
@@ -126,10 +117,9 @@ class LinearDynamicalSystem(object):
 
         if not isinstance(sys_matrix, np.ndarray) or sys_matrix.ndim != 2:
             raise ValueError("'sys_matrix' must be 2-dim. and of type np.ndarray")
+        return sys_matrix
 
-        n_features, state_length = sys_matrix.shape
-
-        # INITIAL CONDITION
+    def _check_initial_condition(self, initial_condition: np.ndarray, state_length: int) -> np.ndarray:
         try:
             if is_scalar(initial_condition):
                 initial_condition = [initial_condition]
@@ -154,8 +144,9 @@ class LinearDynamicalSystem(object):
                 f"Mismatch in dimensions between initial condition and system matrix. "
                 f"ic.shape[0]={initial_condition.shape[0]} is not dynmatrix.shape[1]={state_length}."
             )
+        return initial_condition
 
-        # TIME VALUES
+    def _check_time_values(self, time_values: np.ndarray):
         try:
             if is_scalar(time_values):
                 time_values = [time_values]
@@ -174,8 +165,10 @@ class LinearDynamicalSystem(object):
 
         if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
             time_values = time_values.astype(int)
-
-        # TIME DELTA
+        
+        return time_values
+    
+    def _check_time_delta(self, time_delta: Optional[Union[float, int]]):
         if self.is_differential_system():
             # for a differential system there is no time_delta -- all input is ignored
             time_delta = None
@@ -193,6 +186,29 @@ class LinearDynamicalSystem(object):
                 time_delta = float(time_delta)
             if time_delta <= 0:
                 raise ValueError(f"time_delta={time_delta} must be positive.")
+        return time_delta
+
+    def _check_and_set_system_params(
+        self,
+        sys_matrix: Optional[np.ndarray],
+        initial_condition: np.ndarray,
+        time_values: np.ndarray,
+        time_delta: Optional[Union[float, int]],
+        time_series_ids,
+        feature_names_out,
+    ):
+        # SYSTEM MATRIX
+        sys_matrix = self._check_sys_matrix(sys_matrix)
+        n_features, state_length = sys_matrix.shape
+
+        # INITIAL CONDITION
+        initial_condition = self._check_initial_condition(initial_condition, state_length)
+
+        # TIME VALUES
+        time_values = self._check_time_values(time_values)
+
+        # TIME DELTA
+        time_delta = self._check_time_delta(time_delta)
 
         # TIME SERIES IDS and FEATURE COLUMNS
         # Note: all the other checks are made during TSCDataFrame allocation.
