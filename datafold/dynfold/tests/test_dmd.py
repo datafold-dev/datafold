@@ -12,6 +12,7 @@ import scipy.linalg
 
 from datafold.dynfold import TSCTakensEmbedding
 from datafold.dynfold.dmd import (
+    ControlledLinearDynamicalSystem,
     DMDEco,
     DMDFull,
     LinearDynamicalSystem,
@@ -255,6 +256,120 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         # is a TSCDataFrame, because more than two time values are a time series
         self.assertIsInstance(actual, TSCDataFrame)
 
+
+class ControlledLinearDynamicalSystemTest(unittest.TestCase):
+    def setUp(self) -> None:
+        gen = np.random.default_rng(42)
+        self.state_size = 4
+        self.input_size = 2
+        self.n_timesteps= 6
+        self.A = gen.uniform(size=(self.state_size, self.state_size))
+        self.x0 = gen.uniform(size=self.state_size)
+        self.B = gen.uniform(size=(self.state_size, self.input_size))
+        self.u = gen.uniform(size=(self.n_timesteps, self.input_size))
+        self.t = np.linspace(0, self.n_timesteps-1, self.n_timesteps)
+        self.names = ['x'+str(i+1) for i in range(self.state_size)]
+
+        self.expected = np.zeros((self.n_timesteps, self.state_size))
+        x = self.x0
+        for idx, time in enumerate(self.t):
+            x = self.A @ x + self.B @ self.u[idx, :]
+            self.expected[idx, :] = x
+
+
+    def test_controlled_system(self):
+        actual = (ControlledLinearDynamicalSystem()
+                  .setup_matrix_system(self.A, self.B)
+                  .evolve_system(self.x0, self.u))
+
+        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)    
+
+    @unittest.skip(reason="Fractional timestep not implemented yet")
+    def test_integer_vs_fractional(self):
+        pass
+
+    def test_time_delta(self):
+        t = np.linspace(0, (self.n_timesteps-1)/2, self.n_timesteps)
+        dt = 0.5
+
+        actual = (ControlledLinearDynamicalSystem()
+                  .setup_matrix_system(self.A, self.B)
+                  .evolve_system(self.x0, self.u, t, time_delta=dt))
+        
+        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)    
+
+    def test_multi_initial_conditions(self):
+        x0 = np.array([self.x0, self.x0]).T
+        expected = np.vstack([self.expected, self.expected])
+        ts_ids = np.array((10, 20))
+
+        actual = (ControlledLinearDynamicalSystem()
+                .evolve_system(x0, self.u, self.t, self.A, self.B, 1, ts_ids, self.names, False)
+        )
+
+        nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-8, rtol=1e-13)    
+        self.assertEqual(actual.n_timesteps, len(self.t))
+        self.assertEqual(actual.n_timeseries, 2)
+        self.assertEqual(actual.columns.tolist(), self.names)
+        nptest.assert_array_equal(actual.time_values(), self.t)
+
+    def test_feature_columns(self):
+        
+        actual = (ControlledLinearDynamicalSystem()
+                  .setup_matrix_system(self.A, self.B)
+                  .evolve_system(self.x0, self.u, feature_names_out=self.names))
+
+        self.assertEqual(actual.columns.tolist(), self.names)
+
+        with self.assertRaises(ValueError):
+            (ControlledLinearDynamicalSystem()
+                  .setup_matrix_system(self.A, self.B)
+                  .evolve_system(self.x0, self.u, feature_names_out=[1,2,3]))
+
+    def test_return_types(self):
+        actual = (ControlledLinearDynamicalSystem()
+                  .setup_matrix_system(self.A, self.B)
+                  .evolve_system(self.x0, self.u[:1], time_delta = 1))
+
+        # Is a TSCDataFrame, also for single time steps
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertTrue(actual.has_degenerate())
+
+        actual = (ControlledLinearDynamicalSystem()
+                  .setup_matrix_system(self.A, self.B)
+                  .evolve_system(self.x0, self.u[:2]))
+
+        # is a TSCDataFrame, because more than two time values are a time series
+        self.assertIsInstance(actual, TSCDataFrame)
+    
+    def test_dimension_mismatch(self):
+        # non-square system matrix
+        with self.assertRaises(ValueError):
+            actual = (ControlledLinearDynamicalSystem()
+                      .setup_matrix_system(np.zeros((3,4)), np.zeros((4,4))))
+        
+        # mismatch between system and input matrix
+        with self.assertRaises(ValueError):
+            actual = (ControlledLinearDynamicalSystem()
+                      .setup_matrix_system(np.zeros((4,4)), np.zeros((3,4))))
+
+        # wrong initial condition
+        with self.assertRaises(ValueError):
+            actual = (ControlledLinearDynamicalSystem()
+                      .setup_matrix_system(np.zeros((4,4)), np.zeros((4,3)))
+                      .evolve_system(np.zeros(3), np.zeros((4,3))))    
+
+        # wrong control input
+        with self.assertRaises(ValueError):
+            actual = (ControlledLinearDynamicalSystem()
+                      .setup_matrix_system(np.zeros((4,4)), np.zeros((4,3)))
+                      .evolve_system(np.zeros(4), np.zeros((3,4))))
+
+        # wrong time values
+        with self.assertRaises(ValueError):
+            actual = (ControlledLinearDynamicalSystem()
+                      .setup_matrix_system(np.zeros((4,4)), np.zeros((4,3)))
+                      .evolve_system(np.zeros(3), np.zeros((4,3)), np.zeros(3)))  
 
 class DMDTest(unittest.TestCase):
     def _create_random_tsc(self, dim, n_samples):
