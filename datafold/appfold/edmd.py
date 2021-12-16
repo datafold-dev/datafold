@@ -83,6 +83,7 @@ from datafold.dynfold.base import (
     TSCPredictMixin,
     TSCTransformerMixin,
 )
+from datafold.dynfold.dmd import DMDControl
 from datafold.pcfold import (
     InitialCondition,
     TSCDataFrame,
@@ -1982,18 +1983,19 @@ class EDMDPostObservable(object):  # pragma: no cover
 @warn_experimental_class
 class EDMDControl(object):  # pragma: no cover
     # TODO: docstrings
-    def __init__(self, dict_steps: List[Tuple[str, object]]):
+    def __init__(
+        self,
+        dict_steps: List[Tuple[str, object]],
+    ):
         self.dict_steps = dict_steps
         self._dmd_model = DMDControl()  # TODO: implement
-
-    def _compute_koopman_modes(self, inverse_map: np.ndarray) -> np.ndarray:
-        koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
-        return koopman_modes
 
     def transform(self, X: TransformType) -> TransformType:
         return self._edmd.transform(X)
 
-    def fit(self, X: TimePredictType, U=TimePredictType, **fit_params) -> "EDMDControl":
+    def fit(
+        self, X: TimePredictType, U: TimePredictType, **fit_params
+    ) -> "EDMDControl":
         self._edmd = EDMD(
             self.dict_steps, include_id_state=True, use_transform_inverse=False
         )

@@ -13,6 +13,7 @@ import scipy.linalg
 from datafold.dynfold import TSCTakensEmbedding
 from datafold.dynfold.dmd import (
     ControlledLinearDynamicalSystem,
+    DMDControl,
     DMDEco,
     DMDFull,
     LinearDynamicalSystem,
@@ -273,8 +274,9 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
         self.expected = np.zeros((self.n_timesteps, self.state_size))
         x = self.x0
         for idx, time in enumerate(self.t):
-            x = self.A @ x + self.B @ self.u[idx, :]
             self.expected[idx, :] = x
+            x = self.A @ x + self.B @ self.u[idx, :]
+        # do not write state past last since t starts at 0
 
     def test_controlled_system(self):
         actual = (
@@ -514,6 +516,22 @@ class DMDTest(unittest.TestCase):
 
         pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
 
+    def test_dmd_control(self):
+        # FIXME: poor condition number for this test?
+        tsc_df = self._create_harmonic_tsc(100, 2)
+        tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
+        tsc_ic = tsc_df.initial_states()
+        dmd1 = DMDControl().fit(tsc_df)
+        dmd2 = DMDFull(sys_mode="matrix", approx_generator=False).fit(tsc_df)
+
+        first = dmd1.predict(
+            tsc_ic, time_values=np.arange(10), control_input=np.zeros((10, 0))
+        )
+
+        second = dmd2.predict(tsc_ic, time_values=np.arange(10))
+
+        pdtest.assert_frame_equal(first, second, rtol=1e-8, atol=1e-8)
+
     def test_mode_equivalence_gdmd(self):
         # test mode = matrix and mode = spectrum against
         # (both should obtain similar results)
@@ -696,3 +714,7 @@ class DMDTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _values = time_values.copy()[np.newaxis, :]
             dmd.predict(predict_ic, _values)
+
+
+class DMDControlTest(unittest.TestCase):
+    pass
