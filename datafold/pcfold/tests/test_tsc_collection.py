@@ -972,6 +972,27 @@ class TestTSCDataFrame(unittest.TestCase):
         actual = tsc.iloc[0, 0]
         self.assertIsInstance(actual, float)
 
+    def test_iloc_sclice3(self):
+        # test for bug reported in gitlab issue
+        # https://gitlab.com/datafold-dev/datafold/-/issues/148
+
+        df_list = [pd.DataFrame(data=[0], index=[0])]
+        df_list += [pd.DataFrame(data=range(10), index=range(10)) for i in range(2)]
+        df_list.append(pd.DataFrame(data=[0], index=[0]))
+
+        tsc_full = TSCDataFrame.from_frame_list(df_list)
+
+        test_one = tsc_full.iloc[[2, 4, 6, 13, 15, 18]]
+        self.assertIsInstance(test_one, TSCDataFrame)
+
+        test_two = tsc_full.iloc[[2, 4, 6, 13, 14, 18]]
+        self.assertIsInstance(test_two, TSCDataFrame)
+
+        from pandas.errors import DuplicateLabelError
+
+        with self.assertRaises(DuplicateLabelError):
+            tsc_full.iloc[[1, 1]]
+
     def test_slice01(self):
         tsc = TSCDataFrame(self.simple_df)
         actual = tsc["A"]
