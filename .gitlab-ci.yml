@@ -32,6 +32,7 @@ setup:
   script:
     - virtualenv venv -p ~/Python-3.7.9/python
     - source venv/bin/activate
+    - export SETUPTOOLS_USE_DISTUTILS=stdlib # https://github.com/pypa/setuptools/issues/2353#issuecomment-684452550
     - python -V
     - python -m pip install --upgrade pip
     - python -m pip install --upgrade setuptools
