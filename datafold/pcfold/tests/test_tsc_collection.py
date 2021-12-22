@@ -214,6 +214,15 @@ class TestTSCDataFrame(unittest.TestCase):
             # go in index checks
             tsc_df.index = pd.Index([1, 2, 3, 4, 5, 6, 7, 8, 9])
 
+    def test_set_datetime_index(self):
+        tsc_df = TSCDataFrame(self.simple_df.copy())
+
+        _ids = tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)
+        new_idx = np.arange(np.datetime64("2021-01-01"), np.datetime64("2021-01-10"))
+        tsc_df.index = pd.MultiIndex.from_arrays([_ids, new_idx])
+
+        self.assertTrue(tsc_df.is_datetime_index())
+
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         pdtest.assert_series_equal(
@@ -988,9 +997,7 @@ class TestTSCDataFrame(unittest.TestCase):
         test_two = tsc_full.iloc[[2, 4, 6, 13, 14, 18]]
         self.assertIsInstance(test_two, TSCDataFrame)
 
-        from pandas.errors import DuplicateLabelError
-
-        with self.assertRaises(DuplicateLabelError):
+        with self.assertRaises(pd.errors.DuplicateLabelError):
             tsc_full.iloc[[1, 1]]
 
     def test_slice01(self):

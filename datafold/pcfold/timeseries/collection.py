@@ -859,7 +859,7 @@ class TSCDataFrame(pd.DataFrame):
         if len(np.unique(_ids)) != len(_ids):
             raise AttributeError("Time series IDs appear multiple times.")
 
-        if self.is_datetime_index():
+        if is_datetime64_dtype(time_index):
             _time_index_num = time_index.astype(int)
         else:
             _time_index_num = time_index
