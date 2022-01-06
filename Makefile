@@ -113,7 +113,7 @@ unittest:
 #tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
 	$(ACTIVATE_VENV); \
-	export PYTHONPATH=$(CURRENT_PATH):$PYTHONPATH; \
+	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
 	python -m pytest tutorials/;
 
 test: unittests tutorialtest
@@ -121,8 +121,8 @@ test: unittests tutorialtest
 #tutorialtest: @ Open tutorials in Jupyter notebook (this opens a browser front end).
 tutorial:
 	$(ACTIVATE_VENV); \
-	export PYTHONPATH=$(CURRENT_PATH):$PYTHONPATH; \
-	python -m notebook ./tutorials
+	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
+	python -m notebook $(CURRENT_PATH)/tutorials/
 
 #precommit: @ Run git hooks to check and analyze the code:
 precommit:

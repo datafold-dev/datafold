@@ -12,9 +12,10 @@ from datafold.dynfold.base import TransformType, TSCTransformerMixin
 
 
 class TSCPipeline(pipeline.Pipeline, TSCTransformerMixin):  # pragma: no cover
-    @property
-    def feature_names_in_(self):
-        return self.steps[0][1].feature_names_in_
+
+    # @property # Note: this property is handled in the super class
+    # def feature_names_in_(self):
+    #    return self.steps[0][1].feature_names_in_
 
     @property
     def n_features_out_(self):
@@ -63,15 +64,15 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
             verbose=verbose,
         )
 
-    # @property
+    # @property # Note: this property is handled in the super class
     # def n_features_in_(self):
     #     # this is only to make it explicit that this is already handled by the super class
     #     return super(TSCColumnTransformer, self).n_features_in_
 
-    @property
-    def feature_names_in_(self):
-        check_is_fitted(self, "transformers_")
-        return self.transformers_[0][1].feature_names_in_
+    # @property
+    # def feature_names_in_(self):
+    #    check_is_fitted(self, "transformers_")
+    #    return self.transformers_[0][1].feature_names_in_
 
     @property
     def n_features_out_(self):
