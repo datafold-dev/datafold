@@ -176,4 +176,3 @@ clean: clean_docs clean_build
 	rm -fr coverage/;
 	find datafold/ -name __pycache__ -type d -exec rm -rf {} \;
 	find . -name .ipynb_checkpoints -type d -exec rm -rf {} \;
-

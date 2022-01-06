@@ -3,27 +3,27 @@ repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
     hooks:
-    #-   id: end-of-file-fixer
+    -   id: end-of-file-fixer
     -   id: trailing-whitespace
     -   id: requirements-txt-fixer
     -   id: check-yaml
     -   id: check-toml
 
 -   repo: https://github.com/python/black
-    rev: 21.9b0
+    rev: 21.12b0
     hooks:
     - id: black
 
 -   repo: https://github.com/pycqa/isort
-    rev: 5.9.3
+    rev: 5.10.1
     hooks:
     - id: isort
 
-#-   repo: https://github.com/kynan/nbstripout
-#    rev: 0.3.7
-#    hooks:
-#    - id: nbstripout
-#      files: ".ipynb"
+-   repo: https://github.com/kynan/nbstripout
+    rev: 0.5.0
+    hooks:
+    - id: nbstripout
+      files: ".ipynb"
 
 #-   repo: https://github.com/myint/rstcheck
 #    rev: v3.3.1
@@ -35,10 +35,10 @@ repos:
   rev: 0.7.0
   hooks:
     - id: nbqa-isort
-      additional_dependencies: [ isort==5.9.3 ]
+      additional_dependencies: [ isort==5.10.1 ]
       args: [ --nbqa-mutate ]
     - id: nbqa-black
-      additional_dependencies: [black==21.9b0]
+      additional_dependencies: [black==21.12b0]
       args: [ --nbqa-mutate ]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy

@@ -61,17 +61,17 @@ docu_check:
   stage: code_analysis
   script:
     - make docs OPEN_DOCS_BROWSER=false
+    - make clean_docs
   except:
     - master
   allow_failure: true
   interruptible: true
 
-
 pages:
   stage: deploy
   script:
     - make clean_docs
-    - make docs EXECUTE_TUTORIAL=always OUTPUT_DOCS=./public
+    - make docs OPEN_DOCS_BROWSER=false EXECUTE_TUTORIAL=always OUTPUT_DOCS=./public
   artifacts:
     paths:
     - public
