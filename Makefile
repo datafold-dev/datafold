@@ -67,7 +67,7 @@ ifeq ($(shell apt version graphviz),)
 endif
 
 #develop @ Create development environment
-develop: venv doc_deps
+develop: venv
 	$(ACTIVATE_VENV); \
 	python -m pip install -r requirements-dev.txt; \
 	python -m pre_commit install --install-hooks;
