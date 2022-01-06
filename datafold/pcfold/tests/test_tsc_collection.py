@@ -947,7 +947,7 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc = TSCDataFrame(self.simple_df)
         actual = tsc.loc[(0, 0), "A"]
 
-        self.assertIsInstance(actual, float)
+        self.assertIsInstance(actual, pd.Series)
 
     def test_iloc_slice0(self):
         tsc = TSCDataFrame(self.simple_df)
