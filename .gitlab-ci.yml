@@ -51,7 +51,7 @@ functional_tests:
 
 code_checks:
   stage: code_analysis
-  before_script:
+  script:
     - make precommit
   allow_failure: true
   interruptible: true
