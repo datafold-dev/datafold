@@ -1,5 +1,5 @@
 stages:
-  - remote_setup
+  - setup
   - test
   - code_analysis
   - deploy
@@ -7,7 +7,7 @@ stages:
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   PRE_COMMIT_DIR: "${CI_PROJECT_DIR}/.cache/pre-commit"
-  VENV_DIR: "${CI_PROJECT_DIR}/venv"
+  VENV_DIR: "${CI_PROJECT_DIR}/.venv"
 
 cache:
   paths:
@@ -25,29 +25,16 @@ workflow:
 
 # See keyword reference for the .gitlab-ci.yml file
 # https://docs.gitlab.com/ee/ci/yaml/
-
-
 setup:
-  stage: remote_setup
+  stage: setup
   script:
-    - virtualenv venv -p ~/Python-3.7.9/python
-    - source venv/bin/activate
-    - python -V
-    - python -m pip install --upgrade pip
-    - python -m pip install --upgrade setuptools
-    - python -m pip install --upgrade twine
-    - python -m pip install -r requirements-dev.txt
-
+    - make update_deps PYTHON=python3.7
+    - make versions
 
 unittests:
   stage: test
-  before_script:
-    - source venv/bin/activate
-    - python -V
   script:
-    - python -m coverage run -m pytest datafold/
-    - python -m coverage html -d ./coverage/
-    - python -m coverage report
+    - make unittests
   allow_failure: false
   artifacts:
     paths:
@@ -57,35 +44,23 @@ unittests:
   interruptible: true
 
 functional_tests:
-  before_script:
-    - source venv/bin/activate
-    - python -V
   script:
-    - export PYTHONPATH=`pwd`
-    - echo $PYTHONPATH
-    - python -m pytest tutorials/
+    - make tutorials
   allow_failure: false
   interruptible: true
-
 
 code_checks:
   stage: code_analysis
   before_script:
-    - source venv/bin/activate
-    - python -V
-  script:
-    - pre-commit run --all
+    - make precommit
   allow_failure: true
   interruptible: true
 
 
 docu_check:
   stage: code_analysis
-  before_script:
-    - source venv/bin/activate
-    - python -V
   script:
-    - sphinx-build -W -b html ./doc/source/ ./public/
+    - make docs OPEN_DOCS_BROWSER=false
   except:
     - master
   allow_failure: true
@@ -94,20 +69,9 @@ docu_check:
 
 pages:
   stage: deploy
-  before_script:
-    - source venv/bin/activate
-    - python -V
-    # remove all old files to have a clean build
-    - rm -f -r ./public/
-    - rm -f -r ./doc/build/
-    - rm -f ./doc/source/api/*.rst
-    - rm -f ./doc/source/_apidoc/*.rst
   script:
-    # flag to execute all tutorials
-    - export DATAFOLD_NBSPHINX_EXECUTE=always
-    # build docs
-    # - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
-    - sphinx-build -b html ./doc/source/ ./public/
+    - make clean_docs
+    - make docs EXECUTE_TUTORIAL=always OUTPUT_DOCS=./public
   artifacts:
     paths:
     - public
@@ -124,28 +88,20 @@ pages:
 
 # For infos of testPyPI see here: https://packaging.python.org/guides/using-testpypi/
 # Note that
-#  "The database for TestPyPI may be periodically pruned, so it is not unusual for user
-#   accounts to be deleted." -- it is best to use the same account and password as for
-#   the real PyPI, so that the TWINE variables (see below) can be re-used
-pypi_upload_test:  # uploads to test.pypi.org to see how everything renders
+# 1) It is required to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
+# 2) The database for TestPyPI may be periodically pruned, so it is not unusual for user
+#    accounts to be deleted. It is therefore best to use the same account and password as for
+#    the "true PyPI", This way the twine variables from 1) can be re-used.
+pypi_upload_test:
   stage: deploy
-  before_script:
-    - source venv/bin/activate
   script:
-    - python setup.py sdist bdist_wheel
-    - python -m twine check dist/*
-    - python -m twine upload --verbose --repository testpypi dist/*
+    - make test_pypi
   when: manual
 
-# Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:
   stage: deploy
-  before_script:
-    - source venv/bin/activate
   script:
-    - python setup.py sdist bdist_wheel
-    - python -m twine check dist/*
-    - python -m twine upload --verbose dist/*
+    - make pypi
   only:
     - master
   when: manual
