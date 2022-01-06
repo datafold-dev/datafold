@@ -34,7 +34,7 @@ setup:
 unittests:
   stage: test
   script:
-    - make unittests
+    - make unittest
   allow_failure: false
   artifacts:
     paths:
@@ -45,7 +45,7 @@ unittests:
 
 functional_tests:
   script:
-    - make tutorials
+    - make tutorialtest
   allow_failure: false
   interruptible: true
 
@@ -55,7 +55,6 @@ code_checks:
     - make precommit
   allow_failure: true
   interruptible: true
-
 
 docu_check:
   stage: code_analysis
@@ -84,7 +83,6 @@ pages:
     - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
       when: manual
       allow_failure: true
-
 
 # For infos of testPyPI see here: https://packaging.python.org/guides/using-testpypi/
 # Note that

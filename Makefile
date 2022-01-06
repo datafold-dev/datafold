@@ -1,11 +1,12 @@
 .DEFAULT_GOAL := help
 
 #Internal variables:
+CURRENT_PATH = $(shell pwd)/
 VENV_DIR = .venv
 ACTIVATE_VENV = . $(VENV_DIR)/bin/activate
-HTML_DOC_PATH = ./doc/build/html/
+HTML_DOC_PATH = $(CURRENT_PATH)/doc/build/html/
 
-.PHONY: help venv doc_deps versions docs docs_linkcheck unittests tutorials precommit ci build install uninstall test_install pypi test_pypi clean_docs clean_build clean_dev
+.PHONY: help venv doc_deps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi test_pypi clean_docs clean_build clean_dev
 
 #help: @ List available targets in this makefile
 help:
@@ -103,19 +104,25 @@ docs_linkcheck:
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
 #unittests: @ Run and report all unittests with pytest.
-unittests:
+unittest:
 	$(ACTIVATE_VENV); \
-	python -m coverage run -m pytest $(PYTESTOPTS) datafold/; \
+	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report;
 
-#tutorials: @ Run all tutorials with pytest.
-tutorials:
+#tutorialtest: @ Run all tutorials with pytest.
+tutorialtest:
 	$(ACTIVATE_VENV); \
-	export PYTHONPATH=`pwd`; \
+	export PYTHONPATH=$(CURRENT_PATH):$PYTHONPATH; \
 	python -m pytest tutorials/;
 
-test: unittests tutorials
+test: unittests tutorialtest
+
+#tutorialtest: @ Open tutorials in Jupyter notebook (this opens a browser front end).
+tutorial:
+	$(ACTIVATE_VENV); \
+	export PYTHONPATH=$(CURRENT_PATH):$PYTHONPATH; \
+	python -m notebook ./tutorials
 
 #precommit: @ Run git hooks to check and analyze the code:
 precommit:
