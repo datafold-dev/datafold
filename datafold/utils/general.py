@@ -510,11 +510,11 @@ def split_control_state_columns(
     # TODO: implement splitting by pattern
     if split_by == "index":
         if control is not None:
-            control = X.columns[control]
+            control = list(X.columns[control])
         else:
             control = []
         if state is not None:
-            state = X.columns[state]
+            state = list(X.columns[state])
     elif split_by == "pattern":
         raise NotImplementedError("split_by=pattern not yet implemented")
     elif split_by != "name":
@@ -523,4 +523,6 @@ def split_control_state_columns(
         control = []
     if state is None:
         state = [name for name in X.columns if name not in control]
+    if control == []:
+        control = [name for name in X.columns if name not in state]
     return state, control

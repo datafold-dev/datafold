@@ -2032,20 +2032,21 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         XU = np.vstack([XT.T, UT.T])
         # from `korda_mezic_kmpc_2018` - eq. 22
         G = XU @ XU.T
-        np.multiply(1 / XU.shape[0], G, out=G)  # improve condition?
+        np.multiply(1 / state.shape[0], G, out=G)  # improve condition?
         V = YT.T @ XU.T
-        np.multiply(1 / XU.shape[0], V, out=V)  # improve condition?
-        Mu, residual, rank, _ = np.linalg.lstsq(V, G, rcond=self.rcond)
+        np.multiply(1 / state.shape[0], V, out=V)  # improve condition?
+
+        # V = Mu @ G => V.T = G.T @ Mu.T
+        MuT, residual, rank, _ = np.linalg.lstsq(G.T, V.T, rcond=self.rcond)
         if rank != G.shape[1]:
             warnings.warn(
                 f"Shift matrix (shape={G.shape}) has not full rank (={rank}), falling "
                 f"back to least squares solution. The sum of residuals is: "
                 f"{np.sum(residual)}"
             )
-
         state_cols = XT.shape[1]
-        sys_matrix = Mu.conj().T[:, :state_cols]
-        control_matrix = Mu.conj().T[:, state_cols:]
+        sys_matrix = MuT.conj().T[:, :state_cols]
+        control_matrix = MuT.conj().T[:, state_cols:]
 
         return sys_matrix, control_matrix
 
@@ -2093,20 +2094,20 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             To differentiate between state and control columns, use the
             optional parameters as follows:
 
-            split_by : str
-                Splitting mode: 'index', 'name' or 'pattern'.
-                In the index mode, the other parameters are lists of column indices.
-                In the name mode, the other parameters are list of column names.
-                In the pattern mode, the other parameters provide patterns for column names.
-            control : list | str, optional
-                If provided, the matching columns will be the control columns.
-                If not provided, but state is provided, the control columns
-                will be the leftover columns which are not state.
-            state : list | str, optional
-                If provided, the columns with given indices will be the state columns.
-                If not provided, but control is provided, the state columns
-                will be the leftover columns which are not control.
-                If neither is provided, all columns are state columns.
+        split_by : str
+            Splitting mode: 'index', 'name' or 'pattern'.
+            In the index mode, the other parameters are lists of column indices.
+            In the name mode, the other parameters are list of column names.
+            In the pattern mode, the other parameters provide patterns for column names.
+        control : list | str, optional
+            If provided, the matching columns will be the control columns.
+            If not provided, but state is provided, the control columns
+            will be the leftover columns which are not state.
+        state : list | str, optional
+            If provided, the columns with given indices will be the state columns.
+            If not provided, but control is provided, the state columns
+            will be the leftover columns which are not control.
+            If neither is provided, all columns are state columns.
 
         Returns
         -------
@@ -2160,22 +2161,24 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         -------
         TSCDataFrame
         """
-        check_is_fitted(self)
+        if check_inputs:
+            check_is_fitted(self)
 
-        if isinstance(X, np.ndarray):
-            # work internally only with DataFrames
-            X = InitialCondition.from_array(X, columns=self.feature_names_in_)
-        else:
-            # for DMD the number of samples per initial condition is always 1
-            InitialCondition.validate(X, n_samples_ic=1)
+            if isinstance(X, np.ndarray):
+                # work internally only with DataFrames
+                X = InitialCondition.from_array(X, columns=self.state_columns)
+            else:
+                # for DMD the number of samples per initial condition is always 1
+                InitialCondition.validate(X, n_samples_ic=1)
 
-        self._validate_datafold_data(X)
+            self._validate_datafold_data(X)
 
-        X, time_values = self._validate_features_and_time_values(
-            X=X, time_values=time_values
-        )
+            self.is_linear_system_setup(True)
 
-        self.is_linear_system_setup(True)
+            if time_values is not None:
+                time_values = self._validate_time_values(time_values)
+
+            self._validate_feature_names(X, require_all=False)
 
         sol_tsc = self.evolve_system(
             X.to_numpy().T,

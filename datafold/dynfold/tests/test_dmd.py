@@ -287,6 +287,22 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
 
         nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)
 
+    def test_controlled_vs_linear(self):
+        controlled = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(self.A, self.B)
+            .evolve_system(self.x0, np.zeros(self.u.shape))
+        )
+        linear = (
+            LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+            .setup_matrix_system(self.A)
+            .evolve_system(self.x0, self.t, time_delta=self.t[1])
+        )
+
+        nptest.assert_allclose(
+            controlled.to_numpy(), linear.to_numpy(), atol=1e-8, rtol=1e-13
+        )
+
     @unittest.skip(reason="Fractional timestep not implemented yet")
     def test_integer_vs_fractional(self):
         pass
@@ -415,6 +431,26 @@ class DMDTest(unittest.TestCase):
         data = pd.DataFrame(np.column_stack(col_stacks))
         return TSCDataFrame.from_single_timeseries(data)
 
+    def _create_control_tsc(self, state_size, input_size, n_timesteps) -> None:
+        gen = np.random.default_rng(42)
+
+        A = gen.uniform(-1.0, 1.0, size=(state_size, state_size))
+        x0 = gen.uniform(size=state_size)
+        B = gen.uniform(-1.0, 1.0, size=(state_size, input_size))
+        u = gen.uniform(size=(n_timesteps, input_size))
+        names = ["x" + str(i + 1) for i in range(state_size)]
+
+        tsc_df = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(A, B)
+            .evolve_system(x0, u, feature_names_out=names)
+        )
+
+        for i in range(input_size):
+            tsc_df["u" + str(i + 1)] = u[:, i]
+
+        return tsc_df
+
     def test_dmd_eigenpairs(self):
         # From http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf
         # page 297 Example 9.5
@@ -517,7 +553,27 @@ class DMDTest(unittest.TestCase):
         pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
 
     def test_dmd_control(self):
-        # FIXME: poor condition number for this test?
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        n_predict = 5
+
+        tsc_df = self._create_control_tsc(state_size, input_size, n_timesteps)
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+        dmd = DMDControl(state_columns=state_cols, control_columns=input_cols).fit(
+            tsc_df.iloc[:-n_predict]
+        )
+
+        u = tsc_df[input_cols].iloc[-n_predict:]
+        t = tsc_df.index.get_level_values(1)[-n_predict:]
+        expected = tsc_df[state_cols].iloc[-n_predict:]
+        actual = dmd.predict(expected.initial_states(), control_input=u, time_values=t)
+
+        pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
+
+    def test_dmd_control_free(self):
         tsc_df = self._create_harmonic_tsc(100, 2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
         tsc_ic = tsc_df.initial_states()
@@ -531,6 +587,38 @@ class DMDTest(unittest.TestCase):
         second = dmd2.predict(tsc_ic, time_values=np.arange(10))
 
         pdtest.assert_frame_equal(first, second, rtol=1e-8, atol=1e-8)
+
+    def test_control_split(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 5
+
+        tsc_df = self._create_control_tsc(state_size, input_size, n_timesteps)
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+
+        dmd1 = DMDControl().fit(tsc_df, split_by="name", state=state_cols)
+
+        assert dmd1.control_columns == input_cols
+        assert dmd1.state_columns == state_cols
+
+        dmd2 = DMDControl().fit(tsc_df, split_by="name", control=state_cols)
+
+        assert dmd2.control_columns == state_cols
+        assert dmd2.state_columns == input_cols
+
+        dmd3 = DMDControl().fit(tsc_df, split_by="index", state=range(state_size))
+
+        assert dmd3.control_columns == input_cols
+        assert dmd3.state_columns == state_cols
+
+        dmd4 = DMDControl().fit(
+            tsc_df, split_by="index", control=range(state_size, state_size + input_size)
+        )
+
+        assert dmd4.control_columns == input_cols
+        assert dmd4.state_columns == state_cols
 
     def test_mode_equivalence_gdmd(self):
         # test mode = matrix and mode = spectrum against
