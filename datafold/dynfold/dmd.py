@@ -1935,7 +1935,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
                 raise ValueError(
                     "time_values is not equally spaced, so time_delta needs to be provided."
                 )
-        time_is_integer = not (np.diff(time_values) - time_delta).any()
+        time_is_integer = not (np.abs(np.diff(time_values) - time_delta) > 1e-12).any()
 
         if check_inputs:
             control_matrix = self._check_control_matrix(overwrite_control_matrix)
@@ -2120,7 +2120,12 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         )
         self._setup_features_and_time_attrs_fit(X=X)
 
-        state_cols, control_cols = self._split_X(X, **fit_params)
+        split_params = {
+            key: fit_params[key]
+            for key in fit_params.keys()
+            if key in self._cls_split_params
+        }
+        state_cols, control_cols = self._split_X(X, **split_params)
 
         sys_matrix, control_matrix = self._compute_koompan_matrices(
             X[state_cols], X[control_cols]
@@ -2180,7 +2185,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
             self._validate_feature_names(X, require_all=False)
 
-        sol_tsc = self.evolve_system(
+        state_tsc = self.evolve_system(
             X.to_numpy().T,
             control_input,
             time_values,
@@ -2189,7 +2194,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             feature_names_out=X.columns,
         )
 
-        return sol_tsc
+        return state_tsc
 
     def fit_predict(
         self,

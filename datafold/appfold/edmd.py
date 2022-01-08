@@ -1988,122 +1988,64 @@ class EDMDControl(object):  # pragma: no cover
         dict_steps: List[Tuple[str, object]],
     ):
         self.dict_steps = dict_steps
-        self._dmd_model = DMDControl()  # TODO: implement
+        self._dmd_model = DMDControl()
+        self._edmd = EDMD(
+            self.dict_steps, include_id_state=True, use_transform_inverse=False
+        )
 
     def transform(self, X: TransformType) -> TransformType:
         return self._edmd.transform(X)
 
     def fit(
-        self, X: TimePredictType, U: TimePredictType, **fit_params
-    ) -> "EDMDControl":
-        self._edmd = EDMD(
-            self.dict_steps, include_id_state=True, use_transform_inverse=False
-        )
-        # TODO: validate input further
-        assert X.delta_time == U.delta_time
-        assert isinstance(X.delta_time, float)
-        self._train_time_step = X.delta_time
-        fit_params = self._edmd._check_fit_params(**fit_params or {})
-        dmd_fit_params = fit_params.pop("dmd", None)
-        edmd_fit_params = fit_params.pop("edmd", None)
-        Xlift = self._edmd._fit(X, **fit_params)
-        self._dmd_model.fit(Xlift, U, **dmd_fit_params)
-        self.state_matrix = None  # TODO: state matrix A from DMDControl
-        self.input_matrix = None  # TODO: input matrix B from DMDControl
-        return self
-
-    def _step(
         self,
-        X: InitialConditionType,
-        U: InitialConditionType,
-        qois: Optional[Union[pd.Index, List[str]]] = None,
-        **predict_params,
-    ):
-        X_dict = self.transform(X)
-        next_state_lifted = (
-            self.state_matrix_scaled @ X_dict + self.input_matrix_scaled @ U
-        )
-        next_state = self._edmd.inverse_transform(next_state_lifted)
-        return next_state
+        X: TimePredictType,
+        y=None,
+        **fit_params,
+    ) -> "EDMDControl":
 
-    def _scale_system_for_timestep(self, time_step):
-        self.state_matrix_scaled = np.real(
-            scipy.linalg.fractional_matrix_power(
-                self.state_matrix, time_step / self._train_time_step
-            )
+        # TODO: validate input
+
+        split_params = {
+            key: fit_params.pop(key, None) for key in DMDControl._cls_split_params
+        }
+        state_cols, control_cols = DMDControl()._split_X(X, **split_params)
+        self.state_columns = state_cols
+        self.control_columns = control_cols
+        fit_params = self._edmd._check_fit_params(**fit_params or {})
+        dmd_fit_params = fit_params.pop("dmd", {})
+        edmd_fit_params = fit_params.pop("edmd", None)
+        Xlift = self._edmd._fit(X[self.state_columns], **fit_params)
+        if self._edmd.include_id_state:
+            Xlift = self._edmd._attach_id_state(X=X[self.state_columns], X_dict=Xlift)
+        self._edmd._inverse_map = self._edmd._compute_inverse_map(
+            X=X[self.state_columns], X_dict=Xlift
         )
-        self.input_matrix_scaled = np.real(
-            scipy.linalg.fractional_matrix_power(
-                self.input_matrix, time_step / self._train_time_step
-            )
-        )
+        dmd_fit_params["split_by"] = "name"
+        dmd_fit_params["state"] = list(Xlift.columns)
+        dmd_fit_params["control"] = self.control_columns
+        Xlift[self.control_columns] = X[self.control_columns]
+        self._dmd_model.fit(Xlift, **dmd_fit_params)
+        self.sys_matrix = self._dmd_model.sys_matrix_
+        self.control_matrix = self._dmd_model.control_matrix_
+        return self
 
     def predict(
         self,
-        X0: InitialConditionType,
-        U: TimePredictType,
-        qois: Optional[Union[pd.Index, List[str]]] = None,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        control_input: Optional[np.ndarray] = None,
+        check_inputs: bool = True,
         **predict_params,
     ) -> TSCDataFrame:
+
         # TODO: validate inputs
-        #   (among others)
-        #   - X0 should be only a single intial condition
-        #   - U should be a TSC of a single timeseries w/ constant delta
-        time_step = U.delta_time
-        time_values = U.time_values()
-
-        X_arr = allocate_time_series_tensor(
-            n_time_series=1,
-            n_timesteps=time_values.shape[0],
-            n_feature=X0.size,
-        )
-
-        self._scale_system_for_timestep(time_step)
-
-        for i, row in enumerate(U.iterrows()):
-            # TODO:  verify dimensions
-            X0 = self._step(X0, row[1].values)
-            X_arr[:, i, :] = X0
-
-        X_ts = TSCDataFrame.from_tensor(
-            X_arr,
-            columns=self._edmd.feature_names_pred_,
+        X0lift = self._edmd.transform(X)
+        Xlift_tsc = self._dmd_model.predict(
+            X0lift,
             time_values=time_values,
+            control_input=control_input,
+            check_inputs=check_inputs,
+            **predict_params,
         )
-        return X_ts
-
-    def control(
-        self,
-        X0: InitialConditionType,
-        control_func: Callable,
-        n_steps: int,
-        time_step: Optional[float] = None,
-        qois: Optional[Union[pd.Index, List[str]]] = None,
-        **predict_params,
-    ) -> TSCDataFrame:
-        # TODO: validate input
-        #   (among ohters)
-        #   - control_func should satisfy U = control_func(t, X0)
-        #   - only single initial condition
-        time_step = time_step if time_step is not None else self._train_time_step
-        time_values = np.arange(1, n_steps + 1) * time_step
-
-        X_arr = allocate_time_series_tensor(
-            n_time_series=1,
-            n_timesteps=time_values.shape[0],
-            n_feature=X0.size,
-        )
-
-        self._scale_system_for_timestep(time_step)
-
-        for i, t in enumerate(time_values):
-            # TODO:  verify dimensions
-            X0 = self._step(X0, control_func(t, X0))
-            X_arr[:, i, :] = X0
-
-        X_ts = TSCDataFrame.from_tensor(
-            X_arr,
-            columns=self._edmd.feature_names_pred_,
-            time_values=time_values,
-        )
-        return X_ts
+        X_tsc = self._edmd.inverse_transform(Xlift_tsc)
+        return X_tsc
