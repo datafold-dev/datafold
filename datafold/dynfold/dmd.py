@@ -1998,7 +1998,40 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
 
 
 class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin):
+    """Dynamic Mode Decomposition of time series data with control input to
+    approximate the Koopman operator.
 
+    The model computes the system and control matrices :math:`A` and :math:`B` with
+
+    .. math::
+        A X + B U &= X^{+} \\
+        [A,B] &= X^{+} [X, U]^{\dagger},
+
+    where :math:`X` is the data with column oriented snapshots, :math:`\dagger` the
+    the Moore–Penrose inverse and :math:`+` the future time shifted data.
+
+    ...
+
+    Parameters
+    ----------
+    rcond: Optional[float]
+        Parameter passed to :class:`numpy.linalg.lstsq`.
+
+    state_columns: Optional[List[str]]
+        Names of the columns of the input corresponding to the state
+    
+    control_columns: Optional[List[str]]
+        Names of the columns of the input corresponding to the control input
+
+    Attributes
+    -------
+    sys_matrix : np.ndarray
+        Koopman approximation of the state matrix
+
+    control_matrix : np.ndarray
+        Koopman approximation of the control matrix
+
+    """
     _cls_split_params = ("split_by", "control", "state")
 
     def __init__(

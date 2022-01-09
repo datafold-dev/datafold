@@ -1983,6 +1983,40 @@ class EDMDPostObservable(object):  # pragma: no cover
 @warn_experimental_class
 class EDMDControl(object):  # pragma: no cover
     # TODO: docstrings
+    """Adapt :class:`EDMD` to controlled systems
+
+    This class provides a wrapper around :class:`EDMD` which allows usage of
+    the main functionality (transform, fit, predict). It approximates Koopman
+    operator for a controlled system from time series collection data
+    (:py:class:`.TSCDataFrame`), using a finite function basis to represent the
+    state. The underlying DMD model is restricted to :class:`DMDControl`.
+
+    ...
+
+    Parameters
+    ----------
+    dict_steps : List[Tuple[str, object]]
+        List with `(string_identifier, model)` of models to transform the data. The
+        list defines the transformation pipeline and order of execution. All models in
+        the list must be able to accept :class:`.TSCDataFrame` as input in `fit` and
+        output in `transform`.
+
+
+    Attributes
+    ----------
+    sys_matrix : np.ndarray
+        Koopman approximation of the lifted state matrix
+
+    control_matrix : np.ndarray
+        Koopman approximation of the lifted control matrix
+
+    See Also
+    --------
+
+    :py:class:`EDMD`
+    :py:class:`DMDControl`
+
+    """    
     def __init__(
         self,
         dict_steps: List[Tuple[str, object]],
@@ -1994,6 +2028,19 @@ class EDMDControl(object):  # pragma: no cover
         )
 
     def transform(self, X: TransformType) -> TransformType:
+        """Perform dictionary transformations on time series.
+
+        Parameters
+        ----------
+        X : TSCDataFrame, pandas.DataFrame
+           Time series to transform. Must fulfill the input requirements of
+           first step of the pipeline.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame
+            The transformed time series. 
+        """
         return self._edmd.transform(X)
 
     def fit(
@@ -2002,7 +2049,40 @@ class EDMDControl(object):  # pragma: no cover
         y=None,
         **fit_params,
     ) -> "EDMDControl":
+        """Compute Koopman approximation of lifted state and control matrices
 
+        Parameters
+        ----------
+        X : TSCDataFrame
+            Input data with both state columns and control input columns.
+            To differentiate between state and control columns, use the
+            optional parameters as follows:
+
+        split_by : str
+            Splitting mode: 'index', 'name' or 'pattern'.
+            In the index mode, the other parameters are lists of column indices.
+            In the name mode, the other parameters are list of column names.
+            In the pattern mode, the other parameters provide patterns for column names.
+        control : list | str, optional
+            If provided, the matching columns will be the control columns.
+            If not provided, but state is provided, the control columns
+            will be the leftover columns which are not state.
+        state : list | str, optional
+            If provided, the columns with given indices will be the state columns.
+            If not provided, but control is provided, the state columns
+            will be the leftover columns which are not control.
+            If neither is provided, all columns are state columns.
+
+        **fit_params: Dict[str, object]
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``. To add parameters for the set DMD model use
+            ``s=dmd``, e.g. ``dmd__param``.
+    
+        Returns
+        -------
+        self
+        """
         # TODO: validate input
 
         split_params = {
@@ -2037,7 +2117,30 @@ class EDMDControl(object):  # pragma: no cover
         check_inputs: bool = True,
         **predict_params,
     ) -> TSCDataFrame:
+        """Predict time series data for each initial condition at
+        specified time values given the specified control input.
 
+        Parameters
+        ----------
+        X : InitialConditionType
+            Single initial condition of shape `(n_features,)` or multiple initial
+            conditions of shape `(n_features, n_initial_conditions)`.
+        time_values : np.ndarray
+            Time series at which to evaluate the system. Must be equally spaced
+            and use the same timestep as the training data.
+        control_input : np.ndarray
+            The control input at the provided time values with shape
+            `(n_timesteps, n_control_dimensions)
+        check_inputs : bool, optional, default True
+            Allows skipping input checks and assignemnts to improve performance.
+
+            .. warning::
+                Use with caution - May result in silent errors.
+
+        Returns
+        -------
+        TSCDataFrame
+        """
         # TODO: validate inputs
         X0lift = self._edmd.transform(X)
         Xlift_tsc = self._dmd_model.predict(
