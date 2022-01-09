@@ -2019,7 +2019,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
     state_columns: Optional[List[str]]
         Names of the columns of the input corresponding to the state
-    
+
     control_columns: Optional[List[str]]
         Names of the columns of the input corresponding to the control input
 
@@ -2032,6 +2032,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         Koopman approximation of the control matrix
 
     """
+
     _cls_split_params = ("split_by", "control", "state")
 
     def __init__(

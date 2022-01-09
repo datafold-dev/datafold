@@ -2001,6 +2001,10 @@ class EDMDControl(object):  # pragma: no cover
         the list must be able to accept :class:`.TSCDataFrame` as input in `fit` and
         output in `transform`.
 
+    include_id_state
+        If True, the original time series data are added to the EDMD-dictionary. The
+        mapping from the EDMD-dictionary states back to the full-state is then only a
+        projection and the cost of an increased EDMD-dictionary dimension.
 
     Attributes
     ----------
@@ -2016,15 +2020,19 @@ class EDMDControl(object):  # pragma: no cover
     :py:class:`EDMD`
     :py:class:`DMDControl`
 
-    """    
+    """
+
     def __init__(
         self,
         dict_steps: List[Tuple[str, object]],
+        include_id_state: bool = True,
     ):
         self.dict_steps = dict_steps
         self._dmd_model = DMDControl()
         self._edmd = EDMD(
-            self.dict_steps, include_id_state=True, use_transform_inverse=False
+            self.dict_steps,
+            include_id_state=include_id_state,
+            use_transform_inverse=False,
         )
 
     def transform(self, X: TransformType) -> TransformType:
@@ -2039,7 +2047,7 @@ class EDMDControl(object):  # pragma: no cover
         Returns
         -------
         TSCDataFrame, pandas.DataFrame
-            The transformed time series. 
+            The transformed time series.
         """
         return self._edmd.transform(X)
 
@@ -2078,7 +2086,7 @@ class EDMDControl(object):  # pragma: no cover
             each parameter name is prefixed such that parameter ``p`` for step
             ``s`` has key ``s__p``. To add parameters for the set DMD model use
             ``s=dmd``, e.g. ``dmd__param``.
-    
+
         Returns
         -------
         self
