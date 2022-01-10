@@ -66,6 +66,25 @@ docu_check:
   allow_failure: true
   interruptible: true
 
+docu_link_check:
+  stage: code_analysis
+  script:
+    - make docs_linkcheck
+  when: manual
+  except:
+    - master
+  allow_failure: true
+  interruptible: true
+
+install_check:
+    stage: code_analysis
+    script:
+      - make test_install
+    except:
+      - master
+    allow_failure: false
+    interruptible: true
+
 pages:
   stage: deploy
   script:
