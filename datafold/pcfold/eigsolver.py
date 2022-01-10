@@ -1,5 +1,5 @@
 import sys
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Dict, Tuple, Union
 
 import numpy as np
 import scipy.sparse
@@ -26,7 +26,7 @@ def scipy_eigsolver(
 
     The scipy solver is selected based on the number of eigenpairs to compute. Note
     that also for dense matrix cases a sparse solver is selected. There are two reasons
-    for this decsision:
+    for this decision:
 
     1. General dense matrix eigensolver only allow *all* eigenpairs to be computed. This
        is computational more costly than handling a dense matrix to a sparse solver
@@ -38,12 +38,18 @@ def scipy_eigsolver(
     Internal selection of backend:
 
     * If :code:`n_eigenpairs == n_samples` (for dense / sparse):
-      * symmetric `eigh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html#scipy.linalg.eigh>`_
-      * non-symmetric `eig  <https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eig.html#scipy.linalg.eig>`_
+
+      * symmetric `eigh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.
+        linalg.eigh.html#scipy.linalg.eigh>`__
+      * non-symmetric `eig <https://docs.scipy.org/doc/scipy/reference/generated/scipy.
+        linalg.eig.html#scipy.linalg.eig>`__
 
     * If :code:`n_eigenpairs < n_samples` (for dense / sparse):
-      * symmetric `eigsh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html>`_
-      * non-symmetric `eigs <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigs.html#scipy.sparse.linalg.eigs>`_
+
+      * symmetric `eigsh <https://docs.scipy.org/doc/scipy/reference/generated/scipy.
+        sparse.linalg.eigsh.html>`__
+      * non-symmetric `eigs <https://docs.scipy.org/doc/scipy/reference/generated/scipy.
+        sparse.linalg.eigs.html#scipy.sparse.linalg.eigs>`__
 
     Parameters
     ----------
@@ -58,7 +64,7 @@ def scipy_eigsolver(
         True if matrix is symmetric. Note that there is no check and also numerical
         noise that breaks the symmetry can lead to instabilities.
 
-     is_stochastic
+    is_stochastic
         If True, the kernel matrix is assumed to be row-stochastic. This enables
         setting a `sigma` close to 1 to accelerate convergence.
 

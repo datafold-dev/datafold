@@ -1,17 +1,15 @@
 import abc
 import copy
 import warnings
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
 import scipy.linalg
 from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
 from sklearn.base import BaseEstimator
-from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
-from datafold._decorators import warn_experimental_class
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (
@@ -19,7 +17,6 @@ from datafold.utils.general import (
     if1dim_colvec,
     is_scalar,
     mat_dot_diagmat,
-    projection_matrix_from_features,
     sort_eigenpairs,
 )
 
@@ -152,7 +149,8 @@ class LinearDynamicalSystem(object):
         if initial_condition.shape[0] != state_length:
             raise ValueError(
                 f"Mismatch in dimensions between initial condition and system matrix. "
-                f"ic.shape[0]={initial_condition.shape[0]} is not dynmatrix.shape[1]={state_length}."
+                f"ic.shape[0]={initial_condition.shape[0]} is not "
+                f"dynmatrix.shape[1]={state_length}."
             )
 
         # TIME VALUES
@@ -278,7 +276,7 @@ class LinearDynamicalSystem(object):
             #  - how is the fractional_matrix_power implemented? It computes internally
             #    singular values, so it'd be better to avoid calling it too often, if
             #    possible
-            #    see: https://github.com/scipy/scipy/blob/c1372d8aa90a73d8a52f135529293ff4edb98fc8/scipy/linalg/_matfuncs_inv_ssq.py
+            #    see: https://github.com/scipy/scipy/blob/c1372d8aa90a73d8a52f135529293ff4edb98fc8/scipy/linalg/_matfuncs_inv_ssq.py # noqa
 
             if self.is_differential_system():
                 for idx, time in enumerate(time_values):
@@ -375,7 +373,7 @@ class LinearDynamicalSystem(object):
             states = np.linalg.lstsq(self.eigenvectors_right_, states, rcond=None)[0]
         else:
             raise ValueError(
-                f"Attribute 'eigenvectors_right_ is None'. Please report bug."
+                "Attribute 'eigenvectors_right_ is None'. Please report bug."
             )
 
         return states
@@ -745,7 +743,7 @@ class DMDBase(
         if self.is_matrix_mode() and (
             post_map is not None or user_set_modes is not None
         ):
-            raise ValueError(f"post_map can only be provided with 'sys_type=spectral'")
+            raise ValueError("post_map can only be provided with 'sys_type=spectral'")
 
         return post_map, user_set_modes, feature_columns
 
@@ -1197,7 +1195,9 @@ class DMDFull(DMDBase):
         #     shift matrices (instead of the G, G_dash)
 
         # TODO: fit_intercept option useful to integrate?
-        # #  https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV
+        # https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.
+        # html#sklearn.linear_model.RidgeCV
+        # from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
         # from sklearn.linear_model import RidgeCV
         #
         # ridge = RidgeCV(alphas=[0.0001, 0.001, 0.01, 0.05, 1],

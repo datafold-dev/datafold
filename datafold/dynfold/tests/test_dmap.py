@@ -7,22 +7,29 @@ import unittest
 import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
-import pandas.testing as pdtest
 import scipy.sparse.linalg.eigen.arpack
 from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 from sklearn.metrics import mean_squared_error
 
-from datafold.dynfold import LocalRegressionSelection
+from datafold.dynfold import DiffusionMaps, LocalRegressionSelection
 from datafold.dynfold.dmap import DiffusionMapsVariable
-from datafold.dynfold.tests.helper import *
+from datafold.dynfold.tests.helper import (
+    assert_equal_eigenvectors,
+    circle_data,
+    cmp_dmap_legacy,
+    cmp_eigenpairs,
+    cmp_kernel_matrix,
+    make_strip,
+)
 from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
 from datafold.pcfold.kernels import ConeKernel
 from datafold.utils.general import random_subsample
 
 try:
-    import rdist
+    import rdist  # noqa
 except ImportError:
     IMPORTED_RDIST = False
 else:
@@ -648,7 +655,6 @@ class DiffusionMapsTest(unittest.TestCase):
         from time import time
 
         import datafold.pcfold as pfold
-        import datafold.utils
 
         k_neighbor = 15
         delta = 1
@@ -715,14 +721,13 @@ class DiffusionMapsTest(unittest.TestCase):
             "dist_kwargs": {"cut_off": pcm.cut_off, "backend": "scipy.kdtree"},
         }
 
-        t0 = time()
         dmap_embed = DiffusionMaps(**setting)
 
         t1 = time()
         dmap_embed.fit(data, store_kernel_matrix=True)
         t2 = time()
         (
-            kernel_matrix_,
+            _,
             _basis_change_matrix,
             _row_sums_alpha,
         ) = dmap_embed.X_fit_.compute_kernel_matrix()
@@ -733,13 +738,12 @@ class DiffusionMapsTest(unittest.TestCase):
             "v0": np.ones(data.shape[0]),
             "tol": 1e-14,
         }
-        evals, evecs = scipy.sparse.linalg.eigsh(
-            dmap_embed.kernel_matrix_, **solver_kwargs
-        )
+        _, _ = scipy.sparse.linalg.eigsh(dmap_embed.kernel_matrix_, **solver_kwargs)
         t3 = time()
 
         print(
-            f"kernel+eigsh: {t22-t2+t3-t2}, fit: {t2-t1}, kernel only: {t22-t2}, eigsh: {t3-t2}"
+            f"kernel+eigsh: {t22-t2+t3-t2}, fit: {t2-t1}, "
+            f"kernel only: {t22-t2}, eigsh: {t3-t2}"
         )
 
         return 1
@@ -1137,7 +1141,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
             data[:, 0],
             factor * dmap.eigenvectors_[:, 3],
             "-",
-            label=f"dmap_variable_kernel, ev_idx=3",
+            label="dmap_variable_kernel, ev_idx=3",
         )
 
         ax[1][0].legend()

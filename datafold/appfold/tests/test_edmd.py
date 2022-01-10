@@ -439,7 +439,6 @@ class EDMDTest(unittest.TestCase):
             ContinuousNNKernel,
             GaussianKernel,
             InverseMultiquadricKernel,
-            MultiquadricKernel,
         )
 
         kernels = [

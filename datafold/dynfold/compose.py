@@ -33,7 +33,8 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     :py:class:`TSCDataFrame` in the pipeline.
 
     For the undocumented attributes please go to the base class documentation
-    `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html>`__
+    `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.
+    ColumnTransformer.html>`__.
 
     .. note::
         The parameter ``sparse_threshold`` of the super class is not supported.
@@ -93,7 +94,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     def _hstack(self, Xs):
         if self.sparse_output_:
             raise NotImplementedError(
-                "Currently there is no support for sparse output in TSCColumnsTransformer"
+                "Currently there is no support for sparse output in TSCColumnTransformer."
             )
 
         all_columns = pd.Index(np.hstack([df.columns.to_numpy() for df in Xs]))

@@ -269,9 +269,7 @@ On a debian-like platform, install the packages with
 
 .. code-block:: bash
 
-    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
-
-(This excludes the Latex installation, see available `texlive` packages).
+    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
 
 To build the documentation run:
 

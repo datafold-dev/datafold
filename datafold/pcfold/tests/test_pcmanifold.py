@@ -4,9 +4,8 @@ import pickle
 import unittest
 
 import numpy as np
-import sklearn.datasets
 
-from datafold.pcfold import *
+from datafold.pcfold import PCManifold
 
 
 class TestPCManifold(unittest.TestCase):

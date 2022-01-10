@@ -20,12 +20,12 @@ from datafold.dynfold.transform import (
     TSCTakensEmbedding,
     TSCTransformerMixin,
 )
-from datafold.pcfold.kernels import *
+from datafold.pcfold.kernels import MultiquadricKernel
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
 
 
 def _all_tsc_transformers():
-    # only finds the ones that are importated (DMAP e.g. is not here)
+    # only finds the ones that are imported (DMAP e.g. is not here)
     print(TSCTransformerMixin.__subclasses__())
 
 

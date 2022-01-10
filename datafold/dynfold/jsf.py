@@ -342,10 +342,11 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
         Parameters
         ----------
-        new_indexed_observations: Dict[int, List[Union[TSCDataFrame, pandas.DataFrame, numpy.ndarray]]
-             A dict containing out-of-sample points for (not necessarily all) observations.
-             The keys are the indexes of the observations. The values are the observations
-             of shape `(n_samples, *n_features_of_observation*)`.
+        new_indexed_observations: Dict[int, List[Union[TSCDataFrame, pandas.DataFrame,
+        numpy.ndarray]]
+             A dict containing out-of-sample points for (not necessarily all)
+             observations. The keys are the indexes of the observations. The values are
+             the observations of shape `(n_samples, *n_features_of_observation*)`.
 
         Returns
         -------
@@ -486,8 +487,9 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
         if X.shape[1] != self.n_features_in_:
             raise ValueError(
-                "X must have the same number of features as the data with which fit was called."
-                "If you want to call it with fewer observations, you have to call nystrom"
+                "X must have the same number of features as the data with which fit was "
+                "called. If you want to call it with fewer observations, you have to "
+                "call Nystrom."
             )
 
         self._validate_feature_input(X, direction="transform")

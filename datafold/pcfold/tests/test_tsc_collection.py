@@ -155,8 +155,6 @@ class TestTSCDataFrame(unittest.TestCase):
         # the two kernels matrices must be identical
         nptest.assert_array_equal(actual_distance.to_numpy(), expected_distance)
 
-        ## set new dist_kwargs
-
     def test_set_index1(self):
         tsc_df = TSCDataFrame(self.simple_df)
 
@@ -884,7 +882,8 @@ class TestTSCDataFrame(unittest.TestCase):
 
         actual = tscdf.loc[idx[:, 17], :]
 
-        # after slicing for a single time, it is not a valid TSCDataFrame anymore, therefore fall back to pd.DataFrame
+        # after slicing for a single time, it is not a valid TSCDataFrame anymore,
+        # therefore fall back to pd.DataFrame
         self.assertIsInstance(actual, TSCDataFrame)
 
         self.assertTrue(actual.has_degenerate())

@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import numpy.testing as nptest
 
-from datafold.utils.general import *
+from datafold.utils.general import diagmat_dot_mat, mat_dot_diagmat
 
 
 class TestMathUtils(unittest.TestCase):

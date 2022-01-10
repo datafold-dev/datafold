@@ -7,7 +7,6 @@ import webbrowser
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
-import pandas.testing as pdtest
 from sklearn.pipeline import Pipeline
 from sklearn.utils import estimator_html_repr
 

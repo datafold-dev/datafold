@@ -1,5 +1,5 @@
 import enum
-from typing import Optional, Union
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -494,7 +494,7 @@ class MultiScaleGeometricHarmonicsInterpolator(
             ratio_eigenvalues = mu[0] / mu
             max_l = np.argmax(~(ratio_eigenvalues < self.condition))
 
-            coeff_l_, coeff_l_err_ = (coeff_[:max_l], coeff_[max_l:])
+            _, coeff_l_err_ = (coeff_[:max_l], coeff_[max_l:])
 
             mu_l_ = mu[:max_l]
             phi_l_ = phi[:, :max_l]
