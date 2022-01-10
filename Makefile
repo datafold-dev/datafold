@@ -37,7 +37,7 @@ PYTHON ?= python3
 # Set "DOCKER_ENVIRONMENT" in the Dockerfile as "ENV DOCKER_ENVIRONMENT" to indicate the Makefile to not use the Python virtualization
 IS_DOCKER = $(DOCKER_ENVIRONMENT)
 
-ifeq ($(IS_DOCKER),false)
+ifeq ($(IS_DOCKER),)
 	ACTIVATE_VENV = . $(VENV_DIR)/bin/activate; which python
 else
 	# assuming here that "python" points to the correct binary
