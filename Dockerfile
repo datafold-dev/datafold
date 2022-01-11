@@ -5,6 +5,8 @@ ARG gl_username=datafold-dev
 ARG datafold_cont="/home/datafold-container"
 ARG branch=master
 
+# Set environment variable for datafold's Makefile to *not* create a second
+# virtualization with Python
 ENV DOCKER_ENVIRONMENT=true
 
 RUN mkdir "$datafold_cont"
