@@ -1,6 +1,6 @@
 -r requirements.txt
 coverage[toml]==5.5.0
-git+git://github.com/jmbr/diffusion-maps@main
+git+https://github.com/jmbr/diffusion-maps@main
 identify==2.2.4
 jupyter>=1.0.0,<2.0.0
 nbformat==5.1.3
