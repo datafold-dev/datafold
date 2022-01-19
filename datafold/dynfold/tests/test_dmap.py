@@ -20,6 +20,7 @@ from datafold.dynfold.tests.helper import *
 from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
 from datafold.pcfold.kernels import ConeKernel
 from datafold.utils.general import random_subsample
+from datafold.utils.plot import plot_pairwise_eigenvector
 
 try:
     import rdist
@@ -308,12 +309,10 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap_embed = DiffusionMaps(**setting).fit(X_swiss_all)
 
         if plot:
-            from datafold.utils.plot import plot_pairwise_eigenvector
-
             plot_pairwise_eigenvector(
-                eigenvectors=dmap_embed.transform(X_swiss_all).T,
+                eigenvectors=dmap_embed.transform(X_swiss_all),
                 n=1,
-                colors=color_all,
+                scatter_params=dict(c=color_all),
             )
 
         dmap_embed_eval_expected = dmap_embed.eigenvectors_[:, [1, 5]]
@@ -331,7 +330,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
         if plot:
             X_swiss_oos, color_oos = make_swiss_roll(
-                n_samples=30000, noise=0, random_state=5
+                n_samples=5000, noise=0, random_state=5
             )
 
             f, ax = plt.subplots(2, 3, figsize=(10, 8))
@@ -387,7 +386,7 @@ class DiffusionMapsTest(unittest.TestCase):
                 0.01,
                 0.5,
                 f"both have same setting \n epsilon="
-                f"{setting['epsilon']}, symmetrize_kernel="
+                f"{dmap_embed.kernel.epsilon}, symmetrize_kernel="
                 f"{setting['symmetrize_kernel']}, "
                 f"chosen_eigenvectors={[1, 5]}",
             )

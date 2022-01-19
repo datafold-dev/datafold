@@ -437,7 +437,7 @@ class DMDTest(unittest.TestCase):
         ).fit(test_data)
 
         # datafold and PyDMD have a different way to order the eigenvalues. For
-        # the test we sort both accoring to the complex eigenvalue
+        # the test we sort both according to the complex eigenvalue
         expected_eigenvalues, expected_modes = sort_eigenpairs(
             pydmd.eigenvalues_, pydmd.dmd_modes
         )

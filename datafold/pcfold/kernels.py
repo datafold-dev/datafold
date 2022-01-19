@@ -263,7 +263,6 @@ def _conjugate_stochastic_kernel_matrix(
 
     # This is D^{-1/2} in sparse matrix form.
     basis_change_matrix = scipy.sparse.diags(np.reciprocal(left_vec, out=left_vec))
-
     return kernel_matrix, basis_change_matrix
 
 
@@ -273,12 +272,14 @@ def _stochastic_kernel_matrix(kernel_matrix: Union[np.ndarray, scipy.sparse.spma
     This function performs
 
     .. math::
+
         M = D^{-1} K
 
     where matrix :math:`M` is the row-normalized kernel from :math:`K` by the
     matrix :math:`D` with the row sums of :math:`K` on the diagonal.
 
     .. note::
+
         If the kernel matrix is evaluated component wise (points compared to reference
         points), then outliers can have a row sum close to zero. In this case the
         respective element on the diagonal is set to zero. For a pairwise kernel
@@ -1558,6 +1559,118 @@ class DmapKernelFixed(BaseManifoldKernel):
             is_pdist=is_pdist,
             row_sums_alpha_fit=row_sums_alpha_fit,
         )
+
+
+class RoselandKernel(PCManifoldKernel):
+    def __init__(self, internal_kernel, is_stochastic: bool = True):
+        self.internal_kernel = internal_kernel
+        self.is_stochastic = is_stochastic
+
+    def _compute_normalize_diagonal(self, kernel_matrix) -> np.ndarray:
+        """This function computes
+
+        .. code::
+
+            normalize_diagonal = np.sqrt((kernel_matrix @ kernel_matrix.T).sum(axis=1))
+
+        without evaluating :code:`kernel_matrix @ kernel_matrix.T`.
+
+        In the paper this is the diagonal of :math:`D^{-1/2}`.
+        """
+
+        column_sums = kernel_matrix.sum(axis=0)
+
+        if scipy.sparse.issparse(kernel_matrix):
+            kernel_matrix_adapted = kernel_matrix @ scipy.sparse.diags(column_sums.A1)
+        else:
+            kernel_matrix_adapted = kernel_matrix * column_sums
+
+        normalize_diagonal = np.sqrt(np.sum(kernel_matrix_adapted, axis=1))
+        if scipy.sparse.issparse(kernel_matrix):
+            normalize_diagonal = normalize_diagonal.A1
+
+        with np.errstate(divide="ignore", over="ignore"):
+            # especially in cdist computations there can be far away outliers
+            # (or very small scale/epsilon). This results in elements near 0 and
+            #  the reciprocal can then
+            #     - be inf
+            #     - overflow (resulting in negative values)
+            #  these cases are catched with 'bool_invalid' below
+            normalize_diagonal = np.reciprocal(
+                normalize_diagonal, out=normalize_diagonal
+            )
+
+        bool_invalid = np.logical_or(
+            np.isinf(normalize_diagonal), normalize_diagonal < 0
+        )
+        normalize_diagonal[bool_invalid] = 0
+
+        return normalize_diagonal
+
+    def _normalize_kernel_matrix(self, kernel_matrix):
+        """Normalizes the kernel matrix.
+
+        This function performs
+
+        .. math::
+
+            M = D^{-1/2} K
+
+        where matrix :math:`M` is the normalized kernel matrix from :math:`K` by the
+        diagonal matrix :math:`D`.
+
+        Parameters
+        ----------
+        kernel_matrix
+            kernel matrix (square or rectangular) to normalize
+
+        Returns
+        -------
+        Union[np.ndarray, scipy.sparse.spmatrix]
+            normalized kernel matrix with type same as `kernel_matrix`
+
+        None
+            placeholder for data required for component-wise kernel evaluations
+
+        dict
+            A dictionary containing the diagonal required for normalization.
+        """
+        normalize_diagonal = self._compute_normalize_diagonal(
+            kernel_matrix=kernel_matrix
+        )
+
+        # TODO: Include the sparse case in diagmat_dot_mat??
+        if scipy.sparse.issparse(kernel_matrix):
+            kernel_matrix = scipy.sparse.diags(normalize_diagonal) @ kernel_matrix
+        else:
+            kernel_matrix = diagmat_dot_mat(normalize_diagonal, kernel_matrix)
+
+        return kernel_matrix, None, dict(normalize_diagonal=normalize_diagonal)
+
+    def _eval(
+        self, kernel_output
+    ) -> Tuple[
+        Union[np.ndarray, scipy.sparse.csr_matrix], Optional[Dict], Optional[Dict]
+    ]:
+        kernel_matrix, _, _ = PCManifoldKernel.read_kernel_output(
+            kernel_output=kernel_output
+        )
+        return self._normalize_kernel_matrix(kernel_matrix)
+
+    def __call__(
+        self,
+        X: np.ndarray,
+        Y: Optional[np.ndarray] = None,
+        *,
+        dist_kwargs: Optional[Dict] = None,
+        **kernel_kwargs,
+    ):
+        kernel_output = self.internal_kernel(X, Y=Y, dist_kwargs=dist_kwargs or {})
+        return self._eval(kernel_output)
+
+    def eval(self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]):
+        kernel_output = self.internal_kernel.eval(distance_matrix)
+        return self._eval(kernel_output=kernel_output)
 
 
 class ConeKernel(TSCManifoldKernel):

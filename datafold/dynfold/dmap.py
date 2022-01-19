@@ -227,7 +227,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     target_coords_: numpy.ndarray
         The coordinate indices to map to when transforming the data. The target point
         dimension equals the number of indices included in `target_coords_`. Note that the
-        attributes `eigenvectors_` and `eigenvalues_` sill contain *all* computed
+        attributes `eigenvectors_` and `eigenvalues_` still contain *all* computed
         eigenpairs.
 
     inv_coeff_matrix_: numpy.ndarray
@@ -384,10 +384,12 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
         if index_from is not None:
+            # TODO: BUG: I think this fails if index_coord are set because then there are
+            #  less than n_eigenpairs columns
             approx_eigenvectors = df_type_and_indices_from(
                 index_from,
                 values=approx_eigenvectors,
-                except_columns=[f"ev{i}" for i in range(self.n_eigenpairs)],
+                except_columns=self._feature_names(),
             )
 
         return approx_eigenvectors

@@ -12,10 +12,21 @@ from sklearn.utils.validation import check_is_fitted, check_scalar
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
 from datafold.pcfold import PCManifold, TSCDataFrame
 from datafold.pcfold.eigsolver import NumericalMathError
-from datafold.pcfold.kernels import GaussianKernel, KernelType, PCManifoldKernel
-from datafold.utils.general import diagmat_dot_mat, mat_dot_diagmat, random_subsample
+from datafold.pcfold.kernels import (
+    GaussianKernel,
+    KernelType,
+    PCManifoldKernel,
+    RoselandKernel,
+)
+from datafold.utils.general import (
+    diagmat_dot_mat,
+    mat_dot_diagmat,
+    random_subsample,
+    sort_eigenpairs,
+)
 
 
+# TODO: make SVD backend for kernel matrices
 class _RoselandKernelAlgorithms:
     """Collection of re-useable algorithms that appear in models that have a Roseland
     kernel.
@@ -41,40 +52,26 @@ class _RoselandKernelAlgorithms:
             v0=np.ones(min(kernel_matrix.shape)),
         )
 
-        # bring the svd values in descending order
-        # reorder the svd vectors to correspond to the new ordering
-        asc = np.argsort(svdvals)
-        ordered_indices = asc[::-1]
-        svdvals = svdvals[ordered_indices]
-        svdvects = svdvects[:, ordered_indices]
-        right_svdvects = right_svdvects[ordered_indices, :]
+        svdvals, svdvects, right_svdvects = sort_eigenpairs(
+            svdvals, svdvects, left_eigenvectors=right_svdvects
+        )
 
-        # Return the maximal absolute imaginary part of the singular vectors and values
+        # Return the maximal absolute imaginary part of the singular vectors
+        # Note that the eigenvalues are guaranteed to be real-valued in SVD
         max_imag_svdvect = np.abs(np.imag(svdvects)).max()
-        max_imag_svdval = np.abs(np.imag(svdvals)).max()
         max_imag_right_svdvect = np.abs(np.imag(right_svdvects)).max()
 
-        if (
-            max(max_imag_svdval, max_imag_svdvect, max_imag_right_svdvect)
-            > 1e2 * sys.float_info.epsilon
-        ):
-            raise_numerical_error = True
-        else:
-            raise_numerical_error = False
-
-        if raise_numerical_error:
+        if max(max_imag_svdvect, max_imag_right_svdvect) > 1e2 * sys.float_info.epsilon:
             raise NumericalMathError(
-                "SVD properties have non-negligible imaginary part (larger than "
+                "SVD eigenvectors have non-negligible imaginary part (larger than "
                 f"{1e2 * sys.float_info.epsilon})."
             )
         else:
-            # if the imaginary parts are negligable take only the real parts
-            svdvals = np.real(svdvals)
             svdvects = np.real(svdvects)
             right_svdvects = np.real(right_svdvects)
 
         # Change coordinates of the left singular vectors by using the diagonal matrix
-        svdvects = diagmat_dot_mat(normalize_diagonal, np.asarray(svdvects))
+        svdvects = diagmat_dot_mat(normalize_diagonal, svdvects)
 
         if index_from is not None:
             svdvects = TSCDataFrame.from_same_indices_as(
@@ -83,8 +80,8 @@ class _RoselandKernelAlgorithms:
                 except_columns=[f"sv{i}" for i in range(n_svdtriplets)],
             )
 
+        # transpose such that the right eigenvectors are now column-wise
         right_svdvects = right_svdvects.T
-
         return svdvals, svdvects, right_svdvects
 
 
@@ -106,29 +103,32 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         Defaults to :py:class:`.GaussianKernel` with bandwidth `epsilon=1`.
 
     n_svdpairs
-        The number of singular value decomposition pairs (left singular vector, singular value)
-        to be computed from the normalized landmark-set affinity matrix.
-        The right singular vectors are also computed and their number is governed by n_svdpairs.
+        The number of singular value decomposition pairs (left singular vector, singular
+        value) to be computed from the normalized landmark-set affinity matrix.
+        The right singular vectors are also computed and their number is governed by
+        ``n_svdpairs``.
 
     time_exponent
-        The time of the diffusion process (exponent of the singular values in the embedding).
-        The value can be changed after the model is fitted.
+        The time of the diffusion process (exponent of the singular values in the
+        embedding). The value can be changed after the model is fitted.
 
     Y
-        The landmark set used for computing the landmark-set affinity matrix. Either subsampled
-        from X or provided at the instance creation.
+        The landmark set used for computing the landmark-set affinity matrix. Either
+        subsampled from X or provided at the instance creation.
 
     gamma
         The relative landmark set size, given as a number in (0; 1]. If provided when Y is
-        also given, it is ignored. When Y is not provided it is used for the the subsampling of
-        the landmarks. The size of the landmark set during fit will then be
+        also given, it is ignored. When Y is not provided it is used for the subsampling
+        of the landmarks. The size of the landmark set during fit will then be
 
          .. math::
+
             |Y| = gamma|X|.
 
     random_state
-        Random seed for the selection of the landmark set. If provided when Y is also given,
-        it is ignored. When Y is not provided it is used for the the subsampling of the landmarks.
+        Random seed for the selection of the landmark set. If provided when `Y` is also
+        given, it is ignored. When `Y` is not provided it is used for the subsampling of
+        the landmarks.
 
     dist_kwargs
         Keyword arguments passed to the point clouds of the two sets. See
@@ -142,8 +142,8 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         ``np.asarray(X_fit_)`` casts the object to a standard numpy array.
 
     Y_fit_: PCManifold
-        The landmark data during fit. It is required for both in-sample and out-of sample embeddings.
-        ``np.asarray(Y_fit_)`` casts the object to a standard numpy array.
+        The landmark data during fit. It is required for both in-sample and out-of sample
+        embeddings. ``np.asarray(Y_fit_)`` casts the object to a standard numpy array.
 
     svdvalues_ : numpy.ndarray
         The singular values of the diffusion kernel matrix in decreasing order.
@@ -157,8 +157,8 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
     target_coords_: numpy.ndarray
         The coordinate indices to map to when transforming the data. The target point
         dimension equals the number of indices included in `target_coords_`. Note that the
-        attributes `svdvalues_`, `svdvectors_`, and `right_svdvectors` sill contain *all* computed
-        n_svdpairs.
+        attributes `svdvalues_`, `svdvectors_`, and `right_svdvectors` still contain *all*
+        computed `n_svdpairs`.
 
     kernel_matrix_ : Union[numpy.ndarray, scipy.sparse.csr_matrix]
         The computed kernel matrix; the matrix is only stored if
@@ -175,7 +175,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         *,  # keyword-only
         n_svdpairs: int = 10,
         time_exponent: float = 0,
-        Y: np.ndarray = None,
+        landmarks: Optional[np.ndarray] = None,
         gamma: float = 0.25,
         random_state: Optional[int] = None,
         dist_kwargs=None,
@@ -184,7 +184,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.kernel = kernel
         self.n_svdpairs = n_svdpairs
         self.time_exponent = time_exponent
-        self.Y = Y
+        self.landmarks = landmarks
         self.gamma = gamma
         self.random_state = random_state
         self.dist_kwargs = dist_kwargs
@@ -194,12 +194,11 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.right_svdvectors_: np.ndarray
 
     def _validate_settings(self):
-        # n_svdpairs: the number of svd pairs we want to compute must be an integer >= 1
+
         check_scalar(
             self.n_svdpairs, "n_svdpairs", target_type=(int, np.integer), min_val=1
         )
 
-        # time_exponent: the diffusion time must be a number integer/floating
         check_scalar(
             self.time_exponent,
             "time_exponent",
@@ -211,93 +210,83 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         return GaussianKernel(epsilon=1.0)
 
     # returns the computed kernel matrix
-    def _get_kernel_output(
-        self,
-        X: np.ndarray,
-        Y: np.ndarray,
-        **fit_params,
-    ):
+    # def _get_kernel_output(
+    #     self,
+    #     X: np.ndarray,
+    #     Y: np.ndarray,
+    #     **fit_params,
+    # ):
+    #
+    #     self._validate_settings()
+    #
+    #     X = self._validate_datafold_data(
+    #         X=X,
+    #         array_kwargs=dict(ensure_min_samples=max(2, self.n_svdpairs)),
+    #         tsc_kwargs=dict(ensure_min_samples=max(2, self.n_svdpairs)),
+    #     )
+    #
+    #     Y = self._validate_datafold_data(
+    #         X=Y,
+    #         array_kwargs=dict(ensure_min_samples=2),
+    #         tsc_kwargs=dict(ensure_min_samples=2),
+    #     )
+    #
+    #     self._setup_feature_attrs_fit(X, features_out=self._feature_names())
+    #
+    #     self._setup_default_dist_kwargs()
+    #
+    #     internal_kernel = (
+    #         self.kernel if self.kernel is not None else self._get_default_kernel()
+    #     )
+    #
+    #     if isinstance(X, TSCDataFrame):
+    #         self.X_fit_ = TSCDataFrame(
+    #             X, kernel=internal_kernel, dist_kwargs=self.dist_kwargs_
+    #         )
+    #     elif isinstance(X, (np.ndarray, pd.DataFrame)):
+    #         self.X_fit_ = PCManifold(
+    #             X,
+    #             kernel=internal_kernel,
+    #             dist_kwargs=self.dist_kwargs_,
+    #         )
+    #
+    #     if isinstance(Y, (np.ndarray, pd.DataFrame)):
+    #         self.Y_fit_ = PCManifold(
+    #             Y,
+    #             kernel=internal_kernel,
+    #             dist_kwargs=self.dist_kwargs_,
+    #         )
+    #
+    #     kernel_output = self.Y_fit_.compute_kernel_matrix(self.X_fit_)
+    #     return kernel_output
 
-        self._validate_settings()
-
-        X = self._validate_datafold_data(
-            X=X,
-            array_kwargs=dict(ensure_min_samples=max(2, self.n_svdpairs)),
-            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_svdpairs)),
-        )
-
-        Y = self._validate_datafold_data(
-            X=Y,
-            array_kwargs=dict(ensure_min_samples=2),
-            tsc_kwargs=dict(ensure_min_samples=2),
-        )
-
-        self._setup_feature_attrs_fit(X, features_out=self._feature_names())
-
-        self._setup_default_dist_kwargs()
-
-        internal_kernel = (
-            self.kernel if self.kernel is not None else self._get_default_kernel()
-        )
-
-        if isinstance(X, TSCDataFrame):
-            self.X_fit_ = TSCDataFrame(
-                X, kernel=internal_kernel, dist_kwargs=self.dist_kwargs_
-            )
-        elif isinstance(X, (np.ndarray, pd.DataFrame)):
-            self.X_fit_ = PCManifold(
-                X,
-                kernel=internal_kernel,
-                dist_kwargs=self.dist_kwargs_,
-            )
-
-        if isinstance(Y, (np.ndarray, pd.DataFrame)):
-            self.Y_fit_ = PCManifold(
-                Y,
-                kernel=internal_kernel,
-                dist_kwargs=self.dist_kwargs_,
-            )
-
-        kernel_output = self.Y_fit_.compute_kernel_matrix(self.X_fit_)
-        return kernel_output
-
-    # subsamples landmarks when no Y is provided
     def _subsample_landmarks(self, X: np.ndarray):
-
-        # gamma: the relative size of the landmark set must be a floating number in (0; 1]
+        """Subsamples landmarks from training data `X` when no `landmarks` are
+        provided."""
         check_scalar(
             self.gamma,
             "gamma",
             target_type=(float, np.floating),
             min_val=0.0,
             max_val=1.0,
-            # include_boundaries="right" # requires Scikit-learn 1.0
-            # gamma = 0.0 would still lead to an error but only when checking the size of Y_fit_
+            include_boundaries="right",
         )
 
-        nr_samples_landmark = int(len(X) * self.gamma)
-        if nr_samples_landmark == 0:
-            raise ValueError("The Landmark set size should be a positive number.")
+        n_landmarks = int(X.shape[0] * self.gamma)
+        if n_landmarks <= 1:
+            raise ValueError("The landmark set size must contain at least two samples.")
 
-        if nr_samples_landmark == len(X):
-            Y = X
+        if n_landmarks == X.shape[0]:
+            landmarks = X
         else:
-            Y, indices = random_subsample(
-                X, nr_samples_landmark, random_state=self.random_state
+            landmarks, _ = random_subsample(
+                X, n_landmarks, random_state=self.random_state
             )
 
-        if isinstance(Y, (np.ndarray, pd.DataFrame)):
-            Y = PCManifold(Y)
-        Y.optimize_parameters()
+        if isinstance(landmarks, (np.ndarray, pd.DataFrame)):
+            landmarks = PCManifold(landmarks)
 
-        if self.kernel is None:
-            self.kernel = self._get_default_kernel()
-            self.kernel.epsilon = Y.kernel.epsilon
-
-        if self.dist_kwargs is None:
-            self.dist_kwargs = dict(cut_off=Y.cut_off)
-
-        return Y
+        return landmarks
 
     def fit(
         self,
@@ -316,7 +305,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         **fit_params: Dict[str, object]
             - store_kernel_matrix: ``bool``
-                If True, store the kernel matrix in attribute ``kernel_matrix_``.
+                If True, store the kernel matrix in attribute ``kernel_matrix``.
 
         Returns
         -------
@@ -324,31 +313,63 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             self
         """
 
-        if self.Y is None:
-            self.Y = self._subsample_landmarks(X=X)
+        self._validate_settings()
+        self._setup_default_dist_kwargs()
 
         store_kernel_matrix = self._read_fit_params(
             attrs=[("store_kernel_matrix", False)],
             fit_params=fit_params,
         )
 
-        kernel_matrix_ = self._get_kernel_output(X=X, Y=self.Y, **fit_params)
-
-        # normalize the kernel matrix
-        normalize_diagonal = self._compute_roseland_diagonal_matrix(kernel_matrix_)
-        kernel_matrix_ = self._normalize_roseland_kernel(
-            kernel_matrix_, normalize_diagonal
+        X = self._validate_datafold_data(
+            X=X,
+            array_kwargs=dict(ensure_min_samples=max(2, self.n_svdpairs)),
+            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_svdpairs)),
         )
+
+        self._setup_feature_attrs_fit(X, features_out=self._feature_names())
+
+        if self.landmarks is None:
+            self.landmarks_ = self._subsample_landmarks(X=X)
+        else:
+            # TODO: I don't like this but this follows the guidelines of scikit-learn
+            #  -- maybe landmarks should be given in **fit_params ??
+            self.landmarks_ = self.landmarks
+
+        self.landmarks_ = self._validate_datafold_data(
+            X=self.landmarks_, array_kwargs=dict(ensure_min_samples=2), ensure_np=True
+        )
+
+        if self.kernel is None:
+            self.landmarks_.optimize_parameters()
+            self.kernel = self._get_default_kernel()
+            self.kernel.epsilon = self.landmarks_.kernel.epsilon
+            self.dist_kwargs["cut_off"] = self.landmarks_.cut_off
+
+        self.landmarks_ = PCManifold(
+            self.landmarks_,
+            kernel=RoselandKernel(internal_kernel=self.kernel),
+            dist_kwargs=self.dist_kwargs_,
+        )
+
+        kernel_output = self.landmarks_.compute_kernel_matrix(X)
+
+        (
+            kernel_matrix,
+            _,
+            ret_extra,
+        ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
 
         # try and match timestamps for timeseries data
         if (
-            isinstance(self.X_fit_, TSCDataFrame)
-            and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
+            isinstance(X, TSCDataFrame)
+            # TODO: I think this second condition is not true for landmarks?
+            and kernel_matrix.shape[0] == X.shape[0]
         ):
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
-            # series, then take incides from X_fit_ -- this only works if no samples are
+            # series, then take indices from X_fit_ -- this only works if no samples are
             # dropped in the kernel computation.
-            index_from: Optional[Union[TSCDataFrame, None]] = self.X_fit_
+            index_from: Optional[Union[TSCDataFrame, None]] = X
         else:
             index_from = None
 
@@ -357,14 +378,14 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             self.svdvectors_,
             self.right_svdvectors_,
         ) = _RoselandKernelAlgorithms.solve_svdproblem(
-            kernel_matrix=kernel_matrix_,
+            kernel_matrix=kernel_matrix,
             n_svdtriplets=self.n_svdpairs,
-            normalize_diagonal=normalize_diagonal,
+            normalize_diagonal=ret_extra["normalize_diagonal"],
             index_from=index_from,
         )
 
         if store_kernel_matrix:
-            self.kernel_matrix_ = kernel_matrix_
+            self.kernel_matrix_ = kernel_matrix
 
         return self
 
@@ -416,7 +437,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             roseland_embedding = TSCDataFrame.from_same_indices_as(
                 indices_from=X,
                 values=roseland_embedding,
-                except_columns=range(len(svdvals)),
+                except_columns=self.feature_names_out_,
             )
 
         return roseland_embedding
@@ -523,38 +544,28 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             the new coordinates of the points in X
         """
         check_is_fitted(
-            self, ("X_fit_", "Y_fit_", "svdvalues_", "svdvectors_", "right_svdvectors_")
+            self, ("landmarks_", "svdvalues_", "svdvectors_", "right_svdvectors_")
         )
 
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=1))
+        X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        kernel_output = self.Y_fit_.compute_kernel_matrix(X)
-        kernel_matrix_cdist, _, _ = PCManifoldKernel.read_kernel_output(
+        kernel_output = self.landmarks_.compute_kernel_matrix(X)
+        kernel_matrix_cdist, _, ret_extra = PCManifoldKernel.read_kernel_output(
             kernel_output=kernel_output
-        )
-
-        # normalize the newly computed kernel matrix
-        normalize_diagonal = self._compute_roseland_diagonal_matrix(kernel_matrix_cdist)
-        kernel_matrix_cdist = self._normalize_roseland_kernel(
-            kernel_matrix_cdist, normalize_diagonal
         )
 
         _, svdvals, right_svdvec = self._select_svdpairs_target_coords()
 
         svdvec_nystroem = self._nystrom(
             kernel_matrix_cdist,
-            right_svdvec=np.asarray(right_svdvec),
+            right_svdvec=right_svdvec,
             svdvals=svdvals,
         )
 
-        # handle special case of single sample
-        if normalize_diagonal.size == 1:
-            svdvec_nystroem *= normalize_diagonal
-        else:
-            svdvec_nystroem = diagmat_dot_mat(
-                normalize_diagonal, np.asarray(svdvec_nystroem)
-            )
+        svdvec_nystroem = diagmat_dot_mat(
+            ret_extra["normalize_diagonal"], svdvec_nystroem
+        )
 
         roseland_embedding = self._perform_roseland_embedding(svdvec_nystroem, svdvals)
 
@@ -562,7 +573,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             roseland_embedding = TSCDataFrame.from_same_indices_as(
                 indices_from=X,
                 values=roseland_embedding,
-                except_columns=range(len(svdvals)),
+                except_columns=self._feature_names(),
             )
 
         return roseland_embedding
@@ -583,97 +594,3 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         )
 
         return approx_eigenvectors
-
-    def _normalize_roseland_kernel(
-        self,
-        kernel_matrix: Union[np.ndarray, scipy.sparse.spmatrix],
-        normalize_diagonal: np.ndarray,
-    ):
-        """Normalizes the kernel matrix.
-
-        This function performs
-
-        .. math::
-
-            M = D^{-1/2} K
-
-        where matrix :math:`M` is the normalized kernel matrix from :math:`K` by the
-        diagonal matrix :math:`D`.
-
-        Parameters
-        ----------
-        kernel_matrix
-            kernel matrix (square or rectangular) to normalize
-
-        normalize_diagonal
-            the diagonal matrix to the power of -1/2, used for the normalization
-
-        Returns
-        -------
-        Union[np.ndarray, scipy.sparse.spmatrix]
-            normalized kernel matrix with type same as `kernel_matrix`
-        """
-
-        if scipy.sparse.issparse(kernel_matrix):
-            # handle special case of single sample
-            if normalize_diagonal.size == 1:
-                kernel_matrix = kernel_matrix.multiply(normalize_diagonal)
-            else:
-                kernel_matrix = kernel_matrix.multiply(
-                    normalize_diagonal[:, np.newaxis]
-                )
-        else:
-            kernel_matrix = diagmat_dot_mat(normalize_diagonal, kernel_matrix)
-
-        return kernel_matrix
-
-    def _compute_roseland_diagonal_matrix(
-        self, kernel_matrix: Union[np.ndarray, scipy.sparse.spmatrix]
-    ):
-        """Computes the diagonal matrix for Roseland to the power of -1/2, where the
-        diagonal matrix is defined as
-
-        .. math::
-
-            D_ii = e_i^T K K^T 1
-
-        with :math:`K` being the kernel matrix
-
-        Parameters
-        ----------
-        kernel_matrix
-            The kernel matrix
-
-        Returns
-        -------
-        numpy.ndarray
-            The reciprocal of the square root of the diagonal matrix: D^(1/2)
-        """
-        if scipy.sparse.issparse(kernel_matrix):
-            column_sums = kernel_matrix.sum(axis=0)
-            new_kernel_matrix = kernel_matrix.multiply(column_sums)
-            normalize_diagonal = np.sqrt(np.sum(new_kernel_matrix, axis=1))
-            normalize_diagonal = np.squeeze(np.asarray(normalize_diagonal))
-
-        else:
-            column_sums = np.sum(kernel_matrix, axis=0)
-            new_kernel_matrix = np.multiply(kernel_matrix, column_sums)
-            normalize_diagonal = np.sqrt(np.sum(new_kernel_matrix, axis=1))
-
-        with np.errstate(divide="ignore", over="ignore"):
-            # especially in cdist computations there can be far away outliers
-            # (or very small scale/epsilon). This results in elements near 0 and
-            #  the reciprocal can then
-            #     - be inf
-            #     - overflow (resulting in negative values)
-            #  these cases are catched with 'bool_invalid' below
-            normalize_diagonal = np.reciprocal(
-                normalize_diagonal, out=normalize_diagonal
-            )
-
-        bool_invalid = np.logical_or(
-            np.isinf(normalize_diagonal), normalize_diagonal < 0
-        )
-        normalize_diagonal[bool_invalid] = 0
-
-        return normalize_diagonal
