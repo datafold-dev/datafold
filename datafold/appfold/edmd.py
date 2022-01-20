@@ -95,6 +95,8 @@ from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
     diagmat_dot_mat,
+    if1dim_colvec,
+    if1dim_rowvec,
     is_integer,
     projection_matrix_from_features,
 )
@@ -2150,6 +2152,7 @@ class EDMDControl(object):  # pragma: no cover
         TSCDataFrame
         """
         # TODO: validate inputs
+        X = if1dim_rowvec(X)
         X0lift = self._edmd.transform(X)
         Xlift_tsc = self._dmd_model.predict(
             X0lift,

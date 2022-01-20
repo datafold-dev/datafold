@@ -1749,7 +1749,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
         super().__init__("flowmap", "matrix", time_invariant)
 
     def _check_control_input(self, control_input: np.ndarray, control_size: int):
-        control_input = np.atleast_2d(control_input)
+        control_input = if1dim_colvec(control_input)
         self._check_matrix(control_input)
         if control_input.shape[0] != control_size:
             raise ValueError("control_input should have the same length as time_values")
@@ -2172,7 +2172,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        control_input: Optional[np.ndarray] = None,
+        control_input: Optional[Union[TSCDataFrame,np.ndarray]] = None,
         check_inputs: bool = True,
         **predict_params,
     ) -> TSCDataFrame:
@@ -2184,12 +2184,17 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         X : InitialConditionType
             Single initial condition of shape `(n_features,)` or multiple initial
             conditions of shape `(n_features, n_initial_conditions)`.
+
         time_values : np.ndarray
             Time series at which to evaluate the system. Must be equally spaced
             and use the same timestep as the training data.
-        control_input : np.ndarray
+
+        control_input : np.ndarray | TSCDataFrame
             The control input at the provided time values with shape
-            `(n_timesteps, n_control_dimensions)
+            `(n_timesteps, n_control_dimensions)`. If type is TSCDataFrame,
+            it needs to contain only a single time series and time_values
+            can be inferred from the time index. 
+
         check_inputs : bool, optional, default True
             Allows skipping input checks and assignemnts to improve performance.
 
@@ -2213,6 +2218,13 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             self._validate_datafold_data(X)
 
             self.is_linear_system_setup(True)
+
+            if isinstance(control_input, TSCDataFrame):
+                if len(control_input.ids) != 1:
+                    raise ValueError("control_input needs to contain only a single time sereis.")
+                if time_values is None:
+                    time_values = control_input.time_values()
+                control_input = control_input.values
 
             if time_values is not None:
                 time_values = self._validate_time_values(time_values)
