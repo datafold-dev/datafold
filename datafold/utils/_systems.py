@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import abc
+from logging import warning
 
 import numpy as np
 import pandas as pd
@@ -269,6 +270,211 @@ class Pendulum(DynamicalSystem):
 
         return tsc_df
 
+class InvertedPendulum(DynamicalSystem):
+    """
+    Model the physics of an inverted pendulum on a cart
+    controlled by electric motor.
+
+    The system requires as input the voltage to the electric 
+    motor and is described by a four dimensional state:
+    [position, velocity, angle from horizon, angular velocity]
+
+    Parameters
+    ----------
+    pendulum_mass: float
+        Mass of pendulum, defaults to 0.0905 kg
+
+    cart_mass: float
+        Mass of the cart, defaults to 1.12 kg
+
+    g: float
+        Graviational acceleration, defaults to 9.81 m/s^2
+
+    tension_force_gain: float
+        Conversion between electric motor input voltage in V and tesnsion 
+        force in N, defaults to 7.5 N/V
+    
+    pendulum_length: float
+        Length of the penulum, defaults to 0.365 m
+
+    cart_friction: float
+        Dynamic damping coefficient on the cart, defaults to 6.65 kg/s
+
+    initial_condition: np.array
+        Initial condition for the state, default to [0,0,pi,0]
+
+    Attributes
+    ----------
+    state: np.array
+        Last state of the system
+
+    last_time: float
+        Last time value of the system
+
+    sol: object
+        Scipt IVP solution object of the solved system
+    """
+    _default_ic_ = np.array([[0, 0, np.pi, 0]]).T
+
+    def __init__(
+        self,
+        # Pendulum parameters
+        pendulum_mass=0.0905,  # kg
+        cart_mass=1.12,  # kg
+        g=9.81,  # m/s^2
+        tension_force_gain=7.5,  # N/V
+        pendulum_length=0.365,  # m
+        cart_friction=6.65, # kg/s
+        initial_condition = None,
+    ):  
+        self.pendulum_mass = pendulum_mass
+        self.cart_mass = cart_mass
+        self.g = g
+        self.tension_force_gain = tension_force_gain
+        self.pendulum_length = pendulum_length
+        self.cart_friction = cart_friction
+        self.initial_condition = self._check_state(initial_condition, self._default_ic_)
+        self.reset(self.initial_condition)
+
+    def reset(self, state=None):
+        """
+        Restore to neutral position at 0 time.
+        """
+        self.state = self._check_state(state, self.initial_condition)
+        self.last_time = 0
+
+    def _f(self, t, state, control_input):
+        # inverted pendulum physics
+        x, xdot, theta, thetadot = state
+        f1 = xdot
+        f3 = thetadot
+
+        # Sabin Ref.[16] version
+        f2 = (
+            self.tension_force_gain * control_input
+            - self.cart_friction * xdot
+            - self.pendulum_mass * self.pendulum_length * thetadot ** 2 * np.sin(theta)
+        ) / (self.cart_mass + self.pendulum_mass * np.sin(theta) ** 2)
+        f4 = (
+            self.tension_force_gain * control_input
+            - self.cart_friction * xdot
+            - self.pendulum_mass
+            * self.pendulum_length
+            * thetadot ** 2
+            * np.sin(theta)
+            * np.cos(theta)
+            + (self.cart_mass + self.pendulum_mass) * self.g * np.sin(theta)
+        ) / (
+            self.pendulum_length
+            - self.pendulum_mass * self.pendulum_length * np.cos(theta) ** 2
+        )
+        return np.array((f1, f2, f3, f4))
+
+    def _check_state(self, state, default_state=None):
+        if state is None:
+            # use last state if none given
+            state = self.state if default_state is None else default_state
+        else:
+            # make sure state is the right shape
+            try:
+                state = state.reshape(4, 1)
+            except ValueError as e:
+                raise ValueError("State should have size 4.") from e
+            except AttributeError as e:
+                raise ValueError("State should be an np.array(size=4)") from e
+        return state
+
+    def step(self, time_step, state=None, control_input=0, current_time=None):
+        """
+        Return the next state
+
+        Parameters
+        ----------
+        time_step 
+            length of single time step
+        
+        state 
+            state to step from (default last state of the pendulum)
+        
+        control_input
+            applied control force (default 0)
+        
+        current_time
+            time to step from (default last time of the pendulum)
+        """
+        state = self._check_state(state)
+        t0 = self.last_time if current_time is None else current_time
+        self.sol = solve_ivp(
+            fun=self._f,
+            args=(control_input,),
+            t_span=(t0, t0 + time_step),
+            y0=state.ravel(),
+            method="RK45",
+            t_eval=np.atleast_1d(t0 + time_step),
+            vectorized=True,
+        )
+        self.state = self._check_state(self.sol.y)
+        self.last_time = self.sol.t[-1]
+        return self.state
+
+    def predict(
+        self,
+        initial_condition=None,
+        time_values=None,
+        t0=None,
+        time_step=1.,
+        num_steps=10,
+        control_func=None, 
+    ):
+        """
+        Compute a trajectory in state space
+
+        Parameters
+        ----------
+
+        initial_condition: np.array, optional
+            initial condition [position, veloctiy, angle from horizon, angular velocity]
+            Default to last state
+        time_values: np.array, optional
+            time values for which to evaluate the system. 
+            If not provided, t0, time_step and num_steps can be used.
+        t0: float, optional
+            Starting time of the prediction (if time_values is None)
+            (note - only affects the output time, doesn't change the initial state)
+        time_step: float, optional
+            length of single time step in the output (if time_values is None)
+        num_steps: int, option
+            number of time steps in the output (if time_values is None)
+        control_func: callable
+            f(t, state) callable returning control input. Defaults to constant 1.
+        """
+        if control_func is None:
+            warning.warn("Default control function u=1 is used.")
+            control_func = lambda t,x: 1
+        if not callable(control_func):
+            raise TypeError("control_func needs to be a function of time and the state")
+        state = self._check_state(initial_condition)
+        
+        if time_values is None:
+            t0 = self.last_time if t0 is None else t0
+            tf = t0 + time_step * (num_steps + 1)
+            time_values = np.arange(t0, tf, time_step)
+        else:
+            t0 = time_values[0]
+            tf = time_values[-1]
+
+        self.sol = solve_ivp(
+            fun=lambda t, y: self._f(t, y, control_func(t, y)),
+            t_span=(t0, tf),
+            y0=state.ravel(),
+            method="RK45",
+            t_eval=time_values,
+            vectorized=True,
+        )
+        self.state = self._check_state(self.sol.y[:, -1])
+        self.last_time = self.sol.t[-1]
+
+        return self.sol.y
 
 # TODO:
 #  include benchmark systems from: https://arxiv.org/pdf/2008.12874.pdf
