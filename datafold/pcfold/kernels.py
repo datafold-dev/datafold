@@ -1238,7 +1238,7 @@ class ContinuousNNKernel(PCManifoldKernel):
 class DmapKernelFixed(BaseManifoldKernel):
     """Diffusion map kernel with fixed kernel bandwidth.
 
-    This kernel wraps an kernel to describe a diffusion process.
+    This kernel wraps a kernel to describe a diffusion process.
 
     Parameters
     ----------
