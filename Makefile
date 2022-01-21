@@ -54,7 +54,9 @@ OUTPUT_DOCS ?= doc/build/
 
 ifeq ($(IS_DOCKER),)
 	OPEN_BROWSER ?= true
-else # is_DOCKER=true -> do not open browser by default, because no brwoser is installed in the docker container
+else
+# is_DOCKER=true -> do not open browser by default, because no browser is installed in the
+# docker container
 	OPEN_BROWSER ?= false
 endif
 
@@ -65,7 +67,7 @@ GITHOOK = --all
 
 #venv: @ Create Python virtual environment if it does not exist yet.
 venv:
-ifneq ($(IS_DOCKER),) # do not create a venv in a docker environment, because it is already a virtualization
+ifeq ($(IS_DOCKER),) # do not create a venv in a docker environment, because it is already a virtualization
 	test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR);
 endif
 
