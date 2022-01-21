@@ -25,15 +25,15 @@ repos:
     - id: nbstripout
       files: ".ipynb"
 
-#-   repo: https://github.com/myint/rstcheck
-#    rev: v3.3.1
-#    hooks:
-#    -   id: rstcheck
-
 - repo: https://github.com/pycqa/flake8
   rev: 3.9.0
   hooks:
   -   id: flake8
+
+#-   repo: https://github.com/myint/rstcheck
+#    rev: v3.3.1
+#    hooks:
+#    -   id: rstcheck
 
 # applies some formatting on Jupyter notebooks too
 - repo: https://github.com/nbQA-dev/nbQA
