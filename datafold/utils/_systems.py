@@ -270,12 +270,13 @@ class Pendulum(DynamicalSystem):
 
         return tsc_df
 
+
 class InvertedPendulum(DynamicalSystem):
     """
     Model the physics of an inverted pendulum on a cart
     controlled by electric motor.
 
-    The system requires as input the voltage to the electric 
+    The system requires as input the voltage to the electric
     motor and is described by a four dimensional state:
     [position, velocity, angle from horizon, angular velocity]
 
@@ -291,9 +292,9 @@ class InvertedPendulum(DynamicalSystem):
         Graviational acceleration, defaults to 9.81 m/s^2
 
     tension_force_gain: float
-        Conversion between electric motor input voltage in V and tesnsion 
+        Conversion between electric motor input voltage in V and tesnsion
         force in N, defaults to 7.5 N/V
-    
+
     pendulum_length: float
         Length of the penulum, defaults to 0.365 m
 
@@ -314,6 +315,7 @@ class InvertedPendulum(DynamicalSystem):
     sol: object
         Scipt IVP solution object of the solved system
     """
+
     _default_ic_ = np.array([[0, 0, np.pi, 0]]).T
 
     def __init__(
@@ -324,9 +326,9 @@ class InvertedPendulum(DynamicalSystem):
         g=9.81,  # m/s^2
         tension_force_gain=7.5,  # N/V
         pendulum_length=0.365,  # m
-        cart_friction=6.65, # kg/s
-        initial_condition = None,
-    ):  
+        cart_friction=6.65,  # kg/s
+        initial_condition=None,
+    ):
         self.pendulum_mass = pendulum_mass
         self.cart_mass = cart_mass
         self.g = g
@@ -390,15 +392,15 @@ class InvertedPendulum(DynamicalSystem):
 
         Parameters
         ----------
-        time_step 
+        time_step
             length of single time step
-        
-        state 
+
+        state
             state to step from (default last state of the pendulum)
-        
+
         control_input
             applied control force (default 0)
-        
+
         current_time
             time to step from (default last time of the pendulum)
         """
@@ -422,9 +424,9 @@ class InvertedPendulum(DynamicalSystem):
         initial_condition=None,
         time_values=None,
         t0=None,
-        time_step=1.,
+        time_step=1.0,
         num_steps=10,
-        control_func=None, 
+        control_func=None,
     ):
         """
         Compute a trajectory in state space
@@ -436,7 +438,7 @@ class InvertedPendulum(DynamicalSystem):
             initial condition [position, veloctiy, angle from horizon, angular velocity]
             Default to last state
         time_values: np.array, optional
-            time values for which to evaluate the system. 
+            time values for which to evaluate the system.
             If not provided, t0, time_step and num_steps can be used.
         t0: float, optional
             Starting time of the prediction (if time_values is None)
@@ -450,11 +452,11 @@ class InvertedPendulum(DynamicalSystem):
         """
         if control_func is None:
             warning.warn("Default control function u=1 is used.")
-            control_func = lambda t,x: 1
+            control_func = lambda t, x: 1
         if not callable(control_func):
             raise TypeError("control_func needs to be a function of time and the state")
         state = self._check_state(initial_condition)
-        
+
         if time_values is None:
             t0 = self.last_time if t0 is None else t0
             tf = t0 + time_step * (num_steps + 1)
@@ -475,6 +477,7 @@ class InvertedPendulum(DynamicalSystem):
         self.last_time = self.sol.t[-1]
 
         return self.sol.y
+
 
 # TODO:
 #  include benchmark systems from: https://arxiv.org/pdf/2008.12874.pdf

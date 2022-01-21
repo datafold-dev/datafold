@@ -2172,7 +2172,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        control_input: Optional[Union[TSCDataFrame,np.ndarray]] = None,
+        control_input: Optional[Union[TSCDataFrame, np.ndarray]] = None,
         check_inputs: bool = True,
         **predict_params,
     ) -> TSCDataFrame:
@@ -2193,7 +2193,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             The control input at the provided time values with shape
             `(n_timesteps, n_control_dimensions)`. If type is TSCDataFrame,
             it needs to contain only a single time series and time_values
-            can be inferred from the time index. 
+            can be inferred from the time index.
 
         check_inputs : bool, optional, default True
             Allows skipping input checks and assignemnts to improve performance.
@@ -2221,7 +2221,9 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
             if isinstance(control_input, TSCDataFrame):
                 if len(control_input.ids) != 1:
-                    raise ValueError("control_input needs to contain only a single time sereis.")
+                    raise ValueError(
+                        "control_input needs to contain only a single time sereis."
+                    )
                 if time_values is None:
                     time_values = control_input.time_values()
                 control_input = control_input.values
@@ -2246,21 +2248,93 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         X: InitialConditionType,
         y=None,
-        time_values: Optional[np.ndarray] = None,
-        control_input: Optional[np.ndarray] = None,
         check_inputs: bool = True,
         **fit_params,
     ) -> TSCDataFrame:
-        raise NotImplementedError("DMDControl.reconstruct() not yet implemented.")
-        # return (self.fit(X, **fit_params)
-        #            .predict(X, time_values, control_input, check_inputs))
+        """Fit model and reconstruct the time series data.
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            Input data with both state columns and control input columns.
+            To differentiate between state and control columns, use the
+            optional parameters in **fit_params.
+
+
+        y : any, optional
+            ignored
+
+        check_inputs : bool, optional, default True
+            Allows skipping input checks and assignemnts to improve performance.
+
+        **fit_params
+            Passed to :py:meth:`.fit(X,**fit_params)`
+
+        Returns
+        -------
+        TSCDataFrame
+            A reconstruction of X based on predicting each separate time series
+            in the collection using the training control input
+        """
+        return self.fit(X, **fit_params).reconstruct(X, check_inputs)
 
     def reconstruct(
         self,
         X: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
-    ):
-        raise NotImplementedError("DMDControl.reconstruct() not yet implemented.")
+        check_inputs: bool = True,
+        **split_params,
+    ) -> TSCDataFrame:
+        """Reconstruct the time series data.
+
+        Extract the initial states from each time series in the collection and
+        predict the other states with the model at the same time values.
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            Input data with both state columns and control input columns.
+            To differentiate between state and control columns, use the
+            optional parameters in **split_params.
+
+        y : any, optional
+            ignored
+
+        check_inputs : bool, default True
+            Allows skipping input checks and assignemnts to improve performance.
+
+        **split_params
+            Passed to :py:meth:`.fit(X,**split_params)`
+
+        Returns
+        -------
+        TSCDataFrame
+            A reconstruction of X based on predicting each separate time series
+            in the collection using the given control input
+        """
+
+        check_is_fitted(self)
+        X = self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            tsc_kwargs={"ensure_const_delta_time": True},
+        )
+        self._validate_feature_names(X)
+
+        X_reconstruct_ts = []
+
+        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
+            X, n_samples_ic=1
+        ):
+            X_ts = self.predict(
+                X=X_ic[self.state_columns],
+                time_values=time_values,
+                control_input=X[self.control_columns],
+                check_inputs=check_inputs,
+            )
+            X_reconstruct_ts.append(X_ts)
+
+        return pd.concat(X_reconstruct_ts, axis=0)
 
 
 class PyDMDWrapper(DMDBase):
