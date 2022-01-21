@@ -620,6 +620,27 @@ class DMDTest(unittest.TestCase):
         assert dmd4.control_columns == input_cols
         assert dmd4.state_columns == state_cols
 
+    def test_dmd_control_reconstruct(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+
+        original = self._create_control_tsc(state_size, input_size, n_timesteps)
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+
+        reconstructed = DMDControl().fit_predict(
+            X=original,
+            split_by="name",
+            state=state_cols,
+            control=input_cols,
+        )
+
+        pdtest.assert_frame_equal(
+            original[state_cols], reconstructed, check_exact=False
+        )
+
     def test_mode_equivalence_gdmd(self):
         # test mode = matrix and mode = spectrum against
         # (both should obtain similar results)
