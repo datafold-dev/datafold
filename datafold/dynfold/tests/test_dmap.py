@@ -137,6 +137,23 @@ class DiffusionMapsTest(unittest.TestCase):
         if plot:
             plt.show()
 
+    def test_compute_all_eigenpairs(self):
+        # check that all eigenpairs can be computed
+        X_swiss_all, _ = make_swiss_roll(n_samples=100, noise=0, random_state=5)
+        actual1 = DiffusionMaps(kernel=GaussianKernel(epsilon=2), n_eigenpairs=100).fit(
+            X_swiss_all
+        )
+
+        actual2 = DiffusionMaps(
+            kernel=GaussianKernel(epsilon=2), n_eigenpairs=100, symmetrize_kernel=False
+        ).fit(X_swiss_all)
+
+        self.assertEqual(actual1.eigenvectors_.shape[1], 100)
+        self.assertEqual(actual1.eigenvalues_.shape[0], 100)
+
+        self.assertEqual(actual2.eigenvectors_.shape[1], 100)
+        self.assertEqual(actual2.eigenvalues_.shape[0], 100)
+
     def test_sanity_dense_sparse(self):
 
         data, _ = make_swiss_roll(1000, random_state=1)
@@ -330,7 +347,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
         if plot:
             X_swiss_oos, color_oos = make_swiss_roll(
-                n_samples=5000, noise=0, random_state=5
+                n_samples=30000, noise=0, random_state=5
             )
 
             f, ax = plt.subplots(2, 3, figsize=(10, 8))
