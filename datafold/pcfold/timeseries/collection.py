@@ -862,9 +862,20 @@ class TSCDataFrame(pd.DataFrame):
         if len(np.unique(_ids)) != len(_ids):
             raise AttributeError("Time series IDs appear multiple times.")
 
-        ts_internal_codes = np.append(0, np.diff(index.codes[1]))
-        if np.any(ts_internal_codes[~bool_new_id] <= 0):
-            raise AttributeError("The time values of each time series must be sorted.")
+        if is_datetime64_dtype(time_index):
+            _time_index_num = time_index.astype(int)
+        else:
+            _time_index_num = time_index
+
+        cond_not_sorted = np.logical_and(
+            ~np.diff(ids_index).astype(bool),
+            np.diff(_time_index_num) <= 0.0,
+        )
+
+        if np.any(cond_not_sorted):
+            raise AttributeError(
+                "The time values of each time series in the collection must be sorted."
+            )
 
         return index
 

@@ -212,6 +212,15 @@ class TestTSCDataFrame(unittest.TestCase):
             # go in index checks
             tsc_df.index = pd.Index([1, 2, 3, 4, 5, 6, 7, 8, 9])
 
+    def test_set_datetime_index(self):
+        tsc_df = TSCDataFrame(self.simple_df.copy())
+
+        _ids = tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)
+        new_idx = np.arange(np.datetime64("2021-01-01"), np.datetime64("2021-01-10"))
+        tsc_df.index = pd.MultiIndex.from_arrays([_ids, new_idx])
+
+        self.assertTrue(tsc_df.is_datetime_index())
+
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
         pdtest.assert_series_equal(
@@ -970,6 +979,25 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc = TSCDataFrame(self.simple_df)
         actual = tsc.iloc[0, 0]
         self.assertIsInstance(actual, float)
+
+    def test_iloc_sclice3(self):
+        # test for bug reported in gitlab issue
+        # https://gitlab.com/datafold-dev/datafold/-/issues/148
+
+        df_list = [pd.DataFrame(data=[0], index=[0])]
+        df_list += [pd.DataFrame(data=range(10), index=range(10)) for i in range(2)]
+        df_list.append(pd.DataFrame(data=[0], index=[0]))
+
+        tsc_full = TSCDataFrame.from_frame_list(df_list)
+
+        test_one = tsc_full.iloc[[2, 4, 6, 13, 15, 18]]
+        self.assertIsInstance(test_one, TSCDataFrame)
+
+        test_two = tsc_full.iloc[[2, 4, 6, 13, 14, 18]]
+        self.assertIsInstance(test_two, TSCDataFrame)
+
+        with self.assertRaises(pd.errors.DuplicateLabelError):
+            tsc_full.iloc[[1, 1]]
 
     def test_slice01(self):
         tsc = TSCDataFrame(self.simple_df)
