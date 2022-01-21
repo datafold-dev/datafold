@@ -282,7 +282,9 @@ def sort_eigenpairs(
 
 
 def mat_dot_diagmat(
-    matrix: np.ndarray, diag_elements: np.ndarray, out: Optional[np.ndarray] = None
+    matrix: Union[np.ndarray, scipy.sparse.spmatrix],
+    diag_elements: np.ndarray,
+    out: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Efficient computation of "matrix times diagonal matrix".
 
@@ -309,10 +311,19 @@ def mat_dot_diagmat(
     -------
     """
     assert diag_elements.ndim == 1 and matrix.ndim == 2
-    return np.multiply(diag_elements, matrix, out=out)
+
+    if scipy.sparse.issparse(matrix):
+        # out is ignored here, because it is not supported by scipy sparse
+        return matrix @ scipy.sparse.diags(diagonals=diag_elements)
+    else:
+        return np.multiply(diag_elements, matrix, out=out)
 
 
-def diagmat_dot_mat(diag_elements: np.ndarray, matrix: np.ndarray, out=None):
+def diagmat_dot_mat(
+    diag_elements: Union[np.ndarray, scipy.sparse.spmatrix],
+    matrix: np.ndarray,
+    out=None,
+):
     """Efficient computation of "diagonal matrix times matrix".
 
     This computes
@@ -338,7 +349,12 @@ def diagmat_dot_mat(diag_elements: np.ndarray, matrix: np.ndarray, out=None):
     -------
     """
     assert diag_elements.ndim == 1 and matrix.ndim == 2
-    return np.multiply(matrix, diag_elements[:, np.newaxis], out=out)
+
+    if scipy.sparse.issparse(matrix):
+        # out is ignored here, as it is not supported by scipy sparse dot
+        return scipy.sparse.diags(diag_elements) @ matrix
+    else:
+        return np.multiply(matrix, diag_elements[:, np.newaxis], out=out)
 
 
 def df_type_and_indices_from(

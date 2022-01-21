@@ -4,23 +4,47 @@ from datafold.utils.general import *
 
 
 class TestMathUtils(unittest.TestCase):
-    def test_diagmat_dot_mat(self):
-        diag_elements = np.random.rand(100)
-        full_matrix = np.random.rand(100, 100)
+    def test_diagmat_dot_mat_dense(self):
+        diag_elements = np.random.default_rng(1).random(size=100)
+        full_matrix = np.random.default_rng(2).random(size=[100, 100])
 
         actual = diagmat_dot_mat(diag_elements, full_matrix)
         expected = np.diag(diag_elements) @ full_matrix
 
         nptest.assert_equal(actual, expected)
 
-    def test_mat_dot_diagmat(self):
-        diag_elements = np.random.rand(100)
-        full_matrix = np.random.rand(100, 100)
+    def test_diagmat_dot_mat_sparse(self):
+        diag_elements = np.random.default_rng(1).random(size=100)
+        full_matrix = np.random.default_rng(2).random(size=[100, 100])
+        full_matrix[full_matrix < 0.5] = 0
+        full_matrix = scipy.sparse.csr_matrix(full_matrix)
+
+        actual = mat_dot_diagmat(full_matrix, diag_elements)
+        self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+
+        expected = full_matrix.toarray() @ np.diag(diag_elements)
+        nptest.assert_equal(actual.toarray(), expected)
+
+    def test_mat_dot_diagmat_dense(self):
+        diag_elements = np.random.default_rng(3).random(size=100)
+        full_matrix = np.random.default_rng(4).random(size=[100, 100])
 
         actual = mat_dot_diagmat(full_matrix, diag_elements)
         expected = full_matrix @ np.diag(diag_elements)
 
         nptest.assert_equal(actual, expected)
+
+    def test_mat_dot_diagmat_sparse(self):
+        diag_elements = np.random.default_rng(3).random(size=100)
+        full_matrix = np.random.default_rng(4).random(size=[100, 100])
+        full_matrix[full_matrix < 0.5] = 0
+        full_matrix = scipy.sparse.csr_matrix(full_matrix)
+
+        actual = mat_dot_diagmat(full_matrix, diag_elements)
+        self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+
+        expected = full_matrix.toarray() @ np.diag(diag_elements)
+        nptest.assert_equal(actual.toarray(), expected)
 
     def test_sort_eigenpairs1(self):
         matrix = np.random.default_rng(1).random(size=[10, 10])

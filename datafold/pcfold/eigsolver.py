@@ -7,6 +7,9 @@ import scipy.sparse.linalg
 
 from datafold.utils.general import is_symmetric_matrix, sort_eigenpairs
 
+_valid_eigsolver_backends = ["scipy"]
+_valid_svd_backends = ["scipy"]
+
 
 class NumericalMathError(Exception):
     """Use for numerical problems/issues, such as singular matrices or too large
@@ -121,7 +124,60 @@ def scipy_eigsolver(
     return eigvals, eigvects
 
 
-_valid_backends = ["scipy"]
+def scipy_svdsolver(
+    kernel_matrix, n_svdvtriplets
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Decompose a (possibly rectangular) kernel matrix into singular value components.
+
+    Compte
+
+    .. math::
+
+        K = U S V^T
+
+    where, :math:`K` is the kernel matrix, :math:`U` and :math:`V` are the left and right
+    singular vectors and :math:`S` the diagonal singular matrix.
+
+    Parameters
+    ----------
+    kernel_matrix
+        Kernel matrix of shape `(n_samples_data, n_samples_reference)`, where
+        `n_samples_reference` can be the size of a reference/landmark set.
+
+    n_svdvtriplets
+        The number of SVD vectors and values to compute. Must be smaller than
+        `min(n_samples_data, n_samples_reference)`. If all triplets are computed, then a
+        sparse kernel may be cast to a dense matrix.
+
+    Returns
+    -------
+        svdvec_left
+            matrix :math:`U`
+        svdvals
+            array of singular values :math:`S`
+        svdvec_right
+            matrix :math:`V`
+    """
+    max_n_triplets = np.min(kernel_matrix.shape)
+
+    if n_svdvtriplets < max_n_triplets:
+        svdvec_left, svdvals, svdvec_right = scipy.sparse.linalg.svds(
+            kernel_matrix,
+            k=n_svdvtriplets,
+            which="LM",
+            v0=np.ones(min(kernel_matrix.shape)),
+        )
+
+        svdvals, svdvec_left, svdvec_right = sort_eigenpairs(
+            svdvals, svdvec_left, left_eigenvectors=svdvec_right
+        )
+    else:  # n_svdvtriplets == max_n_triplets:
+        if scipy.sparse.isspmatrix(kernel_matrix):
+            # must be a dense matrix for the solver -- TODO: maybe raise warning?
+            kernel_matrix = kernel_matrix.toarray()
+        svdvec_left, svdvals, svdvec_right = scipy.linalg.svd(kernel_matrix)
+
+    return svdvec_left, svdvals, svdvec_right
 
 
 def compute_kernel_eigenpairs(
@@ -152,7 +208,7 @@ def compute_kernel_eigenpairs(
         eigenvalue is known and all following eigenvalues are smaller.
 
     normalize_eigenvectors
-        If True, all eigenvectors are normalized to Eucledian norm 1.
+        If True, all eigenvectors are normalized to length 1.
 
     backend
         Valid backends:
@@ -230,3 +286,49 @@ def compute_kernel_eigenpairs(
         eigvects /= np.linalg.norm(eigvects, axis=0)[np.newaxis, :]
 
     return sort_eigenpairs(eigvals, eigvects)
+
+
+def compute_kernel_svd(
+    kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
+    n_svdtriplet: int,
+    backend: str = "scipy",
+):
+
+    if n_svdtriplet > np.min(kernel_matrix.shape):
+        raise ValueError(
+            f"{n_svdtriplet} is larger than the maximum number of SVD triplets available "
+            f"(={np.min(kernel_matrix.shape)})"
+        )
+
+    if backend == "scipy":
+        svdvec_left, svdvals, svdvec_right = scipy_svdsolver(
+            kernel_matrix, n_svdvtriplets=n_svdtriplet
+        )
+    else:
+        raise ValueError(
+            f"SVD backend {backend} is not available. "
+            f"Choose from {_valid_svd_backends}"
+        )
+
+    if np.iscomplexobj(svdvec_left) or np.iscomplexobj(svdvec_right):
+        # Note that the singular values are guaranteed to be real-valued
+
+        max_imag_entry = max(
+            np.abs(np.imag(svdvec_left)).max(), np.abs(np.imag(svdvec_right)).max()
+        )
+
+        if max_imag_entry > 1e2 * sys.float_info.epsilon:
+            raise NumericalMathError(
+                "SVD eigenvectors have non-negligible imaginary part (larger than "
+                f"{1e2 * sys.float_info.epsilon})."
+            )
+        else:
+            svdvec_left = np.real(svdvec_left)
+            svdvec_right = np.real(svdvec_right)
+
+    # Note: it is correct that left/right is opposite here
+    svdvals, svdvec_left, svdvec_right = sort_eigenpairs(
+        svdvals, right_eigenvectors=svdvec_left, left_eigenvectors=svdvec_right
+    )
+
+    return svdvec_left, svdvals, svdvec_right

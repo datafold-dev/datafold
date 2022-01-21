@@ -1562,11 +1562,30 @@ class DmapKernelFixed(BaseManifoldKernel):
 
 
 class RoselandKernel(PCManifoldKernel):
-    def __init__(self, internal_kernel, is_stochastic: bool = True):
-        self.internal_kernel = internal_kernel
-        self.is_stochastic = is_stochastic
+    """ """
 
-    def _compute_normalize_diagonal(self, kernel_matrix) -> np.ndarray:
+    def __init__(self, internal_kernel, alpha=0):
+        self.internal_kernel = internal_kernel
+        self.alpha = alpha
+
+    def _normalize_density(self, kernel_matrix, landmark_density=None):
+
+        if landmark_density is None:
+            landmark_density = kernel_matrix.sum(axis=0)
+
+        data_density = kernel_matrix.sum(axis=1)
+
+        if scipy.sparse.issparse(kernel_matrix):
+            landmark_density = landmark_density.A1
+            data_density = data_density.A1
+
+        normalized_kernel_matrix = _symmetric_matrix_division(
+            kernel_matrix, vec=data_density, vec_right=landmark_density
+        )
+
+        return normalized_kernel_matrix, landmark_density
+
+    def _compute_normalize_diagonal(self, kernel_matrix, stochastic_normalization_fit):
         """This function computes
 
         .. code::
@@ -1578,36 +1597,42 @@ class RoselandKernel(PCManifoldKernel):
         In the paper this is the diagonal of :math:`D^{-1/2}`.
         """
 
-        column_sums = kernel_matrix.sum(axis=0)
+        def cast_array(obj):
+            # Scipy's sparse matrices use the deprecated matrix module from Numpy
+            # The attribute A1 turns a matrix object to an array
+            return obj.A1 if scipy.sparse.issparse(kernel_matrix) else obj
 
-        if scipy.sparse.issparse(kernel_matrix):
-            kernel_matrix_adapted = kernel_matrix @ scipy.sparse.diags(column_sums.A1)
-        else:
-            kernel_matrix_adapted = kernel_matrix * column_sums
+        if stochastic_normalization_fit is None:
+            stochastic_normalization_fit = cast_array(kernel_matrix.sum(axis=0))
 
-        normalize_diagonal = np.sqrt(np.sum(kernel_matrix_adapted, axis=1))
-        if scipy.sparse.issparse(kernel_matrix):
-            normalize_diagonal = normalize_diagonal.A1
+        # Alternative computation,
+        #   normalize_diagonal = np.sqrt((kernel_matrix @ kernel_matrix.T).sum(axis=1))
+        # However, this does not separate the "stochastic_normalization_fit" part,
+        # which may be required later for a Nyström embedding.
 
-        with np.errstate(divide="ignore", over="ignore"):
-            # especially in cdist computations there can be far away outliers
-            # (or very small scale/epsilon). This results in elements near 0 and
-            #  the reciprocal can then
-            #     - be inf
-            #     - overflow (resulting in negative values)
-            #  these cases are catched with 'bool_invalid' below
+        kernel_matrix_adapted = mat_dot_diagmat(
+            kernel_matrix, stochastic_normalization_fit
+        )
+
+        normalize_diagonal = cast_array(np.sqrt(np.sum(kernel_matrix_adapted, axis=1)))
+
+        with np.errstate(divide="ignore"):
+            # The reciprocal can be inf when a landmark has no neighbors.
+            # These cases are treated separately in 'bool_invalid' below
             normalize_diagonal = np.reciprocal(
                 normalize_diagonal, out=normalize_diagonal
             )
 
-        bool_invalid = np.logical_or(
-            np.isinf(normalize_diagonal), normalize_diagonal < 0
-        )
-        normalize_diagonal[bool_invalid] = 0
+            bool_invalid = np.logical_or(
+                np.isinf(normalize_diagonal), normalize_diagonal < 0
+            )
+            normalize_diagonal[bool_invalid] = 0
 
-        return normalize_diagonal
+        return stochastic_normalization_fit, normalize_diagonal
 
-    def _normalize_kernel_matrix(self, kernel_matrix):
+    def _normalize_kernel_matrix(
+        self, kernel_matrix, stochastic_normalization_fit, landmark_density_fit
+    ):
         """Normalizes the kernel matrix.
 
         This function performs
@@ -1635,27 +1660,59 @@ class RoselandKernel(PCManifoldKernel):
         dict
             A dictionary containing the diagonal required for normalization.
         """
-        normalize_diagonal = self._compute_normalize_diagonal(
-            kernel_matrix=kernel_matrix
+
+        # Note that landmark_density_fit is can also be None if alpha = 0
+        is_fit = True if stochastic_normalization_fit is None else False
+
+        if self.alpha > 0:
+            if not is_fit and landmark_density_fit is None:
+                raise ValueError(
+                    "parameter 'landmark_density_fit' must contain values "
+                    "computed during fit"
+                )
+
+            kernel_matrix, landmark_density_fit = self._normalize_density(
+                kernel_matrix, landmark_density_fit
+            )
+        else:
+            landmark_density_fit = None
+
+        (
+            stochastic_normalization_fit,
+            normalize_diagonal,
+        ) = self._compute_normalize_diagonal(
+            kernel_matrix=kernel_matrix,
+            stochastic_normalization_fit=stochastic_normalization_fit,
         )
 
-        # TODO: Include the sparse case in diagmat_dot_mat??
-        if scipy.sparse.issparse(kernel_matrix):
-            kernel_matrix = scipy.sparse.diags(normalize_diagonal) @ kernel_matrix
-        else:
-            kernel_matrix = diagmat_dot_mat(normalize_diagonal, kernel_matrix)
+        kernel_matrix = diagmat_dot_mat(
+            normalize_diagonal, kernel_matrix, out=kernel_matrix
+        )
 
-        return kernel_matrix, None, dict(normalize_diagonal=normalize_diagonal)
+        if is_fit:
+            ret_cdist = dict(
+                stochastic_normalization_fit=stochastic_normalization_fit,
+                landmark_density_fit=landmark_density_fit,
+            )
+        else:
+            ret_cdist = None
+
+        return kernel_matrix, ret_cdist, dict(normalize_diagonal=normalize_diagonal)
 
     def _eval(
-        self, kernel_output
+        self, kernel_output, landmark_density_fit, stochastic_normalization_fit
     ) -> Tuple[
         Union[np.ndarray, scipy.sparse.csr_matrix], Optional[Dict], Optional[Dict]
     ]:
         kernel_matrix, _, _ = PCManifoldKernel.read_kernel_output(
             kernel_output=kernel_output
         )
-        return self._normalize_kernel_matrix(kernel_matrix)
+
+        return self._normalize_kernel_matrix(
+            kernel_matrix,
+            landmark_density_fit=landmark_density_fit,
+            stochastic_normalization_fit=stochastic_normalization_fit,
+        )
 
     def __call__(
         self,
@@ -1666,11 +1723,28 @@ class RoselandKernel(PCManifoldKernel):
         **kernel_kwargs,
     ):
         kernel_output = self.internal_kernel(X, Y=Y, dist_kwargs=dist_kwargs or {})
-        return self._eval(kernel_output)
 
-    def eval(self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]):
+        landmark_density_fit, stochastic_normalization_fit = self._read_kernel_kwargs(
+            attrs=["landmark_density_fit", "stochastic_normalization_fit"],
+            kernel_kwargs=kernel_kwargs,
+        )
+
+        return self._eval(
+            kernel_output, landmark_density_fit, stochastic_normalization_fit
+        )
+
+    def eval(
+        self,
+        distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
+        landmark_density_fit: Optional[np.ndarray] = None,
+        stochastic_normalization_fit: Optional[np.ndarray] = None,
+    ):
         kernel_output = self.internal_kernel.eval(distance_matrix)
-        return self._eval(kernel_output=kernel_output)
+        return self._eval(
+            kernel_output=kernel_output,
+            landmark_density_fit=landmark_density_fit,
+            stochastic_normalization_fit=stochastic_normalization_fit,
+        )
 
 
 class ConeKernel(TSCManifoldKernel):
