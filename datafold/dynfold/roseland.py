@@ -1,16 +1,14 @@
-import sys
 import warnings
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import scipy.sparse.linalg
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
 from datafold.pcfold import PCManifold, TSCDataFrame
-from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_svd
+from datafold.pcfold.eigsolver import compute_kernel_svd
 from datafold.pcfold.kernels import (
     GaussianKernel,
     KernelType,
@@ -459,7 +457,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         return svdvec_left
 
     def transform(self, X: TransformType) -> TransformType:
-
         r"""Embed out-of-sample points with the Nyström extension:
 
         .. math::
@@ -469,7 +466,8 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         where :math:`K(Y, X)` is a component-wise evaluation of the new kernel matrix,
         :math:`V` the right singular vectors associated with the fitted model,
         :math:`\Lambda` the singular values of the fitted model, and
-        :math:`U_{new}` the approximated left singular vectors of the (normalized) new kernel matrix.
+        :math:`U_{new}` the approximated left singular vectors of the (normalized) new
+        kernel matrix.
 
         Parameters
         ----------
@@ -479,7 +477,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         Returns
         -------
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            the new coordinates of the points in X
+            the new coordinates of the points in `X`
         """
 
         check_is_fitted(

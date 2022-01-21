@@ -252,7 +252,6 @@ class RoselandTest(unittest.TestCase):
 
         setting = {"kernel": GaussianKernel(), "n_svdpairs": 5, "gamma": 0.25}
 
-        t0 = time()
         rose_embed = Roseland(**setting)
 
         t1 = time()

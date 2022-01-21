@@ -1,6 +1,10 @@
 import unittest
 
-from datafold.utils.general import *
+import numpy as np
+import numpy.testing as nptest
+import scipy
+
+from datafold.utils.general import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
 
 
 class TestMathUtils(unittest.TestCase):
