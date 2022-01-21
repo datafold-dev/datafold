@@ -123,7 +123,7 @@ class RoselandTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             actual_rose.set_target_coords(indices=[0, 6])
 
-    def test_nystrom_out_of_sample_swiss_roll(self, plot=True):
+    def test_nystrom_out_of_sample_swiss_roll(self, plot=False):
 
         X_swiss_all, color_all = make_swiss_roll(
             n_samples=4000, noise=0, random_state=5
@@ -134,12 +134,12 @@ class RoselandTest(unittest.TestCase):
             "kernel": GaussianKernel(epsilon=2.7),
             "n_svdtriplet": 7,
             "landmarks": data_landmark,
-            "alpha": 1,
+            "alpha": 0,
         }
 
         rose_embed = Roseland(**setting).fit(X_swiss_all)
 
-        indices = [1, 4]
+        indices = [1, 5]
         if plot:
             plot_pairwise_eigenvector(
                 eigenvectors=rose_embed.svdvec_left_,
