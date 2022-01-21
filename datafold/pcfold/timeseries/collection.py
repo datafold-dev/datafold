@@ -27,7 +27,7 @@ class TSCException(Exception):
 
     @classmethod
     def not_finite(cls):
-        return cls(f"Numeric values are not finite (nan or inf values present).")
+        return cls("Numeric values are not finite (nan or inf values present).")
 
     @classmethod
     def not_min_samples(cls, min_samples):
@@ -193,7 +193,8 @@ class TSCDataFrame(pd.DataFrame):
     * The column must be a one-dimensional column index that contains the feature
       names (accounting to the spatial axis)
     * There are no duplicates in both row and column index allowed (the flag
-      `allows_duplicate_labels <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
+      `allows_duplicate_labels
+      <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
       is set to True). Note, that this disables inplace operations on the labels (e.g.
       :code:`tsc.set_index(new_index, inplace=True` raises an error).
     * All time series values must be of a numeric dtype (`nan` or `inf` are allowed).
@@ -741,7 +742,8 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         **kwargs
             All keyword arguments are passed to the super class. See
-            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_csv.html>`__
+            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.
+            DataFrame.to_csv.html>`__.
 
         Returns
         -------
@@ -764,7 +766,8 @@ class TSCDataFrame(pd.DataFrame):
 
         **kwargs
             keyword arguments handled to
-            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`_
+            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/
+            pandas.read_csv.html>`__
 
         Returns
         -------
@@ -1110,8 +1113,8 @@ class TSCDataFrame(pd.DataFrame):
         """Label-based indexing.
 
         Please visit
-        `pd.DataFrame.loc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.loc.html#pandas.DataFrame.loc>`_
-        for full documentation.
+        `pd.DataFrame.loc <https://pandas.pydata.org/pandas-docs/stable/reference/api/
+        pandas.DataFrame.loc.html#pandas.DataFrame.loc>`__ for full documentation.
 
         Returns
         -------
@@ -1123,9 +1126,9 @@ class TSCDataFrame(pd.DataFrame):
     def iloc(self):
         """Index-based indexing.
 
-        Visit
-        `pd.DataFrame.iloc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.iloc.html#pandas.DataFrame.iloc>`_
-        for documentation of how to index DataFrame.
+        Visit `pd.DataFrame.iloc <https://pandas.pydata.org/pandas-docs/stable/reference/
+        api/pandas.DataFrame.iloc.html#pandas.DataFrame.iloc>`__ for documentation of how
+        to index DataFrame.
 
         .. warning::
             For single column slices (e.g. ``tsc.iloc[:, 0]``), the type
@@ -1175,7 +1178,8 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         args
             see docu
-            `DataFrame.xs <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.xs.html#pandas.DataFrame.xs>`_
+            `DataFrame.xs <https://pandas.pydata.org/pandas-docs/stable/reference/api/
+            pandas.DataFrame.xs.html#pandas.DataFrame.xs>`_
 
         Returns
         -------
@@ -1691,8 +1695,9 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         **kwargs
             Key word arguments handled to each time series
-            `pandas.DataFrame.plot() <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.plot.html?highlight=plot#pandas.DataFrame.plot>`_
-            call.
+            `pandas.DataFrame.plot()
+            <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.
+            plot.html?highlight=plot#pandas.DataFrame.plot>`__ call.
 
         Returns
         -------

@@ -7,16 +7,23 @@ import unittest
 import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.testing as nptest
+from scipy.sparse import csr_matrix
 from sklearn.datasets import make_swiss_roll
 from sklearn.model_selection import ParameterGrid
 from sklearn.utils.estimator_checks import check_estimator
 
+from datafold.dynfold import DiffusionMaps
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,
     MultiScaleGeometricHarmonicsInterpolator,
 )
-from datafold.dynfold.tests.helper import *
+from datafold.dynfold.tests.helper import (
+    assert_equal_eigenvectors,
+    make_points,
+    make_strip,
+)
 from datafold.pcfold.distance import IS_IMPORTED_RDIST
 from datafold.pcfold.kernels import DmapKernelFixed, GaussianKernel
 
@@ -405,14 +412,14 @@ class GeometricHarmonicsTest(unittest.TestCase):
         cnf = cur_row[1].contourf(
             xx, yy, abs_diff_single_train, cmap="Reds", vmin=vmin, vmax=vmax
         )
-        # f.colorbar(cnf)
+        f.colorbar(cnf)
         cur_row[1].plot(xx, yy, ".", c="k")
 
         cur_row[2].set_title("abs difference multi scale")
         cnf = cur_row[2].contourf(
             xx, yy, abs_diff_multi_train, cmap="Reds", vmin=vmin, vmax=vmax
         )
-        # f.colorbar(cnf)
+        f.colorbar(cnf)
 
         cur_row[2].plot(xx, yy, ".", c="k")
 
@@ -465,13 +472,13 @@ class GeometricHarmonicsTest(unittest.TestCase):
         cnf = cur_row[1].contourf(
             xx_oos, yy_oos, abs_diff_single_train, cmap="Reds", vmin=vmin, vmax=vmax
         )
-        # f.colorbar(cnf)
+        f.colorbar(cnf)
 
         cur_row[2].set_title("abs difference multi scale")
         cnf = cur_row[2].contourf(
             xx_oos, yy_oos, abs_diff_multi_train, cmap="Reds", vmin=vmin, vmax=vmax
         )
-        # f.colorbar(cnf)
+        f.colorbar(cnf)
 
         plt.show()
 
@@ -582,8 +589,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         data = np.linspace(0, 2 * np.pi, 100)[:, np.newaxis]
         values = np.sin(data)
-
-        from scipy.spatial.distance import pdist
 
         gh_interp = GeometricHarmonicsInterpolator(
             GaussianKernel(epsilon=2),
@@ -1165,10 +1170,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
-    import os
-
-    # unittest.main()
 
     t = LaplacianPyramidsTest()
     t.setUp()

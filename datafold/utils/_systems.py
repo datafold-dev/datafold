@@ -102,8 +102,8 @@ class LimitCycle(DynamicalSystem):
 
 class HopfSystem(DynamicalSystem):
     """
-    Lawrence Perko. Differential equations and dynamical systems, volume 7. Springer Science & Business
-    Media, 2013. page 350
+    Lawrence Perko. Differential equations and dynamical systems, volume 7. Springer
+    Science & Business Media, 2013. page 350
 
     https://link.springer.com/book/10.1007/978-1-4613-0003-8
     """

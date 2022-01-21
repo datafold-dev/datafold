@@ -12,9 +12,10 @@ from datafold.dynfold.base import TransformType, TSCTransformerMixin
 
 
 class TSCPipeline(pipeline.Pipeline, TSCTransformerMixin):  # pragma: no cover
-    @property
-    def feature_names_in_(self):
-        return self.steps[0][1].feature_names_in_
+
+    # @property # Note: this property is handled in the super class
+    # def feature_names_in_(self):
+    #    return self.steps[0][1].feature_names_in_
 
     @property
     def n_features_out_(self):
@@ -32,7 +33,8 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     :py:class:`TSCDataFrame` in the pipeline.
 
     For the undocumented attributes please go to the base class documentation
-    `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html>`__
+    `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.
+    ColumnTransformer.html>`__.
 
     .. note::
         The parameter ``sparse_threshold`` of the super class is not supported.
@@ -63,15 +65,15 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
             verbose=verbose,
         )
 
-    # @property
+    # @property # Note: this property is handled in the super class
     # def n_features_in_(self):
     #     # this is only to make it explicit that this is already handled by the super class
     #     return super(TSCColumnTransformer, self).n_features_in_
 
-    @property
-    def feature_names_in_(self):
-        check_is_fitted(self, "transformers_")
-        return self.transformers_[0][1].feature_names_in_
+    # @property
+    # def feature_names_in_(self):
+    #    check_is_fitted(self, "transformers_")
+    #    return self.transformers_[0][1].feature_names_in_
 
     @property
     def n_features_out_(self):
@@ -92,7 +94,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     def _hstack(self, Xs):
         if self.sparse_output_:
             raise NotImplementedError(
-                "Currently there is no support for sparse output in TSCColumnsTransformer"
+                "Currently there is no support for sparse output in TSCColumnTransformer."
             )
 
         all_columns = pd.Index(np.hstack([df.columns.to_numpy() for df in Xs]))

@@ -61,7 +61,7 @@ def _symmetric_matrix_division(
     vec_right: Optional[np.ndarray] = None,
     scalar: float = 1.0,
     value_zero_division: Union[str, float] = "raise",
-) -> Union[np.ndarray, scipy.sparse.csr_matrix,]:
+) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
     r"""Symmetric division, often appearing in kernels.
 
     .. math::
@@ -1655,7 +1655,7 @@ class ConeKernel(TSCManifoldKernel):
     def _validate_setting(self, X, Y):
 
         # cannot import in top of file, because this creates circular imports
-        from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
+        from datafold.pcfold.timeseries.collection import TSCDataFrame
 
         check_scalar(
             self.zeta,

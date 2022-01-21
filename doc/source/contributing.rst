@@ -22,6 +22,18 @@ Setting up *datafold* for development
 
 This section describes all steps to set up *datafold* for code development.
 
+.. note::
+
+    **Linux only:** Many common tasks (e.g. setting up a virtual environment or the CI
+    pipeline) are also contained in the
+    `Makefile <https://gitlab.com/datafold-dev/datafold/-/blob/master/Makefile>`__. Run
+
+    .. code-block:: bash
+
+        make
+
+    in the shell to see the options.
+
 Quick set up
 ^^^^^^^^^^^^
 
@@ -257,9 +269,7 @@ On a debian-like platform, install the packages with
 
 .. code-block:: bash
 
-    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
-
-(This excludes the Latex installation, see available `texlive` packages).
+    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
 
 To build the documentation run:
 

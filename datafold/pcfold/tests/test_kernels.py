@@ -347,7 +347,7 @@ class TestContinuousNNKernel(unittest.TestCase):
             if train_data.shape[1] == 2:
                 fig, ax = plt.subplots()
             elif train_data.shape[1] == 3:
-                from mpl_toolkits.mplot3d import Axes3D
+                from mpl_toolkits.mplot3d import Axes3D  # noqa
 
                 fig = plt.figure()
                 ax = fig.add_subplot(111, projection="3d")

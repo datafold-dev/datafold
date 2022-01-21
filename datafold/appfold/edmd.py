@@ -75,6 +75,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils import _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
+from datafold._decorators import warn_experimental_class
 from datafold.dynfold import DMDBase, DMDFull
 from datafold.dynfold.base import (
     InitialConditionType,
@@ -87,7 +88,6 @@ from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCK
 from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
-    is_integer,
     projection_matrix_from_features,
 )
 
@@ -648,7 +648,6 @@ class EDMD(
         # "self.memory is not None" (see docu):
         fit_params = self._check_fit_params(**fit_params or {})
         dmd_fit_params = fit_params.pop("dmd", None)
-        edmd_fit_params = fit_params.pop("edmd", None)
 
         X_dict = self._fit(X, y, **fit_params)
 
@@ -1078,7 +1077,7 @@ def _fit_and_score_edmd(
         if split_progress is not None:
             progress_msg = f" {split_progress[0] + 1}/{split_progress[1]}"
         if candidate_progress and verbose > 9:
-            progress_msg += f"; {candidate_progress[0] + 1}/" f"{candidate_progress[1]}"
+            progress_msg += f"; {candidate_progress[0] + 1}/ {candidate_progress[1]}"
 
     if verbose > 1:
         if parameters is None:
@@ -1110,7 +1109,7 @@ def _fit_and_score_edmd(
     result = {}
     try:
         edmd.fit(X_train, y=None, **fit_params)
-    except Exception as e:
+    except Exception:
         # Handle all exception, to not waste other working or complete results
         fit_time = time.time() - start_time  # Note fit time as time until error
         score_time = 0.0
@@ -1150,7 +1149,7 @@ def _fit_and_score_edmd(
         params_msg = ", ".join(f"{k}={parameters[k]}" for k in sorted_keys)
 
         total_time = score_time + fit_time
-        end_msg = f"[CV] END "
+        end_msg = "[CV] END "
         result_msg = params_msg + (";" if params_msg else "")
         result_msg += f" total time={logger.short_format_time(total_time)}"
 
@@ -1707,9 +1706,6 @@ class EDMDWindowPrediction(object):
         )
         estimator.score = partial(self._window_score, edmd=estimator)  # type: ignore
         return estimator
-
-
-from datafold._decorators import warn_experimental_class
 
 
 @warn_experimental_class
