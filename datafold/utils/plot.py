@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import warnings
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -188,7 +188,7 @@ def plot_eigenvalues_time(
         if system_type == "flowmap":
             ax.set_ylabel("$\\vert \\lambda^{t / \\Delta t} \\vert$")
         else:  # continuous
-            ax.set_ylabel("$\\vert \\exp(\\lambda \cdot t) \\vert$")
+            ax.set_ylabel("$\\vert \\exp(\\lambda \\cdot t) \\vert$")
 
     return ax
 

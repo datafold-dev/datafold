@@ -19,8 +19,8 @@ from datafold.utils.general import is_integer
 class TSCAccessor(object):
     """Extension functions for TSCDataFrame.
 
-    See `documentation <https://pandas.pydata.org/pandas-docs/stable/development/extending.html?highlight=accessor>`_
-    for regular pandas accessors.
+    See `documentation <https://pandas.pydata.org/pandas-docs/stable/development/
+    extending.html?highlight=accessor>`__ for regular pandas accessors.
 
     The functions are available through the accessor `tsc`, for example,
 
@@ -1012,7 +1012,7 @@ class TSCAccessor(object):
         # to do the whole thing with boolean indexing
 
         # TODO: maybe three is a better readable code using pandas' functionatlity?
-        #  e.g. shift https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.shift.html
+        #  e.g. shift https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.shift.html # noqa
         #  could also be more efficient than cmp to itertimeseries()
         for i, (id_, ts_df) in enumerate(self._tsc_df.itertimeseries()):
             if snapshot_orientation == "col":

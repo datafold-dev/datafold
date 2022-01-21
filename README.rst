@@ -235,7 +235,7 @@ How does it compare to other software?
    arbitrary many output samples (a time series) for a single input
    (an initial condition).
 
-* `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`__
+* `PyDMD <https://mathlab.github.io/PyDMD/>`__
    provides many variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia.org/wiki/Dynamic_mode_decomposition>`__.
    *datafold* provides a wrapper to make models of ``PyDMD`` accessible. However, a
    limitation of ``PyDMD`` is that it only processes single coherent time series, see

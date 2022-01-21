@@ -279,7 +279,8 @@ class DMDTest(unittest.TestCase):
         return TSCDataFrame.from_single_timeseries(data)
 
     def test_dmd_eigenpairs(self):
-        # From http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf
+        # From
+        # http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf # noqa
         # page 297 Example 9.5
 
         dmd_model = DMDFull(is_diagonalize=True)

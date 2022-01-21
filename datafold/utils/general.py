@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import warnings
 from typing import List, Optional, Tuple, Union
 
 import numpy as np

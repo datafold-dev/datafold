@@ -27,8 +27,8 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
     ----------
 
     sklearn_transformer
-        See `here <https://scikit-learn.org/stable/modules/classes.html#module-sklearn.preprocessing>`_
-        for a list of possible preprocessing algorithms.
+        See `here <https://scikit-learn.org/stable/modules/classes.html#module-sklearn.
+        preprocessing>`__ for a list of possible preprocessing algorithms.
     """
 
     _cls_valid_scale_names = ("min-max", "standard")
@@ -306,8 +306,9 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
     input and output of :class:`pandas.DataFrames` and :class:`.TSCDataFrame`. All input
     parameters remain the same. For documentation please visit:
 
-    * `PCA docu <https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html>`_
-    * `PCA user guide <https://scikit-learn.org/stable/modules/decomposition.html#pca>`_
+    * `PCA docu <https://scikit-learn.org/stable/modules/generated/sklearn.
+      decomposition.PCA.html>`__
+    * `PCA user guide <https://scikit-learn.org/stable/modules/decomposition.html#pca>`__
     """
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "PCA":
@@ -636,9 +637,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         X = self._columns_to_type_str(X)
         self._validate_feature_input(X, direction="transform")
 
-        #################################
-        ### Implementation using pandas by using shift()
-        ### This implementation is better readable, and is for many cases similarly
+        # Implementation using pandas by using shift()
+        # This implementation is better readable, and is for many cases similarly
         # fast to the numpy version (below), but has a performance drop for
         # high-dimensions (dim>500)
         # id_groupby = X.groupby(TSCDataFrame.IDX_ID_NAME)
@@ -961,7 +961,8 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
     This class adds the parameter `include_first_order` to choose whether to include the
     identity states. For all other parameters please visit the super class
     documentation of
-    `PolynomialFeatures <https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html>`_.
+    `PolynomialFeatures <https://scikit-learn.org/stable/modules/generated/sklearn.
+    preprocessing.PolynomialFeatures.html>`__.
     """
 
     def __init__(

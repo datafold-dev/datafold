@@ -16,20 +16,13 @@ from datafold.dynfold.base import TransformType, TSCTransformerMixin
 from datafold.pcfold import DmapKernelFixed, PCManifold, TSCDataFrame
 from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
 from datafold.pcfold.kernels import (
-    BaseManifoldKernel,
     DmapKernelVariable,
     GaussianKernel,
     KernelType,
     PCManifoldKernel,
     TSCManifoldKernel,
 )
-from datafold.utils.general import (
-    df_type_and_indices_from,
-    diagmat_dot_mat,
-    if1dim_colvec,
-    mat_dot_diagmat,
-    random_subsample,
-)
+from datafold.utils.general import df_type_and_indices_from, mat_dot_diagmat
 
 
 class _DmapKernelAlgorithms:
@@ -1156,7 +1149,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         # User provides a threshold for the residuals. All eigenfunctions above this value
         # are included to parametrize the manifold.
-        else:  #  self.strategy == "threshold":
+        else:  # self.strategy == "threshold":
             self.evec_indices_ = np.sort(
                 np.where(residuals > self.regress_threshold)[0]
             )

@@ -136,7 +136,7 @@ imgmath_font_size = 12  # default=12
 # command name with which to invoke LaTeX. The default is 'latex';
 # you may need to set this to a full path if latex is not in the executable search path
 imgmath_latex = "latex"
-imgmath_latex_args = []  # TODO raise error if not found?
+imgmath_latex_args = []
 imgmath_latex_preamble = r"\usepackage{amsmath,amstext}"
 
 # ----------------------------------------------------------------------------------------
@@ -211,6 +211,7 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scikit-learn": ("https://scikit-learn.org/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "pandas": ("http://pandas.pydata.org/pandas-docs/stable/", None),
 }
 
 # TODO: many pandas links are not resolved -- See:

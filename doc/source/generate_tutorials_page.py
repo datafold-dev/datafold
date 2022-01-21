@@ -264,11 +264,13 @@ def generate_docs_str(target):
     tutorial_page_content += "\n"
     tutorial_page_content += (
         "`Download "
-        "<https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip?path=tutorials/>`__ "
+        "<https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master."
+        "zip?path=tutorials/>`__ "
         "all tutorials in a zipped file.\n\n"
     )
     tutorial_page_content += ".. toctree::\n"
     tutorial_page_content += f"{INDENT}:hidden:\n"
+
     # use easy replacement strings
     tutorial_page_content += "???INSERT_TOC_FILELIST???\n"
     tutorial_page_content += "???INSERT_TUTORIAL_LIST???\n"

@@ -213,14 +213,17 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 
         The scikit-learn project heavily discusses on how to handle feature names. There
         are many proposed solutions. The solution that datafold uses is
-        `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep007/proposal.html>`__
+        `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/
+        slep007/proposal.html>`__
 
         However, this is only a proposal and may have to be changed later.
 
         Other resources:
 
-        * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep012/proposal.html>`__
-        * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/pull/18/>`__
+        * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io
+          /en/latest/slep012/proposal.html>`__
+        * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/
+          pull/18/>`__
 
     Parameters
     ----------
@@ -357,8 +360,6 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         -------
 
         """
-
-        _type = type(X)
 
         if isinstance(X, TSCDataFrame):
             # NOTE: order is important here TSCDataFrame is also a DataFrame, so first
@@ -545,7 +546,7 @@ class TSCPredictMixin(TSCBaseMixin):
         if qois is not None:
             try:
                 qois = np.asarray(qois)
-            except:
+            except Exception:
                 raise TypeError("parameter 'qois' must be list-like")
 
             if qois.ndim != 1:

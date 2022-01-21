@@ -1,7 +1,6 @@
 import os
 import subprocess
 import tempfile
-import unittest
 from typing import List
 
 import nbformat
