@@ -148,6 +148,9 @@ def _symmetric_matrix_division(
         )
 
     if scipy.sparse.issparse(matrix):
+        # TODO: this can be replaced with diagmat_dot_mat and mat_dot_diagmat as this
+        #  supports now sparse matrices too.
+
         left_inv_diag_sparse = scipy.sparse.spdiags(
             vec_inv_left, 0, m=matrix.shape[0], n=matrix.shape[0]
         )
@@ -1251,7 +1254,7 @@ class DmapKernelFixed(BaseManifoldKernel):
 
     alpha
         Degree of re-normalization of sampling density in point cloud. `alpha` must be
-        inside the interval [0, 1] (inclusive).
+        a float inside the interval [0, 1].
 
     symmetrize_kernel
         If True, performs a conjugate transformation which can improve numerical
@@ -1562,22 +1565,38 @@ class DmapKernelFixed(BaseManifoldKernel):
 
 
 class RoselandKernel(PCManifoldKernel):
-    """ """
+    """Roseland kernel to perform landmark
+
+    This kernel wraps a kernel to describe a diffusion process.
+
+    Parameters
+    ----------
+
+    internal_kernel
+        Kernel that describes the proximity between data points.
+
+    alpha
+        Degree of re-normalization of sampling density in point cloud. `alpha` must be
+        a float inside the interval [0, 1].
+    """
 
     def __init__(self, internal_kernel, alpha=0):
         self.internal_kernel = internal_kernel
         self.alpha = alpha
 
+    def _cast_array(self, obj, is_sparse):
+        # Scipy's sparse matrices use the deprecated matrix module from Numpy
+        # The attribute A1 turns a matrix object to an array
+        return obj.A1 if is_sparse else obj
+
     def _normalize_density(self, kernel_matrix, landmark_density=None):
 
+        is_sparse = scipy.sparse.spmatrix(kernel_matrix)
+
         if landmark_density is None:
-            landmark_density = kernel_matrix.sum(axis=0)
+            landmark_density = self._cast_array(kernel_matrix.sum(axis=0), is_sparse)
 
-        data_density = kernel_matrix.sum(axis=1)
-
-        if scipy.sparse.issparse(kernel_matrix):
-            landmark_density = landmark_density.A1
-            data_density = data_density.A1
+        data_density = self._cast_array(kernel_matrix.sum(axis=1), is_sparse)
 
         normalized_kernel_matrix = _symmetric_matrix_division(
             kernel_matrix, vec=data_density, vec_right=landmark_density
@@ -1597,24 +1616,25 @@ class RoselandKernel(PCManifoldKernel):
         In the paper this is the diagonal of :math:`D^{-1/2}`.
         """
 
-        def cast_array(obj):
-            # Scipy's sparse matrices use the deprecated matrix module from Numpy
-            # The attribute A1 turns a matrix object to an array
-            return obj.A1 if scipy.sparse.issparse(kernel_matrix) else obj
+        is_sparse = scipy.sparse.issparse(kernel_matrix)
 
         if stochastic_normalization_fit is None:
-            stochastic_normalization_fit = cast_array(kernel_matrix.sum(axis=0))
+            stochastic_normalization_fit = self._cast_array(
+                kernel_matrix.sum(axis=0), is_sparse
+            )
 
         # Alternative computation,
         #   normalize_diagonal = np.sqrt((kernel_matrix @ kernel_matrix.T).sum(axis=1))
         # However, this does not separate the "stochastic_normalization_fit" part,
-        # which may be required later for a Nyström embedding.
+        # which is required later for an out-of-sample embedding.
 
         kernel_matrix_adapted = mat_dot_diagmat(
             kernel_matrix, stochastic_normalization_fit
         )
 
-        normalize_diagonal = cast_array(np.sqrt(np.sum(kernel_matrix_adapted, axis=1)))
+        normalize_diagonal = self._cast_array(
+            np.sqrt(np.sum(kernel_matrix_adapted, axis=1)), is_sparse
+        )
 
         with np.errstate(divide="ignore"):
             # The reciprocal can be inf when a landmark has no neighbors.
