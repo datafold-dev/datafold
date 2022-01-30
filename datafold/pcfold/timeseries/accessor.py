@@ -598,7 +598,7 @@ class TSCAccessor(object):
 
                 data_dt = data_dt[start_sample:end_sample, :]
 
-                h_inv = 1.0 / spacing ** self.order
+                h_inv = 1.0 / spacing**self.order
                 data_dt *= h_inv
 
                 if scheme in ["center", "forward"] and shift_index:

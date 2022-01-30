@@ -10,7 +10,7 @@ repos:
     -   id: check-toml
 
 -   repo: https://github.com/python/black
-    rev: 21.12b0
+    rev: 22.1.0
     hooks:
     - id: black
 
@@ -43,7 +43,7 @@ repos:
       additional_dependencies: [ isort==5.10.1 ]
       args: [ --nbqa-mutate ]
     - id: nbqa-black
-      additional_dependencies: [black==21.12b0]
+      additional_dependencies: [black==22.1.0]
       args: [ --nbqa-mutate ]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy

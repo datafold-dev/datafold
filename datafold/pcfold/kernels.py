@@ -2073,7 +2073,7 @@ class ConeKernel(TSCManifoldKernel):
                 cos_matrix,
                 vec=norm_timederiv_X.to_numpy().ravel(),
                 vec_right=None,
-                scalar=(delta_time ** 2) * self.epsilon,
+                scalar=(delta_time**2) * self.epsilon,
                 value_zero_division=0,
             )
 
@@ -2122,7 +2122,7 @@ class ConeKernel(TSCManifoldKernel):
                 cos_matrix,
                 vec=norm_timederiv_Y.to_numpy().ravel(),
                 vec_right=norm_timederiv_X.to_numpy().ravel(),
-                scalar=(delta_time ** 2) * self.epsilon,
+                scalar=(delta_time**2) * self.epsilon,
                 value_zero_division=0,
             )
 
@@ -2221,7 +2221,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
             distance_matrix = np.sort(np.sqrt(distance_matrix), axis=1)[
                 :, 1 : self.k + 1
             ]
-            rho0 = np.sqrt(np.mean(distance_matrix ** 2, axis=1))
+            rho0 = np.sqrt(np.mean(distance_matrix**2, axis=1))
         else:  # MODE == 2:  , more performant if required
             if self.k < nr_samples:
                 # TODO: have to revert setting the inf
@@ -2266,7 +2266,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         rho0tilde = rho0 / meanrho0
 
         # TODO: eps0 could also be optimized (see Berry Code + paper ref2)
-        eps0 = meanrho0 ** 2
+        eps0 = meanrho0**2
 
         expon_matrix = _symmetric_matrix_division(
             matrix=-distance_matrix, vec=rho0tilde, scalar=2 * eps0

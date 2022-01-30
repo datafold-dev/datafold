@@ -100,7 +100,7 @@ class TestPCMEstimation(unittest.TestCase):
                 pcm = PCManifold(rdata)
                 pcm.optimize_parameters(random_state=random_state, tol=tol)
 
-                result.append([np.exp(-pcm.cut_off ** 2 / pcm.kernel.epsilon) - tol])
+                result.append([np.exp(-pcm.cut_off**2 / pcm.kernel.epsilon) - tol])
             result_expected = np.zeros(
                 len(result),
             )
@@ -117,7 +117,7 @@ class TestPCMEstimation(unittest.TestCase):
         data[:, 1] = data[:, 1] * 1.0
 
         def transform(x, y):
-            return x + y ** 3, y - x ** 3
+            return x + y**3, y - x**3
 
         xt, yt = transform(data[:, 0], data[:, 1])
         data_mushroom = np.vstack([xt.flatten(), yt.flatten()]).T

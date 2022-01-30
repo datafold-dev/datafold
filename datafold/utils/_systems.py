@@ -91,7 +91,7 @@ class LimitCycle(DynamicalSystem):
 
         a_vals = 1 / self.eps * t + a0
 
-        r_vals = np.exp(t) / np.sqrt(-1 + np.exp(2 * t) + 1 / r0 ** 2)
+        r_vals = np.exp(t) / np.sqrt(-1 + np.exp(2 * t) + 1 / r0**2)
 
         # x, y = self._as_cartesian_coordinates(rad=r_vals, ang=a_vals)
         self.obs = pd.DataFrame(

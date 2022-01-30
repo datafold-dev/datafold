@@ -1128,7 +1128,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
     @staticmethod
     def plot_quantities(data, dmap):
 
-        h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
+        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
         assert data.ndim == 2 and data.shape[1] == 1
 
         f, ax = plt.subplots(ncols=3, nrows=3)
@@ -1219,7 +1219,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
             plt.show()
 
         # TESTS:
-        h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
+        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
         factor = DiffusionMapsVariableTest.eig_neg_factor(
             h3(X), dmap.eigenvectors_[:, 3]
         )
