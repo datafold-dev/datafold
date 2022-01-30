@@ -26,6 +26,7 @@ List
     tutorial_05_basic_gh_oos
     tutorial_06_basic_edmd_limitcycle
     tutorial_07_basic_jsf_common_eigensystem
+    tutorial_08_basic_roseland_scurve_digits
 
 
 * `01_basic_datastructures.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/01_basic_datastructures.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_01_basic_datastructures.html>`__)
@@ -54,6 +55,8 @@ List
     **Warning**
         The code for jointly smooth functions inside this notebook is experimental.
 
+* `08_basic_roseland_scurve_digits.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/08_basic_roseland_scurve_digits.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_08_basic_roseland_scurve_digits.html>`__)
+    We use a ``Roseland`` model to compute lower dimensional embeddings of an S-curved point cloud manifold and to cluster data from handwritten digit. We also select the best combination of intrinsic parameters automatically with an optimization routine and demonstrate how to do include this in an scikit-learn pipeline. Based on the Diffusion Maps tutorials.
 
 
 
