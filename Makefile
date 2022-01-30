@@ -51,6 +51,7 @@ PYTESTOPTS    ?=
 
 EXECUTE_TUTORIAL ?= never
 OUTPUT_DOCS ?= doc/build/
+_DOCDEPS = libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
 
 ifeq ($(IS_DOCKER),)
 	OPEN_BROWSER ?= true
@@ -67,11 +68,12 @@ GITHOOK = --all
 
 #venv: @ Create Python virtual environment if it does not exist yet.
 venv:
-ifeq ($(IS_DOCKER),) # do not create a venv in a docker environment, because it is already a virtualization
+ifeq ($(IS_DOCKER),)
+# do not create a venv in a docker environment, because it is already a virtualization
 	test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR);
 endif
 
-# used for debugging:
+# used for debugging / information in CI pipelines (not documented)
 print_variables:
 	@echo IS_DOCKER = $(IS_DOCKER)
 	@echo PYTHON = $(PYTHON)
@@ -93,7 +95,7 @@ docker_build:
 docker_run:
 	docker run -v `pwd`:/home/datafold-mount -w /home/datafold-mount/ -it --rm --net=host datafold bash
 
-#docker_clean: @
+#docker_clean: @ Remove unused data from docker by removing all unused images (not just dangling ones)
 docker_clean:
 	docker system prune -a
 
@@ -106,9 +108,9 @@ install_devdeps: venv
 #install_doc_deps: @ Install dependencies to render datafold's documentation via apt-get (Note: this may require 'sudo').
 install_docdeps:
 ifeq ($(IS_DOCKER),) # no docker
-	sudo apt-get install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
-else # in docker "sudo" is not available and everything is executed
-	apt-get -y install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
+	sudo apt-get install $(_DOCDEPS)
+else # in docker "sudo" is not available and everything is executed with root
+	apt-get -y install $(_DOCDEPS)
 endif
 
 #versions: @ Print datafold version and essential dependency versions.
