@@ -44,7 +44,7 @@ class TSCMetric(object):
     References
     ----------
 
-    "rrmse" is taken from :cite:`le_clainche_higher_2017`
+    "rrmse" is taken from :cite:t:`leclainche-2017`
 
     """
 

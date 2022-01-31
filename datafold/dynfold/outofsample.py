@@ -72,7 +72,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     References
     ----------
 
-    :cite:`coifman_geometric_2006`
+    :cite:`coifman-2006a`
 
     See Also
     --------
@@ -589,8 +589,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
     References
     ----------
 
-    :cite:`fernandez_auto-adaptative_2014`
-    :cite:`rabin_heterogeneous_2012`
+    :cite:`fernandez-2014,rabin-2012`
 
     """
 

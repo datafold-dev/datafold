@@ -245,7 +245,7 @@ def _conjugate_stochastic_kernel_matrix(
 
     References
     ----------
-    :cite:`rabin_heterogeneous_2012`
+    :cite:`rabin-2012`
 
     """
 
@@ -1038,7 +1038,7 @@ class ContinuousNNKernel(PCManifoldKernel):
     References
     ----------
 
-    :cite:`berry_consistent_2019`
+    :cite:`berry-2019`
     """
 
     def __init__(self, k_neighbor: int, delta: float):
@@ -1268,7 +1268,7 @@ class DmapKernelFixed(BaseManifoldKernel):
 
     References
     ----------
-    :cite:`coifman_diffusion_2006`
+    :cite:`coifman-2006`
     """
 
     def __init__(
@@ -1850,7 +1850,7 @@ class ConeKernel(TSCManifoldKernel):
     References
     ----------
 
-    :cite:`giannakis_dynamics-adapted_2015` (the equations are taken from the
+    :cite:`giannakis-2015` (the equations are taken from the
     `arXiv version <https://arxiv.org/abs/1403.0361>`__)
     """
 
@@ -2160,8 +2160,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
 
     References
     ----------
-    :cite:`berry_nonparametric_2015`
-    :cite:`berry_variable_2016`
+    :cite:`berry-2015,berry-2016`
 
     See Also
     --------
