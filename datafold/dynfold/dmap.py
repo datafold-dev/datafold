@@ -1,5 +1,6 @@
 import sys
 import warnings
+from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -436,7 +437,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return feature_names
 
     def _setup_default_dist_kwargs(self):
-        from copy import deepcopy
 
         self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
         self.dist_kwargs_.setdefault("cut_off", np.inf)
@@ -968,7 +968,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
     References
     ----------
-    :cite:`shen2020scalability`
+    :cite:`shen-2020`
     """
 
     def __init__(
@@ -996,8 +996,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.svdvec_right_: np.ndarray
 
     def _validate_setting(self, n_samples):
-
-        from datafold.pcfold.kernels import TSCManifoldKernel
 
         if isinstance(self.kernel, TSCManifoldKernel):
             raise NotImplementedError(
@@ -1058,8 +1056,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         return feature_names
 
     def _setup_default_dist_kwargs(self):
-        from copy import deepcopy
-
         self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
         self.dist_kwargs_.setdefault("cut_off", np.inf)
 
