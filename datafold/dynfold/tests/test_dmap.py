@@ -27,6 +27,7 @@ from datafold.dynfold.tests.helper import (
 from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
 from datafold.pcfold.kernels import ConeKernel
 from datafold.utils.general import random_subsample
+from datafold.utils.plot import plot_pairwise_eigenvector
 
 try:
     import rdist  # noqa
@@ -142,6 +143,23 @@ class DiffusionMapsTest(unittest.TestCase):
 
         if plot:
             plt.show()
+
+    def test_compute_all_eigenpairs(self):
+        # check that all eigenpairs can be computed
+        X_swiss_all, _ = make_swiss_roll(n_samples=100, noise=0, random_state=5)
+        actual1 = DiffusionMaps(kernel=GaussianKernel(epsilon=2), n_eigenpairs=100).fit(
+            X_swiss_all
+        )
+
+        actual2 = DiffusionMaps(
+            kernel=GaussianKernel(epsilon=2), n_eigenpairs=100, symmetrize_kernel=False
+        ).fit(X_swiss_all)
+
+        self.assertEqual(actual1.eigenvectors_.shape[1], 100)
+        self.assertEqual(actual1.eigenvalues_.shape[0], 100)
+
+        self.assertEqual(actual2.eigenvectors_.shape[1], 100)
+        self.assertEqual(actual2.eigenvalues_.shape[0], 100)
 
     def test_sanity_dense_sparse(self):
 
@@ -315,12 +333,10 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap_embed = DiffusionMaps(**setting).fit(X_swiss_all)
 
         if plot:
-            from datafold.utils.plot import plot_pairwise_eigenvector
-
             plot_pairwise_eigenvector(
-                eigenvectors=dmap_embed.transform(X_swiss_all).T,
+                eigenvectors=dmap_embed.transform(X_swiss_all),
                 n=1,
-                colors=color_all,
+                scatter_params=dict(c=color_all),
             )
 
         dmap_embed_eval_expected = dmap_embed.eigenvectors_[:, [1, 5]]
@@ -394,7 +410,7 @@ class DiffusionMapsTest(unittest.TestCase):
                 0.01,
                 0.5,
                 f"both have same setting \n epsilon="
-                f"{setting['epsilon']}, symmetrize_kernel="
+                f"{dmap_embed.kernel.epsilon}, symmetrize_kernel="
                 f"{setting['symmetrize_kernel']}, "
                 f"chosen_eigenvectors={[1, 5]}",
             )
@@ -1112,7 +1128,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
     @staticmethod
     def plot_quantities(data, dmap):
 
-        h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
+        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
         assert data.ndim == 2 and data.shape[1] == 1
 
         f, ax = plt.subplots(ncols=3, nrows=3)
@@ -1203,7 +1219,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
             plt.show()
 
         # TESTS:
-        h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
+        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
         factor = DiffusionMapsVariableTest.eig_neg_factor(
             h3(X), dmap.eigenvectors_[:, 3]
         )

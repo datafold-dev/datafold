@@ -59,8 +59,8 @@ code_checks:
 docu_check:
   stage: code_analysis
   script:
-    - make docs OPEN_DOCS_BROWSER=false
     - make clean_docs
+    - make docs OPEN_DOCS_BROWSER=false
   except:
     - master
   allow_failure: true

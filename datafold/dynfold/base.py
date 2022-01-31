@@ -77,6 +77,8 @@ class TSCBaseMixin(object):
     def _validate_datafold_data(
         self,
         X: Union[TSCDataFrame, np.ndarray],
+        *,
+        ensure_np: bool = False,
         ensure_tsc: bool = False,
         array_kwargs: Optional[dict] = None,
         tsc_kwargs: Optional[dict] = None,
@@ -91,7 +93,8 @@ class TSCBaseMixin(object):
         Parameters
         ----------
         X
-        ensure_feature_name_type
+        ensure_np
+        ensure_tsc
         array_kwargs
         tsc_kwargs
 
@@ -104,28 +107,35 @@ class TSCBaseMixin(object):
         array_kwargs = array_kwargs or {}
         tsc_kwargs = tsc_kwargs or {}
 
-        if ensure_tsc and not isinstance(X, TSCDataFrame):
-            raise TypeError(
-                f"Input 'X' is of type {type(X)} but a TSCDataFrame is required."
-            )
-
         if type(X) != TSCDataFrame:
             # Currently, everything that is not strictly a TSCDataFrame will go the
-            # path of an usual array format. This includes:
+            # path of a usual array format. This includes:
             #  * sparse scipy matrices
             #  * numpy ndarray
             #  * memmap
-            #  * pandas.DataFrame (Note a TSCDataFrame is also a pandas.DataFrame,
-            #                      but not strictly)
+            #  * pd.DataFrame (Note that TSCDataFrame is also a pd.DataFrame,
+            #                  but not in a strict sense)
+
+            if ensure_tsc:
+                raise TypeError(
+                    f"Input 'X' is of type {type(X)} but type TSCDataFrame is required."
+                )
 
             tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
             if type(X) == pd.DataFrame:
+
+                if ensure_np:
+                    TypeError(
+                        f"Input 'X' is of type {type(X)} but a numpy format is required."
+                    )
+
                 # special handling of pandas.DataFrame (strictly, not including
                 # TSCDataFrame) --> keep the type (recover after validation).
                 assert isinstance(X, pd.DataFrame)  # mypy checking
                 revert_to_data_frame = True
                 idx, col = X.index, X.columns
+
             else:
                 revert_to_data_frame = False
                 idx, col = [None] * 2
@@ -148,7 +158,12 @@ class TSCBaseMixin(object):
             if revert_to_data_frame:
                 X = pd.DataFrame(X, index=idx, columns=col)
 
-        else:
+        else:  # isinstance(X, TSCDataFrame)
+
+            if ensure_np:
+                raise TypeError(
+                    f"Input 'X' is of type {type(X)} but a numpy format is required."
+                )
 
             array_kwargs = {}  # no need to check -> overwrite to empty dict
 

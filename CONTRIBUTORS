@@ -1,7 +1,16 @@
-# Ordered alphabetically by last name. Corresponding developers are marked with *
+Software maintainer
+-------------------
+# Ordered alphabetically by last name.
+Last name, First name; <email>; Years of contribution
+Dietrich, Felix; <felix.dietrich@tum.de>; 2019-
+Lehmberg, Daniel; <daniel.lehmberg@hm.edu>; 2019-
 
-Last name, First name; <email>; Years of contribution; Contact
-Dickmanns, Ludwig; <ludwig.dickmanns@tum.de>; 2020-2021;
-Dietrich, Felix; <felix.dietrich@tum.de>; 2019-; *
-Lehmberg, Daniel; <daniel.lehmberg@hm.edu>; 2019-; *
-Schuegraf, Philipp; NA; 2019;
+
+Developer
+---------
+# Ordered alphabetically by last name.
+Last name, First name; <email>; Years of contribution
+Dickmanns, Ludwig; <ludwig.dickmanns@tum.de>; 2020-2021
+Schuegraf, Philipp; NA; 2019
+Todorov, Evgeni; <evgeni.todorov@tum.de>; 2021-2022
+Vazova, Veselina; <ge72cef@mytum.de>; 2021

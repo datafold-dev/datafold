@@ -124,5 +124,5 @@ def estimate_scale(
 
     # this formula is derived by solving for epsilon in
     # tol >= exp(-cut_off**2 / epsilon)
-    eps0 = cut_off ** 2 / (-np.log(tol))
+    eps0 = cut_off**2 / (-np.log(tol))
     return float(eps0)
