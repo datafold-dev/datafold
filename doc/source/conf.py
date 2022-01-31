@@ -60,7 +60,7 @@ extensions = [
     # See below for configuration
     "sphinx.ext.imgmath",
     # Include bibtex citations
-    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html#overview
+    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/index.html
     "sphinxcontrib.bibtex",
     # 'napoleon' allows NumPy and Google style documentation (no external Sphinx
     #  package required)
@@ -141,26 +141,14 @@ imgmath_latex_preamble = r"\usepackage{amsmath,amstext}"
 
 # ----------------------------------------------------------------------------------------
 # "sphinxcontrib.bibtex"
-# Because exported BibTex files include file information to PDF -- remove in the
-# following snippet.
+# see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/usage.html#configuration
 
 filepath_literature_file = os.path.join(".", "_static", "literature.bib")
 filepath_literature_file = os.path.abspath(filepath_literature_file)
+bibtex_reference_style = "author_year"
 
-# read content
-with open(filepath_literature_file, "r") as file:
-    content = file.read()
-
-# leave out 'file' keys out
-new_content = []
-for line in content.splitlines(keepends=True):
-    if not line.lstrip().startswith("file") and not line.lstrip().startswith("urldate"):
-        new_content.append(line)
-
-# write content back to file
-with open(filepath_literature_file, "w") as file:
-    file.write("".join(new_content))
-
+# currently supported "alpha" (default)  "plain", "unsrt", "unsrtalpha"
+bibtex_default_style = "plain"
 bibtex_bibfiles = [filepath_literature_file]
 
 # ----------------------------------------------------------------------------------------

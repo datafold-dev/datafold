@@ -51,3 +51,12 @@ repos:
     hooks:
     -   id: mypy
         args: [--ignore-missing-imports, --no-implicit-optional]
+
+-   repo: local
+    hooks:
+    -   id: bibliography
+        name: bibliography
+        entry: python3 doc/source/verify_bibliography.py
+        language: system
+        always_run: true
+        pass_filenames: false

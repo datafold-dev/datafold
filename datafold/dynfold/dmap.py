@@ -184,7 +184,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     alpha
         The degree of re-normalization between `(0,1)`. Setting ``alpha=1`` corrects
         the sampling density in the data as an artifact of the collection process.
-        Special values are (see :cite:`coifman_diffusion_2006`)
+        Special values are (see :cite:t:`coifman-2006`)
 
         * `alpha=0` Graph Laplacian,
         * `alpha=0.5` Fokker-Plank operator,
@@ -234,8 +234,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
     References
     ----------
-    :cite:`lafon_diffusion_2004`
-    :cite:`coifman_diffusion_2006`
+    :cite:`lafon-2004,coifman-2006`
     """
 
     _cls_valid_operator_names = (
@@ -625,7 +624,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         Note, that the Nyström mapping can be used for image mappings irrespective of
         whether the computed kernel matrix :math:`K(X,X)` is symmetric.
-        For details on this see :cite:`fernandez_diffusion_2015` (especially equation 5).
+        For details on this see :cite:t:`fernandez-2015` (especially Eq. 5).
 
         Parameters
         ----------
@@ -748,8 +747,7 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
 
     References
     ----------
-    :cite:`berry_nonparametric_2015`
-    :cite:`berry_variable_2016`
+    :cite:`berry-2015,berry-2016`
 
     """
 
@@ -933,7 +931,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
     References
     ----------
 
-    :cite:`dsilva_parsimonious_2018`
+    :cite:`dsilva-2018`
 
     """
 
