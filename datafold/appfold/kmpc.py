@@ -1,10 +1,6 @@
-import math
-import sys
 from typing import Any, Optional, Union
 
 import numpy as np
-import quadprog
-import scipy as sp
 from qpsolvers import solve_qp
 
 from datafold.appfold import EDMDControl
@@ -66,11 +62,21 @@ class KoopmanMPC:
         self.H, self.h, self.G, self.L, self.M, self.c = self._setup_optimizer()
 
     def _setup_optimizer(self):
+        # implements relevant parts of korda-mezic-2018 for setting up the optimization problem
+        Np = self.horizon
+        m = self.input_size
+
         Ab, Bb = self._create_bold_AB()
         F, Q, q, R, r, E = self.create_bold_FQRE()
 
-        # TODO:
-        pass
+        H = R + Bb.T @ Q @ Bb
+        h = r + Bb.T @ q
+        G = 2 * Ab.T @ Q @ Bb
+        L = F + E @ Bb
+        M = E @ Ab
+        c = np.zeros((m * Np, 1))
+
+        return H, h, G, L, M, c
 
     def _create_bold_AB(self):
         # implemenets appendix from korda-mezic-2018
@@ -126,73 +132,24 @@ class KoopmanMPC:
 
         return Fb, Qb, q, Rb, r, Eb
 
-    # TODO: remove
-    def _create_cost_matrix(self):
-        """
-        Generate matrices Q,R
-        """
-        self.C = np.zeros((self.projmtx.shape[0], self.model.Nlift))
-        self.C = np.kron(np.eye(self.horizon + 1), self.C)
-        num_projections = np.size(self.C, 0)
-
-        Q = np.kron(
-            np.eye(self.horizon + 1), np.eye(num_projections) * self.cost_running
-        )
-        endr, endc = Q.shape
-        Q[endr - num_projections :, endc - num_projections :] = (
-            np.eye(num_projections) * self.cost_terminal
-        )
-        R = np.kron(np.eye(self.horizon), np.eye(self.model.m) * self.cost_input)
-
-        H = self.B.T @ self.C.T @ Q @ self.C @ self.B + R
-        G = 2 * self.A.T @ self.C.T @ Q @ self.C @ self.B
-        D = -2 * Q @ self.C @ self.B
-
-        self.Q = Q
-        self.R = R
-        self.H = H
-        self.G = G
-        self.D = D
-
-    # TODO: remove
-    def _optimize_cost(self, P, Q, G, H, A, B):
-        """
-        Optimize matrices Q,R
-        """
-
-        G_optimized = 0.5 * (P + P.T)
-        A_optimized = -Q
-        C_optimized = -np.vstack([A, G]).T
-        B_optimized = -np.vstack([B, H]).T
-        m_eq = A.shape[0]
-
-        return quadprog.solve_qp(
-            G_optimized, A_optimized, C_optimized, B_optimized, m_eq
-        )[0]
-
     def generate_control_signal(self, trajectory, reference):
-        # TODO: reimplement
+        # implement the generation of control signal as in
         Np = self.horizon
+        N = self.lifted_state_size
+        m = self.input_size
 
-        if reference.shape[1] > Np + 1:
-            reference = reference[: Np + 1, :]
-        elif reference.shape[1] < Np + 1:
-            temp = np.kron(np.ones((Np + 1, 1)), reference[-1, :])
-            temp[: reference.shape[0], :] = reference
-            reference = temp
-
+        H, h, G, L, M, c = self._setup_optimizer()
         z0 = self.lifting_function(trajectory).T
-
         y = np.reshape(reference.T, ((Np + 1) * reference.shape[1], 1))
 
-        P = 2 * self.H
-        q = (z0.T @ self.G + y.T @ self.D).T
-        G = self.G
-        h = -self.M @ z0 + self.C
-        A = self.A
-        b = self.B
-        Q = self.Q
-
-        U = solve_qp(P, q, G, h, A, b, solver="quadprog")
+        U = solve_qp(
+            P=H,
+            q=(h.T + z0 @ G),
+            G=L,
+            h=(c - M @ z0),
+            A=None,
+            b=None,
+            solver="quadprog",
+        )
 
         return U
