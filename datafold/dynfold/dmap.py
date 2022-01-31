@@ -966,8 +966,8 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             self.eps_med_scale,
             name="eps_med_scale",
             target_type=(float, np.floating, int, np.integer),
-            min_val=np.finfo(float).eps,  # exclusive zero
-            max_val=np.inf,
+            min_val=0,
+            include_boundaries="right",
         )
 
         if not np.isinf(self.n_subsample):
@@ -976,7 +976,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
                 name="n_subsample",
                 target_type=(int, np.integer),
                 min_val=1,
-                max_val=np.inf,
             )
 
         if self.strategy not in self._cls_valid_strategy:
@@ -996,8 +995,9 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
                 self.regress_threshold,
                 name="regress_threshold",
                 target_type=(float, np.floating),
-                min_val=np.finfo(float).eps,
-                max_val=1 - np.finfo(float).eps,
+                min_val=0,
+                max_val=1,
+                include_boundaries="neither",
             )
 
         if self.bandwidth_type not in self._cls_valid_bandwidth:

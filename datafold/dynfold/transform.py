@@ -478,9 +478,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     def _validate_parameter(self):
 
-        check_scalar(
-            self.lag, name="lag", target_type=(int, np.integer), min_val=0, max_val=None
-        )
+        check_scalar(self.lag, name="lag", target_type=(int, np.integer), min_val=0)
 
         # TODO also allow 0 delays? This would only "passthrough",
         #  but makes it is easier in pipelines etc.
@@ -489,7 +487,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="delays",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -497,7 +494,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="delays",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -505,7 +501,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="kappa",
             target_type=(int, np.integer, float, np.floating),
             min_val=0.0,
-            max_val=None,
         )
 
         if self.frequency > 1 and self.delays <= 1:
@@ -1286,8 +1281,9 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             self.spacing_,
             "spacing",
             target_type=(int, np.integer, float, np.floating),
-            min_val=np.finfo(float).eps,
+            min_val=0,
             max_val=None,
+            include_boundaries="right",
         )
         self.spacing_ = float(self.spacing_)
 
@@ -1296,7 +1292,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             "diff_order",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -1304,7 +1299,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             name="accuracy",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         return self

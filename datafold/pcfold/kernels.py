@@ -731,7 +731,8 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
             parameter,
             name=name,
             target_type=(float, np.floating, int, np.integer),
-            min_val=np.finfo(float).eps,
+            min_val=0,
+            include_boundaries="right",
         )
         return float(parameter)
 
@@ -1662,15 +1663,17 @@ class ConeKernel(TSCManifoldKernel):
             name="zeta",
             target_type=(float, np.floating, int, np.integer),
             min_val=0.0,
-            max_val=1.0 - np.finfo(float).eps,
+            max_val=1.0,
+            include_boundaries="left",
         )
 
         check_scalar(
             self.epsilon,
             name="epsilon",
             target_type=(float, np.floating, int, np.integer),
-            min_val=np.finfo(float).eps,
+            min_val=0,
             max_val=None,
+            include_boundaries="right",
         )
 
         check_scalar(

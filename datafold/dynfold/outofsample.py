@@ -635,15 +635,14 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
                 name="residual_tol",
                 target_type=(float, np.floating),
                 min_val=0,
-                max_val=np.inf,
             )
 
         check_scalar(
             self.mu,
             "mu",
             target_type=(int, np.integer, float, np.floating),
-            min_val=1 + np.finfo(float).eps,
-            max_val=np.inf,
+            min_val=1,
+            include_boundaries="right",
         )
 
         if isinstance(X, np.memmap):
