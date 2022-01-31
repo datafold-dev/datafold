@@ -442,7 +442,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     kappa
         Weight of exponential factor in delayed coordinates
         :math:`e^{-d \cdot \kappa}(x_{-d})` with :math:`d = 0, \ldots delays` being the
-        delay index. Adapted from :cite:`berry_time-scale_2013`, Eq. 2.1).
+        delay index. Adapted from :cite:t:`berry-2013`, Eq. 2.1).
 
     Attributes
     ----------
@@ -462,10 +462,10 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     References
     ----------
 
-    * Original paper from Takens :cite:`takens_detecting_1981`
-    * Generalized to multiple observation :cite:`deyle_generalized_2011`
+    * Original paper from :cite:t:`takens-1981`
+    * Generalized to multiple observation in :cite:`deyle-2011`
     * time delay embedding in the context of Koopman operator, e.g.
-      :cite:`arbabi_ergodic_2017` or :cite:`champion_discovery_2019` or
+      :cite:t:`arbabi-2017` or :cite:t:`champion-2019`.
     """
 
     def __init__(
