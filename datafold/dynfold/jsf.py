@@ -27,6 +27,9 @@ def sort_eigensystem(eigenvalues, eigenvectors):
     return sorted_eigenvalues, sorted_eigenvectors
 
 
+# TODO: syntax to (name, kernel, columns) as for ColumnTransformer
+
+
 class JsfDataset:
     """`JsfDataset` does the slicing of multimodal data. This is needed, as `.fit`,
     `.transform`, and `.fit_transform` of `JointlySmoothFunctions` accept a single
@@ -69,6 +72,7 @@ class JsfDataset:
 
     def extract_from(self, X: TransformType) -> Union[TSCDataFrame, PCManifold]:
         if self.columns:
+            # TODO: Second condition can never be True
             if isinstance(X, pd.DataFrame) or isinstance(X, TSCDataFrame):
                 data = X.iloc[:, self.columns]
             else:
@@ -117,15 +121,17 @@ class _ColumnSplitter:
         return X_split
 
 
-class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
+# TODO: make the other way BaseEstimator, TSCTransformerMixin
+# TODO: move JointlySmoothFunctions to dmap.py?
+class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
     """Calculate smooth functions on multimodal data/observations.
 
     Parameters
     ----------
-    datasets
+    datasets  # TODO: try to remove the JSFDataset class
         The :py:class:`JsfDataset`s used to split up the multimodal data.
 
-    n_kernel_eigenvectors
+    n_kernel_eigenvectors  # TODO: rename n_eigenvectors
         The number of eigenvectors to compute from the kernel matrices.
 
     n_jointly_smooth_functions
@@ -150,7 +156,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
     kernel_matrices_: List[scipy.spars.csr_matrix]
         The computed kernel matrices.
 
-    _cdist_kwargs_: List[Dict]
+    _cdist_kwargs_: List[Dict] # TODO: remove: private methods are not documented
         The cdist_kwargs returned during the kernel calculation. This is required for the
         out-of-sample extension.
 
@@ -160,11 +166,11 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
     kernel_eigenvalues_ List[scipy.sparse.csr_matrix]
         The kernel eigenvalues used to calculate the out-of-sample extension.
 
-    _jointly_smooth_functions_: np.ndarray
+    _jointly_smooth_functions_: np.ndarray # TODO: remove: private methods are not documented
         The calculated jointly smooth functions of shape
         `(n_samples, n_jointly_smooth_functions)`.
 
-    _eigenvalues_: np.ndarray
+    _eigenvalues_: np.ndarray # TODO: remove: private methods are not documented
         The eigenvalues of the jointly smooth functions of shape `(n_samples)`
 
     References
@@ -195,11 +201,11 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self._jointly_smooth_functions_: np.ndarray
         self._eigenvalues_: np.ndarray
 
-    @property
+    @property  # TODO: rename jointly_smooth_functions_
     def jointly_smooth_functions(self) -> TransformType:
         return self._jointly_smooth_functions_
 
-    @property
+    @property  # TODO: rename eigenvalues_
     def eigenvalues(self) -> np.ndarray:
         return self._eigenvalues_
 
@@ -336,6 +342,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         return jointly_smooth_functions, eigenvalues
 
     def nystrom(self, new_indexed_observations: Dict[int, TransformType]):
+        # TODO: make private??
         """Embed out-of-sample points with Nyström.
 
         (see transform of dmap for Nyström documentation)
@@ -406,7 +413,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         return f_m_star
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "JointlySmoothFunctions":
-        """Compute the jointly smooth functions.
+        """Compute the jointly smooth functions.  # TODO: compute on tining data
 
         Parameters
         ----------
@@ -424,6 +431,9 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         JointlySmoothFunctions
             self
         """
+        # TODO: does fit / transform support TSCDataFrame?
+
+        # TODO: shared parameter such as 'ensure_min_samples' only in one...
         X = self._validate_datafold_data(
             X=X,
             array_kwargs=dict(
@@ -432,6 +442,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)),
         )
 
+        # TODO: need parameter validation first!
         self._setup_feature_attrs_fit(
             X=X,
             features_out=[f"jsf{i}" for i in range(self.n_jointly_smooth_functions)],
@@ -441,7 +452,6 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         self.observations_ = column_splitter.split(X)
 
         self._calculate_kernel_matrices()
-
         self._calculate_kernel_eigensystem()
 
         (
@@ -531,7 +541,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
 
         return self._jointly_smooth_functions_
 
-    def score_(self, X, y):
+    def score_(self, X, y):  # TODO: rename score is taken
         """Compute a score for hyperparameter optimization.
 
         Returns
@@ -541,7 +551,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         """
         return self.calculate_truncated_energies().sum()
 
-    def calculate_truncated_energies(self) -> np.ndarray:
+    def calculate_truncated_energies(self) -> np.ndarray:  # TODO: make private
         """Compute the truncated energy for each kernel eigenvector.
 
         Returns
@@ -560,7 +570,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             truncated_energies.append(truncated_energy)
         return np.array(truncated_energies)
 
-    def calculate_E0(self) -> float:
+    def calculate_E0(self) -> float:  # TODO: what is E0? -> rename / private
         """Compute a threshold for the eigenvalues of the jointly smooth functions.
 
         Returns
