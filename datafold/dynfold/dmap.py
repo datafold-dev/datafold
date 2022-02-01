@@ -1069,10 +1069,12 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             raise ValueError("The landmark set size must contain at least two samples.")
 
         if n_landmarks == X.shape[0]:
-            landmarks = X
+            landmarks = X.to_numpy() if isinstance(X, TSCDataFrame) else X
         else:
             landmarks, _ = random_subsample(
-                X, n_landmarks, random_state=self.random_state
+                X.to_numpy() if isinstance(X, TSCDataFrame) else X,
+                n_landmarks,
+                random_state=self.random_state,
             )
 
         if isinstance(landmarks, pd.DataFrame):

@@ -148,7 +148,7 @@ def is_matrix(matrix, name, square=False, allow_sparse=False):
         pass
     else:
         raise ValueError(
-            f"the matrix in parameter '{name}' does not meet the required format"
+            f"The matrix in parameter '{name}' does not meet the required format"
         )
 
     if square and matrix.shape[0] != matrix.shape[1]:
