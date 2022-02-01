@@ -34,6 +34,7 @@ setup:
 unittests:
   stage: test
   script:
+    - make clean_test
     - make unittest
   allow_failure: false
   artifacts:

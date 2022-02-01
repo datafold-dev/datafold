@@ -1056,8 +1056,8 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
         self.dist_kwargs_.setdefault("cut_off", np.inf)
 
-    def _subsample_landmarks(self, X: np.ndarray):
-        """Subsamples landmarks from training data `X` when no `landmarks` are
+    def _subsample_landmarks(self, X: Union[np.ndarray, TSCDataFrame]):
+        """Subsample landmarks from training data `X` when no `landmarks` are
         provided."""
 
         if isinstance(self.landmarks, float):
@@ -1066,7 +1066,10 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             n_landmarks = self.landmarks
 
         if n_landmarks <= 1:
-            raise ValueError("The landmark set size must contain at least two samples.")
+            raise ValueError(
+                "The landmark set must contain at least two samples."
+                f"Got {n_landmarks} samples."
+            )
 
         if n_landmarks == X.shape[0]:
             landmarks = X.to_numpy() if isinstance(X, TSCDataFrame) else X
@@ -1076,9 +1079,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
                 n_landmarks,
                 random_state=self.random_state,
             )
-
-        if isinstance(landmarks, pd.DataFrame):
-            landmarks = landmarks.to_numpy()
 
         return landmarks
 
