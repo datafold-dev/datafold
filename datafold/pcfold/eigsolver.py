@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 
-from datafold.utils.general import is_symmetric_matrix, sort_eigenpairs
+from datafold.utils.general import is_matrix, is_symmetric_matrix, sort_eigenpairs
 
 _valid_eigsolver_backends = ["scipy"]
 _valid_svd_backends = ["scipy"]
@@ -234,11 +234,7 @@ def compute_kernel_eigenpairs(
         Eigenvectors (not necessarily normalized) in the same order to eigenvalues.
     """
 
-    if kernel_matrix.ndim != 2 or kernel_matrix.shape[0] != kernel_matrix.shape[1]:
-        raise ValueError(
-            "kernel matrix must be a square. "
-            f"Got kernel_matrix.shape={kernel_matrix.shape}"
-        )
+    is_matrix(kernel_matrix, "kernel_matrix", square=True, allow_sparse=True)
 
     err_nonfinite = ValueError(
         "kernel_matrix must only contain finite values (no np.nan or np.inf)"
@@ -250,8 +246,6 @@ def compute_kernel_eigenpairs(
         raise err_nonfinite
     elif isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all():
         raise err_nonfinite
-    else:
-        raise TypeError(f"type of kernel_matrix (={kernel_matrix}) is not supported")
 
     if validate_matrix:
         if is_symmetric and not is_symmetric_matrix(kernel_matrix):
