@@ -14,7 +14,7 @@ Any code contribution (bug fixes/tutorials/documentation changes) and feedback i
 welcome. Please open a new issue via
 
 * `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-* `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you
+* `email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you
   have no gitlab account (this opens a confidential issue).
 
 Setting up *datafold* for development
@@ -32,7 +32,7 @@ This section describes all steps to set up *datafold* for code development.
 
         make
 
-    in the shell to see the options.
+    in the shell to see the available targets.
 
 Quick set up
 ^^^^^^^^^^^^

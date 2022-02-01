@@ -1,7 +1,6 @@
 """ Unit test for the dmap module.
 
 """
-
 import unittest
 
 import diffusion_maps as legacy_dmap
@@ -9,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
+import pytest
 import scipy.sparse.linalg.eigen.arpack
 from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
@@ -58,6 +58,28 @@ class DiffusionMapsTest(unittest.TestCase):
             rayleigh_quotients[i] = np.dot(v, matrix @ v) / np.dot(v, v)
         rayleigh_quotients = np.sort(np.abs(rayleigh_quotients))
         return rayleigh_quotients[::-1]
+
+    @staticmethod
+    def mock_eigensolver_call():
+        """This code is executed before each test.
+
+        The purpose is to overwrite the argument "validate_matrix" in
+        "compute_kernel_eigenpairs", which enables checks that are disabled by default
+        """
+        import datafold.dynfold.dmap as dmap
+        import datafold.pcfold.eigsolver as eigsolver
+
+        def mock_compute_kernel_eigenpairs(*args, **kwargs):
+            kwargs["validate_matrix"] = True  # always validate matrix
+            return eigsolver.compute_kernel_eigenpairs(*args, **kwargs)
+
+        dmap.compute_kernel_eigenpairs = mock_compute_kernel_eigenpairs
+
+    @pytest.fixture(autouse=True)
+    def run_before_each_test(self):
+        """This runs before each test."""
+        DiffusionMapsTest.mock_eigensolver_call()
+        yield
 
     def test_accuracy(self):
         n_samples = 5000
@@ -769,6 +791,12 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
     """We want to produce exactly the same results as the forked DMAP repository. These
     are test to make sure this is the case. All dmaps have symmetrize_kernel=False to
     be able to compare the kernel."""
+
+    @pytest.fixture(autouse=True)
+    def run_before_each_test(self):
+        """This runs before each test."""
+        DiffusionMapsTest.mock_eigensolver_call()
+        yield
 
     def test_simple_dataset(self):
         """Taken from method_examples(/diffusion_maps/diffusion_maps.ipynb) repository."""

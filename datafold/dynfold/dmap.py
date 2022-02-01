@@ -70,6 +70,7 @@ class _DmapKernelAlgorithms:
                 # only normalize after potential basis change
                 normalize_eigenvectors=False,
                 backend="scipy",
+                validate_matrix=False,
             )
 
         except NumericalMathError:
@@ -120,18 +121,17 @@ class _DmapKernelAlgorithms:
         The conjugate relationship is as follows
 
         .. math::
-            A = D^{1/2} K D^{-1/2}
+            A = D^{1/2} K D^{-1/2},
 
-        , where :math:`A` is the symmetric matrix, conjugate to the "true" Markov
-        matrix :math:`K`. To recover :math:`K` the following operation is performed
+        where matrix :math:`A` is the symmetric matrix, conjugate to the "true" stochastic
+        Markov matrix :math:`K`. To recover :math:`K` the following operation is performed
 
         .. math::
             K = D^{-1/2} A D^{1/2}
 
-        Note, that the ``basis_change_matrix``, is already :math:`D^{-1/2}`.
-        See also reference :cite:`rabin_heterogeneous_2012` and function
-        :py:meth:`_conjugate_stochastic_kernel_matrix` in ``kernels.py`` for further
-        infos.
+        Note, that the ``basis_change_matrix`` is already :math:`D^{-1/2}`.
+        See also reference :cite:`rabin-2012` and function
+        :py:meth:`_conjugate_stochastic_kernel_matrix` in ``kernels.py``.
 
         Parameters
         ----------
@@ -541,8 +541,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         self._setup_default_dist_kwargs()
 
-        # Note the DmapKernel is a kernel that wraps another kernel to provides the
-        # DMAP specific functionality.
+        # The DmapKernel is a meta-kernel that wraps another (internal) kernel to provide
+        # the specific normalizations in Diffusion Maps.
         internal_kernel = (
             self.kernel if self.kernel is not None else self._get_default_kernel()
         )
@@ -572,7 +572,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             ret_extra,
         ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
 
-        # if key is not present, this is a bug. The value for the key can also be None.
+        # if key "basis_change_matrix" is not present, then this is a bug in DmapKernel.
+        # The value for "basis_change_matrix" can also be None.
         basis_change_matrix = ret_extra["basis_change_matrix"]
 
         # choose object to copy time information from, if applicable
@@ -585,7 +586,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
         ):
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
-            # series, then take incides from X_fit_ -- this only works if no samples are
+            # series, then take indexes from X_fit_ -- this only works if no samples are
             # dropped in the kernel computation.
             index_from = self.X_fit_
         else:
@@ -603,9 +604,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             index_from=index_from,
         )
 
-        # TODO: warning if less self.eigenvalues_ than n_eigenpairs?
-        #  happens if square kernel has less entries than n_eigenpairs
-
         if self._dmap_kernel.is_symmetric_transform() and store_kernel_matrix:
             kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
                 kernel_matrix=kernel_matrix_,
@@ -618,7 +616,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return self
 
     def transform(self, X: TransformType) -> TransformType:
-
         r"""Embed out-of-sample points with Nyström extension.
 
         From solving the eigenproblem of the diffusion kernel :math:`K`
