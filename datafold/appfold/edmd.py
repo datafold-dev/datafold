@@ -631,7 +631,7 @@ class EDMD(
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
 
         self._validate_dictionary()

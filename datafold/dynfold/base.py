@@ -80,6 +80,9 @@ class TSCBaseMixin(object):
         *,
         ensure_np: bool = False,
         ensure_tsc: bool = False,
+        force_all_finite: bool = True,
+        ensure_min_samples: int = 1,
+        ensure_min_features: int = 1,
         array_kwargs: Optional[dict] = None,
         tsc_kwargs: Optional[dict] = None,
     ):
@@ -106,6 +109,9 @@ class TSCBaseMixin(object):
         # defaults to empty dictionary if None
         array_kwargs = array_kwargs or {}
         tsc_kwargs = tsc_kwargs or {}
+
+        if ensure_np + ensure_tsc == 2:
+            raise ValueError("only 'ensure_np' or 'ensure_tsc' can be True")
 
         if type(X) != TSCDataFrame:
             # Currently, everything that is not strictly a TSCDataFrame will go the
@@ -147,11 +153,11 @@ class TSCBaseMixin(object):
                 dtype=array_kwargs.pop("dtype", "numeric"),
                 order=array_kwargs.pop("order", None),
                 copy=array_kwargs.pop("copy", False),
-                force_all_finite=array_kwargs.pop("force_all_finite", True),
+                force_all_finite=force_all_finite,
                 ensure_2d=array_kwargs.pop("ensure_2d", True),
                 allow_nd=array_kwargs.pop("allow_nd", False),
-                ensure_min_samples=array_kwargs.pop("ensure_min_samples", 1),
-                ensure_min_features=array_kwargs.pop("ensure_min_features", 1),
+                ensure_min_samples=ensure_min_samples,
+                ensure_min_features=ensure_min_features,
                 estimator=self,
             )
 
@@ -168,8 +174,8 @@ class TSCBaseMixin(object):
             array_kwargs = {}  # no need to check -> overwrite to empty dict
 
             X = X.tsc.check_tsc(
-                ensure_all_finite=tsc_kwargs.pop("ensure_all_finite", True),
-                ensure_min_samples=tsc_kwargs.pop("ensure_min_samples", None),
+                ensure_all_finite=force_all_finite,
+                ensure_min_samples=ensure_min_samples,
                 ensure_same_length=tsc_kwargs.pop("ensure_same_length", False),
                 ensure_const_delta_time=tsc_kwargs.pop(
                     "ensure_const_delta_time", False

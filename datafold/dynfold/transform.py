@@ -1232,7 +1232,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         """
         X = self._validate_datafold_data(
             X,
-            ensure_tsc=False,
+            ensure_tsc=True,
             tsc_kwargs=dict(
                 ensure_delta_time=self.spacing
                 if isinstance(self.spacing, float)

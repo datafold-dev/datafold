@@ -34,6 +34,10 @@ class TSCException(Exception):
         return cls(f"A minimum number of {min_samples} samples is required.")
 
     @classmethod
+    def not_min_features(cls, min_features):
+        return cls(f"A minimum number of {min_features} features is required.")
+
+    @classmethod
     def not_same_length(cls, actual_lengths):
         return cls(f"Time series have not the same length. Got {actual_lengths}")
 
@@ -1914,9 +1918,6 @@ class InitialCondition(object):
                 "Cannot check the time sampling rate, when at the same "
                 "time only one sample is required per initial condition."
             )
-
-        # all the usual restrictions for TSCDataFrame apply
-        assert X_ic._validate()
 
         X_ic.tsc.check_tsc(
             ensure_const_delta_time=np.array(X_ic.n_timesteps > 1).any(),

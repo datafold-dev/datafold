@@ -425,11 +425,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             self
         """
         X = self._validate_datafold_data(
-            X=X,
-            array_kwargs=dict(
-                ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)
-            ),
-            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)),
+            X=X, ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)
         )
 
         self._setup_feature_attrs_fit(
@@ -479,11 +475,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             ),
         )
 
-        X = self._validate_datafold_data(
-            X=X,
-            array_kwargs=dict(ensure_min_samples=1),
-            tsc_kwargs=dict(ensure_min_samples=1),
-        )
+        X = self._validate_datafold_data(X=X)
 
         if X.shape[1] != self.n_features_in_:
             raise ValueError(
@@ -523,9 +515,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             same type as `X` of shape `(n_samples, n_jointly_smooth_functions)`
         """
         X = self._validate_datafold_data(
-            X,
-            array_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
-            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_kernel_eigenvectors)),
+            X, ensure_min_samples=max(2, self.n_kernel_eigenvectors)
         )
         self.fit(X=X, y=y, **fit_params)
 

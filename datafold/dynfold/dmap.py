@@ -528,8 +528,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(
             X=X,
-            array_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
-            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
+            ensure_min_samples=max(2, self.n_eigenpairs),
         )
 
         self._setup_feature_attrs_fit(X, features_out=self._feature_names())
@@ -647,7 +646,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         """
         check_is_fitted(self, ("X_fit_", "eigenvalues_", "eigenvectors_"))
 
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=1))
+        X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
         kernel_output = self.X_fit_.compute_kernel_matrix(X, **self._cdist_kwargs)
@@ -699,7 +698,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             same type as `X` of shape `(n_samples, n_eigenpairs)`
         """
 
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
+        X = self._validate_datafold_data(X, ensure_min_samples=2)
         self.fit(X=X, y=y, **fit_params)
 
         eigvec, _ = self._select_eigenpairs_target_coords()
@@ -804,7 +803,7 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
 
     def fit(self, X: TransformType, y=None, **fit_params):
 
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
+        X = self._validate_datafold_data(X, ensure_min_samples=2)
 
         self._setup_feature_attrs_fit(
             X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
@@ -1228,9 +1227,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         """
 
         X = self._validate_datafold_data(
-            X=X,
-            array_kwargs=dict(ensure_min_samples=max(2, self.n_svdtriplet)),
-            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_svdtriplet)),
+            X=X, ensure_min_samples=max(2, self.n_svdtriplet)
         )
 
         store_kernel_matrix = self._read_fit_params(
@@ -1249,7 +1246,9 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             self.landmarks_ = self.landmarks.view()
 
         self.landmarks_ = self._validate_datafold_data(
-            X=self.landmarks_, array_kwargs=dict(ensure_min_samples=2), ensure_np=True
+            X=self.landmarks_,
+            ensure_np=True,
+            ensure_min_samples=2,
         )
 
         if self.kernel is None:
@@ -1681,7 +1680,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         # Later on not all of these columns are required because of the selection
         # performed.
 
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_features=2))
+        X = self._validate_datafold_data(X, ensure_min_features=2)
         num_eigenvectors = X.shape[1]
 
         self._validate_parameter(num_eigenvectors)

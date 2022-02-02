@@ -969,7 +969,7 @@ class DMDBase(
         X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._validate_feature_names(X)
 
@@ -1279,7 +1279,7 @@ class DMDFull(DMDBase):
         self._validate_datafold_data(
             X=X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
 
@@ -1483,7 +1483,7 @@ class gDMDFull(DMDBase):
         self._validate_datafold_data(
             X=X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
 
@@ -1659,7 +1659,7 @@ class DMDEco(DMDBase):
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -1826,7 +1826,7 @@ class PyDMDWrapper(DMDBase):
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
         self._read_fit_params(attrs=None, fit_params=fit_params)

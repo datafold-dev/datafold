@@ -50,7 +50,8 @@ class TSCAccessor(object):
         self,
         *,
         ensure_all_finite: bool = True,
-        ensure_min_samples: Optional[int] = None,
+        ensure_min_samples: int = 1,
+        ensure_min_features: int = 1,
         ensure_same_length: bool = False,
         ensure_const_delta_time: bool = True,
         ensure_delta_time: Optional[float] = None,
@@ -109,13 +110,11 @@ class TSCAccessor(object):
             validated time series collection (without changes)
         """
 
-        # TODO: allow handle_fail="raise | warn | return"?
-
         if ensure_all_finite:
             self.check_finite()
 
-        if ensure_min_samples is not None:
-            self.check_min_samples(min_samples=ensure_min_samples)
+        self.check_min_samples(min_samples=ensure_min_samples)
+        self.check_min_features(min_features=ensure_min_features)
 
         if ensure_same_length:
             self.check_timeseries_same_length()
@@ -152,9 +151,14 @@ class TSCAccessor(object):
             raise TSCException.not_finite()
 
     def check_min_samples(self, min_samples) -> None:
-        """Check if there is a minimum number of samples included."""
+        """Check if there is a minimum number of samples included in the collection."""
         if self._tsc_df.shape[0] < min_samples:
             raise TSCException.not_min_samples(min_samples=min_samples)
+
+    def check_min_features(self, min_features) -> None:
+        """Check if there is a minimum number of features included in the collection."""
+        if self._tsc_df.shape[1] < min_features:
+            raise TSCException.not_min_features(min_features=min_features)
 
     def check_timeseries_same_length(self) -> None:
         """Check if time series in the collection have the same length."""
