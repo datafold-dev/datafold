@@ -11,6 +11,7 @@ import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
+import pytest
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
@@ -169,7 +170,7 @@ class EDMDTest(unittest.TestCase):
         # pre-selection
         edmd = EDMD(
             dict_steps=[("id", TSCIdentity(include_const=False, rename_features=True))],
-            include_id_state=True,
+            include_id_state=False,
         ).fit(tsc)
 
         cos_values_predict = edmd.predict(tsc.initial_states(), qois=["cos"])
@@ -187,15 +188,6 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_index_equal(
             tsc.loc[:, "sin"].columns, sin_values_reconstruct.columns
         )
-
-    def test_qoi_selection3(self):
-        tsc = self.multi_waves
-
-        # pre-selection
-        edmd = EDMD(
-            dict_steps=[("id", TSCIdentity(include_const=False, rename_features=True))],
-            include_id_state=True,
-        ).fit(tsc)
 
         with self.assertRaises(ValueError):
             edmd.predict(tsc.initial_states(), qois=["INVALID"])
@@ -331,12 +323,13 @@ class EDMDTest(unittest.TestCase):
 
     def test_time_invariant_system(self):
         # the system corresponds to the Pendulum example
+
+        from datafold.utils._systems import Pendulum
+
         theta_init = np.array([[np.pi / 3, -4], [-3 * np.pi / 4, 2]])
         theta_init_oos = np.array([np.pi / 2, -2])
 
         t_eval = np.linspace(0, 8 * np.pi, 500)
-
-        from datafold.utils._systems import Pendulum
 
         system = Pendulum(friction=0.45)
         cart_df = system.predict(theta_init, time_values=t_eval).loc[:, ("x", "y")]
@@ -433,8 +426,10 @@ class EDMDTest(unittest.TestCase):
     def test_dmap_kernels(self, plot=False):
         X = self._setup_multi_sine_wave_data2()
 
+        # TODO: make regression test (make sure that the result is replicated)
+
         from datafold.dynfold import DiffusionMaps
-        from datafold.pcfold import (
+        from datafold.pcfold import (  # MultiquadricKernel
             ConeKernel,
             ContinuousNNKernel,
             GaussianKernel,
@@ -442,11 +437,11 @@ class EDMDTest(unittest.TestCase):
         )
 
         kernels = [
-            ConeKernel(zeta=0.0, epsilon=0.5),
+            ConeKernel(zeta=0.0, epsilon=0.1),
             ConeKernel(zeta=0.9, epsilon=0.1),
-            GaussianKernel(epsilon=0.1),
+            GaussianKernel(epsilon=20),
             ContinuousNNKernel(k_neighbor=20, delta=0.9),
-            # MultiquadricKernel(epsilon=1),
+            # MultiquadricKernel(epsilon=0.05),
             InverseMultiquadricKernel(epsilon=0.5),
         ]
 
@@ -459,7 +454,7 @@ class EDMDTest(unittest.TestCase):
                 X_predict = EDMD(
                     [
                         ("takens", TSCTakensEmbedding(delays=20)),
-                        ("dmap", DiffusionMaps(kernel, n_eigenpairs=220)),
+                        ("dmap", DiffusionMaps(kernel, n_eigenpairs=100)),
                     ]
                 ).fit_predict(X)
                 X_predict.plot(ax=ax[i + 1])
@@ -595,7 +590,10 @@ class EDMDTest(unittest.TestCase):
         actual_matrix = _edmd_matrix.reconstruct(X=self.sine_wave_tsc, qois=["sin"])
         pdtest.assert_frame_equal(actual_spectral, actual_matrix)
 
-    def test_edmd_with_composed_dict(self, display_html=False, plot=False):
+    @pytest.mark.filterwarnings("ignore:Shift matrix")
+    def test_edmd_with_composed_dict(self, display_html=False, plot=True):
+        # Ignore warning, because none of the other configurations results in a
+        # satisfying reconstruction result.
 
         from sklearn.compose import make_column_selector
 

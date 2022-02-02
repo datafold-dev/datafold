@@ -7,7 +7,7 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 import scipy.sparse
-from sklearn.utils.validation import check_array, check_scalar
+from sklearn.utils.validation import check_scalar
 
 
 def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
@@ -137,6 +137,26 @@ def is_scalar(n: object):
     return is_float(n) or is_integer(n)
 
 
+def is_matrix(matrix, name, square=False, allow_sparse=False):
+
+    if isinstance(matrix, np.ndarray):
+        if matrix.ndim != 2:
+            raise ValueError(
+                f"the matrix in parameter '{name}' must have two dimensions"
+            )
+    elif allow_sparse and scipy.sparse.issparse(matrix):
+        pass
+    else:
+        raise ValueError(
+            f"The matrix in parameter '{name}' does not meet the required format"
+        )
+
+    if square and matrix.shape[0] != matrix.shape[1]:
+        raise ValueError(f"parameter '{name}' must be a square matrix")
+
+    return True
+
+
 def if1dim_colvec(vec: np.ndarray) -> np.ndarray:
     if vec.ndim == 1:
         return vec[:, np.newaxis]
@@ -238,16 +258,10 @@ def sort_eigenpairs(
     if eigenvalues.ndim != 1:
         raise ValueError("Parameter 'eigenvalues' must be a one dimensional array")
 
-    if right_eigenvectors.ndim != 2:
-        raise ValueError(
-            "Parameter 'right_eigenvectors' must be a two dimensional and "
-            "square matrix"
-        )
+    is_matrix(right_eigenvectors, "right_eigenvectors")
 
-    if is_left_eigvec and left_eigenvectors.ndim != 2:
-        raise ValueError(
-            "Parameter 'right_eigenvectors' must be a two dimensional array "
-        )
+    if is_left_eigvec:
+        is_matrix(left_eigenvectors, "left_eigenvectors")
 
     if eigenvalues.shape[0] != right_eigenvectors.shape[1]:
         raise ValueError(
@@ -309,7 +323,7 @@ def mat_dot_diagmat(
     Returns
     -------
     """
-    assert diag_elements.ndim == 1 and matrix.ndim == 2
+    assert diag_elements.ndim == 1 and is_matrix(matrix, "matrix", allow_sparse=True)
 
     if scipy.sparse.issparse(matrix):
         # out is ignored here, because it is not supported by scipy sparse
@@ -347,7 +361,7 @@ def diagmat_dot_mat(
     Returns
     -------
     """
-    assert diag_elements.ndim == 1 and matrix.ndim == 2
+    assert diag_elements.ndim == 1 and is_matrix(matrix, "matrix", allow_sparse=True)
 
     if scipy.sparse.issparse(matrix):
         # out is ignored here, as it is not supported by scipy sparse dot
@@ -399,28 +413,55 @@ def df_type_and_indices_from(
 def is_symmetric_matrix(
     matrix: Union[np.ndarray, scipy.sparse.csr_matrix], tol: float = 0
 ) -> bool:
-    """Checks whether a matrix is symmetric.
+    """Check whether a matrix is symmetric.
 
     Parameters
     ----------
     matrix
        A square matrix to be checked for symmetry.
     tol
-       The maximum allowed absolute deviation between corresponding elements.
+       The tolerance of absolute deviation between corresponding elements
+       (k[i,j] and k[j,i]).
 
     Returns
     -------
     bool
-        True if symmetric.
+        True if symmetric else False.
     """
 
-    if matrix.ndim != 2:
-        raise ValueError("matrix has to be 2-dim.")
-    if matrix.shape[0] != matrix.shape[1]:
-        raise ValueError("matrix has to be square")
-
+    is_matrix(matrix, "matrix", square=True, allow_sparse=True)
     max_abs_deviation = np.max(np.abs(matrix - matrix.T))
     return max_abs_deviation <= tol
+
+
+def is_stochastic_matrix(
+    matrix: Union[np.ndarray, scipy.sparse.csr_matrix], axis=1, tol=1e-15
+) -> bool:
+    """Check whether a matrix is stochastic.
+
+    A matrix is stochastic if either the columns (axis=1) or the rows (axis=0) sum to 1.
+
+    Parameters
+    ----------
+    matrix
+         The matrix to be checked for stochasticity.
+
+    axis
+       The tolerance of absolute deviation from the row or column sum from 1.
+
+    Returns
+    -------
+    bool
+        True if stochastic else False.
+    """
+
+    is_matrix(matrix, "matrix", allow_sparse=True)
+
+    sum_array = matrix.sum(axis=axis)
+    if scipy.sparse.issparse(matrix):
+        sum_array = sum_array.A1
+
+    return (np.abs(sum_array - 1) <= tol).all()
 
 
 def remove_numeric_noise_symmetric_matrix(
@@ -432,7 +473,8 @@ def remove_numeric_noise_symmetric_matrix(
     operations are often executed in different order, for example, evaluations such as in
 
     .. math::
-        D^{-1} M D^{-1}
+
+        D^{-1} M D^{-1},
 
     where :math:`D` is a diagonal matrix. This can then break the exact floating point
     symmetry in the matrix.
@@ -461,6 +503,8 @@ def remove_numeric_noise_symmetric_matrix(
 
     # A faster way would be to truncate the floating values of the matrix to a certain
     # precision, but NumPy does not seem to provide anything for this?
+
+    is_matrix(matrix, "matrix", square=True, allow_sparse=True)
 
     if scipy.sparse.issparse(matrix):
         # need to preserve of explicit stored zeros (-> distance matrix)
@@ -500,12 +544,7 @@ def random_subsample(
         indices in the subsample from the original array
     """
 
-    data = check_array(
-        data,
-        force_all_finite=False,
-        ensure_min_samples=2,
-    )
-    assert isinstance(data, np.ndarray)  # for mypy
+    is_matrix(data, "data", allow_sparse=False)
 
     n_samples_data = data.shape[0]
 
@@ -517,7 +556,7 @@ def random_subsample(
         max_val=n_samples_data - 1,
     )
 
-    indices = np.random.default_rng(seed=random_state).permutation(n_samples_data)[
-        :n_samples
-    ]
+    indices = np.random.default_rng(seed=random_state).permutation(n_samples_data)
+    indices = indices[:n_samples]
+
     return data[indices, :], indices

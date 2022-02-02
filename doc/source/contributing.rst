@@ -14,7 +14,7 @@ Any code contribution (bug fixes/tutorials/documentation changes) and feedback i
 welcome. Please open a new issue via
 
 * `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-* `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you
+* `email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you
   have no gitlab account (this opens a confidential issue).
 
 Setting up *datafold* for development
@@ -32,7 +32,7 @@ This section describes all steps to set up *datafold* for code development.
 
         make
 
-    in the shell to see the options.
+    in the shell to see the available targets.
 
 Quick set up
 ^^^^^^^^^^^^
@@ -125,7 +125,7 @@ Please read and follow the steps of gitlab's
     We set up a "Continuous Integration" (CI) pipeline. However, the worker (a
     `gitlab-runner`) of the *datafold* repository is not available for forked projects
     (for background information see
-    `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
+    `here <https://docs.gitlab.com/ee/ci/pipelines/merge_request_pipelines.html#use-with-forked-projects>`__).
 
 After you have created a fork you can clone the repository with:
 
@@ -250,7 +250,7 @@ Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The `documentation page <https://datafold-dev.gitlab.io/datafold/index.html>`__ is
-built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`__ and various extensions
+built with `Sphinx <https://www.sphinx-doc.org/en/master/>`__ and various extensions
 (install with ``requirements-dev.txt``). The source code is documented with
 `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`__ style.
 

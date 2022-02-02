@@ -919,7 +919,7 @@ class TSCAccessor(object):
             else:
                 # reset time series ID
                 new_df = timeseries_df
-                new_df.index = new_df.index.set_levels([min_id], 0)
+                new_df.index = new_df.index.set_levels([min_id], level=0)
 
             if new_df is not None:
                 min_id = max(new_df.ids) + 1

@@ -14,12 +14,18 @@ from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import (
     ConeKernel,
     ContinuousNNKernel,
+    CubicKernel,
     DmapKernelFixed,
     GaussianKernel,
+    InverseMultiquadricKernel,
+    MultiquadricKernel,
+    PCManifoldKernel,
+    QuinticKernel,
     _kth_nearest_neighbor_dist,
     _symmetric_matrix_division,
 )
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
+from datafold.utils.general import is_symmetric_matrix
 
 
 def generate_box_data(n_left, n_middle, n_right, seed):
@@ -259,6 +265,34 @@ class TestPCManifoldKernel(unittest.TestCase):
     def test_gaussian_kernel_print(self):
         kernel = GaussianKernel(epsilon=1)
         self.assertEqual(kernel.__repr__(), "GaussianKernel(epsilon=1)")
+
+    def test_kernels_symmetry(self):
+        data = np.random.default_rng(1).random(size=[100, 2])
+        data_tsc = TSCDataFrame.from_single_timeseries(pd.DataFrame(data))
+
+        kernels = [
+            MultiquadricKernel(),
+            QuinticKernel(),
+            InverseMultiquadricKernel(),
+            CubicKernel(),
+        ]
+        kernels_tsc = [ConeKernel(zeta=0), ConeKernel(zeta=0.5)]
+
+        for k in kernels:
+            kernel_output = k(data)
+            kernel_matrix, _, _ = PCManifoldKernel.read_kernel_output(
+                kernel_output=kernel_output
+            )
+
+            self.assertTrue(is_symmetric_matrix(kernel_matrix))
+
+        for k in kernels_tsc:
+            kernel_output = k(data_tsc)
+            kernel_matrix, _, _ = PCManifoldKernel.read_kernel_output(
+                kernel_output=kernel_output
+            )
+
+            self.assertTrue(is_symmetric_matrix(kernel_matrix.to_numpy()))
 
     def test_gaussian_kernel_callable(self):
 

@@ -1,5 +1,5 @@
 -r requirements.txt
-coverage[toml]==6.3.0
+coverage[toml]==6.3.1
 git+https://github.com/jmbr/diffusion-maps@main
 identify==2.2.4
 jupyter>=1.0.0,<2.0.0
@@ -11,6 +11,7 @@ pybtex==0.24.0
 pydata-sphinx-theme==0.7.2
 pydmd==0.4.0
 pytest==6.2.4
+requests==2.27.1
 scikit-optimize>=0.9.0,<0.10.0
 sphinx-autodoc-typehints==1.15.1
 sphinx-automodapi==0.14.1

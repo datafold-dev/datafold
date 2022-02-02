@@ -1330,10 +1330,11 @@ class DmapKernelFixed(BaseManifoldKernel):
         """Normalize (sparse/dense) kernels with positive `alpha` value. This is also
         referred to a 'renormalization' of sampling density."""
 
-        if row_sums_alpha_fit is None:
-            assert is_symmetric_matrix(kernel_matrix)
-        else:
-            assert row_sums_alpha_fit.shape[0] == kernel_matrix.shape[1]
+        if (
+            row_sums_alpha_fit is not None
+            and row_sums_alpha_fit.shape[0] != kernel_matrix.shape[1]
+        ):
+            raise ValueError("'row_sums_alpha_fit' does not have the correct form")
 
         row_sums = kernel_matrix.sum(axis=1)
 
@@ -1408,9 +1409,6 @@ class DmapKernelFixed(BaseManifoldKernel):
                 (is_pdist and self.is_symmetric_transform())
                 ^ (basis_change_matrix is not None)
             )
-
-        if is_pdist and self.is_symmetric:
-            assert is_symmetric_matrix(internal_kernel)
 
         return internal_kernel, basis_change_matrix, row_sums_alpha
 

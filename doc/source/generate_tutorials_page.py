@@ -48,7 +48,7 @@ package and dependencies install with
 
     python -m pip install jupyter
 
-For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a
+For further information visit the `Jupyter homepage <https://jupyter.org/>`__. To open a
 Jupyter notebook in a web browser, run
 
 .. code-block:: bash
@@ -128,7 +128,7 @@ def get_tutorial_text_doc(filename, target):
     elif target == "readme":
         # "filename (download_link, doc_link)" in readme
         _str = (
-            f"* `{filename}` (`download <{_dict['download_link']}>`__ , "
+            f"* `{filename}` (`download <{_dict['download_link']}>`__, "
             f"`doc <{_dict['web_link']}>`__)\n"
         )
         _str += f"{INDENT}{_dict['description']}"
@@ -179,7 +179,7 @@ add_tutorial(
     "models such as the ``DiffusionMaps`` model. For this we use the "
     "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
     warning="The tutorial requires also the Python package "
-    "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ "
+    "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ "
     "which does not install with *datafold*.",
 )
 

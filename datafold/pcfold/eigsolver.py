@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 
-from datafold.utils.general import is_symmetric_matrix, sort_eigenpairs
+from datafold.utils.general import is_matrix, is_symmetric_matrix, sort_eigenpairs
 
 _valid_eigsolver_backends = ["scipy"]
 _valid_svd_backends = ["scipy"]
@@ -135,7 +135,7 @@ def scipy_svdsolver(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Decompose a (possibly rectangular) kernel matrix into singular value components.
 
-    Compte
+    Compute
 
     .. math::
 
@@ -193,6 +193,7 @@ def compute_kernel_eigenpairs(
     is_stochastic: bool = False,
     normalize_eigenvectors: bool = False,
     backend: str = "scipy",
+    validate_matrix: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Compute eigenvalues and -vectors from kernel matrix with consideration of matrix
     properties.
@@ -220,6 +221,10 @@ def compute_kernel_eigenpairs(
         Valid backends:
             * "scipy"
 
+    validate_matrix
+        Validate matrix that it fulfills the specified properties (primarily used for
+        testing).
+
     Returns
     -------
     numpy.ndarray
@@ -229,14 +234,10 @@ def compute_kernel_eigenpairs(
         Eigenvectors (not necessarily normalized) in the same order to eigenvalues.
     """
 
-    if kernel_matrix.ndim != 2 or kernel_matrix.shape[0] != kernel_matrix.shape[1]:
-        raise ValueError(
-            f"kernel matrix must be a square. "
-            f"Got kernel_matrix.shape={kernel_matrix.shape}"
-        )
+    is_matrix(kernel_matrix, "kernel_matrix", square=True, allow_sparse=True)
 
     err_nonfinite = ValueError(
-        "kernel_matrix must only contain finite values (no np.nan " "or np.inf)"
+        "kernel_matrix must only contain finite values (no np.nan or np.inf)"
     )
     if (
         isinstance(kernel_matrix, scipy.sparse.spmatrix)
@@ -246,21 +247,13 @@ def compute_kernel_eigenpairs(
     elif isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all():
         raise err_nonfinite
 
-    assert not is_symmetric or (is_symmetric and is_symmetric_matrix(kernel_matrix))
+    if validate_matrix:
+        if is_symmetric and not is_symmetric_matrix(kernel_matrix):
+            raise ValueError("kernel_matrix is not symmetric")
 
-    # BEGIN experimental code
-    # test_sparsify_experimental = False
-    # if test_sparsify_experimental:
-    #
-    #     SPARSIFY_CUTOFF = 1e-14
-    #
-    #     if scipy.sparse.issparse(kernel_matrix):
-    #         kernel_matrix.data[np.abs(kernel_matrix.data) < SPARSIFY_CUTOFF] = 0
-    #         kernel_matrix.eliminate_zeros()
-    #     else:
-    #         kernel_matrix[np.abs(kernel_matrix) < SPARSIFY_CUTOFF] = 0
-    #         kernel_matrix = scipy.sparse.csr_matrix(kernel_matrix)
-    # END experimental
+        # TODO: include this after kernel refactor is carried out in #149
+        # if is_symmetric and not is_stochastic_matrix(kernel_matrix, axis=1):
+        #     raise ValueError("kernel_matrix is not stochastic")
 
     if backend == "scipy":
         eigvals, eigvects = scipy_eigsolver(

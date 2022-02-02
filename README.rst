@@ -182,7 +182,7 @@ require additional dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
 *datafold* integrates with common packages from the
-`Python scientific computing stack <https://www.scipy.org/about.html>`__:
+`Python scientific computing stack <https://scipy.org/about/>`__:
 
 * `NumPy <https://numpy.org/>`__
    The data structure ``PCManifold`` subclasses from NumPy's

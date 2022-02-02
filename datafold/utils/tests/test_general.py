@@ -4,7 +4,14 @@ import numpy as np
 import numpy.testing as nptest
 import scipy
 
-from datafold.utils.general import diagmat_dot_mat, mat_dot_diagmat, sort_eigenpairs
+from datafold.utils.general import (
+    diagmat_dot_mat,
+    is_matrix,
+    is_stochastic_matrix,
+    is_symmetric_matrix,
+    mat_dot_diagmat,
+    sort_eigenpairs,
+)
 
 
 class TestMathUtils(unittest.TestCase):
@@ -113,6 +120,84 @@ class TestMathUtils(unittest.TestCase):
         nptest.assert_array_equal(actual_U, expected_U)
         nptest.assert_array_equal(actual_E, expected_E)
         nptest.assert_array_equal(actual_V, expected_V)
+
+    def test_is_symmetric_matrix_dense(self):
+        nonsymmetric_matrix = np.random.default_rng(6).random(size=[10, 10])
+        symmetric_matrix = (nonsymmetric_matrix + nonsymmetric_matrix.T) / 2.0
+
+        self.assertFalse(is_symmetric_matrix(nonsymmetric_matrix))
+        self.assertTrue(is_symmetric_matrix(symmetric_matrix, tol=0))
+
+    def test_is_symmetric_matrix_sparse(self):
+        nonsymmetric_matrix = np.random.default_rng(5).random(size=[10, 10])
+        nonsymmetric_matrix[nonsymmetric_matrix < 0.5] = 0
+        symmetric_matrix = (nonsymmetric_matrix + nonsymmetric_matrix.T) / 2.0
+
+        nonsymmetric_matrix = scipy.sparse.csr_matrix(nonsymmetric_matrix)
+        symmetric_matrix = scipy.sparse.csr_matrix(symmetric_matrix)
+
+        self.assertFalse(is_symmetric_matrix(nonsymmetric_matrix))
+        self.assertTrue(is_symmetric_matrix(symmetric_matrix, tol=0))
+
+    def test_is_stochastic_matrix_dense(self):
+        matrix = np.random.default_rng(6).random(size=[10, 9])
+        stochastic_matrix_col = matrix / matrix.sum(axis=1)[:, np.newaxis]
+        stochastic_matrix_row = matrix / matrix.sum(axis=0)
+
+        self.assertFalse(is_stochastic_matrix(matrix, axis=0))
+        self.assertFalse(is_stochastic_matrix(matrix, axis=1))
+
+        self.assertFalse(is_stochastic_matrix(stochastic_matrix_col, axis=0))
+        self.assertTrue(is_stochastic_matrix(stochastic_matrix_col, axis=1))
+
+        self.assertTrue(is_stochastic_matrix(stochastic_matrix_row, axis=0))
+        self.assertFalse(is_stochastic_matrix(stochastic_matrix_row, axis=1))
+
+    def test_is_stochastic_matrix_sparse(self):
+        matrix = np.random.default_rng(6).random(size=[10, 9])
+        matrix[matrix < 0.5] = 0
+        matrix = scipy.sparse.csr_matrix(matrix)
+
+        stochastic_matrix_col = matrix / matrix.sum(axis=1).A1[:, np.newaxis]
+        stochastic_matrix_row = matrix / matrix.sum(axis=0).A1
+
+        self.assertFalse(is_stochastic_matrix(matrix, axis=0))
+        self.assertFalse(is_stochastic_matrix(matrix, axis=1))
+
+        self.assertFalse(is_stochastic_matrix(stochastic_matrix_col, axis=0))
+        self.assertTrue(is_stochastic_matrix(stochastic_matrix_col, axis=1))
+
+        self.assertTrue(is_stochastic_matrix(stochastic_matrix_row, axis=0))
+        self.assertFalse(is_stochastic_matrix(stochastic_matrix_row, axis=1))
+
+    def test_is_matrix(self):
+        square_dense = np.random.default_rng(1).random(size=[10, 10])
+        rect_dense = np.random.default_rng(1).random(size=[5, 10])
+
+        square_sparse = square_dense.copy()
+        square_sparse[square_sparse < 0.5] = 0
+        square_sparse = scipy.sparse.csr_matrix(square_sparse)
+
+        rect_sparse = rect_dense.copy()
+        rect_sparse[rect_sparse < 0.5] = 0
+        rect_sparse = scipy.sparse.csr_matrix(rect_sparse)
+
+        self.assertTrue(is_matrix(square_dense, "m", square=True))
+        self.assertTrue(is_matrix(rect_dense, "m"))
+        self.assertTrue(is_matrix(square_sparse, "m", allow_sparse=True))
+        self.assertTrue(is_matrix(rect_sparse, "m", allow_sparse=True))
+
+        with self.assertRaises(ValueError):
+            self.assertTrue(is_matrix(rect_dense, "m", square=True))
+
+        with self.assertRaises(ValueError):
+            self.assertTrue(is_matrix(square_sparse, "m", allow_sparse=False))
+
+        with self.assertRaises(ValueError):
+            self.assertTrue(is_matrix(rect_sparse, "m", allow_sparse=False))
+
+        with self.assertRaises(ValueError):
+            self.assertTrue(is_matrix(rect_sparse, "m", square=True, allow_sparse=True))
 
 
 if __name__ == "__main__":

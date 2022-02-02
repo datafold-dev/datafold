@@ -863,7 +863,7 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError("Time series IDs appear multiple times.")
 
         if is_datetime64_dtype(time_index):
-            _time_index_num = time_index.astype(int)
+            _time_index_num = time_index.view(int)
         else:
             _time_index_num = time_index
 

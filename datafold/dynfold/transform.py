@@ -97,8 +97,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
             estimator=self.sklearn_transformer, safe=True
         )
 
-        X_intern = self._X_to_numpy(X)
-        self.sklearn_transformer_fit_.fit(X_intern)
+        self.sklearn_transformer_fit_.fit(X)
 
         return self
 
@@ -121,8 +120,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        X_intern = self._X_to_numpy(X)
-        values = self.sklearn_transformer_fit_.transform(X_intern)
+        values = self.sklearn_transformer_fit_.transform(X)
         return self._same_type_X(
             X=X, values=values, feature_names=self.feature_names_out_
         )
@@ -172,8 +170,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         if not hasattr(self.sklearn_transformer, "inverse_transform"):
             raise AttributeError("sklearn object has no 'inverse_transform' attribute")
 
-        X_intern = self._X_to_numpy(X)
-        values = self.sklearn_transformer_fit_.inverse_transform(X_intern)
+        values = self.sklearn_transformer_fit_.inverse_transform(X)
         return self._same_type_X(
             X=X, values=values, feature_names=self.feature_names_in_
         )
@@ -335,7 +332,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         # validation happens here:
-        super(TSCPrincipalComponent, self).fit(self._X_to_numpy(X), y=y)
+        super(TSCPrincipalComponent, self).fit(X, y=y)
 
         self._setup_feature_attrs_fit(
             X, features_out=[f"pca{i}" for i in range(self.n_components_)]
@@ -362,7 +359,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
 
         self._validate_feature_input(X, direction="transform")
-        pca_data = super(TSCPrincipalComponent, self).transform(self._X_to_numpy(X))
+        pca_data = super(TSCPrincipalComponent, self).transform(X)
         return self._same_type_X(
             X, values=pca_data, feature_names=self.feature_names_out_
         )
@@ -386,9 +383,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
 
         X = self._validate_datafold_data(X)
 
-        pca_values = super(TSCPrincipalComponent, self).fit_transform(
-            self._X_to_numpy(X), y=y
-        )
+        pca_values = super(TSCPrincipalComponent, self).fit_transform(X, y=y)
 
         self._setup_feature_attrs_fit(
             X, features_out=[f"pca{i}" for i in range(self.n_components_)]
@@ -415,8 +410,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
 
         self._validate_feature_input(X, direction="inverse_transform")
 
-        X_intern = self._X_to_numpy(X)
-        data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X_intern)
+        data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X)
 
         return self._same_type_X(
             X, values=data_orig_space, feature_names=self.feature_names_in_
@@ -988,7 +982,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
     def _get_poly_feature_names(self, X, input_features=None):
         # Note: get_feature_names function is already provided by super class
         if self._has_feature_names(X):
-            feature_names = self.get_feature_names(
+            feature_names = self.get_feature_names_out(
                 input_features=X.columns.astype(np.str_)
             )
         else:
