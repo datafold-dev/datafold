@@ -912,10 +912,11 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
     landmarks
         The landmark set used for computing the landmark-set affinity matrix.
-        If `landmarks` is provided as
+        The strategy of how to choose the landmarks is determined by the type:
 
-        * a float in (0,1], then it is proportion to randomly sample from `X` during `fit`
-        * an integer > 1, then it is the number of random samples from `X` during `fit`
+        * a float in the interval (0,1] -- proportion of random set from `X` during
+          :py:meth:`fit`
+        * an integer > 1 -- the number of random samples from `X` during :py:meth:`fit`
         * a `np.ndarray` containing the final landmark points
 
     alpha
@@ -923,8 +924,9 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         parameter corresponds to `alpha` in :py:meth:`DiffusionMaps`.
 
         .. note::
-            The parameter is not covered in the original Roseland paper and therefore
-            should used with care.
+            The parameter is not covered in the original Roseland paper (`alpha=0`). This
+            means enabling the additional normalization (`alpha>0`) should be used with
+            care.
 
     random_state
         Random seed for the selection of the landmark set. If provided when `Y` is also
@@ -947,7 +949,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         The singular values of the diffusion kernel matrix in decreasing order.
 
     svdvec_left_: numpy.ndarray
-        The left singular vectors of the diffusion kernel matrix.
+        The left singular vectors of the kernel matrix.
 
     svdvec_right_: numpy.ndarray
         The right singular vectors of the diffusion kernel matrix
@@ -1129,9 +1131,8 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         return svdvec_left, svdvals, svdvec_right
 
     def _nystrom(self, kernel_cdist, svdvec_right, svdvals, normalize_diagonal):
-        _kernel_cdist = kernel_cdist
 
-        _magic_tol = 1e-14
+        _magic_tol = 1e-14  # tolerance to raise a warning
 
         if (np.abs(svdvals) < _magic_tol).any():
             warnings.warn(
@@ -1139,13 +1140,18 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
                 "numerical instabilities when applying the Nystroem extension."
             )
 
-        svd_right_mapped = _kernel_cdist @ mat_dot_diagmat(
+        # Interpolate the svdvec_left with:
+        #    K = U @ S @ V^T
+        # --> U = K @ V @ S^{-1}
+        # Note that transposing V is sufficient for the inverse because the vectors in
+        # SVD are orthonormal
+        svdvec_left_interp = kernel_cdist @ mat_dot_diagmat(
             svdvec_right, np.reciprocal(svdvals)
         )
 
-        svd_right_mapped = diagmat_dot_mat(normalize_diagonal, svd_right_mapped)
+        svdvec_left_interp = diagmat_dot_mat(normalize_diagonal, svdvec_left_interp)
 
-        return svd_right_mapped
+        return svdvec_left_interp
 
     def _perform_roseland_embedding(
         self, svdvectors: Union[np.ndarray, pd.DataFrame], svdvalues: np.ndarray
@@ -1160,8 +1166,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         if self.time_exponent == 0:
             roseland_embedding = svdvectors
         else:
-            # TODO: why is here an additional factor of 2? In Eq. 4 of the paper there is
-            #  such factor
             svdvals_time = np.power(svdvalues, 2 * self.time_exponent)
             roseland_embedding = mat_dot_diagmat(svdvectors, svdvals_time)
 
@@ -1335,7 +1339,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            Data points to be embedded.
+            Out-of-sample points to embed.
 
         Returns
         -------
@@ -1357,7 +1361,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         _, svdvals, svdvec_right = self._select_svdpairs_target_coords()
 
-        svdvec_right_embedded = self._nystrom(
+        svdvec_left_interp = self._nystrom(
             kernel_matrix_cdist,
             svdvec_right=svdvec_right,
             svdvals=svdvals,
@@ -1365,7 +1369,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         )
 
         roseland_embedding = self._perform_roseland_embedding(
-            svdvec_right_embedded, svdvals
+            svdvec_left_interp, svdvals
         )
 
         if isinstance(X, TSCDataFrame) and kernel_matrix_cdist.shape[0] == X.shape[0]:

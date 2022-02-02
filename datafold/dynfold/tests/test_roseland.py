@@ -125,19 +125,17 @@ class RoselandTest(unittest.TestCase):
 
     def test_nystrom_out_of_sample_swiss_roll(self, plot=False):
 
-        X_swiss_all, color_all = make_swiss_roll(
-            n_samples=4000, noise=0, random_state=5
-        )
-        data_landmark, _ = random_subsample(X_swiss_all, 1000, random_state=1)
+        X_train, color_train = make_swiss_roll(n_samples=4000, noise=0, random_state=5)
+        landmarks, _ = random_subsample(X_train, 1000, random_state=1)
 
         setting = {
             "kernel": GaussianKernel(epsilon=2.7),
             "n_svdtriplet": 7,
-            "landmarks": data_landmark,
+            "landmarks": landmarks,
             "alpha": 0,
         }
 
-        rose_embed = Roseland(**setting).fit(X_swiss_all)
+        rose_embed = Roseland(**setting).fit(X_train)
 
         indices = [1, 5]
         if plot:
@@ -145,13 +143,13 @@ class RoselandTest(unittest.TestCase):
                 eigenvectors=rose_embed.svdvec_left_,
                 n=1,
                 fig_params=dict(figsize=[6, 6]),
-                scatter_params=dict(cmap=plt.cm.Spectral, c=color_all),
+                scatter_params=dict(cmap=plt.cm.Spectral, c=color_train),
             )
 
         rose_embed_eval_expected = rose_embed.svdvec_left_[:, indices]
         rose_embed_eval_actual = rose_embed.set_target_coords(
             indices=indices
-        ).transform(X=X_swiss_all)
+        ).transform(X=X_train)
 
         # even though the target_coords were set, still all eigenvectors must be
         # accessible
@@ -162,9 +160,7 @@ class RoselandTest(unittest.TestCase):
         )
 
         if plot:
-            X_swiss_oos, color_oos = make_swiss_roll(
-                n_samples=30000, noise=0, random_state=5
-            )
+            X_oos, color_oos = make_swiss_roll(n_samples=30000, noise=0, random_state=3)
 
             f, ax = plt.subplots(2, 3, figsize=(4, 4))
             f.subplots_adjust(hspace=0.326)
@@ -176,7 +172,7 @@ class RoselandTest(unittest.TestCase):
                 rose_embed_eval_expected[:, 1],
                 s=markersize,
                 marker=marker,
-                c=color_all,
+                c=color_train,
             )
             ax[0][0].set_title("expected Roseland singular vectors (Fit)")
 
@@ -185,7 +181,7 @@ class RoselandTest(unittest.TestCase):
                 rose_embed_eval_actual[:, 1],
                 s=markersize,
                 marker=marker,
-                c=color_all,
+                c=color_train,
             )
             ax[0][1].set_title("actual Roseland singular vectors (fit -> transform)")
 
@@ -204,7 +200,7 @@ class RoselandTest(unittest.TestCase):
             f.colorbar(error_scatter, ax=ax[0][2])
             ax[0][2].set_title("abs. difference")
 
-            gh_embed_eval_oos = rose_embed.transform(X_swiss_oos)
+            gh_embed_eval_oos = rose_embed.transform(X_oos)
             ax[1][0].scatter(
                 gh_embed_eval_oos[:, 0],
                 gh_embed_eval_oos[:, 1],

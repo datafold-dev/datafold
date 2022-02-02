@@ -131,7 +131,7 @@ def scipy_eigsolver(
 
 
 def scipy_svdsolver(
-    kernel_matrix, n_svdvtriplets
+    kernel_matrix, n_svdvtriplets, **kwargs
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Decompose a (possibly rectangular) kernel matrix into singular value components.
 
@@ -166,12 +166,12 @@ def scipy_svdsolver(
     """
     max_n_triplets = np.min(kernel_matrix.shape)
 
+    v0 = kwargs.pop("v0", np.random.default_rng(1).random(min(kernel_matrix.shape)))
+    which = kwargs.pop("which", "LM")
+
     if n_svdvtriplets < max_n_triplets:
         svdvec_left, svdvals, svdvec_right = scipy.sparse.linalg.svds(
-            kernel_matrix,
-            k=n_svdvtriplets,
-            which="LM",
-            v0=np.ones(min(kernel_matrix.shape)),
+            kernel_matrix, k=n_svdvtriplets, which=which, v0=v0, **kwargs
         )
 
         svdvals, svdvec_left, svdvec_right = sort_eigenpairs(
@@ -291,6 +291,7 @@ def compute_kernel_svd(
     kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
     n_svdtriplet: int,
     backend: str = "scipy",
+    **backend_kwargs,
 ):
 
     if n_svdtriplet > np.min(kernel_matrix.shape):
@@ -301,7 +302,7 @@ def compute_kernel_svd(
 
     if backend == "scipy":
         svdvec_left, svdvals, svdvec_right = scipy_svdsolver(
-            kernel_matrix, n_svdvtriplets=n_svdtriplet
+            kernel_matrix, n_svdvtriplets=n_svdtriplet, **backend_kwargs
         )
     else:
         raise ValueError(

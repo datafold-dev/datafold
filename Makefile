@@ -204,7 +204,9 @@ clean_docs:
 	cd doc/; \
 	rm -fr build/; \
 	rm -f source/api/*.rst source/_apidoc/*.rst; \
-	find . -name *.nblink -type f -delete;
+	find . -name *.nblink -type f -delete; \
+	# the README file in the "tutorials" folder is generated when building the docs
+	rm -f tutorials/README.rst
 
 #clean_build: @ Remove all files that are created for target "build".
 clean_build:

@@ -3,6 +3,7 @@
 import glob
 import os
 import pathlib
+import warnings
 
 import requests  # type: ignore
 
@@ -94,8 +95,8 @@ def add_tutorial(filename, description, warning=None):
 
     _req_download_file = requests.head(download_link)
     if _req_download_file.status_code != 200:
-        print(
-            f"WARNING: The download link \n{download_link} \n does not exist. Check if "
+        warnings.warn(
+            f"The download link \n{download_link} \n does not exist. Check if "
             f"the tutorial will be published soon and that the link is correct."
         )
 
@@ -129,7 +130,7 @@ def get_tutorial_text_doc(filename, target):
         # "filename (download_link, doc_link)" in readme
         _str = (
             f"* `{filename}` (`download <{_dict['download_link']}>`__, "
-            f"`doc <{_dict['web_link']}>`__)\n"
+            f"`web <{_dict['web_link']}>`__)\n"
         )
         _str += f"{INDENT}{_dict['description']}"
 

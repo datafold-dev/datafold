@@ -29,33 +29,33 @@ List
     tutorial_08_basic_roseland_scurve_digits
 
 
-* `01_basic_datastructures.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/01_basic_datastructures.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_01_basic_datastructures.html>`__)
+* `01_basic_datastructures.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/01_basic_datastructures.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_01_basic_datastructures.html>`__)
     We introduce *datafold*'s basic data structures for time series collection data and kernel-based algorithms. They are both used internally in model implementations and for input/output.
-* `02_basic_pcm_subsampling.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/02_basic_pcm_subsampling.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_02_basic_pcm_subsampling.html>`__)
+* `02_basic_pcm_subsampling.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/02_basic_pcm_subsampling.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_02_basic_pcm_subsampling.html>`__)
     We show how the ``PCManifold`` data structure can be used to subsample a manifold point cloud uniformly.
 
     **Warning**
         The tutorial generates a large dataset with 10 Mio. samples by default. This may have to be reduced, depending on the available computer memory.
 
-* `03_basic_dmap_scurve.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/03_basic_dmap_scurve.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_03_basic_dmap_scurve.html>`__)
+* `03_basic_dmap_scurve.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/03_basic_dmap_scurve.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_03_basic_dmap_scurve.html>`__)
     We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an S-curved point cloud manifold. We also select the best combination of intrinsic parameters automatically with an optimization routine.
-* `04_basic_dmap_digitclustering.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/04_basic_dmap_digitclustering.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_04_basic_dmap_digitclustering.html>`__)
+* `04_basic_dmap_digitclustering.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/04_basic_dmap_digitclustering.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_04_basic_dmap_digitclustering.html>`__)
     We use the ``DiffusionMaps`` model to cluster data from handwritten digits and perform an out-of-sample embedding. This example is taken from the scikit-learn project and can be compared against other manifold learning algorithms.
-* `05_basic_gh_oos.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/05_basic_gh_oos.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_05_basic_gh_oos.html>`__)
+* `05_basic_gh_oos.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/05_basic_gh_oos.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_05_basic_gh_oos.html>`__)
     We showcase the out-of-sample extension for manifold learning models such as the ``DiffusionMaps`` model. For this we use the ``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.
 
     **Warning**
-        The tutorial requires also the Python package `scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ which does not install with *datafold*.
+        The tutorial requires also the Python package `scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ which does not install with *datafold*.
 
-* `06_basic_edmd_limitcycle.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/06_basic_edmd_limitcycle.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_06_basic_edmd_limitcycle.html>`__)
+* `06_basic_edmd_limitcycle.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/06_basic_edmd_limitcycle.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_06_basic_edmd_limitcycle.html>`__)
     We generate data from a dynamical system (Hopf system) and compare different dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate out-of-sample predictions with time ranges exceeding the time horizon of the training data.
-* `07_basic_jsf_common_eigensystem.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/07_basic_jsf_common_eigensystem.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_07_basic_jsf_common_eigensystem.html>`__)
+* `07_basic_jsf_common_eigensystem.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/07_basic_jsf_common_eigensystem.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_07_basic_jsf_common_eigensystem.html>`__)
     We use ``JointlySmoothFunctions`` to learn commonly smooth functions from multimodal data. Also, we introduce ``JsfDataset``, which is used to make ``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer APIs. Finally, we demonstrate the out-of-sample extension.
 
     **Warning**
         The code for jointly smooth functions inside this notebook is experimental.
 
-* `08_basic_roseland_scurve_digits.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/08_basic_roseland_scurve_digits.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_08_basic_roseland_scurve_digits.html>`__)
+* `08_basic_roseland_scurve_digits.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/08_basic_roseland_scurve_digits.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_08_basic_roseland_scurve_digits.html>`__)
     We use a ``Roseland`` model to compute lower dimensional embeddings of an S-curved point cloud manifold and to cluster data from handwritten digit. We also select the best combination of intrinsic parameters automatically with an optimization routine and demonstrate how to do include this in an scikit-learn pipeline. Based on the Diffusion Maps tutorials.
 
 
@@ -90,7 +90,7 @@ package and dependencies install with
 
     python -m pip install jupyter
 
-For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a
+For further information visit the `Jupyter homepage <https://jupyter.org/>`__. To open a
 Jupyter notebook in a web browser, run
 
 .. code-block:: bash
