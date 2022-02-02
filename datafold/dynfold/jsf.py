@@ -286,6 +286,8 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
             index_from = None
 
         rng = np.random.default_rng(seed=1)
+
+        # TODO: I don's quite get why this distinction is here...?
         if len(self.kernel_eigenvectors_) == 2:
             ev0 = self.kernel_eigenvectors_[0]
             ev1 = self.kernel_eigenvectors_[1]
@@ -297,6 +299,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
             else:
                 evs = ev0.T @ ev1
             min_ev_shape = min(evs.shape)
+
             v0 = rng.normal(loc=0, scale=1 / min_ev_shape, size=min_ev_shape)
             Q, eigenvalues, R_t = scipy.sparse.linalg.svds(
                 evs,
@@ -308,6 +311,8 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
             center = np.row_stack(
                 [np.column_stack([Q, Q]), np.column_stack([R_t.T, -R_t.T])]
             )
+
+            # TODO: matrix @ diag is expensive (use functions from datafold.utils).
             right = np.diag(
                 np.power(np.concatenate([1 + eigenvalues, 1 - eigenvalues]), -1 / 2)
             )
@@ -342,10 +347,10 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         return jointly_smooth_functions, eigenvalues
 
     def nystrom(self, new_indexed_observations: Dict[int, TransformType]):
-        # TODO: make private??
+        # TODO: make method private??
         """Embed out-of-sample points with Nyström.
 
-        (see transform of dmap for Nyström documentation)
+        (see `transform` of :py:meth:`DiffusionMaps` for Nyström documentation)
 
         Parameters
         ----------
@@ -400,7 +405,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
                     index_from,
                     approx_eigenvectors,
                     except_columns=[
-                        f"aev{i}"
+                        f"aev{i}"  # TODO: what is aev here?
                         for i in range(self.kernel_eigenvectors_[index].shape[1])
                     ],
                 )
@@ -413,7 +418,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         return f_m_star
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "JointlySmoothFunctions":
-        """Compute the jointly smooth functions.  # TODO: compute on tining data
+        """Compute the jointly smooth functions.  # TODO: compute on training data
 
         Parameters
         ----------
@@ -431,9 +436,8 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         JointlySmoothFunctions
             self
         """
-        # TODO: does fit / transform support TSCDataFrame?
-
-        # TODO: shared parameter such as 'ensure_min_samples' only in one...
+        # TODO: datafold improvement: share parameter such as 'ensure_min_samples'
+        #  between tsc_kwargs and array_kwargs
         X = self._validate_datafold_data(
             X=X,
             array_kwargs=dict(
