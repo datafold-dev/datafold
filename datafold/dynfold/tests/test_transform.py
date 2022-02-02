@@ -310,7 +310,7 @@ class TestTSCTransform(unittest.TestCase):
         data = pca.transform(tsc)
         self.assertIsInstance(data, TSCDataFrame)
 
-        pca_sklearn = PCA(n_components=1).fit(tsc.to_numpy())
+        pca_sklearn = PCA(n_components=1).fit(tsc)
         data_sklearn = pca_sklearn.transform(tsc)
 
         nptest.assert_allclose(data, data_sklearn, atol=1e-15)
