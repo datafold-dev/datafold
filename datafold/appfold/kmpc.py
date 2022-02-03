@@ -149,6 +149,7 @@ class KoopmanMPC:
     def _setup_optimizer(self):
         # implements relevant parts of korda-mezic-2018 for setting up the optimization problem
 
+        print(" Setting up matrices for Optimizer...")
         Ab, Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
         F, E, c = self._create_constraint_matrices()
@@ -164,6 +165,7 @@ class KoopmanMPC:
     def _create_evolution_matrices(self):
         # implemenets appendix from korda-mezic-2018
         # same as Sabin 2.44
+        print(" Setting up evolution matrices...")
         Np = self.horizon
         N = self.lifted_state_size
         m = self.input_size
@@ -187,6 +189,7 @@ class KoopmanMPC:
         # implemenets appendix from korda-mezic-2018
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
+        print(" Setting up constraint matrices...")
         Np = self.horizon
         N = self.output_size
         m = self.input_size
@@ -229,6 +232,7 @@ class KoopmanMPC:
     def _create_cost_matrices(self):
         # implemenets appendix from korda-mezic-2018
         # same as Sabin 2.44
+        print(" Setting up cost matrices...")
         Np = self.horizon
         N = self.output_size
         m = self.input_size
@@ -256,11 +260,13 @@ class KoopmanMPC:
         Np = self.horizon
         N = self.lifted_state_size
         m = self.input_size
+        print("Generating control sequence...started")
 
         H, h, G, L, M, c = self._setup_optimizer()
         z0 = self.lifting_function(trajectory).T
         y = np.reshape(reference.T, ((Np + 1) * reference.shape[1], 1))
 
+        print(" Running optimizer...")
         U = solve_qp(
             P=H,
             q=(h.T + z0 @ G),
@@ -270,5 +276,6 @@ class KoopmanMPC:
             b=None,
             solver="quadprog",
         )
+        print("Generating control sequence...complete")
 
         return U
