@@ -6,6 +6,7 @@ import pandas as pd
 from qpsolvers import solve_qp
 
 from datafold.appfold import EDMDControl
+from datafold.dynfold.base import InitialConditionType, TransformType
 
 
 class KoopmanMPC:
@@ -40,10 +41,10 @@ class KoopmanMPC:
         [[x1max, x1min],
          ...
          [xnmax, xnmin]]
-    input_bounds : np.ndarray(shape=(n,2))
+    input_bounds : np.ndarray(shape=(m,2))
         [[u1max, u1min],
          ...
-         [unmax, unmin]]
+         [ummax, ummin]]
     qois : List[str] | List[int], optional
         Quantities of interest - the state to be controlled via the reference.
         It is used to form matrix :math:`C \in \mathbb{R}^{[n \times N]}`,
@@ -95,9 +96,13 @@ class KoopmanMPC:
             self.input_bounds = input_bounds.reshape(self.input_size, 2)
             self.state_bounds = state_bounds.reshape(self.output_size, 2)
         except ValueError as e:
-            raise ValueError("the bounds should ") from e
+            raise ValueError("the bounds should be ") from e
 
-        self.H, self.h, self.G, self.L, self.M, self.c = self._setup_optimizer()
+        self.H, self.h, self.G, self.Y, self.L, self.M, self.c = self._setup_optimizer()
+        # H - evolved input cost square term
+        # h - evolved input cost linear term
+        # G - evolved initial state cost linear term
+        # Y - evolved reference state cost linear term
 
     def _setup_qois(self, predictor, qois):
 
@@ -149,7 +154,6 @@ class KoopmanMPC:
     def _setup_optimizer(self):
         # implements relevant parts of korda-mezic-2018 for setting up the optimization problem
 
-        print(" Setting up matrices for Optimizer...")
         Ab, Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
         F, E, c = self._create_constraint_matrices()
@@ -157,15 +161,16 @@ class KoopmanMPC:
         H = R + Bb.T @ Q @ Bb
         h = r + Bb.T @ q
         G = 2 * Ab.T @ Q @ Bb
+        Y = 2 * Q @ Bb
+
         L = F + E @ Bb
         M = E @ Ab
 
-        return H, h, G, L, M, c
+        return H, h, G, Y, L, M, c
 
     def _create_evolution_matrices(self):
         # implemenets appendix from korda-mezic-2018
         # same as Sabin 2.44
-        print(" Setting up evolution matrices...")
         Np = self.horizon
         N = self.lifted_state_size
         m = self.input_size
@@ -189,7 +194,6 @@ class KoopmanMPC:
         # implemenets appendix from korda-mezic-2018
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
-        print(" Setting up constraint matrices...")
         Np = self.horizon
         N = self.output_size
         m = self.input_size
@@ -232,7 +236,6 @@ class KoopmanMPC:
     def _create_cost_matrices(self):
         # implemenets appendix from korda-mezic-2018
         # same as Sabin 2.44
-        print(" Setting up cost matrices...")
         Np = self.horizon
         N = self.output_size
         m = self.input_size
@@ -255,27 +258,49 @@ class KoopmanMPC:
 
         return Qb, q, Rb, r
 
-    def generate_control_signal(self, trajectory, reference):
+    def generate_control_signal(
+        self, ic: InitialConditionType, reference: TransformType
+    ):
+        """[summary]
+
+        Parameters
+        ----------
+        ic : [type]
+            [description]
+        reference : [type]
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+
+        Raises
+        ------
+        ValueError
+            In case of mis-shaped input
+        """
         # implement the generation of control signal as in
-        Np = self.horizon
-        N = self.lifted_state_size
-        m = self.input_size
-        print("Generating control sequence...started")
 
-        H, h, G, L, M, c = self._setup_optimizer()
-        z0 = self.lifting_function(trajectory).T
-        y = np.reshape(reference.T, ((Np + 1) * reference.shape[1], 1))
+        z0 = self.lifting_function(ic)
+        z0 = np.array(z0).T
+        try:
+            yr = np.array(reference)
+            assert yr.shape[1] == self.output_size
+            yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
+        except:
+            raise ValueError(
+                "The reference signal should be a frame or array with n (output_size) columns and  Np (prediction horizon) rows."
+            )
 
-        print(" Running optimizer...")
         U = solve_qp(
-            P=H,
-            q=(h.T + z0 @ G),
-            G=L,
-            h=(c - M @ z0),
+            P=self.H,
+            q=(self.h.T + z0.T @ self.G - yr.T @ self.Y).flatten(),
+            G=self.L,
+            h=(self.c - self.M @ z0).flatten(),
             A=None,
             b=None,
             solver="quadprog",
         )
-        print("Generating control sequence...complete")
 
         return U

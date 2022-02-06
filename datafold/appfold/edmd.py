@@ -359,7 +359,7 @@ class EDMD(
     def feature_names_pred_(self):
         return self._feature_names_pred
 
-    def transform(self, X: TransformType) -> TransformType:
+    def transform(self, X: TSCDataFrame) -> TSCDataFrame:
         """Perform dictionary transformations on time series.
 
         Parameters
@@ -1982,9 +1982,7 @@ class EDMDPostObservable(object):  # pragma: no cover
         return self.final_estimator_
 
 
-@warn_experimental_class
-class EDMDControl(object):  # pragma: no cover
-    # TODO: docstrings
+class EDMDControl(object):
     """Adapt :class:`EDMD` to controlled systems
 
     This class provides a wrapper around :class:`EDMD` which allows usage of
@@ -2037,7 +2035,7 @@ class EDMDControl(object):  # pragma: no cover
             use_transform_inverse=False,
         )
 
-    def transform(self, X: TransformType) -> TransformType:
+    def transform(self, X: TSCDataFrame) -> TSCDataFrame:
         """Perform dictionary transformations on time series.
 
         Parameters

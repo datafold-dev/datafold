@@ -1892,7 +1892,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
 
         time_values
            Time values to evaluate the linear system at :math:`t \in \mathbb{R}^{+}`.
-           If not provided np.arange(len(control_inputs)) is assumed.
+           If not provided np.arange(len(control_inputs))*time_delta is assumed.
 
         overwrite_sys_matrix
             Primarily for performance reasons the a system matrix :math:`A` can also be
@@ -1928,7 +1928,9 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
         """
 
         if time_values is None:
-            time_values = np.arange(len(control_input))
+            time_values = np.arange(len(control_input), dtype=float)
+            if time_delta is not None:
+                time_values = time_values * time_delta
         if time_delta is None:
             time_delta = time_values[1] - time_values[0]
             if (np.diff(time_values) - time_delta).any():
