@@ -945,6 +945,55 @@ class InverseMultiquadricKernel(RadialBasisKernel):
         )
 
 
+class InverseQuadraticKernel(RadialBasisKernel):
+    r"""Inverse quadratic radial basis kernel.
+
+    .. math::
+        K = (\frac{1}{2\varepsilon} \cdot D + 1)^{-1}
+
+    where :math:`D` is the squared Euclidean distance matrix.
+
+    See also super classes :class:`RadialBasisKernel` and :class:`PCManifoldKernel`
+    for more functionality and documentation.
+
+    Parameters
+    ----------
+    epsilon
+        kernel scale
+    """
+
+    def __init__(self, epsilon: float = 1.0):
+        self.epsilon = epsilon
+        super(InverseQuadraticKernel, self).__init__(distance_metric="sqeuclidean")
+
+    def eval(
+        self,
+        distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
+    ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
+        """Evaluate the kernel on pre-computed distance matrix.
+
+        Parameters
+        ----------
+        distance_matrix
+            Matrix of pairwise distances of shape `(n_samples_Y, n_samples_X)`.
+
+        Returns
+        -------
+        Union[np.ndarray, scipy.sparse.csr_matrix]
+            Kernel matrix of same shape and type as `distance_matrix`.
+        """
+
+        self.epsilon = self._check_bandwidth_parameter(
+            parameter=self.epsilon, name="epsilon"
+        )
+
+        return _apply_kernel_function_numexpr(
+            distance_matrix,
+            expr="1.0 / (1.0 / (2*eps) * D + 1.0)",
+            expr_dict={"eps": self.epsilon},
+        )
+
+
 class CubicKernel(RadialBasisKernel):
     r"""Cubic radial basis kernel.
 
