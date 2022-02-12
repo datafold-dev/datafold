@@ -1,8 +1,6 @@
-from multiprocessing.sharedctypes import Value
 from typing import Any, List, Optional, Union
 
 import numpy as np
-import pandas as pd
 from qpsolvers import solve_qp
 
 from datafold.appfold import EDMDControl
@@ -280,10 +278,11 @@ class KoopmanMPC:
         ValueError
             In case of mis-shaped input
         """
-        # implement the generation of control signal as in
+        # implement the generation of control signal as in Korda-Mezic, Algorithm 1.
 
         z0 = self.lifting_function(ic)
         z0 = np.array(z0).T
+
         try:
             yr = np.array(reference)
             assert yr.shape[1] == self.output_size
@@ -292,6 +291,12 @@ class KoopmanMPC:
             raise ValueError(
                 "The reference signal should be a frame or array with n (output_size) columns and  Np (prediction horizon) rows."
             )
+
+        # check for positive-definiteness, as the optimizer requires it.
+        try:
+            np.linalg.cholesky(self.H)
+        except np.linalg.LinAlgError:
+            self.H = np.dot(self.H.T, self.H)
 
         U = solve_qp(
             P=self.H,
