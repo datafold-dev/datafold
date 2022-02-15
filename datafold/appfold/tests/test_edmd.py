@@ -69,13 +69,14 @@ class EDMDTest(unittest.TestCase):
 
         return tsc
 
-    def _setup_inverted_pendulum(self) -> TSCDataFrame:
+    def _setup_inverted_pendulum(
+        self,
+        sim_time_step=0.1,
+        sim_num_steps=10,
+        training_size=5,
+    ) -> TSCDataFrame:
         from datafold.utils._systems import InvertedPendulum
 
-        # Data generation parameters
-        sim_time_step = 0.1  # s
-        sim_num_steps = 10  # -
-        training_size = 5  # -
         np.random.seed(42)
 
         invertedPendulum = InvertedPendulum()
@@ -852,6 +853,38 @@ class EDMDTest(unittest.TestCase):
 
         self.assertIsInstance(edmdcv.cv_results_, dict)
 
+    def test_edmdcontrol_pipe(self):
+        n_delays = 2
+        n_degrees = 2
+        sim_num_steps = 10
+        lag = 5
+        state_columns = ["x", "xdot", "theta", "thetadot"]
+        control_columns = ["u"]
+        X_tsc = self._setup_inverted_pendulum(sim_num_steps=sim_num_steps)
+
+        from scipy.special import comb
+
+        from datafold.dynfold.transform import TSCPolynomialFeatures, TSCTakensEmbedding
+
+        dict_steps = [
+            ("takens", TSCTakensEmbedding(delays=n_delays, lag=lag)),
+            ("poly", TSCPolynomialFeatures(degree=n_degrees, include_first_order=True)),
+        ]
+
+        actual = EDMDControl(
+            dict_steps=dict_steps, include_id_state=False
+        ).fit_transform(
+            X_tsc,
+            split_by="name",
+            state=state_columns,
+            control=control_columns,
+        )
+        n_intermediate = len(state_columns) * (n_delays + 1)
+        n_final = comb(n_intermediate, n_degrees) + 2 * n_intermediate
+
+        self.assertEqual(len(actual.columns), n_final)
+        self.assertEqual(len(actual.time_values()), sim_num_steps + 1 - lag - n_delays)
+
     def test_edmdcontrol_id(self):
         state_columns = ["x", "xdot", "theta", "thetadot"]
         control_columns = ["u"]
@@ -880,6 +913,37 @@ class EDMDTest(unittest.TestCase):
         expected = dmdc.predict(X=ic, control_input=control_input)
 
         actual = edmdid.predict(X=ic, control_input=control_input)
+
+        pdtest.assert_frame_equal(expected, actual)
+
+    def test_edmdcontrol_reconstruct(self):
+        state_columns = ["x", "xdot", "theta", "thetadot"]
+        control_columns = ["u"]
+        X_tsc = self._setup_inverted_pendulum()
+
+        dmdc = DMDControl(state_columns=state_columns, control_columns=control_columns)
+
+        edmdid = EDMDControl(
+            dict_steps=[
+                ("id", TSCIdentity()),
+            ],
+            include_id_state=False,
+        )
+        edmdid.fit(
+            X_tsc,
+            split_by="name",
+            state=state_columns,
+            control=control_columns,
+        )
+
+        expected = dmdc.fit_predict(X_tsc)
+
+        actual = edmdid.fit_predict(
+            X_tsc,
+            split_by="name",
+            state=state_columns,
+            control=control_columns,
+        )
 
         pdtest.assert_frame_equal(expected, actual)
 

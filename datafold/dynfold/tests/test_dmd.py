@@ -324,8 +324,13 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
         expected = np.vstack([self.expected, self.expected])
         ts_ids = np.array((10, 20))
 
+        with self.assertRaises(ValueError):
+            actual = ControlledLinearDynamicalSystem().evolve_system(
+                x0, self.u, self.t, self.A, self.B, 1, ts_ids, self.names, True
+            )
+        u = np.stack([self.u, self.u])
         actual = ControlledLinearDynamicalSystem().evolve_system(
-            x0, self.u, self.t, self.A, self.B, 1, ts_ids, self.names, False
+            x0, u, self.t, self.A, self.B, 1, ts_ids, self.names, False
         )
 
         nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-8, rtol=1e-13)
@@ -587,6 +592,27 @@ class DMDTest(unittest.TestCase):
         second = dmd2.predict(tsc_ic, time_values=np.arange(10))
 
         pdtest.assert_frame_equal(first, second, rtol=1e-8, atol=1e-8)
+
+    def test_dmd_control_multiple(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+
+        tsc_df_single = self._create_control_tsc(state_size, input_size, n_timesteps)
+        df = pd.DataFrame(
+            tsc_df_single.values,
+            index=np.arange(n_timesteps) * 0.1,
+            columns=state_cols + input_cols,
+        )
+        tsc_df = TSCDataFrame.from_frame_list([df, df.copy(deep=True)])
+
+        dmd = DMDControl(state_columns=state_cols, control_columns=input_cols)
+        expected = tsc_df[state_cols]
+        actual = dmd.fit_predict(tsc_df)
+
+        pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
 
     def test_control_split(self):
         state_size = 4

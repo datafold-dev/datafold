@@ -1748,12 +1748,20 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     def __init__(self, time_invariant: bool = True):
         super().__init__("flowmap", "matrix", time_invariant)
 
-    def _check_control_input(self, control_input: np.ndarray, control_size: int):
+    def _check_control_input(
+        self, control_input: np.ndarray, control_size: int, control_series: int = 1
+    ):
         control_input = if1dim_colvec(control_input)
-        self._check_matrix(control_input)
-        if control_input.shape[0] != control_size:
+        control_input = (
+            control_input[np.newaxis] if control_input.ndim == 2 else control_input
+        )
+        if control_input.shape[0] != control_series:
+            raise ValueError(
+                "control_input does not match the number of time series in the ic"
+            )
+        if control_input.shape[1] != control_size:
             raise ValueError("control_input should have the same length as time_values")
-        if control_input.shape[1] != self.control_matrix_.shape[1]:
+        if control_input.shape[2] != self.control_matrix_.shape[1]:
             raise ValueError(
                 "control_input columns should match control_matrix columns"
             )
@@ -1788,8 +1796,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
         for idx, time in enumerate(time_values):
             time_series_tensor[:, idx, :] = next_state.T
             next_state = (
-                sys_matrix @ next_state
-                + control_matrix @ control_input[idx, :][np.newaxis].T
+                sys_matrix @ next_state + control_matrix @ control_input[:, idx, :].T
             )
         # do not write state past last since t starts at 0
         return time_series_tensor
@@ -1888,7 +1895,8 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
             conditions of shape `(n_features, n_initial_conditions)`.
 
         control_input
-            The control input :math:`u` at the provided time values with shape (n, q)
+            The control input :math:`u` at the provided time values with shape (n,q) or
+            (n_initial_conditions, n, q)
 
         time_values
            Time values to evaluate the linear system at :math:`t \in \mathbb{R}^{+}`.
@@ -1958,10 +1966,24 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
                 time_series_ids=time_series_ids,
                 feature_names_out=feature_names_out,
             )
-            control_input = self._check_control_input(control_input, len(time_values))
+            control_input = self._check_control_input(
+                control_input, len(time_values), len(time_series_ids)
+            )
         else:
-            control_matrix = overwrite_control_matrix
-            sys_matrix = overwrite_sys_matrix
+            if (
+                overwrite_control_matrix is not None
+                and overwrite_sys_matrix is not None
+            ):
+                control_matrix = overwrite_control_matrix
+                sys_matrix = overwrite_sys_matrix
+            else:
+                try:
+                    control_matrix = self.control_matrix_
+                    sys_matrix = self.sys_matrix_
+                except AttributeError as ae:
+                    raise AttributeError(
+                        "Control and system matrices not set under check_inputs=False"
+                    ) from ae
             n_features, state_length = sys_matrix.shape
 
         time_series_tensor = allocate_time_series_tensor(
@@ -2193,9 +2215,10 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
         control_input : np.ndarray | TSCDataFrame
             The control input at the provided time values with shape
-            `(n_timesteps, n_control_dimensions)`. If type is TSCDataFrame,
-            it needs to contain only a single time series and time_values
-            can be inferred from the time index.
+            `(n_timesteps, n_control_dimensions) or
+            `(n_initial_conditions, n_timesteps, n_control_dimensions)`.
+            If type is TSCDataFrame, the time index for all series
+            needs to be the same to infer the time_values.
 
         check_inputs : bool, optional, default True
             Allows skipping input checks and assignemnts to improve performance.
@@ -2222,13 +2245,11 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             self.is_linear_system_setup(True)
 
             if isinstance(control_input, TSCDataFrame):
-                if len(control_input.ids) != 1:
-                    raise ValueError(
-                        "control_input needs to contain only a single time sereis."
-                    )
                 if time_values is None:
                     time_values = control_input.time_values()
-                control_input = control_input.values
+                control_input = control_input.values.reshape(
+                    len(control_input.ids), -1, len(self.control_columns)
+                )
 
             if time_values is not None:
                 time_values = self._validate_time_values(time_values)
