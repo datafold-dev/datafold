@@ -5,9 +5,10 @@ import pandas as pd
 
 from datafold.appfold.edmd import EDMDControl
 from datafold.appfold.kmpc import KoopmanMPC
+from datafold.dynfold.dmd import ControlledLinearDynamicalSystem
 from datafold.dynfold.transform import TSCIdentity
 from datafold.pcfold import InitialCondition, TSCDataFrame
-from datafold.utils.kmpc import InvertedPendulum
+from datafold.utils._systems import InvertedPendulum
 
 
 class KMPCTest(unittest.TestCase):
@@ -41,7 +42,11 @@ class KMPCTest(unittest.TestCase):
                 control_frequency * t + control_phase
             )
 
-            trajectory = model.trajectory(dt, num_steps, control_function)
+            trajectory = invertedPendulum.predict(
+                time_step=dt,
+                num_steps=num_steps,
+                control_func=control_function,
+            )
             assert (
                 model.sol.success
             ), f"Divergent solution for amplitude={control_amplitude}, frequency={control_frequency}"
@@ -65,30 +70,42 @@ class KMPCTest(unittest.TestCase):
 
             return X_tsc, t, control_input, dfx, dfu
 
-    def test_edmd_dictionary(self):
-        # Using Identity as feature dictionary
-
-        edmdcontrol = EDMDControl(
-            dict_steps=[
-                ("id", TSCIdentity()),
-            ],
-            include_id_state=False,
-        ).fit(
-            self.X,
-            split_by="name",
-            state=self._state_columns,
-            control=self._control_columns,
+    def test_kmpc_mock_edmd(self):
+        gen = np.random.default_rng(42)
+        state_size = 2
+        input_size = 1
+        n_timesteps = 50
+        A = gen.uniform(size=(state_size, state_size)) * 2 - 1.0
+        x0 = gen.uniform(size=state_size)
+        B = gen.uniform(size=(state_size, input_size)) * 2 - 1.0
+        t = np.linspace(0, n_timesteps - 1, n_timesteps)
+        u = gen.uniform(size=(1, input_size))
+        u = (u.T + np.sin(u.T + u.T * np.atleast_2d(t))).T
+        df = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(A, B)
+            .evolve_system(x0, u)
         )
+        from unittest.mock import Mock
 
-        initial_conditions = InitialCondition.from_array(
-            np.array([0, 0, np.pi, 0]), columns=self._state_columns
-        )
-        edmd_predictions = edmdcontrol.predict(
-            X=initial_conditions, time_values=self.t, control_input=self.u
-        )
+        edmdmock = Mock()
+        edmdmock.sys_matrix = A
+        edmdmock.control_matrix = B
+        edmdmock.state_columns = ["0", "1"]
+        edmdmock.control_columns = ["u"]
+        edmdmock.transform = lambda x: x
 
-        assert edmd_predictions["x"].values.all() != None
-        assert len(edmd_predictions["x"].values) == len(self.dfx["x"].values)
+        kmpcperfect = KoopmanMPC(
+            predictor=edmdmock,
+            horizon=n_timesteps - 1,
+            state_bounds=np.array([[5, -5], [5, -5]]),
+            input_bounds=np.array([[5, -5]]),
+            cost_running=np.array([1, 1]),
+            cost_terminal=1,
+            cost_input=5,
+        )
+        pred = kmpcperfect.generate_control_signal(x0, df)
+        np.allclose(pred, u)
 
     def test_kmpc_generate_control_signal(self):
         horizon = 100
@@ -128,5 +145,3 @@ class KMPCTest(unittest.TestCase):
 
 if __name__ == "__main__":
     test = KMPCTest()
-    test.test_edmd_dictionary()
-    test.test_kmpc_generate_control_signal()

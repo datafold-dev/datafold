@@ -5,6 +5,7 @@ from qpsolvers import solve_qp
 
 from datafold.appfold import EDMDControl
 from datafold.dynfold.base import InitialConditionType, TransformType
+from datafold.utils.general import if1dim_colvec
 
 
 class KoopmanMPC:
@@ -86,9 +87,10 @@ class KoopmanMPC:
         self.A = predictor.sys_matrix
         self.B = predictor.control_matrix
         self.lifted_state_size, self.input_size = self.B.shape
+        self.state_size = len(predictor.state_columns)
 
         # setup conversion from lifted state to output quantities of interest
-        self.Cb, self.output_size = self._setup_qois(predictor, qois)
+        self.Cb, self.output_size = self._setup_qois(qois)
 
         try:
             self.input_bounds = input_bounds.reshape(self.input_size, 2)
@@ -102,12 +104,12 @@ class KoopmanMPC:
         # G - evolved initial state cost linear term
         # Y - evolved reference state cost linear term
 
-    def _setup_qois(self, predictor, qois):
+    def _setup_qois(self, qois):
 
         # handle default case
         if qois is None:
-            output_size = len(predictor.state_columns)
-            C = np.zeros(output_size, self.lifted_state_size)
+            output_size = self.state_size
+            C = np.zeros((output_size, self.lifted_state_size))
             C[:output_size, :output_size] = np.eye(output_size)
             Cb = np.kron(np.eye(self.horizon + 1), C)
             return Cb, output_size
@@ -281,7 +283,12 @@ class KoopmanMPC:
         # implement the generation of control signal as in Korda-Mezic, Algorithm 1.
 
         z0 = self.lifting_function(ic)
-        z0 = np.array(z0).T
+        z0 = if1dim_colvec(z0)
+
+        if z0.shape != (self.state_size, 1):
+            raise ValueError(
+                "The initial state should match the shape of the system state before the lifting."
+            )
 
         try:
             yr = np.array(reference)
@@ -307,5 +314,8 @@ class KoopmanMPC:
             b=None,
             solver="quadprog",
         )
+
+        if U is None:
+            raise ValueError("The solver did not converge.")
 
         return U
