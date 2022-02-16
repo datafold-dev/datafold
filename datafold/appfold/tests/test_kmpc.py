@@ -42,7 +42,7 @@ class KMPCTest(unittest.TestCase):
                 control_frequency * t + control_phase
             )
 
-            trajectory = invertedPendulum.predict(
+            trajectory = model.predict(
                 time_step=dt,
                 num_steps=num_steps,
                 control_func=control_function,
@@ -137,7 +137,9 @@ class KMPCTest(unittest.TestCase):
         initial_conditions = InitialCondition.from_array(
             np.array([0, 0, np.pi, 0]), columns=["x", "xdot", "theta", "thetadot"]
         )
-        U = kmpc.generate_control_signal(ic=initial_conditions, reference=reference)
+        U = kmpc.generate_control_signal(
+            initial_conditions=initial_conditions, reference=reference
+        )
 
         assert U.any() is not None
         assert len(U) == horizon

@@ -61,6 +61,23 @@ class KoopmanMPC:
     cost_input : float | np.ndarray(shape=(1,n)), optional, by default 0.01
         Quadratic cost of the input :math:`R`.
         If float, the same cost will be applied to all input dimensions.
+
+    Attributes
+    ----------
+
+    H : np.ndarray
+        Quadratic cost/weight term for the input.
+    h : np.ndarray
+        Linear cost/weight term for the input.
+    G : np.ndarray
+        Linear cost/weight term for the initial state.
+    Y : np.ndarray
+        Linear cost/weight term for the reference state.
+    M : np.ndarray
+        Linear constraint weight for the initial state.
+    c : np.ndarray
+        Linear constraint.
+
     """
 
     def __init__(
@@ -74,7 +91,7 @@ class KoopmanMPC:
         cost_terminal: Optional[Union[float, np.ndarray]] = 100,
         cost_input: Optional[Union[float, np.ndarray]] = 0.01,
     ) -> None:
-        # take some properties/methods from the other class
+        # utilize the lifting functions from EDMD
         self.lifting_function = predictor.transform
 
         # define default values of properties
@@ -99,10 +116,6 @@ class KoopmanMPC:
             raise ValueError("the bounds should be ") from e
 
         self.H, self.h, self.G, self.Y, self.L, self.M, self.c = self._setup_optimizer()
-        # H - evolved input cost square term
-        # h - evolved input cost linear term
-        # G - evolved initial state cost linear term
-        # Y - evolved reference state cost linear term
 
     def _setup_qois(self, qois):
 
@@ -259,30 +272,37 @@ class KoopmanMPC:
         return Qb, q, Rb, r
 
     def generate_control_signal(
-        self, ic: InitialConditionType, reference: TransformType
-    ):
-        """[summary]
+        self, initial_conditions: InitialConditionType, reference: TransformType
+    ) -> np.ndarray:
+        """
+        Method to generate a control sequence, given some initial conditions and a reference trajectory,
+        as in Korda-Mezic, Algorithm 1. This method solves thefollowing optimization problem (Korda-Mezic, Equation 24).
+
+        .. math::
+            \text{minimize : } U^{T} H U^{T} + h^{T} + z_0^{T} GU - y_{r}^{T} U
+            \text{subject to : } LU + Mz_{0} \leq c
+            \text{parameter : } z_{0} = \Psi(x_{k})
+
+        Here, :math:`U` is the optimal control sequence to be estimated.
 
         Parameters
         ----------
-        ic : [type]
-            [description]
-        reference : [type]
-            [description]
+        initial_conditions : TSCDataFrame or np.ndarray
+            Initial conditions for the model
+        reference : np.ndarray
+            Reference trajectory. Required to optimize the control sequence
 
         Returns
         -------
-        [type]
-            [description]
+        U : np.ndarray(shape=(horizon,1))
+            Sequence of control inputs.
 
         Raises
         ------
         ValueError
             In case of mis-shaped input
         """
-        # implement the generation of control signal as in Korda-Mezic, Algorithm 1.
-
-        z0 = self.lifting_function(ic)
+        z0 = self.lifting_function(initial_conditions)
         z0 = if1dim_colvec(z0)
 
         if z0.shape != (self.state_size, 1):
