@@ -302,6 +302,7 @@ class KoopmanMPC:
         """
         z0 = self.lifting_function(initial_conditions)
         z0 = if1dim_colvec(z0)
+        z0 = if1dim_colvec(np.array(z0))
 
         try:
             z0 = z0.reshape(self.lifted_state_size, 1)
