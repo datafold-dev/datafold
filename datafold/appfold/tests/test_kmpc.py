@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
 
 from datafold.appfold.edmd import EDMDControl
@@ -105,7 +106,7 @@ class KMPCTest(unittest.TestCase):
             cost_input=5,
         )
         pred = kmpcperfect.generate_control_signal(x0, df)
-        np.allclose(pred, u)
+        nptest.assert_allclose(pred, u.ravel()[:-1])
 
     def test_kmpc_generate_control_signal(self):
         horizon = 100
