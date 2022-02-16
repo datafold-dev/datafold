@@ -90,7 +90,7 @@ class KoopmanMPC:
         self.state_size = len(predictor.state_columns)
 
         # setup conversion from lifted state to output quantities of interest
-        self.Cb, self.output_size = self._setup_qois(qois)
+        self.Cb, self.output_size = self._setup_qois(qois, predictor)
 
         try:
             self.input_bounds = input_bounds.reshape(self.input_size, 2)
@@ -104,7 +104,7 @@ class KoopmanMPC:
         # G - evolved initial state cost linear term
         # Y - evolved reference state cost linear term
 
-    def _setup_qois(self, qois):
+    def _setup_qois(self, qois, predictor):
 
         # handle default case
         if qois is None:
@@ -118,9 +118,9 @@ class KoopmanMPC:
             raise ValueError("qois should be a list of strings or ints")
 
         output_size = len(qois)
-        if output_size <= 0 or output_size > len(predictor.state_columns):
+        if output_size <= 0 or output_size > self.state_size:
             raise ValueError(
-                "qois should satisfy 0 < len(qois) <= len(predictor.state_columns)."
+                "qois should satisfy 0 < len(qois) <= state_size."
             )
         qtype = str if isinstance(qois[0], str) else int
 
@@ -137,7 +137,7 @@ class KoopmanMPC:
                 if qtype is str:
                     ixs.append(predictor.state_columns.index(qoi))
                 else:
-                    assert qoi < len(predictor.state_columns)
+                    assert qoi < self.state_size
                     ixs.append(qoi)
             except (ValueError, AssertionError):
                 raise ValueError(
@@ -283,12 +283,14 @@ class KoopmanMPC:
         # implement the generation of control signal as in Korda-Mezic, Algorithm 1.
 
         z0 = self.lifting_function(ic)
-        z0 = if1dim_colvec(z0)
+        z0 = if1dim_colvec(np.array(z0))
 
-        if z0.shape != (self.state_size, 1):
+        try:
+            z0 = z0.reshape(self.lifted_state_size, 1)
+        except ValueError as e:
             raise ValueError(
                 "The initial state should match the shape of the system state before the lifting."
-            )
+            ) from e
 
         try:
             yr = np.array(reference)
