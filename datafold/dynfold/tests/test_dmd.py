@@ -378,7 +378,7 @@ class DMDTest(unittest.TestCase):
         ).fit_predict(tsc_df)
         second = DMDFull(sys_mode="matrix", approx_generator=True).fit_predict(tsc_df)
 
-        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
+        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-11)
 
     def test_mode_equivalence_gdmd(self):
         # test mode = matrix and mode = spectrum against
@@ -410,7 +410,7 @@ class DMDTest(unittest.TestCase):
 
         # also fails if there are changes in the implementation that includes small
         # numerical noise
-        self.assertLessEqual(np.abs(score_dmd - score_gdmd), 9.653516289414314e-11)
+        self.assertLessEqual(np.abs(score_dmd - score_gdmd), 9.81e-11)
 
         if plot:
             print(score_dmd)
