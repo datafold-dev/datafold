@@ -106,7 +106,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
 
         # dropna(axis=0) removes all rows that were dropped during transform
         # (i.e. transformations that require multiple timesteps).
-        return pd.concat(Xs, axis=1).dropna(axis=0)
+        return pd.concat(Xs, axis=1, sort=True).dropna(axis=0)
 
     def fit(self, X: TransformType, y=None, **fit_params):
         X = self._validate_datafold_data(X)

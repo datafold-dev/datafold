@@ -34,7 +34,7 @@ See also the `Introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`
 
 ---------------------------------------------------------------------------------
 
-Install the package with ``Python>=3.7``:
+Install the package with ``Python>=3.8``:
 
 .. code-block::
 

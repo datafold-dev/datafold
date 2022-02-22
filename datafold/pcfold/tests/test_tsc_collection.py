@@ -79,6 +79,53 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(df.empty)
         self.assertTrue(TSCDataFrame(df).empty)
 
+    def test_dropna(self):
+        tc = TSCDataFrame(self.simple_df)
+        tc_nan = tc.copy(deep=True)
+
+        tc_nan.iloc[0, :] = np.nan
+        tc_nan.iloc[-1, :] = np.nan
+        actual = tc_nan.dropna()
+
+        expect = tc.iloc[1:-1, :]
+
+        pdtest.assert_frame_equal(actual, expect)
+
+    def test_transpose(self):
+        tc = TSCDataFrame(self.simple_df)
+
+        actual = tc.transpose(copy=False)
+        self.assertIsInstance(actual, pd.DataFrame)
+        pdtest.assert_index_equal(actual.index, tc.columns)
+        pdtest.assert_index_equal(actual.columns, tc.index)
+        self.assertTrue(np.shares_memory(tc.to_numpy(), actual.to_numpy()))
+
+        actual = tc.transpose(copy=True)
+        self.assertFalse(np.shares_memory(tc.to_numpy(), actual.to_numpy()))
+
+    def test_concat(self):
+        tc1 = TSCDataFrame(self.simple_df)
+        tc2 = TSCDataFrame(self.simple_df.copy())
+        tc2.columns = pd.Index(["C", "D"])
+
+        actual = pd.concat([tc1, tc2], axis=1)
+        pdtest.assert_index_equal(
+            actual.columns, pd.Index(["A", "B", "C", "D"], name="feature")
+        )
+        pdtest.assert_index_equal(actual.index, tc1.index)
+
+        # concat with non-identical index
+        with self.assertRaises(AttributeError):
+            # raises error because the concat result not sorted and the time series broken in
+            # two parts
+            pd.concat([tc1.iloc[1:, :], tc2], axis=1)
+
+        actual = pd.concat([tc1.iloc[1:, :], tc2], axis=1, sort=True)
+        pdtest.assert_index_equal(
+            actual.columns, pd.Index(["A", "B", "C", "D"], name="feature")
+        )
+        pdtest.assert_index_equal(actual.index, tc1.index)
+
     def test_shape(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))

@@ -134,7 +134,7 @@ setup(
     author_email=email,
     packages=find_packages(),
     package_dir={"datafold": "datafold"},
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=get_install_requirements(),
     # classifiers from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[

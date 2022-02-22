@@ -8,7 +8,7 @@ HTML_DOC_PATH = $(CURRENT_PATH)/doc/build/html/
 
 .PHONY: help venv print_variables install_devdeps install_docdeps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi pypi_test clean_docs clean_build clean_test clean_venv clean clean_all
 
-#help: @ List available targets in this makefile
+#help: @ Lists available targets and short description in this makefile.
 help:
 	@echo 'Execute with "make [target] [arguments]"'.
 	@echo 'Example: "make docs OPEN_BROWSER=false"'
@@ -49,7 +49,7 @@ endif
 SPHINXOPTS    ?=
 PYTESTOPTS    ?=
 
-EXECUTE_TUTORIAL ?= never
+DATAFOLD_NBSPHINX_EXECUTE ?= never
 OUTPUT_DOCS ?= doc/build/
 _DOCDEPS = libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
 
@@ -66,17 +66,34 @@ URL_DOC_OPEN = $(HTML_DOC_PATH)$(HTML_FILE_OPEN)
 
 GITHOOK = --all
 
-#venv: @ Create Python virtual environment if it does not exist yet.
-venv:
-ifeq ($(IS_DOCKER),)
-# do not create a venv in a docker environment, because it is already a virtualization
-	test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR);
-endif
+# Check that the used Python version fulfills the minimum requirement
+VPYTHON_MIN_MAJOR = 3
+VPYTHON_MIN_MINOR = 8
+
+define PYTHON_CHECK_SCRIPT
+import sys
+
+errmsg = "Used Python version invalid: \n {} \n\nMinimum version required: $(VPYTHON_MIN_MAJOR).$(VPYTHON_MIN_MINOR)\n".format(sys.version)
+
+if sys.version_info.major < int(sys.argv[1]):
+	raise RuntimeError(errmsg)
+elif sys.version_info.minor < int(sys.argv[2]):
+	raise RuntimeError(errmsg)
+else:
+	print("Python version {}.{} valid".format(sys.version_info.major, sys.version_info.minor))
+endef
+export PYTHON_CHECK_SCRIPT
+
+# Check that the Python version supports the minimum required version.
+python_check:
+	@$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR)
 
 # used for debugging / information in CI pipelines (not documented)
 print_variables:
 	@echo IS_DOCKER = $(IS_DOCKER)
 	@echo PYTHON = $(PYTHON)
+	@echo VPYTHON_MIN_MAJOR = $(VPYTHON_MIN_MAJOR)
+	@echo VPYTHON_MIN_MINOR = $(VPYTHON_MIN_MINOR)
 	@echo IS_DOCKER = $(IS_DOCKER)
 	@echo ACTIVATE_VENV = $(ACTIVATE_VENV)
 	@echo SPHINXOPTS = $(SPHINXOPTS)
@@ -86,6 +103,14 @@ print_variables:
 	@echo OPEN_BROWSER = $(OPEN_BROWSER)
 	@echo HTML_FILE_OPEN = $(HTML_FILE_OPEN)
 	@echo GITHOOK = $(GITHOOK)
+
+#venv: @ Create new Python virtual environment if it does not exist yet.
+venv: python_check
+ifeq ($(IS_DOCKER),)
+# Create / use a Python virtual environment
+# Do not create Python-venv in a docker environment, because docker is already a virtualization
+	test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR);
+endif
 
 #docker_build: @ Build a docker image by processing the Dockerfile.
 docker_build:
@@ -121,7 +146,7 @@ versions:
 #docs: @ Build datafold documentation with Sphinx.
 docs:
 	$(ACTIVATE_VENV); \
-	export $(EXECUTE_TUTORIAL); \
+	echo Execute tutorials environment variable: DATAFOLD_NBSPHINX_EXECUTE=$(DATAFOLD_NBSPHINX_EXECUTE); \
 	python -m sphinx -M html doc/source/ $(OUTPUT_DOCS) $(SPHINXOPTS) $(O);
 	@# Open the browser at the page specified in URL_DOC_OPEN
 ifeq ($(OPEN_BROWSER),true)
@@ -227,9 +252,9 @@ clean_cache:
 	find datafold/ -name __pycache__ -type d -delete;
 	find . -name .ipynb_checkpoints -type d -delete;
 
-#clean_venv: @ Remove the virtual environment.
+#clean_venv: @ Remove all files that are created for target "venv".
 clean_venv:
 	rm -fr $(VENV_DIR);
 
-#clean: @ Call targets "clean_docs", "clean_build" and "clean_cache".
-clean: clean_docs clean_build clean_cache
+#clean: @ Call targets "clean_docs", "clean_build", "clean_test" and "clean_cache".
+clean: clean_docs clean_build clean_test clean_cache

@@ -28,7 +28,7 @@ workflow:
 setup:
   stage: setup
   script:
-    - make install_devdeps PYTHON=python3.7
+    - make install_devdeps PYTHON=python3.8
     - make versions
 
 unittests:
