@@ -688,8 +688,8 @@ class TSCAccessor(object):
             The indices to indicate which samples are included in the test set.
 
         return_dropped
-            If True, a DataFrame is returned in the third return value which includes
-            all samples that were neigher included in the training indices nor the test
+            If True, a DataFrame is returned to the third return value which includes
+            all samples that were neither included in the training indices nor the test
             indices.
 
         Returns
@@ -708,7 +708,7 @@ class TSCAccessor(object):
             bool_dim = _array.ndim == 1
             bool_positive = np.all(_array >= 0)
             bool_sorted = np.all(_array[:-1] < _array[1:])
-            bool_type = _array.dtype == int
+            bool_type = np.issubdtype(_array.dtype, np.integer)
 
             if not (bool_dim and bool_positive and bool_sorted and bool_type):
                 raise ValueError(

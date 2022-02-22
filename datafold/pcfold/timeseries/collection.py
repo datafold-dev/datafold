@@ -309,31 +309,27 @@ class TSCDataFrame(pd.DataFrame):
         dist_kwargs.setdefault("backend", "guess_optimal")
         self.attrs["dist_kwargs"] = dist_kwargs
 
-        try:
-            # In validate an AttributeError is raised, follow-up changes to the data
-            # are dealt with the flag (introduced in pandas v. 1.2.0)
-            self.flags.allows_duplicate_labels = False
-            self._validate()
-        except AttributeError as e:
-            # This is a special case of input, where the fallback is a cast to
-            # pd.DataFrame.
-            # Internally of pandas the __init__ is called like this:
-            # df._constructor(res)
-            # --> df._constructor is TSCDataFrame
-            # --> res is a BlockManager (pandas internal type)
-            # If a BlockManager slices the index, then no AttributeError is raised,
-            # but instead self casted to DataFrame
-            # (case was necessary with changes introduced in pandas==1.2.0)
-            _is_blockmanager_input = len(args) > 0 and isinstance(
-                args[0], pd.core.internals.managers.BlockManager
-            )
+        self.flags.allows_duplicate_labels = False
 
-            if _is_blockmanager_input and self.index.nlevels != 2:
-                # TODO: this seems dangerous... maybe there are better ways to deal
-                #  with this?
-                self = pd.DataFrame(self)
-            else:
-                raise e
+        # This is a special case of input, where the fallback is a cast to
+        # pd.DataFrame.
+        # Internally of pandas the __init__ is called like this:
+        # df._constructor(res)
+        # --> df._constructor is TSCDataFrame
+        # --> res is a BlockManager (pandas internal type)
+        # If a BlockManager slices the index, then no AttributeError is raised,
+        # but instead self casted to DataFrame
+        # (case was necessary with changes introduced in pandas==1.2.0)
+        _is_blockmanager_input = len(args) > 0 and isinstance(
+            args[0], pd.core.internals.managers.BlockManager
+        )
+
+        if _is_blockmanager_input and self.index.nlevels != 2:
+            # TODO: this seems dangerous... maybe there are better ways to deal
+            #  with this?
+            self = pd.DataFrame(self)
+        else:
+            self._validate()
 
     def __setattr__(self, key, value):
         if key == "index":
@@ -790,7 +786,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def _constructor_expanddim(self):
-        raise NotImplementedError("expanddim is not supported for TSCDataFrame")
+        raise NotImplementedError("The dimension of TSCDataFrame cannot be expanded")
 
     def _validate_index(self, index: Union[pd.MultiIndex, pd.Index]) -> pd.MultiIndex:
 
@@ -867,7 +863,7 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError("Time series IDs appear multiple times.")
 
         if is_datetime64_dtype(time_index):
-            _time_index_num = time_index.view(int)
+            _time_index_num = time_index.view(np.int64)
         else:
             _time_index_num = time_index
 
@@ -1028,6 +1024,27 @@ class TSCDataFrame(pd.DataFrame):
             n_time_elements = n_time_elements.sort_index()
             n_time_elements.name = "counts"
             return n_time_elements
+
+    def transpose(self, *args, copy: bool = False) -> pd.DataFrame:
+        """Overwrite transpose of super class.
+
+        Because the index and column are swapped the resulting type cannot be of type
+        `TSCDataFrame` anymore. Instead, the transpose is of type `DataFrame`.
+
+        Parameters
+        ----------
+        *args
+        copy
+            Whether to copy the data after transposing, even for DataFrames with a single
+            dtype. Note that a copy is always required for mixed dtype DataFrames, or for
+            DataFrames with any extension types.
+
+        Returns
+        -------
+        pd.DataFrame
+            the transposed data structure
+        """
+        return pd.DataFrame(self).transpose(*args, copy=copy)
 
     @property
     def kernel(self):
@@ -1294,7 +1311,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_finite(self) -> bool:
         """Indicates if all feature values are finite (i.e. neither NaN nor inf)."""
-        return np.isfinite(self).all().all()
+        return np.isfinite(self.to_numpy()).all().all()
 
     def degenerate_ids(self) -> Optional[pd.Index]:
         """Return the degenerate time series IDs.

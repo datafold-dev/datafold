@@ -4,8 +4,8 @@
 Contributing
 ============
 
-All code contributors are listed in the
-`contributors file <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
+The maintainers of datafold and code contributors are listed
+`here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
 Getting in touch
 ----------------
@@ -24,15 +24,35 @@ This section describes all steps to set up *datafold* for code development.
 
 .. note::
 
-    **Linux only:** Many common tasks (e.g. setting up a virtual environment or the CI
-    pipeline) are also contained in the
+    Many tasks of setting up the development environment are also included in the
     `Makefile <https://gitlab.com/datafold-dev/datafold/-/blob/master/Makefile>`__. Run
 
     .. code-block:: bash
 
-        make
+        make help
 
-    in the shell to see the available targets.
+    in the shell to view the available targets with a short description.
+
+    .. tabbed:: Linux
+
+        In Linux ``make`` is a standard tool and typically pre-installed.
+
+    .. tabbed:: Windows
+
+        The recommended way to use ``make`` in the `git bash <https://gitforwindows.org/>`__ is
+        to `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__
+        (with administrator rights) and then install with
+
+        .. code-block:: bash
+
+            choco install make
+
+        The software management software Chocolatey is also used to install non-Python
+        dependencies required for building the *datafold*'s html documentation.
+
+        .. warning::
+
+            The targets are not fully tested for Windows yet. Please report errors.
 
 Quick set up
 ^^^^^^^^^^^^
@@ -47,7 +67,7 @@ The bash script includes all steps that are detailed below.
        git clone git@gitlab.com:[NAMESPACE]/datafold.git
        cd ./datafold/
 
-       # Recommended: set up virtual environment
+       # Set up Python virtual environment
        python -m venv .venv
        source .venv/bin/activate
        python -m pip install --upgrade pip
@@ -59,15 +79,15 @@ The bash script includes all steps that are detailed below.
        pre-commit install
        pre-commit run --all-files
 
-       # Optional: run tests with coverage and pytest
+       # Run tests with coverage and pytest
        coverage run -m pytest datafold/
        coverage html -d coverage/
        coverage report
 
-       # Optional: test if tutorials run without error
+       # Test if tutorials run without error
        pytest tutorials/
 
-       # Optional: build documentation (writes to "docs/build/")
+       # Build documentation (writes to "docs/build/")
        python setup.py build_docs
 
 .. tabbed:: conda
@@ -208,7 +228,7 @@ To install the git-hooks locally run from the root directory:
 
 .. code-block:: bash
 
-   pre-commit install
+      python -m pre_commit install
 
 The git-hooks then run automatically prior to each ``git commit``. To format the
 current source code without a commit (e.g. for testing purposes or during development),
@@ -216,7 +236,7 @@ run from the root directory:
 
 .. code-block:: bash
 
-   pre-commit run --all-files
+   python -m pre_commit run --all-files
 
 Run tests
 ^^^^^^^^^
@@ -230,21 +250,23 @@ To execute all unit tests locally run from the root directory:
 
 .. code-block:: bash
 
-    coverage run -m pytest datafold/
-    coverage html -d coverage/
+    python -m coverage run --branch -m pytest datafold/; \
+    python -m coverage html -d ./coverage/; \
+    python -m coverage report;
 
 A html coverage report is then located in the folder ``coverage/``. To test if the
 tutorials run without raising an error run:
 
 .. code-block:: bash
 
-   pytest tutorials/
+    python -m pytest tutorials/;
 
 All tests can also be executed remotely in a
 `Continuous Integration (CI) setup <https://docs.gitlab.com/ee/ci/pipelines/>`__.
-The pipeline runs with every push to the main repository. The CI configuration is located
-in the file
-`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__.
+The pipeline runs with every push to the main *datafold* repository. The CI configuration is
+located in the
+`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__
+file.
 
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -265,11 +287,30 @@ development dependencies:
   `Jupyter tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
   to the web page).
 
-On a debian-like platform, install the packages with
 
-.. code-block:: bash
+.. tabbed:: Linux (Debian-based)
 
-    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
+    Install the non-Python software with (preferably with `sudo`)
+
+    .. code-block:: bash
+
+        apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
+
+.. tabbed:: Windows
+
+    Install the non-Python software with (preferably with administrator rights in the bash)
+
+    .. code-block:: bash
+
+        choco install pandoc miktex graphviz
+
+.. tabbed:: make
+
+    Install the non-Python software with (best with administrator rights)
+
+    .. code-block:: bash
+
+        make install_docdeps
 
 To build the documentation run:
 
@@ -277,5 +318,5 @@ To build the documentation run:
 
     python setup.py build_docs --outdir="./public"
 
-The page entry is then located at ``./public/index.html``. To include the executed
-cells of the tutorials, add the flag ``--runtutorials``.
+The page entry is then located at ``./public/index.html``. To execute all cells in the
+tutorials (Jupyter notebooks) add the flag ``--runtutorials``.

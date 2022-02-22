@@ -591,7 +591,7 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_frame_equal(actual_spectral, actual_matrix)
 
     @pytest.mark.filterwarnings("ignore:Shift matrix")
-    def test_edmd_with_composed_dict(self, display_html=False, plot=True):
+    def test_edmd_with_composed_dict(self, display_html=False, plot=False):
         # Ignore warning, because none of the other configurations results in a
         # satisfying reconstruction result.
 

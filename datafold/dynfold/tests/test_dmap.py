@@ -9,7 +9,7 @@ import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pytest
-import scipy.sparse.linalg.eigen.arpack
+import scipy.sparse
 from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 from sklearn.metrics import mean_squared_error
@@ -975,24 +975,15 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
                 points=data, num_eigenpairs=n_eigenpairs, epsilon=eps
             )
 
-            try:
-                actual_sparse = DiffusionMaps(
-                    GaussianKernel(epsilon=eps),
-                    n_eigenpairs=n_eigenpairs,
-                    symmetrize_kernel=False,
-                    dist_kwargs=dict(cut_off=3),
-                ).fit(data, store_kernel_matrix=True)
-                expected_sparse = legacy_dmap.SparseDiffusionMaps(
-                    points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
-                )
-
-            except scipy.sparse.linalg.eigen.arpack.ArpackNoConvergence as e:
-                print(
-                    f"Did not converge for epsilon={eps}. This can happen due to random "
-                    f"effects of the sparse eigenproblem solver (and usually a bad "
-                    f"conditioned matrix)."
-                )
-                raise e
+            actual_sparse = DiffusionMaps(
+                GaussianKernel(epsilon=eps),
+                n_eigenpairs=n_eigenpairs,
+                symmetrize_kernel=False,
+                dist_kwargs=dict(cut_off=3),
+            ).fit(data, store_kernel_matrix=True)
+            expected_sparse = legacy_dmap.SparseDiffusionMaps(
+                points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
+            )
 
             cmp_dmap_legacy(actual_dense, expected_dense, rtol=1e-15, atol=1e-15)
             cmp_dmap_legacy(actual_sparse, expected_sparse, rtol=1e-14, atol=1e-14)
