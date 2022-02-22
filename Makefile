@@ -3,6 +3,7 @@
 #Internal variables:
 CURRENT_PATH = $(shell pwd)/
 VENV_DIR = .venv
+OS ?= Linux  # Windows has a predefined variable "OS=Windows_NT"
 
 HTML_DOC_PATH = $(CURRENT_PATH)/doc/build/html/
 
@@ -40,7 +41,11 @@ IS_DOCKER = $(DOCKER_ENVIRONMENT)
 ifeq ($(IS_DOCKER),)
 	# is not docker because variable IS_DOCKER is not available
 	# activate Python virtual environment
-	ACTIVATE_VENV = . $(VENV_DIR)/bin/activate; which python
+	ifeq ($(OS),Windows_NT)
+		ACTIVATE_VENV = . $(VENV_DIR)/Scripts/activate; which python
+	else
+		ACTIVATE_VENV = . $(VENV_DIR)/bin/activate; which python
+	endif
 else
 	# If Makefile is executed in Docker (as a virtual environment)
 	ACTIVATE_VENV = which python
@@ -51,6 +56,7 @@ PYTESTOPTS    ?=
 
 EXECUTE_TUTORIAL ?= never
 OUTPUT_DOCS ?= doc/build/
+
 _DOCDEPS = libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
 
 ifeq ($(IS_DOCKER),)
@@ -75,6 +81,8 @@ endif
 
 # used for debugging / information in CI pipelines (not documented)
 print_variables:
+	@echo OS = $(OS)
+	@echo CURRENT_PATH = $(CURRENT_PATH)
 	@echo IS_DOCKER = $(IS_DOCKER)
 	@echo PYTHON = $(PYTHON)
 	@echo IS_DOCKER = $(IS_DOCKER)
@@ -106,11 +114,15 @@ install_devdeps: venv
 	python -m pip install -r requirements-dev.txt;
 
 #install_doc_deps: @ Install dependencies to render datafold's documentation via apt-get (Note: this may require 'sudo').
-install_docdeps:
+install_docdeps:   #TODO: update for windows
+ifeq ($(OS),Windows_NT)
+	@echo "INFO: Make sure to execute with administrator rights"
+	choco install pandoc miktex pandoc
 ifeq ($(IS_DOCKER),) # no docker
 	sudo apt-get install $(_DOCDEPS)
 else # in docker "sudo" is not available and everything is executed with root
 	apt-get -y install $(_DOCDEPS)
+endif
 endif
 
 #versions: @ Print datafold version and essential dependency versions.
@@ -125,16 +137,20 @@ docs:
 	python -m sphinx -M html doc/source/ $(OUTPUT_DOCS) $(SPHINXOPTS) $(O);
 	@# Open the browser at the page specified in URL_DOC_OPEN
 ifeq ($(OPEN_BROWSER),true)
+ifeq ($(OS),Windows_NT)
+	start "$(URL_DOC_OPEN)"
+else  # Linux
 	@ if which xdg-open > /dev/null; then \
 		xdg-open $(URL_DOC_OPEN); \
 	elif which gnome-open > /dev/null; then \
 		gnome-open $(URL_DOC_OPEN); \
 	fi
 endif
+endif
 
 #docs_linkcheck: @ Check if all links in the documentation are valid.
 docs_linkcheck:
-	. $(VENV_DIR)/bin/activate; \
+	$(ACTIVATE_VENV); \
 	cd doc/; \
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
@@ -148,6 +164,7 @@ unittest:
 #tutorialtest: @ Run all tutorials with pytest to check for errors.
 tutorialtest:
 	$(ACTIVATE_VENV); \
+	# TODO: in Windows the ":" causes troubles
 	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
 	python -m pytest tutorials/;
 

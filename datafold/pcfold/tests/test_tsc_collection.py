@@ -167,7 +167,9 @@ class TestTSCDataFrame(unittest.TestCase):
 
         self.assertEqual(actual.n_timeseries, 1)
         nptest.assert_array_equal(actual.time_values(), np.arange(9))
-        self.assertEqual(actual.index.get_level_values(0).dtype, int)
+        self.assertTrue(
+            np.issubdtype(actual.index.get_level_values(0).dtype, np.integer)
+        )
 
         # test inplace
         with self.assertRaises(ValueError):
