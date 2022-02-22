@@ -111,18 +111,16 @@ print_variables:
 
 #venv: @ Create new Python virtual environment if it does not exist yet.
 venv:
-	@# Only create a Python-venv if not in a docker environment, because docker is already a virtualization
 ifeq ($(IS_DOCKER),)
+	@# Only create a Python-venv if not in a docker environment, because docker is already a virtualization
+	@# if venv exists already, then check that the Python version meets the minimum version
+	@# else create a new Python venv and check that the Python version (in PYTHON) meets the minimum version
 	@if [ -d "$(CURRENT_PATH)$(VENV_DIR)" ]; then \
-		#@ virtuel environment exists already
-		#@ check that the Python version meets the minimum version
-  		echo "Check Python set in virtual environment"$(shell which python)":"; \
+  		@echo "Check Python set in virtual environment '$(shell which python)'"; \
 		$(ACTIVATE_VENV); \
   		python -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
   	else \
-  		#@ create new virtuel environment
-  		#@ check that the version of the Python basis meets the minimum version
-		echo "Check Python set in variable PYTHON:"; \
+		@echo "Check Python set in variable PYTHON:"; \
 		$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
 		$(PYTHON) -m venv $(VENV_DIR); \
 	fi
@@ -140,7 +138,7 @@ docker_run:
 install_devdeps: venv
 	$(ACTIVATE_VENV); \
     python -m pip install --upgrade pip wheel setuptools twine; \
-	python -m pip install -r requirements-dev.txt;
+	python -m pip install -r requirements-dev.txt
 
 #install_docdeps: @ Install dependencies to render datafold's documentation via apt-get (Note: this may require 'sudo').
 install_docdeps:
