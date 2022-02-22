@@ -1,13 +1,13 @@
 .DEFAULT_GOAL := help
+.PHONY: help venv print_variables install_devdeps install_docdeps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi pypi_test clean_docs clean_build clean_test clean_venv clean clean_all
 
 #Internal variables:
 CURRENT_PATH = $(shell pwd)/
 VENV_DIR = .venv
-OS ?= Linux  # Windows has a predefined variable "OS=Windows_NT"
 
-HTML_DOC_PATH = $(CURRENT_PATH)/doc/build/html/
-
-.PHONY: help venv print_variables install_devdeps install_docdeps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi pypi_test clean_docs clean_build clean_test clean_venv clean clean_all
+# Windows has a predefined variable "OS=Windows_NT"
+OS ?= Linux
+HTML_DOC_PATH = $(CURRENT_PATH)doc/build/html/
 
 #help: @ Lists available targets and short description in this makefile.
 help:
@@ -41,13 +41,14 @@ IS_DOCKER = $(DOCKER_ENVIRONMENT)
 ifeq ($(IS_DOCKER),)
 	# is not docker because variable IS_DOCKER is not available
 	# activate Python virtual environment
-	ifeq ($(OS),Windows_NT)
-		ACTIVATE_VENV = . $(VENV_DIR)/Scripts/activate; which python
-	else
+	ifeq ($(OS),Linux)
 		ACTIVATE_VENV = . $(VENV_DIR)/bin/activate; which python
+	else
+		ACTIVATE_VENV = . $(VENV_DIR)/Scripts/activate; which python
 	endif
 else
-	# If Makefile is executed in Docker (as a virtual environment)
+	# If Makefile is executed in Docker no activation of an virtual environment is required,
+	# because Docker is already a virtual environment.
 	ACTIVATE_VENV = which python
 endif
 
@@ -57,13 +58,16 @@ PYTESTOPTS    ?=
 DATAFOLD_NBSPHINX_EXECUTE ?= never
 OUTPUT_DOCS ?= doc/build/
 
-_DOCDEPS = libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
+ifeq ($(OS),Linux)
+	_DOCDEPS = pandoc texlive-base texlive-latex-extra graphviz libjs-mathjax fonts-mathjax dvipng
+else # Windows_NT
+	_DOCDEPS = pandoc miktex graphviz
+endif
 
 ifeq ($(IS_DOCKER),)
 	OPEN_BROWSER ?= true
-else
-# is_DOCKER=true -> do not open browser by default, because no browser is installed in the
-# docker container
+else # is in docker environment
+    # do not open browser by default, because no browser is installed in the container
 	OPEN_BROWSER ?= false
 endif
 
@@ -78,9 +82,7 @@ VPYTHON_MIN_MINOR = 8
 
 define PYTHON_CHECK_SCRIPT
 import sys
-
-errmsg = "Used Python version invalid: \n {} \n\nMinimum version required: $(VPYTHON_MIN_MAJOR).$(VPYTHON_MIN_MINOR)\n".format(sys.version)
-
+errmsg = "Used Python version (={}) invalid.\nMinimum Python version required: {}.{}\n".format(sys.version, sys.argv[1], sys.argv[2])
 if sys.version_info.major < int(sys.argv[1]):
 	raise RuntimeError(errmsg)
 elif sys.version_info.minor < int(sys.argv[2]):
@@ -90,20 +92,15 @@ else:
 endef
 export PYTHON_CHECK_SCRIPT
 
-# Check that the Python version supports the minimum required version.
-python_check:
-	@$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR)
-
 # used for debugging / information in CI pipelines (not documented)
 print_variables:
 	@echo OS = $(OS)
 	@echo CURRENT_PATH = $(CURRENT_PATH)
 	@echo IS_DOCKER = $(IS_DOCKER)
 	@echo PYTHON = $(PYTHON)
-	@echo VPYTHON_MIN_MAJOR = $(VPYTHON_MIN_MAJOR)
-	@echo VPYTHON_MIN_MINOR = $(VPYTHON_MIN_MINOR)
+	@echo VPYTHON_MIN_MAJOR.VPYTHON_MIN_MINOR = $(VPYTHON_MIN_MAJOR).$(VPYTHON_MIN_MINOR)
 	@echo IS_DOCKER = $(IS_DOCKER)
-	@echo ACTIVATE_VENV = $(ACTIVATE_VENV)
+	@echo ACTIVATE_VENV = "$(ACTIVATE_VENV)"
 	@echo SPHINXOPTS = $(SPHINXOPTS)
 	@echo PYTESTOPTS = $(PYTESTOPTS)
 	@echo EXECUTE_TUTORIAL = $(EXECUTE_TUTORIAL)
@@ -113,11 +110,18 @@ print_variables:
 	@echo GITHOOK = $(GITHOOK)
 
 #venv: @ Create new Python virtual environment if it does not exist yet.
-venv: python_check
+venv:
 ifeq ($(IS_DOCKER),)
-# Create / use a Python virtual environment
-# Do not create Python-venv in a docker environment, because docker is already a virtualization
-	test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR);
+	# Do not create Python-venv in a docker environment, because docker is already a virtualization
+	@if [ -d "$(CURRENT_PATH)$(VENV_DIR)" ]; then \
+  		echo "Check Python set in virtual environment"$(shell which python)":"; \
+		$(ACTIVATE_VENV); \
+  		python -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
+  	else \
+		echo "Check Python set in variable PYTHON:"; \
+		$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
+		$(PYTHON) -m venv $(VENV_DIR); \
+	fi
 endif
 
 #docker_build: @ Build a docker image by processing the Dockerfile.
@@ -128,26 +132,24 @@ docker_build:
 docker_run:
 	docker run -v `pwd`:/home/datafold-mount -w /home/datafold-mount/ -it --rm --net=host datafold bash
 
-#docker_clean: @ Remove unused data from docker by removing all unused images (not just dangling ones)
-docker_clean:
-	docker system prune -a
-
 #install_devdeps: @ Install (or update) development dependencies in virtual environment according to file "requirements-dev.txt".
 install_devdeps: venv
 	$(ACTIVATE_VENV); \
     python -m pip install --upgrade pip wheel setuptools twine; \
 	python -m pip install -r requirements-dev.txt;
 
-#install_doc_deps: @ Install dependencies to render datafold's documentation via apt-get (Note: this may require 'sudo').
-install_docdeps:   #TODO: update for windows
-ifeq ($(OS),Windows_NT)
-	@echo "INFO: Make sure to execute with administrator rights"
-	choco install pandoc miktex pandoc
+#install_docdeps: @ Install dependencies to render datafold's documentation via apt-get (Note: this may require 'sudo').
+install_docdeps:
+ifeq ($(OS),Linux)
 ifeq ($(IS_DOCKER),) # no docker
 	sudo apt-get install $(_DOCDEPS)
 else # in docker "sudo" is not available and everything is executed with root
 	apt-get -y install $(_DOCDEPS)
 endif
+else # OS = Windows
+	@echo "INFO: Make sure that chocolatery is installed ()"
+	@echo "INFO: Make sure to execute with sudo / administrator rights."
+	choco install $(_DOCDEPS)
 endif
 
 #versions: @ Print datafold version and essential dependency versions.
@@ -160,16 +162,12 @@ docs:
 	$(ACTIVATE_VENV); \
 	echo Execute tutorials environment variable: DATAFOLD_NBSPHINX_EXECUTE=$(DATAFOLD_NBSPHINX_EXECUTE); \
 	python -m sphinx -M html doc/source/ $(OUTPUT_DOCS) $(SPHINXOPTS) $(O);
-	@# Open the browser at the page specified in URL_DOC_OPEN
+	@# Open the default browser at the page specified in URL_DOC_OPEN
 ifeq ($(OPEN_BROWSER),true)
-ifeq ($(OS),Windows_NT)
+ifeq ($(OS),Linux)
+	$(PYTHON) -m webbrowser "$(URL_DOC_OPEN)"
+else  # Windows
 	start "$(URL_DOC_OPEN)"
-else  # Linux
-	@ if which xdg-open > /dev/null; then \
-		xdg-open $(URL_DOC_OPEN); \
-	elif which gnome-open > /dev/null; then \
-		gnome-open $(URL_DOC_OPEN); \
-	fi
 endif
 endif
 
@@ -189,8 +187,7 @@ unittest:
 #tutorialtest: @ Run all tutorials with pytest to check for errors.
 tutorialtest:
 	$(ACTIVATE_VENV); \
-	# TODO: in Windows the ":" causes troubles
-	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
+	export PYTHONPATH="$(CURRENT_PATH):$$PYTHONPATH"; \
 	python -m pytest tutorials/;
 
 test: unittest tutorialtest
@@ -256,6 +253,10 @@ clean_build:
 	rm -fr dist/;
 	rm -fr datafold.egg-info/;
 
+#clean_precommit: @ Remove all files that are created for target "precommit".
+clean_precommit:
+	python -m pre_commit clean;
+
 #clean_test: @ Remove all files that are created for target "unittest".
 clean_test:
 	rm -fr .pytest_cache/;
@@ -269,9 +270,13 @@ clean_cache:
 	find datafold/ -name __pycache__ -type d -delete;
 	find . -name .ipynb_checkpoints -type d -delete;
 
-#clean_venv: @ Remove all files that are created for target "venv".
+#clean_docker: @ Remove all unused docker images in docker (not just dangling ones).
+clean_docker:
+	docker system prune -a
+
+#clean_venv: @ Remove the virtual environment folder.
 clean_venv:
 	rm -fr $(VENV_DIR);
 
-#clean: @ Call targets "clean_docs", "clean_build", "clean_test" and "clean_cache".
-clean: clean_docs clean_build clean_test clean_cache
+#clean: @ Call targets "clean_docs", "clean_build", "clean_test", "clean_precommit" and "clean_cache".
+clean: clean_docs clean_build clean_test clean_precommit clean_cache
