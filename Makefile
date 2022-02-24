@@ -9,7 +9,7 @@ VENV_DIR = .venv
 OS ?= Linux
 HTML_DOC_PATH = $(CURRENT_PATH)doc/build/html/
 
-#help: @ Lists available targets and short description in this makefile.
+#help: @ List available targets and options in the Makefile with a short description.
 help:
 	@echo 'Execute with "make [target] [arguments]"'.
 	@echo 'Example: "make docs OPEN_BROWSER=false"'
@@ -109,38 +109,41 @@ print_variables:
 	@echo HTML_FILE_OPEN = $(HTML_FILE_OPEN)
 	@echo GITHOOK = $(GITHOOK)
 
-#venv: @ Create new Python virtual environment if it does not exist yet.
+#venv: @ Create a new Python virtual environment if it does not exist yet (target is disabled in a docker container).
 venv:
 ifeq ($(IS_DOCKER),)
 	@# Only create a Python-venv if not in a docker environment, because docker is already a virtualization
 	@# if venv exists already, then check that the Python version meets the minimum version
 	@# else create a new Python venv and check that the Python version (in PYTHON) meets the minimum version
 	@if [ -d "$(CURRENT_PATH)$(VENV_DIR)" ]; then \
-  		@echo "Check Python set in virtual environment '$(shell which python)'"; \
-		$(ACTIVATE_VENV); \
+  		echo "Check Python set in virtual environment:"; \
+  		$(ACTIVATE_VENV); \
   		python -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
   	else \
-		@echo "Check Python set in variable PYTHON:"; \
+		echo "Check Python set in variable PYTHON:"; \
 		$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
 		$(PYTHON) -m venv $(VENV_DIR); \
 	fi
+else
+	@# Check Python version in the docker container.
+	@$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR);
 endif
 
-#docker_build: @ Build a docker image by processing the Dockerfile.
+#docker_build: @ Build a new docker image from the Dockerfile (named "datafold").
 docker_build:
 	docker build -t datafold .
 
-#docker_run: @ Start and execute interactively sign into a new docker container (based on the available image). The datafold folder is mounted into the container as "datafold-mount".
+#docker_run: @ Start and execute a new docker container based on the available image (interactive session). The datafold repo is mounted into the container as "datafold-mount".
 docker_run:
 	docker run -v `pwd`:/home/datafold-mount -w /home/datafold-mount/ -it --rm --net=host datafold bash
 
-#install_devdeps: @ Install (or update) development dependencies in virtual environment according to file "requirements-dev.txt".
+#install_devdeps: @ Install (or update) development dependencies in virtual environment according to the file "requirements-dev.txt".
 install_devdeps: venv
 	$(ACTIVATE_VENV); \
     python -m pip install --upgrade pip wheel setuptools twine; \
 	python -m pip install -r requirements-dev.txt
 
-#install_docdeps: @ Install dependencies to render datafold's documentation via apt-get (Note: this may require 'sudo').
+#install_docdeps: @ Install non-Python dependencies to build datafold's documentation (may require 'sudo' rights).
 install_docdeps:
 ifeq ($(OS),Linux)
 ifeq ($(IS_DOCKER),) # no docker
@@ -154,89 +157,84 @@ else # OS = Windows
 	choco install $(_DOCDEPS)
 endif
 
-#versions: @ Print datafold version and essential dependency versions.
+#versions: @ Show current datafold version and of the essential dependencies.
 versions:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python datafold/_version.py
 
 #docs: @ Build datafold documentation with Sphinx.
 docs:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	echo Execute tutorials environment variable: DATAFOLD_NBSPHINX_EXECUTE=$(DATAFOLD_NBSPHINX_EXECUTE); \
 	python -m sphinx -M html doc/source/ $(OUTPUT_DOCS) $(SPHINXOPTS) $(O);
 	@# Open the default browser at the page specified in URL_DOC_OPEN
 ifeq ($(OPEN_BROWSER),true)
 ifeq ($(OS),Linux)
-	$(PYTHON) -m webbrowser "$(URL_DOC_OPEN)"
+	@$(PYTHON) -m webbrowser "$(URL_DOC_OPEN)"
 else  # Windows
-	start "$(URL_DOC_OPEN)"
+	@start "$(URL_DOC_OPEN)"
 endif
 endif
 
-#docs_linkcheck: @ Check if all links in the documentation are valid.
+#docs_linkcheck: @ Check if the URLs in the documentation are valid.
 docs_linkcheck:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	cd doc/; \
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
-#unittest: @ Run and report all unittests with pytest.
+#unittest: @ Run all unittests with pytest in datafold.
 unittest:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report;
 
-#tutorialtest: @ Run all tutorials with pytest to check for errors.
+#tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	export PYTHONPATH="$(CURRENT_PATH):$$PYTHONPATH"; \
 	python -m pytest tutorials/;
 
 test: unittest tutorialtest
 
-#tutorial: @ Open tutorials in Jupyter notebook (this opens the browser).
+#tutorial: @ Open tutorials in Jupyter notebook (opens a window in the default browser).
 tutorial:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
 	python -m notebook $(CURRENT_PATH)/tutorials/
 
-#precommit: @ Run git hooks to check and analyze the code.
+#precommit: @ Run git hooks to check and analyze the code. Manged by pre-commit.
 precommit:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python -m pre_commit run $(GITHOOK);
 
 #ci: @ Run continuous integration pipeline.
 ci: install_devdeps test precommit test_install
 
-#build: @ Build a source distribution and wheel.
+#build: @ Build a source distribution (sdist) and wheel (bdist_wheel).
 build:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python setup.py sdist bdist_wheel; \
 
 #install: @ Install datafold in virtual environment.
 install:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python setup.py install
 
-#uninstall: @ Uninstall datafold from virtual environment.
-uninstall:
-	$(ACTIVATE_VENV); \
-	yes | pip uninstall datafold
-
 #test_install: @ Install and subsequently uninstall datafold for testing purposes (all created files are removed).
-test_install: install uninstall clean_build
+test_install: install clean_install
 	@echo 'Successful'
 
 #pypi: @ Upload and release datafold to https://pypi.org/ (requires account and password).
 pypi: build
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python setup.py sdist bdist_wheel; \
 	python -m twine check dist/*; \
 	python -m twine upload --verbose dist/*
 
 #pypi_test: @ Upload and release datafold to https://test.pypi.org/ for testing purposes (requires account and password).
 test_pypi: build
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python -m twine check dist/*; \
 	python -m twine upload --verbose --repository testpypi dist/*
 
@@ -257,6 +255,7 @@ clean_build:
 
 #clean_precommit: @ Remove all files that are created for target "precommit".
 clean_precommit:
+	@$(ACTIVATE_VENV); \
 	python -m pre_commit clean;
 
 #clean_test: @ Remove all files that are created for target "unittest".
@@ -269,16 +268,21 @@ clean_test:
 clean_cache:
 	rm -rf .mypy_cache;
 	rm -fr .pytest_cache/;
-	find datafold/ -name __pycache__ -type d -delete;
-	find . -name .ipynb_checkpoints -type d -delete;
+	find . -path '*/__pycache__/*' -delete
+	find . -path '*/.ipynb_checkpoints/*' -delete
 
 #clean_docker: @ Remove all unused docker images in docker (not just dangling ones).
 clean_docker:
 	docker system prune -a
 
-#clean_venv: @ Remove the virtual environment folder.
+#uninstall: @ Remove all files for the target "install".
+clean_install: clean_build
+	@$(ACTIVATE_VENV); \
+	yes | pip uninstall datafold
+
+#clean_venv: @ Remove the virtual environment folder which is created for the target "venv".
 clean_venv:
 	rm -fr $(VENV_DIR);
 
-#clean: @ Call targets "clean_docs", "clean_build", "clean_test", "clean_precommit" and "clean_cache".
-clean: clean_docs clean_build clean_test clean_precommit clean_cache
+#clean: @ Call targets "clean_docs", "clean_install", "clean_test", "clean_precommit" and "clean_cache".
+clean: clean_docs clean_install clean_test clean_precommit clean_cache

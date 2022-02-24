@@ -35,24 +35,53 @@ This section describes all steps to set up *datafold* for code development.
 
     .. tabbed:: Linux
 
-        In Linux ``make`` is a standard tool and typically pre-installed.
+        In Linux ``make`` is a standard tool and pre-installed.
 
     .. tabbed:: Windows
 
-        The recommended way to use ``make`` in the `git bash <https://gitforwindows.org/>`__ is
-        to `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__
-        (with administrator rights) and then install with
+        .. warning::
+
+            The targets are not fully tested for Windows yet. Please file an issue if you
+            encounter problems.
+
+        The recommended way to use ``make`` in the `git bash <https://gitforwindows.org/>`__
+        in Windows is to `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__
+        first  (with administrator rights). Then use the ``choco`` software manger tool to
+        install ``make`` with
 
         .. code-block:: bash
 
             choco install make
 
-        The software management software Chocolatey is also used to install non-Python
-        dependencies required for building the *datafold*'s html documentation.
+        Chocolatey is also suitable to install non-Python dependencies required for building
+        the *datafold*'s html documentation.
 
-        .. warning::
+.. note::
 
-            The targets are not fully tested for Windows yet. Please report errors.
+    The *datafold* repository also includes a
+    `Dockerfile <https://gitlab.com/datafold-dev/datafold/-/blob/master/Dockerfile>`__ which
+    creates a Docker image suitable for development (e.g. it automatically installs all
+    non-Python dependencies necessary to build the documentation). In Linux run
+
+    .. code-block:: bash
+
+        docker build -t datafold .
+
+    to create the Docker image (possibly requires ``sudo`` rights). To start a new Docker
+    container in the interactive session run
+
+    .. code-block:: bash
+
+       docker run -v `pwd`:/home/datafold-mount -w /home/datafold-mount/ -it --rm --net=host datafold bash
+
+    This mounts the *datafold* repository within the container (all data is shared
+    between the host system and container). To install the dependencies within
+    the container execute:
+
+    .. code-block::
+
+        make install_devdeps
+
 
 Quick set up
 ^^^^^^^^^^^^
@@ -75,19 +104,19 @@ The bash script includes all steps that are detailed below.
        # Install package and development dependencies
        python -m pip install -r requirements-dev.txt
 
-       # Install git hooks and code formatting tools
-       pre-commit install
-       pre-commit run --all-files
+       # Install and run git hooks managed by pre-commit
+       python -m pre_commit run --all-files
 
        # Run tests with coverage and pytest
-       coverage run -m pytest datafold/
-       coverage html -d coverage/
-       coverage report
+       python -m coverage run -m pytest datafold/
+       python -m coverage html -d coverage/
+       python -m coverage report
 
        # Test if tutorials run without error
-       pytest tutorials/
+       python -m pytest tutorials/
 
        # Build documentation (writes to "docs/build/")
+       # Note that this requires additional third-party dependencies
        python setup.py build_docs
 
 .. tabbed:: conda
@@ -116,19 +145,19 @@ The bash script includes all steps that are detailed below.
            # Install package and development dependencies
            pip install -r requirements-dev.txt
 
-           # Install git hooks and code formatting tools
-           pre-commit install
-           pre-commit run --all-files
+           # Install and run git hooks managed by pre-commit
+           python -m pre_commit run --all-files
 
-           # Optional: run tests with coverage and pytest
-           coverage run -m pytest datafold/
-           coverage html -d coverage/
-           coverage report
+           # Run tests with coverage and pytest
+           python -m coverage run -m pytest datafold/
+           python -m coverage html -d coverage/
+           python -m coverage report
 
-           # Optional: test if tutorials run without error
-           pytest tutorials/
+           # Test if tutorials run without error
+           python -m pytest tutorials/
 
-           # Optional: build documentation (writes to "docs/build/")
+           # Build documentation (writes to "docs/build/")
+           # Note that this requires additional third-party dependencies
            python setup.py build_docs
 
 

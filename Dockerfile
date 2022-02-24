@@ -1,4 +1,4 @@
-FROM python:3.7-bullseye
+FROM python:3.8-bullseye
 MAINTAINER Daniel Lehmberg (daniel.lehmberg@hm.edu)
 
 ARG gl_username=datafold-dev
@@ -36,7 +36,3 @@ RUN cd "$datafold_cont" \
 # command "latex" is used to build math equations in the documentation (see configuration in "conf.py").
 # Point "latex" to execute "pdftex":
 RUN ln -sf /usr/bin/pdftex /usr/bin/latex
-
-# Install development dependencies according to make
-RUN cd "$datafold_cont" \
-    && make install_devdeps;

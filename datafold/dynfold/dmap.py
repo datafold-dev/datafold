@@ -897,8 +897,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
     kernel
         The kernel to describe similarity between points. A landmark-set affinity (kernel)
         matrix is computed using it. The normalized kernel matrix is used to define the
-        diffusion process.
-        Defaults to :py:class:`.GaussianKernel` with bandwidth `epsilon=1`.
+        diffusion process. Defaults to :py:class:`.GaussianKernel` with bandwidth `epsilon=1`.
 
     n_svdtriplet
         The number of singular value decomposition pairs (left singular vector, singular
@@ -924,9 +923,9 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         parameter corresponds to `alpha` in :py:meth:`DiffusionMaps`.
 
         .. note::
-            The parameter is not covered in the original Roseland paper (`alpha=0`). This
-            means enabling the additional normalization (`alpha>0`) should be used with
-            care.
+            The parameter is not covered in the original Roseland paper (corresponding to
+            `alpha=0`). Enabling the additional normalization (`alpha>0`) should therefore
+            used with care.
 
     random_state
         Random seed for the selection of the landmark set. If provided when `Y` is also
@@ -1256,10 +1255,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         )
 
         if self.kernel is None:
-            self.landmarks_.optimize_parameters()
             self.kernel = self._get_default_kernel()
-            self.kernel.epsilon = self.landmarks_.kernel.epsilon
-            self.dist_kwargs["cut_off"] = self.landmarks_.cut_off
 
         self.landmarks_ = PCManifold(
             self.landmarks_,
