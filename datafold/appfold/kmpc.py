@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -324,10 +325,13 @@ class KoopmanMPC:
         try:
             np.linalg.cholesky(self.H)
         except np.linalg.LinAlgError:
+            warnings.warn(
+                "Cost matrix H is not positive-definite, using H^T@H instead."
+            )
             self.H = np.dot(self.H.T, self.H)
 
         U = solve_qp(
-            P=self.H,
+            P=2 * self.H,
             q=(self.h.T + z0.T @ self.G - yr.T @ self.Y).flatten(),
             G=self.L,
             h=(self.c - self.M @ z0).flatten(),

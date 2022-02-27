@@ -103,7 +103,7 @@ class KMPCTest(unittest.TestCase):
             input_bounds=np.array([[5, -5]]),
             cost_running=np.array([1, 1]),
             cost_terminal=1,
-            cost_input=5,
+            cost_input=0,
         )
         pred = kmpcperfect.generate_control_signal(x0, df)
         nptest.assert_allclose(pred, u.ravel()[:-1])
