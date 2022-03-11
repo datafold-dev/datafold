@@ -1761,9 +1761,9 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
             )
         if control_input.shape[1] != control_size:
             raise ValueError("control_input should have the same length as time_values")
-        if control_input.shape[2] != self.control_matrix_.shape[1]:
+        if control_input.shape[2] != self.control_matrix_.shape[-1]:
             raise ValueError(
-                "control_input columns should match control_matrix columns"
+                "control_input columns should match control_matrix last dimension"
             )
         return control_input
 
@@ -2065,12 +2065,13 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         rcond: Optional[float] = None,
         state_columns: Optional[List[str]] = None,
         control_columns: Optional[List[str]] = None,
+        **kwargs,
     ):
         self.rcond = rcond
         if state_columns is not None and control_columns is not None:
             self.state_columns = state_columns
             self.control_columns = control_columns
-        super().__init__()
+        super().__init__(time_invariant=True)
 
     def _compute_koompan_matrices(
         self,
