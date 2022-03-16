@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import scipy.linalg
 from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
+from scipy.integrate import solve_ivp
+from scipy.interpolate import interp1d
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
@@ -1127,7 +1129,8 @@ class DMDFull(DMDBase):
             approximate the Koopman generator by using finite differences.
 
     rcond: Optional[float]
-        Parameter passed to :class:`numpy.linalg.lstsq`.
+        Cut-off ratio for small singular values
+        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
     Attributes
     ----------
@@ -1712,7 +1715,7 @@ class DMDEco(DMDBase):
 class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     r"""Evolve linear dynamical system forward in time according to control input.
 
-    A mathematical description of a linear dynamical system with control
+    A flowmap description of a linear dynamical system with control
     is written in terms of a discrete-time system
 
         .. math::
@@ -1743,6 +1746,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     --------
 
     :py:class:`.LinearDynamicalSystem`
+    :py:class:`.ControlledAffineDynamicalSystem`
     """
 
     def __init__(self, time_invariant: bool = True):
@@ -1812,27 +1816,9 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
         time_delta: Optional[float],
     ) -> np.ndarray:
         raise NotImplementedError(
-            "Fractional timesteps are not implemented for controlled systems"
+            "Fractional timesteps are not implemented for controlled flowmap type systems.\n"
+            "Use a differential system (e.g. control affine) instead."
         )
-        # TODO: implement fractional timestep
-        next_state = initial_conditions
-        last_time = time_values[0]
-        for idx, time in enumerate(time_values):
-            next_state = np.real(
-                scipy.linalg.fractional_matrix_power(
-                    sys_matrix, (time - last_time) / time_delta
-                )
-                @ next_state
-                # FIXME: how to take fractional timesteps with non-square input matrix?
-                + scipy.linalg.fractional_matrix_power(
-                    control_matrix, (time - last_time) / time_delta
-                )
-                @ control_input[idx, :][np.newaxis].T
-            )
-            last_time = time
-            time_series_tensor[:, idx, :] = next_state.T
-
-        return time_series_tensor
 
     def setup_matrix_system(
         self,
@@ -1941,7 +1927,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
                 time_values = time_values * time_delta
         if time_delta is None:
             time_delta = time_values[1] - time_values[0]
-            if (np.diff(time_values) - time_delta).any():
+            if (np.diff(time_values) - time_delta > 1e-12).any():
                 raise ValueError(
                     "time_values is not equally spaced, so time_delta needs to be provided."
                 )
@@ -2039,7 +2025,8 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
     Parameters
     ----------
     rcond: Optional[float]
-        Parameter passed to :class:`numpy.linalg.lstsq`.
+        Cut-off ratio for small singular values.
+        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
     state_columns: Optional[List[str]]
         Names of the columns of the input corresponding to the state
@@ -2359,6 +2346,267 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)
+
+
+class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
+    r"""Evolve an input affine dynamical system forward in time according to control input.
+
+    A mathematical description of an input affine dynamical system can be
+    written in terms of the differential equation
+
+        .. math::
+            \dot{x} = A \cdot x + B \cdot u \cdot x
+
+    with
+        :math:`A \mathbb{R}^{[m \times m]}`, a constant matrix, which describes
+        the linear evolution of the systems' states
+        :math:`x` is the state with length :math:`m`,
+        :math:`B \mathbb{R}^{[m \times m \times q]}`, a constant tensor which describes
+        the affine effect of the control inputs
+        :math:`u` is the control input with length :math:`q`.
+
+    Parameters
+    ----------
+
+    time_invariant
+        If True, the system internally always starts with `time=0`. \
+        This is irrespective of the time given in the time values. If the initial
+        time is larger than zero, the internal times are corrected to the requested time.
+
+
+    See Also
+    --------
+
+    :py:class:`.LinearDynamicalSystem`
+    :py:class:`.ControlledLinearDynamicalSystem`
+    """
+
+    def __init__(self, time_invariant=True):
+        super(ControlledAffineDynamicalSystem, self).__init__(
+            time_invariant=time_invariant
+        )
+        self.sys_type = "differential"
+        self._evolve_system_states_integer = self._evolve_system_states
+
+    def _check_control_matrix(self, control_matrix):
+        if control_matrix is None:
+            control_matrix = self.control_matrix_
+        else:
+            if not isinstance(control_matrix, np.ndarray) or control_matrix.ndim != 3:
+                raise ValueError(
+                    "The control matrix tensor must be 3-dim. and of type np.ndarray"
+                )
+
+            if control_matrix.shape[:2] != self.system_matrix_.shape:
+                raise ValueError(
+                    "control_matrix and system_matrix must have the same number of rows and columns"
+                )
+            self.control_matrix_ = control_matrix
+        return control_matrix
+
+    def setup_matrix_system(
+        self,
+        system_matrix: np.ndarray,
+        control_matrix: np.ndarray,
+    ):
+        r"""Set up the differential representation of a control affine system
+        with a system matrix and control tensor.
+
+        Parameters
+        ----------
+        system_matrix
+            The system matrix :math:`A` in differential representation
+
+        control_matrix
+            The control tensor :math:`B`
+
+        Returns
+        -------
+        ControlledLinearDynamicalSystem
+            self
+        """
+        self._check_matrix(system_matrix)
+        if not isinstance(control_matrix, np.ndarray) or control_matrix.ndim != 3:
+            raise ValueError(
+                "The control matrix tensor must be 3-dim. and of type np.ndarray"
+            )
+
+        if control_matrix.shape[:2] != system_matrix.shape:
+            raise ValueError(
+                "control_matrix and system_matrix must have the same number of rows and columns"
+            )
+        self.sys_matrix_ = system_matrix
+        self.control_matrix_ = control_matrix
+        return self
+
+    def _evolve_system_states(
+        self,
+        time_series_tensor: np.ndarray,
+        sys_matrix: np.ndarray,
+        control_matrix: np.ndarray,
+        initial_conditions: np.ndarray,
+        control_input: np.ndarray,
+        time_values: np.ndarray,
+        time_delta: Optional[float] = None,
+    ) -> np.ndarray:
+        n_ic = initial_conditions.shape[1]
+        if n_ic != control_input.shape[0]:
+            raise ValueError("Control inputs and initial conditions don't match!")
+
+        for i in range(n_ic):
+            interp_control = interp1d(time_values, control_input[i], axis=0)
+
+            affine_system_func = lambda t, state: (
+                sys_matrix @ state + control_matrix @ interp_control(t) @ state
+            )
+
+            ivp_solution = solve_ivp(
+                affine_system_func,
+                t_span=(time_values[0], time_values[-1]),
+                y0=initial_conditions[:, i],
+                t_eval=time_values,
+            )
+
+            if not ivp_solution.success:
+                raise RuntimeError(
+                    f"The system could not be envolved for the requested timespan for initial condition {initial_conditions[i]}."
+                )
+
+            time_series_tensor[i] = ivp_solution.y.T
+
+        return time_series_tensor
+
+
+class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
+    """Dynamic Mode Decomposition of time series data with control input to
+    approximate the Koopman generator for an input affine system.
+
+    The model computes the system matrix :math:`A` and control tensor :math:`B` with
+
+    .. math::
+        X &= [x^{(1)} ... x^{(n)}]
+        B &= [B_{e_1} ... B_{e_q}] \\
+        \Psi &= \begin{bmatrix}
+                x^{(1)}                      & ... & x^{(n)} \\
+                u^{(1)} \otimes x^{(1)}& ... & u^{(n)} \otimes x^{(n)}\\
+                \end{bmatrix}\\
+        \Psi_dot &= [\dot{x}^{(1)} ... \dot{x}^{(n)}]
+        [A,B] &= \dot{\Psi} (\Psi)^{\dagger},
+
+    where :math:`X` is the data with :math:`n` column oriented snapshots,
+    :math:`\dagger` is the the Moore–Penrose inverse and
+    :math:`\otimes` is the Kronecker product.
+
+    Note: The derivative :math:`\dot{x}` is computed via a finite-difference
+    scheme as determined by the `diff_` parameters. As a result, some of the
+    edgepoint snapshots might not be considered since no derivative is available.
+
+    ...
+
+    Parameters
+    ----------
+    diff_scheme: Optional[str]
+        The finite difference scheme 'backward', 'center' or 'forward'. Defaul
+        Passed to `scheme` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+
+    diff_accuracy: Optional[int]
+        The accuracy (even positive integer) of the derivative scheme.
+        Passed to `accuracy` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+
+    rcond: Optional[float]
+        Cut-off ratio for small singular values
+        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
+
+    state_columns: Optional[List[str]]
+        Names of the columns of the input corresponding to the state
+
+    control_columns: Optional[List[str]]
+        Names of the columns of the input corresponding to the control input
+
+    Attributes
+    -------
+    sys_matrix : np.ndarray
+        Koopman approximation of the state matrix
+
+    control_matrix : np.ndarray
+        Koopman approximation of the control matrix
+
+    """
+
+    def __init__(
+        self,
+        *,  # keyword-only
+        diff_scheme: Optional[str] = "center",
+        diff_accuracy: Optional[int] = 2,
+        rcond: Optional[float] = None,
+        state_columns: Optional[List[str]] = None,
+        control_columns: Optional[List[str]] = None,
+    ):
+        self.rcond = rcond
+        self.diff_scheme = diff_scheme
+        self.diff_accuracy = diff_accuracy
+        if state_columns is not None and control_columns is not None:
+            self.state_columns = state_columns
+            self.control_columns = control_columns
+        super(gDMDAffine, self).__init__(time_invariant=True)
+
+    def _compute_koompan_matrices(
+        self,
+        state: TSCDataFrame,
+        control_inp: TSCDataFrame,
+    ):
+        Xdot_tsc = state.tsc.time_derivative(
+            scheme=self.diff_scheme, accuracy=self.diff_accuracy
+        )
+        # trim samples where derivative is unknown
+        X = state.select_time_values(Xdot_tsc.time_values()).values
+        U = control_inp.select_time_values(Xdot_tsc.time_values()).values
+        Xdot = Xdot_tsc.values
+
+        n_snapshots = X.shape[0]
+        state_cols = X.shape[1]
+        control_cols = U.shape[1]
+        if state_cols > n_snapshots:
+            warnings.warn(
+                "There are more observables than snapshots. The current implementation "
+                "favors more snapshots than obserables. This may result in a bad "
+                "computational performance."
+            )
+
+        # columnwise kronecker product
+        u_x_cwise_kron = np.einsum("ij,ik->ijk", U, X).reshape(
+            n_snapshots, control_cols * state_cols
+        )
+
+        # match naming convention from Peitz 2020
+        Psi_XU = np.vstack([X.T, u_x_cwise_kron.T])
+        Psidot_XU = Xdot.T
+
+        # Solve via normal equations
+        G = Psi_XU @ Psi_XU.T
+        np.multiply(1 / n_snapshots, G, out=G)  # improve condition?
+        V = Psidot_XU @ Psi_XU.T
+        np.multiply(1 / n_snapshots, V, out=V)  # improve condition?
+
+        # V = Mu @ G => V.T = G.T @ Mu.T
+        MuT, residual, rank, _ = np.linalg.lstsq(G.T, V.T, rcond=self.rcond)
+
+        if rank != G.shape[1]:
+            warnings.warn(
+                f"Shift matrix (shape={G.shape}) has not full rank (={rank}), falling "
+                f"back to least squares solution. The sum of residuals is: "
+                f"{np.sum(residual)}"
+            )
+
+        sys_matrix = MuT.conj().T[:, :state_cols]
+        control_matrix = MuT.conj().T[:, state_cols:]
+
+        # reshape the matrix to a tensor
+        control_tensor = control_matrix.reshape(
+            state_cols, control_cols, state_cols
+        ).swapaxes(1, 2)
+
+        return sys_matrix, control_tensor
 
 
 class PyDMDWrapper(DMDBase):
