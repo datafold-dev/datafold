@@ -75,7 +75,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils import _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
-from datafold.dynfold import DMDBase, DMDFull
+from datafold.dynfold import DMDBase, DMDControl, DMDFull, gDMDAffine
 from datafold.dynfold.base import (
     InitialConditionType,
     TimePredictType,
@@ -83,7 +83,6 @@ from datafold.dynfold.base import (
     TSCPredictMixin,
     TSCTransformerMixin,
 )
-from datafold.dynfold.dmd import DMDControl
 from datafold.pcfold import (
     InitialCondition,
     TSCDataFrame,
@@ -2005,6 +2004,11 @@ class EDMDControl(
         the list must be able to accept :class:`.TSCDataFrame` as input in `fit` and
         output in `transform`.
 
+    dmd_model: Union[DMDControl, gDMDAffine]
+        The class to use for evaluating the Dynamic Mode Decomposition given the lifting.
+        :py:class:`DMDControl` is flowmap Koopman operator representation of :math:`x^+ = Ax + Bu`.
+        :py:class:`gDMDAffine` is differential Koopman generator representation of :math:\dot{x} = Ax + Bux`.
+
     include_id_state
         If True, the original time series data are added to the EDMD-dictionary. The
         mapping from the EDMD-dictionary states back to the full-state is then only a
@@ -2033,11 +2037,12 @@ class EDMDControl(
     def __init__(
         self,
         dict_steps: List[Tuple[str, object]],
+        dmd_model: Union[DMDControl, gDMDAffine] = DMDControl(),
         include_id_state: bool = True,
         **kwargs,
     ):
         self.dict_steps = dict_steps
-        self._dmd_model = DMDControl()
+        self._dmd_model = dmd_model
         self._edmd = EDMD(
             self.dict_steps,
             include_id_state=include_id_state,
