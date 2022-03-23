@@ -43,6 +43,7 @@ from datafold.dynfold.dmd import (
     DMDEco,
     DMDFull,
     PyDMDWrapper,
+    gDMDAffine,
     gDMDFull,
 )
 from datafold.dynfold.outofsample import (

@@ -1027,6 +1027,27 @@ class gDMDAffineTest(unittest.TestCase):
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
+    def test_dmda_control_highorder(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        n_ic = 5
+
+        tsc_df, sys = self._create_control_tsc(
+            state_size, n_timesteps, n_ic, input_size
+        )
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols, diff_accuracy=6)
+
+        u = tsc_df[input_cols]
+        t = tsc_df.index.get_level_values(1)
+        expected = tsc_df[state_cols]
+        actual = dmd.fit_predict(tsc_df)
+
+        pdtest.assert_frame_equal(actual, expected, rtol=5e-4, atol=1e-3)
+
     def test_dmda_control_outsample(self):
         state_size = 4
         input_size = 2
