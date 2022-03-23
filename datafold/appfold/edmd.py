@@ -2163,6 +2163,7 @@ class EDMDControl(
         time_values: Optional[np.ndarray] = None,
         control_input: Optional[np.ndarray] = None,
         check_inputs: bool = True,
+        lifted_state: bool = False,
         **predict_params,
     ) -> TSCDataFrame:
         """Predict time series data for each initial condition at
@@ -2185,6 +2186,9 @@ class EDMDControl(
             .. warning::
                 Use with caution - May result in silent errors.
 
+        lifted_state : bool, optional, default False
+            If true, the output includes the predictions for the lifting dimension
+
         Returns
         -------
         TSCDataFrame
@@ -2192,7 +2196,10 @@ class EDMDControl(
         check_is_fitted(
             self, ["state_columns", "control_columns", "sys_matrix", "control_matrix"]
         )
-        X = if1dim_rowvec(X)
+        if isinstance(X, np.ndarray):
+            X = if1dim_rowvec(X)
+            X = InitialCondition.from_array(X, columns=self.state_columns)
+
         X0lift = self._edmd.transform(X)
         Xlift_tsc = self._dmd_model.predict(
             X0lift,
@@ -2201,6 +2208,8 @@ class EDMDControl(
             check_inputs=check_inputs,
             **predict_params,
         )
+        if lifted_state:
+            return Xlift_tsc
         X_tsc = self.inverse_transform(Xlift_tsc)
         return X_tsc
 
