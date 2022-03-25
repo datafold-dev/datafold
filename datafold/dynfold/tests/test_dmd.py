@@ -1039,7 +1039,9 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols, diff_accuracy=6)
+        dmd = gDMDAffine(
+            state_columns=state_cols, control_columns=input_cols, diff_accuracy=6
+        )
 
         u = tsc_df[input_cols]
         t = tsc_df.index.get_level_values(1)

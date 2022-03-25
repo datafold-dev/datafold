@@ -118,6 +118,15 @@ class KoopmanMPC:
 
         self.H, self.h, self.G, self.Y, self.L, self.M, self.c = self._setup_optimizer()
 
+        # check for positive-definiteness, as the optimizer requires it.
+        try:
+            np.linalg.cholesky(self.H)
+        except np.linalg.LinAlgError:
+            warnings.warn(
+                "Cost matrix H is not positive-definite, using H^T@H instead."
+            )
+            self.H = np.dot(self.H.T, self.H)
+
     def _setup_qois(self, qois, predictor):
 
         # handle default case
@@ -320,15 +329,6 @@ class KoopmanMPC:
             raise ValueError(
                 "The reference signal should be a frame or array with n (output_size) columns and  Np (prediction horizon) rows."
             )
-
-        # check for positive-definiteness, as the optimizer requires it.
-        try:
-            np.linalg.cholesky(self.H)
-        except np.linalg.LinAlgError:
-            warnings.warn(
-                "Cost matrix H is not positive-definite, using H^T@H instead."
-            )
-            self.H = np.dot(self.H.T, self.H)
 
         U = solve_qp(
             P=2 * self.H,
