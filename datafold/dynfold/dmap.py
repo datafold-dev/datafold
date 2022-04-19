@@ -996,7 +996,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         if isinstance(self.kernel, TSCManifoldKernel):
             raise NotImplementedError(
-                "Kernels of type 'TSCManifoldKernel' are not " "supported yet"
+                "Kernels of type 'TSCManifoldKernel' are not supported yet"
             )
 
         check_scalar(

@@ -44,9 +44,9 @@ This section describes all steps to set up *datafold* for code development.
             The targets are not fully tested for Windows yet. Please file an issue if you
             encounter problems.
 
-        The recommended way to use ``make`` in the `git bash <https://gitforwindows.org/>`__
-        in Windows is to `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__
-        first  (with administrator rights). Then use the ``choco`` software manger tool to
+        In Windows the recommended way is to use ``make`` in the `git bash <https://gitforwindows.org/>`__.
+        For this you may `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__
+        first (with administrator rights) and then use the ``choco`` software manger tool to
         install ``make`` with
 
         .. code-block:: bash
