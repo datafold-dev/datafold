@@ -405,6 +405,9 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
         f_m_star /= len(alphas)
         return f_m_star
 
+    def get_feature_names_out(self, input_features=None):
+        return np.array([f"jsf{i}" for i in range(self.n_jointly_smooth_functions)])
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "JointlySmoothFunctions":
         """Compute the jointly smooth functions.
 
@@ -428,10 +431,7 @@ class JointlySmoothFunctions(TSCTransformerMixin, BaseEstimator):
             X=X, ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)
         )
 
-        self._setup_feature_attrs_fit(
-            X=X,
-            features_out=[f"jsf{i}" for i in range(self.n_jointly_smooth_functions)],
-        )
+        self._setup_feature_attrs_fit(X=X)
 
         column_splitter = _ColumnSplitter(self.datasets)
         self.observations_ = column_splitter.split(X)

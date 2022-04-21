@@ -246,7 +246,9 @@ class TestTSCTransform(unittest.TestCase):
 
         pdtest.assert_index_equal(
             actual.columns,
-            pd.Index(["1", "A^2", "A B", "B^2"], name="feature"),
+            pd.Index(
+                ["1", "A^2", "A B", "B^2"], name=TSCDataFrame.tsc_feature_col_name
+            ),
         )
 
         actual = TSCPolynomialFeatures(

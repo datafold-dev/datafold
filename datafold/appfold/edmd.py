@@ -326,26 +326,14 @@ class EDMD(
                 )
 
     @property
-    def feature_names_in_(self):
-        # delegate to first step (which will call _check_is_fitted)
-        # NOTE: n_features_in_ is also delegated, but already included in the super
-        # class Pipeline (implementation by sklearn)
-        return self.steps[0][1].feature_names_in_
-
-    @property
     def n_features_out_(self):
         # Note: this returns the number of features by the dictionary transformation,
         # NOT from a EDMD prediction
         return self._dmd_model.n_features_in_
 
     @property
-    def feature_names_out_(self):
-        # Note: this returns the feature names of the dictionary
-        # transformation NOT from a EDMD prediction (see feature_names_pred_)
-        return self._dmd_model.feature_names_in_
-
-    @property
     def feature_names_pred_(self):
+        # TODO: should TSCPredictMixin include feature names for prediction?
         return self._feature_names_pred
 
     def transform(self, X: TransformType) -> TransformType:

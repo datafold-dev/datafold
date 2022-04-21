@@ -65,31 +65,24 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
             verbose=verbose,
         )
 
-    # @property # Note: this property is handled in the super class
-    # def n_features_in_(self):
-    #     # this is only to make it explicit that this is already handled by the super class
-    #     return super(TSCColumnTransformer, self).n_features_in_
-
-    # @property
-    # def feature_names_in_(self):
-    #    check_is_fitted(self, "transformers_")
-    #    return self.transformers_[0][1].feature_names_in_
-
     @property
     def n_features_out_(self):
         check_is_fitted(self, "transformers_")
         return sum([tr.n_features_out_ for _, tr, _ in self.transformers_])
 
-    @property
-    def feature_names_out_(self):
-        check_is_fitted(self, "transformers_")
-        indices = [tr.feature_names_out_ for _, tr, _ in self.transformers_]
+    # def get_feature_names_out(self, input_features=None):
+    #     pass
 
-        for i in range(1, len(indices)):
-            indices[0] = indices[0].append(indices[i])
-            indices[i] = None
-
-        return indices[0]
+    # @property
+    # def feature_names_out_(self):
+    #     check_is_fitted(self, "transformers_")
+    #     indices = [tr.feature_names_out_ for _, tr, _ in self.transformers_]
+    #
+    #     for i in range(1, len(indices)):
+    #         indices[0] = indices[0].append(indices[i])
+    #         indices[i] = None
+    #
+    #     return indices[0]
 
     def _hstack(self, Xs):
         if self.sparse_output_:

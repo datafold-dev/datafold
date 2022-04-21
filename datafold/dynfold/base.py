@@ -3,6 +3,7 @@
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 from pandas.api.types import is_datetime64_dtype
@@ -22,7 +23,7 @@ TimePredictType = TSCDataFrame
 InitialConditionType = Union[TSCDataFrame, np.ndarray]
 
 
-class TSCBaseMixin(object):
+class TSCBase(object):
     """Base class for Mixin's in *datafold*.
 
     See Also
@@ -112,6 +113,10 @@ class TSCBaseMixin(object):
 
         if ensure_np + ensure_tsc == 2:
             raise ValueError("only 'ensure_np' or 'ensure_tsc' can be True")
+
+        if self._has_feature_names(X):
+            if X.columns.ndim != 1:
+                raise ValueError("columns (features) must be 1-dim.")
 
         if type(X) != TSCDataFrame:
             # Currently, everything that is not strictly a TSCDataFrame will go the
@@ -204,7 +209,7 @@ class TSCBaseMixin(object):
         return X
 
 
-class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
+class TSCTransformerMixin(TSCBase, TransformerMixin):
     """Mixin to provide functionality for point cloud and time series transformations.
 
     Generally, the following input/output types are supported.
@@ -215,102 +220,65 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 
     The parameters should be set in during `fit` in a subclass.
 
-    .. note::
+    Discussions in the scikit-learn project, which are followed in datafold:
 
-        The scikit-learn project heavily discusses on how to handle feature names. There
-        are many proposed solutions. The solution that datafold uses is
-        `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/
-        slep007/proposal.html>`__
+    * `SLEP 007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep007/proposal.html>` # noqa: E501
+    * `SLEP 010 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html>` # noqa: E501
 
-        However, this is only a proposal and may have to be changed later.
+    Other related discussions (also proposing different solutions):
 
-        Other resources:
-
-        * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io
-          /en/latest/slep012/proposal.html>`__
-        * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/
-          pull/18/>`__
+    * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep012/proposal.html>`__ # noqa: E501
+    * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/pull/18/>`__
 
     Parameters
     ----------
 
     n_features_in_: int
-        Number of features of input during `fit`.
+        Number of features passed in input `X` in `fit`. The same number of features are
+        required for `transform`.
 
-    n_features_in_: Optional[pd.Index]
-        Feature names during `fit` if the input is indexed. The feature names
-        are used as output in `inverse_transform` and for validation in `transform`.
+    n_features_in_: Optional[np.array]
+        Feature names passed in input `X` in `fit`. Only set if the input is indexed. The
+        feature names are used as output in `inverse_transform` and for validation in
+        `transform`.
 
     n_features_out_: int
-        Number of features of output during `fit`.
-
-    features_out_: Optional[pd.Index]
-        Feature names during `fit` if the input is indexed. The feature names
-        are used as output in `transform` and for validation in `inverse_transform`.
+        Number of features in output during `transform`.
     """
 
-    _feature_attrs = [
-        "n_features_in_",
-        "n_features_out_",
-        "feature_names_in_",
-        "feature_names_out_",
-    ]
+    _feature_attrs = ["n_features_in_", "feature_names_in_", "n_features_out_"]
 
-    def _setup_feature_attrs_fit(self, X, features_out):
+    def _setup_feature_attrs_fit(self, X, n_features_out: Optional[int] = None):
 
-        if isinstance(features_out, str):
-            assert features_out == "like_features_in"
+        # set features in
+        if not hasattr(self, "n_features_in_"):
+            self.n_features_in_ = X.shape[1]  # shape[1] works both for numpy and pandas
 
         if self._has_feature_names(X):
-
-            if isinstance(features_out, str) and features_out == "like_features_in":
-                features_out = X.columns
-
-            if isinstance(features_out, (list, np.ndarray)):
-                # For convenience features_out can be given as a list
-                # (better code readability than pd.Index)
-                features_out = pd.Index(
-                    features_out,
-                    dtype=np.str_,
-                    name=TSCDataFrame.tsc_feature_col_name,
-                )
-
-            if X.columns.has_duplicates or features_out.has_duplicates:
-                raise ValueError(
-                    "duplicated indices detected. \n"
-                    f"features_in={X.columns.duplicated()} \n"
-                    f"features_out={features_out.duplicated()}"
-                )
-
-            if X.columns.ndim != 1 or features_out.ndim != 1:
-                raise ValueError("feature names must be 1-dim.")
-
-            self.n_features_in_: int = len(X.columns)
-            self.n_features_out_: int = len(features_out)
-            self.feature_names_in_: Optional[pd.Index] = X.columns
-            self.feature_names_out_: Optional[pd.Index] = features_out
-
+            if not hasattr(self, "feature_names_in_"):
+                self.feature_names_in_: Optional[np.array] = X.columns.to_numpy()
         else:
+            self.feature_names_in_ = None  # no names available
 
-            if isinstance(features_out, str) and features_out == "like_features_in":
-                features_out = X.shape[1]
-            elif isinstance(features_out, int):
-                assert features_out > 0
+        # set features out (only if not explicitly specified in class)
+
+        if not hasattr(self, "n_features_out_"):
+            if n_features_out is None:
+                if hasattr(self, "get_feature_names_out"):
+                    feature_out = self.get_feature_names_out(self.feature_names_in_)
+                    self.n_features_out_: int = len(feature_out)
+                else:
+                    raise NotImplementedError(
+                        "class has no 'get_feature_names_out' method"
+                    )
             else:
-                # if list or pd.Index use the number of features out
-                features_out = len(features_out)
-
-            # do not store names, because they are not available
-            self.n_features_in_ = X.shape[1]
-            self.n_features_out_ = features_out
-            self.feature_names_in_ = None
-            self.feature_names_out_ = None
+                self.n_features_out_ = n_features_out
 
     def _validate_feature_input(self, X: TransformType, direction):
 
         self._check_attributes_set_up(self._feature_attrs)
 
-        if not self._has_feature_names(X) or self.feature_names_out_ is None:
+        if not self._has_feature_names(X) or self.feature_names_in_ is None:
             # Either
             # * X has no feature names, or
             # * during fit X had no feature names given.
@@ -331,9 +299,9 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             # check if feature names of X match with data during fit:
 
             if direction == "transform":
-                _check_features = self.feature_names_in_
+                should_features = self.feature_names_in_
             elif direction == "inverse_transform":
-                _check_features = self.feature_names_out_
+                should_features = self.get_feature_names_out(self.feature_names_in_)
             else:
                 raise RuntimeError(
                     f"'direction'={direction} not known. Please report bug."
@@ -342,9 +310,11 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             if isinstance(X, pd.Series):
                 # if X is a Series, then the columns of the original data are in a
                 # Series this usually happens if X.iloc[0, :] --> returns a Series
-                pdtest.assert_index_equal(right=_check_features, left=X.index)
+                is_features = X.index
             else:
-                pdtest.assert_index_equal(right=_check_features, left=X.columns)
+                is_features = X.columns
+
+            nptest.assert_array_equal(should_features, is_features)
 
     def _same_type_X(
         self, X: TransformType, values: np.ndarray, feature_names: pd.Index
@@ -412,7 +382,7 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         return super(TSCTransformerMixin, self).fit_transform(X=X, y=y, **fit_params)
 
 
-class TSCPredictMixin(TSCBaseMixin):
+class TSCPredictMixin(TSCBase):
     """Mixin to provide functionality for models that train on time series data.
 
     The attribute should be set during `fit` and used to validate during `predict`.

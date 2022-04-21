@@ -392,7 +392,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             approx_eigenvectors = df_type_and_indices_from(
                 index_from,
                 values=approx_eigenvectors,
-                except_columns=self._feature_names(),
+                except_columns=self.get_feature_names_out(),
             )
 
         return approx_eigenvectors
@@ -417,22 +417,16 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             dmap_embedding = df_type_and_indices_from(
                 indices_from=eigenvectors,
                 values=dmap_embedding,
-                except_columns=self.feature_names_out_,
+                except_columns=self.get_feature_names_out(),
             )
 
         return dmap_embedding
 
-    def _feature_names(self):
+    def get_feature_names_out(self, input_features=None):
         if hasattr(self, "target_coords_"):
-            feature_names = pd.Index(
-                [f"dmap{i}" for i in self.target_coords_],
-                name=TSCDataFrame.tsc_feature_col_name,
-            )
+            feature_names = np.array([f"dmap{i}" for i in self.target_coords_])
         else:
-            feature_names = pd.Index(
-                [f"dmap{i}" for i in range(self.n_eigenpairs)],
-                name=TSCDataFrame.tsc_feature_col_name,
-            )
+            feature_names = np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
 
         return feature_names
 
@@ -494,8 +488,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         self.target_coords_ = indices
 
         self.n_features_out_ = len(self.target_coords_)
-        if hasattr(self, "feature_names_out_") and self.feature_names_out_ is not None:
-            self.feature_names_out_ = self._feature_names()
 
         return self
 
@@ -531,7 +523,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             ensure_min_samples=max(2, self.n_eigenpairs),
         )
 
-        self._setup_feature_attrs_fit(X, features_out=self._feature_names())
+        self._setup_feature_attrs_fit(X)
 
         store_kernel_matrix = self._read_fit_params(
             attrs=[("store_kernel_matrix", False)],
@@ -801,13 +793,14 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
             nr_samples * (4 * np.pi * self.epsilon) ** (self.expected_dim / 2)
         )
 
+    def get_feature_names_out(self, features_in=None):
+        return np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
+
     def fit(self, X: TransformType, y=None, **fit_params):
 
         X = self._validate_datafold_data(X, ensure_min_samples=2)
 
-        self._setup_feature_attrs_fit(
-            X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
-        )
+        self._setup_feature_attrs_fit(X)
 
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
@@ -865,7 +858,7 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
         )
 
         self.eigenvectors_ = self._same_type_X(
-            X, values=self.eigenvectors_, feature_names=self.feature_names_out_
+            X, values=self.eigenvectors_, feature_names=self.get_feature_names_out()
         )
 
         return self
@@ -1037,21 +1030,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
     def _get_default_kernel(self):
         return GaussianKernel(epsilon=1.0)
 
-    def _feature_names(self):
-        if hasattr(self, "target_coords_"):
-            feature_names = pd.Index(
-                [f"rose{i}" for i in self.target_coords_],
-                name=TSCDataFrame.tsc_feature_col_name,
-            )
-
-        else:
-            feature_names = pd.Index(
-                [f"rose{i}" for i in range(self.n_svdtriplet)],
-                name=TSCDataFrame.tsc_feature_col_name,
-            )
-
-        return feature_names
-
     def _setup_default_dist_kwargs(self):
         self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
         self.dist_kwargs_.setdefault("cut_off", np.inf)
@@ -1199,9 +1177,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.target_coords_ = indices
         self.n_features_out_ = len(self.target_coords_)
 
-        if hasattr(self, "feature_names_out_") and self.feature_names_out_ is not None:
-            self.feature_names_out_ = self._feature_names()
-
         return self
 
     def fit(
@@ -1241,7 +1216,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self._validate_setting(n_samples=X.shape[0])
         self._setup_default_dist_kwargs()
 
-        self._setup_feature_attrs_fit(X, features_out=self._feature_names())
+        self._setup_feature_attrs_fit(X)
 
         if isinstance(self.landmarks, (int, float)):
             self.landmarks_ = self._subsample_landmarks(X=X)
@@ -1653,6 +1628,15 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
                 np.where(residuals > self.regress_threshold)[0]
             )
 
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None and self.feature_names_in_ is None:
+            return np.array(self.evec_indices_, dtype=str)
+        else:
+            if input_features is not None:
+                return input_features[self.evec_indices_]
+            else:
+                return self.feature_names_in_[self.evec_indices_]
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "LocalRegressionSelection":
         """Select indices according to strategy.
 
@@ -1709,12 +1693,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         self._set_indices()
 
-        self._setup_feature_attrs_fit(
-            X,
-            features_out=X.columns[self.evec_indices_]
-            if isinstance(X, pd.DataFrame)
-            else len(self.evec_indices_),
-        )
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -1740,7 +1719,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         X_selected = self._same_type_X(
             X,
             np.asarray(X)[:, self.evec_indices_],
-            feature_names=self.feature_names_out_,
+            feature_names=self.get_feature_names_out(self.feature_names_in_),
         )
 
         return X_selected
