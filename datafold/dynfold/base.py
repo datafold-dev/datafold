@@ -5,9 +5,8 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
-import pandas.testing as pdtest
 from pandas.api.types import is_datetime64_dtype
-from sklearn.base import TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
 
@@ -31,6 +30,11 @@ class TSCBase(object):
     :py:class:`.TSCTransformerMixin`
     :py:class:`.TSCPredictMixin`
     """
+
+    def get_feature_names_out(self, input_features=None):
+        raise NotImplementedError(
+            "class does not provide 'get_feature_names_out' method"
+        )
 
     def _has_feature_names(self, _obj):
         # True, for pandas.DataFrame or TSCDataFrame
@@ -237,87 +241,69 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
         Number of features passed in input `X` in `fit`. The same number of features are
         required for `transform`.
 
-    n_features_in_: Optional[np.array]
-        Feature names passed in input `X` in `fit`. Only set if the input is indexed. The
-        feature names are used as output in `inverse_transform` and for validation in
-        `transform`.
+    feature_names_in_: Optional[np.array]
+        Feature names passed in input `X` in `fit`. The attribute is only set if the input is
+        a pandas object. The feature names are used for validation in `transform` and as
+        output feature names in `inverse_transform`.
 
     n_features_out_: int
-        Number of features in output during `transform`.
+        Number of features in output of `transform`.
     """
 
-    _feature_attrs = ["n_features_in_", "feature_names_in_", "n_features_out_"]
+    _feature_attrs = ["n_features_in_", "n_features_out_"]
 
-    def _setup_feature_attrs_fit(self, X, n_features_out: Optional[int] = None):
-
-        # set features in
+    def _setup_feature_attrs_fit(
+        self: Union[BaseEstimator, "TSCTransformerMixin"],
+        X,
+        n_features_out: Optional[int] = None,
+    ):
         if not hasattr(self, "n_features_in_"):
-            self.n_features_in_ = X.shape[1]  # shape[1] works both for numpy and pandas
+            self._check_n_features(X, reset=True)
 
-        if self._has_feature_names(X):
-            if not hasattr(self, "feature_names_in_"):
-                self.feature_names_in_: Optional[np.array] = X.columns.to_numpy()
-        else:
-            self.feature_names_in_ = None  # no names available
+        if not hasattr(self, "feature_names_in_"):
+            self._check_feature_names(X, reset=True)
 
         # set features out (only if not explicitly specified in class)
-
         if not hasattr(self, "n_features_out_"):
             if n_features_out is None:
-                if hasattr(self, "get_feature_names_out"):
-                    feature_out = self.get_feature_names_out(self.feature_names_in_)
-                    self.n_features_out_: int = len(feature_out)
-                else:
-                    raise NotImplementedError(
-                        "class has no 'get_feature_names_out' method"
-                    )
+                feature_out = self.get_feature_names_out()
+                self.n_features_out_: int = len(feature_out)
             else:
                 self.n_features_out_ = n_features_out
 
-    def _validate_feature_input(self, X: TransformType, direction):
+    def _validate_feature_input(
+        self: Union[BaseEstimator, "TSCTransformerMixin"], X: TransformType, direction
+    ):
 
         self._check_attributes_set_up(self._feature_attrs)
 
-        if not self._has_feature_names(X) or self.feature_names_in_ is None:
-            # Either
-            # * X has no feature names, or
-            # * during fit X had no feature names given.
-            # --> Only check if shape is correct and trust user with the rest
+        if direction == "transform":
+            self._check_n_features(X, reset=False)
+            self._check_feature_names(X, reset=False)
+        else:  # direction == inverse_transform
+            should_n_features = self.n_features_out_
 
-            if direction == "transform":
-                _check_shape = self.n_features_in_
-            else:  # direction == "inverse_transform"
-                _check_shape = self.n_features_out_
-
-            if _check_shape != X.shape[1]:
+            if should_n_features != X.shape[1]:
                 raise ValueError(
-                    f"Shape mismatch: expected {self.n_features_out_} "
-                    f"features (number of columns in 'X') but got {X.shape[1]}."
-                )
-        else:  # self._has_feature_names(X)
-            # Now X has features and during fit features were given. So now we can
-            # check if feature names of X match with data during fit:
-
-            if direction == "transform":
-                should_features = self.feature_names_in_
-            elif direction == "inverse_transform":
-                should_features = self.get_feature_names_out(self.feature_names_in_)
-            else:
-                raise RuntimeError(
-                    f"'direction'={direction} not known. Please report bug."
+                    f"The number of features (={X.shape[1]}) do not match. "
+                    f"Required: {should_n_features}"
                 )
 
-            if isinstance(X, pd.Series):
-                # if X is a Series, then the columns of the original data are in a
-                # Series this usually happens if X.iloc[0, :] --> returns a Series
-                is_features = X.index
-            else:
-                is_features = X.columns
-
-            nptest.assert_array_equal(should_features, is_features)
+            if self._has_feature_names(X):
+                should_features = self.get_feature_names_out()
+                try:
+                    nptest.assert_array_equal(should_features, X.columns.to_numpy())
+                except AssertionError:
+                    raise ValueError(
+                        f"The features names do not match. "
+                        f"Required: {should_features}."
+                    )
 
     def _same_type_X(
-        self, X: TransformType, values: np.ndarray, feature_names: pd.Index
+        self,
+        X: TransformType,
+        values: np.ndarray,
+        feature_names: Union[pd.Index, np.ndarray],
     ) -> Union[pd.DataFrame, TransformType]:
         """Chooses the same type for input as type of `X`.
 
@@ -393,7 +379,7 @@ class TSCPredictMixin(TSCBase):
     n_features_in_: int
         Number of features during `fit`.
 
-    feature_names_in_: pd.Index
+    feature_names_in_: np.ndarray
         The feature names during `fit`.
 
     time_values_in_: numpy.ndarray
@@ -422,18 +408,20 @@ class TSCPredictMixin(TSCBase):
         self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")
         self._score_eval = TSCScoring(self.metric_eval)
 
-    def _setup_features_and_time_attrs_fit(self, X: TSCDataFrame):
+    def _setup_features_and_time_attrs_fit(
+        self: Union[BaseEstimator, "TSCPredictMixin"], X: TSCDataFrame
+    ):
 
         if not isinstance(X, TSCDataFrame):
             raise TypeError("Only TSCDataFrame can be used for 'X'.")
 
-        time_values = X.time_values()
-        features_in = X.columns
+        # sets self.n_features_in_ and self.feature_names_in_
+        self._check_n_features(X, reset=True)
+        self._check_feature_names(X, reset=True)
 
+        time_values = X.time_values()
         time_values = self._validate_time_values(time_values=time_values)
         self.time_values_in_ = time_values
-        self.n_features_in_ = len(features_in)
-        self.feature_names_in_ = features_in
         self.dt_ = X.delta_time
 
         if isinstance(self.dt_, pd.Series) or np.isnan(
@@ -500,22 +488,11 @@ class TSCPredictMixin(TSCBase):
                 f"delta_time during fit was {self.dt_}, now it is {delta_time}"
             )
 
-    def _validate_feature_names(self, X: TransformType, require_all=True):
-        self._check_attributes_set_up(check_attributes=["feature_names_in_"])
-
-        try:
-            if require_all:
-                pdtest.assert_index_equal(
-                    right=self.feature_names_in_, left=X.columns, check_names=False
-                )
-            else:
-                if not np.isin(X.columns, self.feature_names_in_).all():
-                    raise AssertionError(
-                        f"feature names in X are invalid "
-                        f"{X.columns[np.isin(self.feature_names_in_,X.columns)]}"
-                    )
-        except AssertionError as e:
-            raise ValueError(e.args[0])
+    def _validate_feature_names(
+        self: Union[BaseEstimator, "TSCPredictMixin"], X: TransformType
+    ):
+        self._check_n_features(X, reset=False)
+        self._check_feature_names(X, reset=False)
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
 

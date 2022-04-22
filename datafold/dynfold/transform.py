@@ -65,11 +65,10 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
                 f"name='{name}' is not known. Choose from {cls._cls_valid_scale_names}"
             )
 
-    def get_feature_names_out(self, feature_names_in=None):
-        if feature_names_in is not None:
-            return feature_names_in
-        else:
-            return self.feature_names_in_
+    def get_feature_names_out(self, input_features=None):
+        return self.sklearn_transformer_fit_.get_feature_names_out(
+            input_features=input_features
+        )
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeaturePreprocess":
         """Calls fit of internal transform ``sklearn`` object.
@@ -93,17 +92,15 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
 
         if not hasattr(self.sklearn_transformer, "transform"):
             raise AttributeError("sklearn object has no 'transform' attribute")
-
-        X = self._validate_datafold_data(X)
-        self._setup_feature_attrs_fit(X)
-
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self.sklearn_transformer_fit_ = clone(
             estimator=self.sklearn_transformer, safe=True
         )
+        self._validate_datafold_data(X)
 
         self.sklearn_transformer_fit_.fit(X)
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -130,11 +127,11 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         return self._same_type_X(
             X=X,
             values=values,
-            feature_names=self.get_feature_names_out(self.feature_names_in_),
+            feature_names=self.get_feature_names_out(),
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params):
-        """Calls fit_transform of internal transform ``sklearn`` object..
+        """Calls fit_transform of internal transform ``sklearn`` object.
 
         Parameters
         ----------
@@ -152,15 +149,15 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(X)
 
-        self._setup_feature_attrs_fit(X)
-
         self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
         values = self.sklearn_transformer_fit_.fit_transform(X)
+
+        self._setup_feature_attrs_fit(X)
 
         return self._same_type_X(
             X=X,
             values=values,
-            feature_names=self.get_feature_names_out(self.feature_names_in_),
+            feature_names=self.get_feature_names_out(),
         )
 
     def inverse_transform(self, X: TransformType):
@@ -207,10 +204,14 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         self.include_const = include_const
         self.rename_features = rename_features
 
-    def get_feature_names_out(self, feature_names_in=None):
-        if self.feature_names_in_ is not None:
-            features_out = feature_names_in
+    def get_feature_names_out(self, input_features=None):
 
+        if input_features is None and hasattr(self, "feature_names_in_"):
+            features_out = self.feature_names_in_
+        else:
+            features_out = input_features
+
+        if features_out is not None:
             if self.rename_features:
                 features_out = np.array(
                     [f"{col}_id" for col in features_out], dtype=object
@@ -219,9 +220,7 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
             if self.include_const:
                 features_out = np.append(features_out, ["const"])
 
-            return features_out
-        else:
-            return feature_names_in
+        return features_out
 
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
@@ -325,6 +324,9 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
     * `PCA user guide <https://scikit-learn.org/stable/modules/decomposition.html#pca>`__
     """
 
+    def get_feature_names_out(self, input_features=None):
+        return np.array([f"pca{i}" for i in range(self.n_components_)], dtype=object)
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "PCA":
         """Compute the principal components from training data.
 
@@ -374,7 +376,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         self._validate_feature_input(X, direction="transform")
         pca_data = super(TSCPrincipalComponent, self).transform(X)
         return self._same_type_X(
-            X, values=pca_data, feature_names=self.feature_names_out_
+            X, values=pca_data, feature_names=self.get_feature_names_out()
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
@@ -533,7 +535,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     def get_feature_names_out(self, input_features=None):
 
         if input_features is None:
-            raise ValueError("'input_features' must be given")
+            input_features = self.feature_names_in_
 
         def expand():
             delayed_columns = list()

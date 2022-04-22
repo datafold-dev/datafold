@@ -733,9 +733,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             )[0]
 
         X_orig_space = np.asarray(X) @ self.inv_coeff_matrix_
-        return self._same_type_X(
-            X, values=X_orig_space, feature_names=self.feature_names_in_
-        )
+
+        try:
+            feature_names = self.feature_names_in_
+        except AttributeError:
+            feature_names = None
+
+        return self._same_type_X(X, values=X_orig_space, feature_names=feature_names)
 
 
 class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
@@ -793,7 +797,7 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
             nr_samples * (4 * np.pi * self.epsilon) ** (self.expected_dim / 2)
         )
 
-    def get_feature_names_out(self, features_in=None):
+    def get_feature_names_out(self, input_features=None):
         return np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
 
     def fit(self, X: TransformType, y=None, **fit_params):

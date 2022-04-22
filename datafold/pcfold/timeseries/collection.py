@@ -15,7 +15,7 @@ from datafold.utils.general import (
     is_integer,
 )
 
-ColumnType = Union[pd.Index, List[str]]
+ColumnType = Union[pd.Index, List[str], np.ndarray]
 NumericalTimeType = Union[int, float, np.datetime64]
 
 

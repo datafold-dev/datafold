@@ -95,7 +95,7 @@ class EDMDTest(unittest.TestCase):
         is_df_same_index(expected, self.sine_wave_tsc)
 
         self.assertEqual(_edmd.feature_names_in_, self.sine_wave_tsc.columns)
-        self.assertEqual(_edmd.feature_names_out_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.get_feature_names_out(), self.sine_wave_tsc.columns)
         self.assertEqual(_edmd.n_features_in_, self.sine_wave_tsc.shape[1])
         self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1])
 
@@ -119,7 +119,7 @@ class EDMDTest(unittest.TestCase):
         is_df_same_index(expected, self.sine_wave_tsc)
 
         self.assertEqual(_edmd.feature_names_in_, self.sine_wave_tsc.columns)
-        self.assertEqual(_edmd.feature_names_out_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.get_feature_names_out(), self.sine_wave_tsc.columns)
         self.assertEqual(_edmd.n_features_in_, self.sine_wave_tsc.shape[1])
         self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1])
 
