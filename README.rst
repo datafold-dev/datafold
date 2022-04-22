@@ -98,7 +98,7 @@ How to get it?
 
 Installation requires `Python>=3.8 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
-`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed. Both
+`setuptools <https://setuptools.pypa.io/en/latest/>`__ installed. Both
 packages usually ship with a standard Python installation. The package dependencies
 install automatically. The main dependencies and their role in *datafold* are listed below
 in "Dependencies".

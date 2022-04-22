@@ -57,7 +57,7 @@ code_checks:
   allow_failure: true
   interruptible: true
 
-docu_check:
+docu_check_build:
   stage: code_analysis
   script:
     - make clean_docs
@@ -67,7 +67,7 @@ docu_check:
   allow_failure: true
   interruptible: true
 
-docu_link_check:
+docu_check_urls:
   stage: code_analysis
   script:
     - make docs_linkcheck
