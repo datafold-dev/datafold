@@ -97,8 +97,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
             estimator=self.sklearn_transformer, safe=True
         )
 
-        X_intern = self._X_to_numpy(X)
-        self.sklearn_transformer_fit_.fit(X_intern)
+        self.sklearn_transformer_fit_.fit(X)
 
         return self
 
@@ -121,8 +120,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        X_intern = self._X_to_numpy(X)
-        values = self.sklearn_transformer_fit_.transform(X_intern)
+        values = self.sklearn_transformer_fit_.transform(X)
         return self._same_type_X(
             X=X, values=values, feature_names=self.feature_names_out_
         )
@@ -172,8 +170,7 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         if not hasattr(self.sklearn_transformer, "inverse_transform"):
             raise AttributeError("sklearn object has no 'inverse_transform' attribute")
 
-        X_intern = self._X_to_numpy(X)
-        values = self.sklearn_transformer_fit_.inverse_transform(X_intern)
+        values = self.sklearn_transformer_fit_.inverse_transform(X)
         return self._same_type_X(
             X=X, values=values, feature_names=self.feature_names_in_
         )
@@ -335,7 +332,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         # validation happens here:
-        super(TSCPrincipalComponent, self).fit(self._X_to_numpy(X), y=y)
+        super(TSCPrincipalComponent, self).fit(X, y=y)
 
         self._setup_feature_attrs_fit(
             X, features_out=[f"pca{i}" for i in range(self.n_components_)]
@@ -362,7 +359,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
 
         self._validate_feature_input(X, direction="transform")
-        pca_data = super(TSCPrincipalComponent, self).transform(self._X_to_numpy(X))
+        pca_data = super(TSCPrincipalComponent, self).transform(X)
         return self._same_type_X(
             X, values=pca_data, feature_names=self.feature_names_out_
         )
@@ -386,9 +383,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
 
         X = self._validate_datafold_data(X)
 
-        pca_values = super(TSCPrincipalComponent, self).fit_transform(
-            self._X_to_numpy(X), y=y
-        )
+        pca_values = super(TSCPrincipalComponent, self).fit_transform(X, y=y)
 
         self._setup_feature_attrs_fit(
             X, features_out=[f"pca{i}" for i in range(self.n_components_)]
@@ -415,8 +410,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
 
         self._validate_feature_input(X, direction="inverse_transform")
 
-        X_intern = self._X_to_numpy(X)
-        data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X_intern)
+        data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X)
 
         return self._same_type_X(
             X, values=data_orig_space, feature_names=self.feature_names_in_
@@ -442,7 +436,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     kappa
         Weight of exponential factor in delayed coordinates
         :math:`e^{-d \cdot \kappa}(x_{-d})` with :math:`d = 0, \ldots delays` being the
-        delay index. Adapted from :cite:`berry_time-scale_2013`, Eq. 2.1).
+        delay index. Adapted from :cite:t:`berry-2013`, Eq. 2.1).
 
     Attributes
     ----------
@@ -462,10 +456,10 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     References
     ----------
 
-    * Original paper from Takens :cite:`takens_detecting_1981`
-    * Generalized to multiple observation :cite:`deyle_generalized_2011`
+    * Original paper from :cite:t:`takens-1981`
+    * Generalized to multiple observation in :cite:`deyle-2011`
     * time delay embedding in the context of Koopman operator, e.g.
-      :cite:`arbabi_ergodic_2017` or :cite:`champion_discovery_2019` or
+      :cite:t:`arbabi-2017` or :cite:t:`champion-2019`.
     """
 
     def __init__(
@@ -478,9 +472,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     def _validate_parameter(self):
 
-        check_scalar(
-            self.lag, name="lag", target_type=(int, np.integer), min_val=0, max_val=None
-        )
+        check_scalar(self.lag, name="lag", target_type=(int, np.integer), min_val=0)
 
         # TODO also allow 0 delays? This would only "passthrough",
         #  but makes it is easier in pipelines etc.
@@ -489,7 +481,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="delays",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -497,7 +488,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="delays",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -505,7 +495,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="kappa",
             target_type=(int, np.integer, float, np.floating),
             min_val=0.0,
-            max_val=None,
         )
 
         if self.frequency > 1 and self.delays <= 1:
@@ -993,7 +982,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
     def _get_poly_feature_names(self, X, input_features=None):
         # Note: get_feature_names function is already provided by super class
         if self._has_feature_names(X):
-            feature_names = self.get_feature_names(
+            feature_names = self.get_feature_names_out(
                 input_features=X.columns.astype(np.str_)
             )
         else:
@@ -1243,7 +1232,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         """
         X = self._validate_datafold_data(
             X,
-            ensure_tsc=False,
+            ensure_tsc=True,
             tsc_kwargs=dict(
                 ensure_delta_time=self.spacing
                 if isinstance(self.spacing, float)
@@ -1286,8 +1275,9 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             self.spacing_,
             "spacing",
             target_type=(int, np.integer, float, np.floating),
-            min_val=np.finfo(float).eps,
+            min_val=0,
             max_val=None,
+            include_boundaries="right",
         )
         self.spacing_ = float(self.spacing_)
 
@@ -1296,7 +1286,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             "diff_order",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -1304,7 +1293,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             name="accuracy",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         return self

@@ -21,7 +21,7 @@ essential information is to understand and parametrize the intrinsic
 data geometry. An intrinsic geometry is what most data-driven models
 assume implicitly or explicitly in the available data, and successful
 machine learning algorithms adapt to this underlying structure for tasks
-like regression or classification (e.g., :cite:`bishop_pattern_2006`). This geometry is
+like regression or classification (e.g., :cite:t:`bishop-2006`). This geometry is
 often of much lower dimension than the ambient data space, and finding a
 suitable set of coordinates can reduce the complexity of the dataset. We
 refer to this geometric structure encoded in the data as a "manifold".
@@ -37,9 +37,9 @@ point clouds to find an *explicit* mani-\ **fold** parametrization and
 to identify non-linear dynamical systems on these manifolds. The
 explicit data manifold treatment allows prior knowledge of a system and
 its problem-specific domain to be included. This can be the proximity
-between points in the dataset :cite:`coifman_diffusion_2006` or functions defined on the
+between points in the dataset :cite:p:`coifman-2006` or functions defined on the
 phase space manifold of a dynamical system, such as (partially) known
-governing equation terms :cite:`williams_datadriven_2015`, :cite:`brunton_discovering_2016`.
+governing equation terms :cite:p:`williams-2015,brunton-2016`.
 
 *datafold* is open-source software with a design that reflects a
 workflow hierarchy: from low-level data structures and algorithms to
@@ -53,7 +53,7 @@ of data-driven analysis and thus has the potential to boost widespread
 utilization. The implemented models are integrated into a software
 architecture with a clear modularization and an API that is templated
 from the ``scikit-learn`` project, which can be used as part of its
-processing pipeline :cite:`pedregosa_scikit-learn_2011`.
+processing pipeline :cite:p:`pedregosa-2011`.
 The data structures are subclasses from common objects of the Python scientific
 computing stack, allowing models to generalize for both static point clouds and
 temporally ordered time series collection data. The software design and modularity in
@@ -83,25 +83,24 @@ context, this is also referred to as "non-linear unsupervised learning"
 or shorter "manifold learning". Often the models are endowed with a
 kernel which encodes the proximity between data to preserve local
 structures. Examples are the general "Kernel Principal Component
-Analysis" :cite:`bengio_learning_2004`, "Local Linear Embedding"
-:cite:`belkin_laplacian_2003`, or "Hessian Eigenmaps" :cite:`donoho_hessian_2003`. A
+Analysis" :cite:p:`bengio-2004`, "Local Linear Embedding"
+:cite:p:`belkin-2003`, or "Hessian Eigenmaps" :cite:p:`donoho-2003`. A
 variety of manifold learning models already exist in the ``scikit-learn`` Python
 package. In addition to these, *datafold* provides an efficient implementation of the
-"Diffusion Maps" model :cite:`coifman_diffusion_2006`. The model includes an optional
+"Diffusion Maps" model :cite:p:`coifman-2006`. The model includes an optional
 sparse kernel matrix representation with which the model can scale to larger datasets. In
 addition to non-linear dimension reduction, "Diffusion Maps" allow the
 user to approximate mathematically meaningful objects on manifold data,
-such as the Laplace-Beltrami operator :cite:`coifman_diffusion_2006`. *datafold* also
+such as the Laplace-Beltrami operator :cite:p:`coifman-2006`. *datafold* also
 supplies functionality for follow up aspects of non-linear manifold
 learning, such as estimating the kernel scale parameters to describe the
 locality of points in a dataset and extending the embedding to unseen
 data. The latter refers to the image and pre-image mapping between the
-original and latent space (e.g., see analysis in :cite:`chiavazzo_reduced_2014`). This
+original and latent space (e.g., see analysis in :cite:t:`chiavazzo-2014`). This
 so-called "out-of-sample" extension interpolates general function values
 on manifold point clouds and, therefore, has to handle large input data
-dimensions :cite:`coifman_geometric_2006`, :cite:`fernandez_auto-adaptative_2014`,
-:cite:`rabin_heterogeneous_2012`. In *datafold*, out-of-sample extensions are
-implemented efficiently, so that interpolated function values for
+dimensions :cite:`coifman-2006,fernandez-2014,rabin-2012`. In *datafold*, out-of-sample
+extensions are implemented efficiently, so that interpolated function values for
 millions of points can be computed in seconds on a standard desktop computer.
 
 2. Time series data
@@ -114,15 +113,14 @@ regression. Usually, the phase space of the dynamical system, underlying
 the time series observations, is assumed to be a manifold (see a
 conceptual illustration in the figure.
 *datafold* focuses on the algorithms "Dynamic Mode Decomposition" (DMD)
-:cite:`schmid_dynamic_2010`, :cite:`tu_dynamic_2014`, :cite:`kutz_dynamic_2016`
+:cite:`schmid-2010,tu-2014,kutz-2016`
 and "Extended Dynamic Mode Decomposition" (E-DMD)
-:cite:`williams_datadriven_2015`. DMD linearly decomposes the available time series
+:cite:p:`williams-2015`. DMD linearly decomposes the available time series
 data into spatio-temporal components, which then define a linear
 dynamical system. Many DMD based variants address even more general,
 non-linear underlying dynamical systems. This is usually done by
 changing the time series coordinates in a step before DMD is applied
-:cite:`williams_datadriven_2015`, :cite:`champion_discovery_2019`,
-:cite:`le_clainche_higher_2017`, :cite:`giannakis_data-driven_2019`.
+:cite:`williams-2015,champion-2019,leclainche-2017,giannakis-2019`.
 The justification of this workflow is covered by operator theory and functional analysis,
 specifically the Koopman operator. In practice, the E-DMD algorithm
 approximates the Koopman operator with a matrix, based on a finite set

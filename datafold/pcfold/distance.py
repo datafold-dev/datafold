@@ -1032,7 +1032,7 @@ def compute_distance_matrix(
             # NOTE: this is a special case. Usually the cut_off is represented in the
             # respective metric. However, for the 'sqeuclidean' case we use the
             # 'euclidean' metric for the cut-off.
-            cut_off = cut_off ** 2
+            cut_off = cut_off**2
 
     backend_class = get_backend_distance_algorithm(backend)
     distance_method = backend_class(metric=metric)

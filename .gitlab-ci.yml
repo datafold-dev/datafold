@@ -28,12 +28,13 @@ workflow:
 setup:
   stage: setup
   script:
-    - make install_devdeps PYTHON=python3.7
+    - make install_devdeps PYTHON=python3.8
     - make versions
 
 unittests:
   stage: test
   script:
+    - make clean_test
     - make unittest
   allow_failure: false
   artifacts:
@@ -56,17 +57,17 @@ code_checks:
   allow_failure: true
   interruptible: true
 
-docu_check:
+docu_check_build:
   stage: code_analysis
   script:
-    - make docs OPEN_DOCS_BROWSER=false
     - make clean_docs
+    - make docs OPEN_DOCS_BROWSER=false
   except:
     - master
   allow_failure: true
   interruptible: true
 
-docu_link_check:
+docu_check_urls:
   stage: code_analysis
   script:
     - make docs_linkcheck

@@ -1,14 +1,15 @@
 .DEFAULT_GOAL := help
+.PHONY: help venv print_variables install_devdeps install_docdeps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi pypi_test clean_docs clean_build clean_test clean_venv clean clean_all
 
 #Internal variables:
 CURRENT_PATH = $(shell pwd)/
 VENV_DIR = .venv
 
-HTML_DOC_PATH = $(CURRENT_PATH)/doc/build/html/
+# Windows has a predefined variable "OS=Windows_NT"
+OS ?= Linux
+HTML_DOC_PATH = $(CURRENT_PATH)doc/build/html/
 
-.PHONY: help venv print_variables install_devdeps install_docdeps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi pypi_test clean_docs clean_build clean_test clean_venv clean clean_all
-
-#help: @ List available targets in this makefile
+#help: @ List available targets and options in the Makefile with a short description.
 help:
 	@echo 'Execute with "make [target] [arguments]"'.
 	@echo 'Example: "make docs OPEN_BROWSER=false"'
@@ -40,21 +41,33 @@ IS_DOCKER = $(DOCKER_ENVIRONMENT)
 ifeq ($(IS_DOCKER),)
 	# is not docker because variable IS_DOCKER is not available
 	# activate Python virtual environment
-	ACTIVATE_VENV = . $(VENV_DIR)/bin/activate; which python
+	ifeq ($(OS),Linux)
+		ACTIVATE_VENV = . $(VENV_DIR)/bin/activate; which python
+	else
+		ACTIVATE_VENV = . $(VENV_DIR)/Scripts/activate; which python
+	endif
 else
-	# If Makefile is executed in Docker (as a virtual environment)
+	# If Makefile is executed in Docker no activation of an virtual environment is required,
+	# because Docker is already a virtual environment.
 	ACTIVATE_VENV = which python
 endif
 
 SPHINXOPTS    ?=
 PYTESTOPTS    ?=
 
-EXECUTE_TUTORIAL ?= never
+DATAFOLD_NBSPHINX_EXECUTE ?= never
 OUTPUT_DOCS ?= doc/build/
+
+ifeq ($(OS),Linux)
+	_DOCDEPS = pandoc texlive-base texlive-latex-extra graphviz libjs-mathjax fonts-mathjax dvipng
+else # Windows_NT
+	_DOCDEPS = pandoc miktex graphviz
+endif
 
 ifeq ($(IS_DOCKER),)
 	OPEN_BROWSER ?= true
-else # is_DOCKER=true -> do not open browser by default, because no brwoser is installed in the docker container
+else # is in docker environment
+    # do not open browser by default, because no browser is installed in the container
 	OPEN_BROWSER ?= false
 endif
 
@@ -63,18 +76,31 @@ URL_DOC_OPEN = $(HTML_DOC_PATH)$(HTML_FILE_OPEN)
 
 GITHOOK = --all
 
-#venv: @ Create Python virtual environment if it does not exist yet.
-venv:
-ifneq ($(IS_DOCKER),) # do not create a venv in a docker environment, because it is already a virtualization
-	test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR);
-endif
+# Check that the used Python version fulfills the minimum requirement
+VPYTHON_MIN_MAJOR = 3
+VPYTHON_MIN_MINOR = 8
 
-# used for debugging:
+define PYTHON_CHECK_SCRIPT
+import sys
+errmsg = "Used Python version (={}) invalid.\nMinimum Python version required: {}.{}\n".format(sys.version, sys.argv[1], sys.argv[2])
+if sys.version_info.major < int(sys.argv[1]):
+	raise RuntimeError(errmsg)
+elif sys.version_info.minor < int(sys.argv[2]):
+	raise RuntimeError(errmsg)
+else:
+	print("Python version {}.{} valid".format(sys.version_info.major, sys.version_info.minor))
+endef
+export PYTHON_CHECK_SCRIPT
+
+# used for debugging / information in CI pipelines (not documented)
 print_variables:
+	@echo OS = $(OS)
+	@echo CURRENT_PATH = $(CURRENT_PATH)
 	@echo IS_DOCKER = $(IS_DOCKER)
 	@echo PYTHON = $(PYTHON)
+	@echo VPYTHON_MIN_MAJOR.VPYTHON_MIN_MINOR = $(VPYTHON_MIN_MAJOR).$(VPYTHON_MIN_MINOR)
 	@echo IS_DOCKER = $(IS_DOCKER)
-	@echo ACTIVATE_VENV = $(ACTIVATE_VENV)
+	@echo ACTIVATE_VENV = "$(ACTIVATE_VENV)"
 	@echo SPHINXOPTS = $(SPHINXOPTS)
 	@echo PYTESTOPTS = $(PYTESTOPTS)
 	@echo EXECUTE_TUTORIAL = $(EXECUTE_TUTORIAL)
@@ -83,115 +109,132 @@ print_variables:
 	@echo HTML_FILE_OPEN = $(HTML_FILE_OPEN)
 	@echo GITHOOK = $(GITHOOK)
 
-#docker_build: @ Build a docker image by processing the Dockerfile.
+#venv: @ Create a new Python virtual environment if it does not exist yet (target is disabled in a docker container).
+venv:
+ifeq ($(IS_DOCKER),)
+	@# Only create a Python-venv if not in a docker environment, because docker is already a virtualization
+	@# if venv exists already, then check that the Python version meets the minimum version
+	@# else create a new Python venv and check that the Python version (in PYTHON) meets the minimum version
+	@if [ -d "$(CURRENT_PATH)$(VENV_DIR)" ]; then \
+  		echo "Check Python set in virtual environment:"; \
+  		$(ACTIVATE_VENV); \
+  		python -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
+  	else \
+		echo "Check Python set in variable PYTHON:"; \
+		$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR); \
+		$(PYTHON) -m venv $(VENV_DIR); \
+	fi
+else
+	@# Check Python version in the docker container.
+	@$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR);
+endif
+
+#docker_build: @ Build a new docker image from the Dockerfile (named "datafold").
 docker_build:
 	docker build -t datafold .
 
-#docker_run: @ Start and execute interactively sign into a new docker container (based on the available image). The datafold folder is mounted into the container as "datafold-mount".
+#docker_run: @ Start and execute a new docker container based on the available image (interactive session). The datafold repo is mounted into the container as "datafold-mount".
 docker_run:
 	docker run -v `pwd`:/home/datafold-mount -w /home/datafold-mount/ -it --rm --net=host datafold bash
 
-#docker_clean: @
-docker_clean:
-	docker system prune -a
-
-#install_devdeps: @ Install (or update) development dependencies in virtual environment according to file "requirements-dev.txt".
+#install_devdeps: @ Install (or update) development dependencies in virtual environment according to the file "requirements-dev.txt".
 install_devdeps: venv
 	$(ACTIVATE_VENV); \
     python -m pip install --upgrade pip wheel setuptools twine; \
-	python -m pip install -r requirements-dev.txt;
+	python -m pip install -r requirements-dev.txt
 
-#install_doc_deps: @ Install dependencies to render datafold's documentation via apt-get (Note: this may require 'sudo').
+#install_docdeps: @ Install non-Python dependencies to build datafold's documentation (may require 'sudo' rights).
 install_docdeps:
+ifeq ($(OS),Linux)
 ifeq ($(IS_DOCKER),) # no docker
-	sudo apt-get install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
-else # in docker "sudo" is not available and everything is executed
-	apt-get -y install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
+	sudo apt-get install $(_DOCDEPS)
+else # in docker "sudo" is not available and everything is executed with root
+	apt-get -y install $(_DOCDEPS)
+endif
+else # OS = Windows
+	@echo "INFO: Make sure that chocolatery is installed ()"
+	@echo "INFO: Make sure to execute with sudo / administrator rights."
+	choco install $(_DOCDEPS)
 endif
 
-#versions: @ Print datafold version and essential dependency versions.
+#versions: @ Show current datafold version and of the essential dependencies.
 versions:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python datafold/_version.py
 
 #docs: @ Build datafold documentation with Sphinx.
 docs:
-	$(ACTIVATE_VENV); \
-	export $(EXECUTE_TUTORIAL); \
+	@$(ACTIVATE_VENV); \
+	echo Execute tutorials environment variable: DATAFOLD_NBSPHINX_EXECUTE=$(DATAFOLD_NBSPHINX_EXECUTE); \
 	python -m sphinx -M html doc/source/ $(OUTPUT_DOCS) $(SPHINXOPTS) $(O);
-	@# Open the browser at the page specified in URL_DOC_OPEN
+	@# Open the default browser at the page specified in URL_DOC_OPEN
 ifeq ($(OPEN_BROWSER),true)
-	@ if which xdg-open > /dev/null; then \
-		xdg-open $(URL_DOC_OPEN); \
-	elif which gnome-open > /dev/null; then \
-		gnome-open $(URL_DOC_OPEN); \
-	fi
+ifeq ($(OS),Linux)
+	@$(PYTHON) -m webbrowser "$(URL_DOC_OPEN)"
+else  # Windows
+	@start "$(URL_DOC_OPEN)"
+endif
 endif
 
-#docs_linkcheck: @ Check if all links in the documentation are valid.
+#docs_linkcheck: @ Check if the URLs in the documentation are valid.
 docs_linkcheck:
-	. $(VENV_DIR)/bin/activate; \
+	@$(ACTIVATE_VENV); \
 	cd doc/; \
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
-#unittest: @ Run and report all unittests with pytest.
+#unittest: @ Run all unittests with pytest in datafold.
 unittest:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report;
 
-#tutorialtest: @ Run all tutorials with pytest to check for errors.
+#tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
-	$(ACTIVATE_VENV); \
-	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
+	@$(ACTIVATE_VENV); \
+	export PYTHONPATH="$(CURRENT_PATH):$$PYTHONPATH"; \
 	python -m pytest tutorials/;
 
 test: unittest tutorialtest
 
-#tutorial: @ Open tutorials in Jupyter notebook (this opens the browser).
+#tutorial: @ Open tutorials in Jupyter notebook (opens a window in the default browser).
 tutorial:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
 	python -m notebook $(CURRENT_PATH)/tutorials/
 
-#precommit: @ Run git hooks to check and analyze the code.
+#precommit: @ Run git hooks to check and analyze the code. Manged by pre-commit.
 precommit:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python -m pre_commit run $(GITHOOK);
 
 #ci: @ Run continuous integration pipeline.
 ci: install_devdeps test precommit test_install
 
-#build: @ Build a source distribution and wheel.
+#build: @ Build a source distribution (sdist) and wheel (bdist_wheel).
 build:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python setup.py sdist bdist_wheel; \
 
 #install: @ Install datafold in virtual environment.
 install:
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python setup.py install
 
-#uninstall: @ Uninstall datafold from virtual environment.
-uninstall:
-	$(ACTIVATE_VENV); \
-	yes | pip uninstall datafold
-
 #test_install: @ Install and subsequently uninstall datafold for testing purposes (all created files are removed).
-test_install: install uninstall clean_build
+test_install: install clean_install
 	@echo 'Successful'
 
 #pypi: @ Upload and release datafold to https://pypi.org/ (requires account and password).
 pypi: build
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python setup.py sdist bdist_wheel; \
 	python -m twine check dist/*; \
 	python -m twine upload --verbose dist/*
 
 #pypi_test: @ Upload and release datafold to https://test.pypi.org/ for testing purposes (requires account and password).
 test_pypi: build
-	$(ACTIVATE_VENV); \
+	@$(ACTIVATE_VENV); \
 	python -m twine check dist/*; \
 	python -m twine upload --verbose --repository testpypi dist/*
 
@@ -200,13 +243,20 @@ clean_docs:
 	cd doc/; \
 	rm -fr build/; \
 	rm -f source/api/*.rst source/_apidoc/*.rst; \
-	find . -name *.nblink -type f -delete;
+	find . -name *.nblink -type f -delete; \
+	# the README file in the "tutorials" folder is generated when building the docs
+	rm -f tutorials/README.rst
 
 #clean_build: @ Remove all files that are created for target "build".
 clean_build:
 	rm -fr build/;
 	rm -fr dist/;
 	rm -fr datafold.egg-info/;
+
+#clean_precommit: @ Remove all files that are created for target "precommit".
+clean_precommit:
+	@$(ACTIVATE_VENV); \
+	python -m pre_commit clean;
 
 #clean_test: @ Remove all files that are created for target "unittest".
 clean_test:
@@ -218,12 +268,21 @@ clean_test:
 clean_cache:
 	rm -rf .mypy_cache;
 	rm -fr .pytest_cache/;
-	find datafold/ -name __pycache__ -type d -delete;
-	find . -name .ipynb_checkpoints -type d -delete;
+	find . -path '*/__pycache__/*' -delete
+	find . -path '*/.ipynb_checkpoints/*' -delete
 
-#clean_venv: @ Remove the virtual environment.
+#clean_docker: @ Remove all unused docker images in docker (not just dangling ones).
+clean_docker:
+	docker system prune -a
+
+#uninstall: @ Remove all files for the target "install".
+clean_install: clean_build
+	@$(ACTIVATE_VENV); \
+	yes | pip uninstall datafold
+
+#clean_venv: @ Remove the virtual environment folder which is created for the target "venv".
 clean_venv:
 	rm -fr $(VENV_DIR);
 
-#clean: @ Call targets "clean_docs", "clean_build" and "clean_cache".
-clean: clean_docs clean_build clean_cache
+#clean: @ Call targets "clean_docs", "clean_install", "clean_test", "clean_precommit" and "clean_cache".
+clean: clean_docs clean_install clean_test clean_precommit clean_cache

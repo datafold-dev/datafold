@@ -6,6 +6,7 @@ import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
+import pytest
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
@@ -63,7 +64,15 @@ class TestTSCTransform(unittest.TestCase):
         self._setUp_simple_df()
         self._setUp_takens_df()
 
+    @pytest.mark.filterwarnings("ignore:Can't instantiate estimator")
     def test_is_valid_sklearn_estimator(self):
+        # The warning
+        #   Can't instantiate estimator TSCFeaturePreprocess parameters
+        #   ['sklearn_transformer']
+        # is ignored (raised for "TSCFeaturePreprocess") because there is no sensible
+        # default for the parameter "sklearn_transformer" (and therefore the class cannot
+        # be instantiated without an explicit argument.
+
         from sklearn.preprocessing import MinMaxScaler
         from sklearn.utils.estimator_checks import check_estimator
 
@@ -310,7 +319,7 @@ class TestTSCTransform(unittest.TestCase):
         data = pca.transform(tsc)
         self.assertIsInstance(data, TSCDataFrame)
 
-        pca_sklearn = PCA(n_components=1).fit(tsc.to_numpy())
+        pca_sklearn = PCA(n_components=1).fit(tsc)
         data_sklearn = pca_sklearn.transform(tsc)
 
         nptest.assert_allclose(data, data_sklearn, atol=1e-15)

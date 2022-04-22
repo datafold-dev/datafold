@@ -72,7 +72,7 @@ class LinearDynamicalSystem(object):
     References
     ----------
 
-    :cite:`kutz_dynamic_2016` (pages 3 ff.)
+    :cite:`kutz-2016` (pages 3 ff.)
 
     """
 
@@ -171,7 +171,7 @@ class LinearDynamicalSystem(object):
             )
 
         if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
-            time_values = time_values.astype(int)
+            time_values = time_values.astype(np.int64)
 
         # TIME DELTA
         if self.is_differential_system():
@@ -316,10 +316,10 @@ class LinearDynamicalSystem(object):
         not necessarily need to be an initial state but instead can be arbitrary states.
 
         In the context of dynamic mode decomposition, the spectral state is also often
-        referred to as "amplitudes". E.g., see :cite:`kutz_dynamic_2016`, page 8. In
+        referred to as "amplitudes". E.g., see :cite:t:`kutz-2016`, page 8. In
         the context of `EDMD`, where the DMD model acts on a dictionary space, then the
         spectral states are the evaluation of the Koopman eigenfunctions. See e.g.,
-        :cite:`williams_datadriven_2015` Eq. 3 or 6.
+        :cite:t:`williams-2015` Eq. 3 or 6.
 
         There are two alternatives in how to compute the states.
 
@@ -359,7 +359,7 @@ class LinearDynamicalSystem(object):
             self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
         ):
             # uses both eigenvectors (left and right).
-            # this is Eq. 18 in :cite:`williams_datadriven_2015` (note that in the
+            # this is Eq. 18 in :cite:`williams-2015` (note that in the
             # paper the Koopman matrix is transposed, therefore here left and right
             # eigenvectors are exchanged.
             states = self.eigenvectors_left_ @ states
@@ -647,7 +647,7 @@ class DMDBase(
     A DMD model decomposes time series data linearly into spatial-temporal components.
     The decomposition defines a linear dynamical system. Due to it's strong connection to
     non-linear dynamical systems with Koopman spectral theory
-    (see e.g. introduction in :cite:`tu_dynamic_2014`), the DMD variants (subclasses)
+    (see e.g. introduction in :cite:t:`tu-2014`), the DMD variants (subclasses)
     are framed in the context of this theory.
 
     A DMD model approximates the Koopman operator with a matrix :math:`K`,
@@ -695,11 +695,11 @@ class DMDBase(
 
     References
     ----------
-    :cite:`schmid_dynamic_2010` - DMD method in the original sense
-    :cite:`rowley_spectral_2009` - connects the DMD method to Koopman operator theory
-    :cite:`tu_dynamic_2014` - generalizes the DMD to temporal snapshot pairs
-    :cite:`williams_datadriven_2015` - generalizes the approximation to a lifted space
-    :cite:`kutz_dynamic_2016` - an introductory book for DMD and its connection to Koopman
+    :cite:t:`schmid-2010` - DMD method in the original sense
+    :cite:t:`rowley-2009` - connects the DMD method to Koopman operator theory
+    :cite:t:`tu-2014` - generalizes the DMD to temporal snapshot pairs
+    :cite:t:`williams-2015` - generalizes the approximation to a lifted space
+    :cite:t:`kutz-2016` - an introductory book for DMD and its connection to Koopman
     theory
 
     See Also
@@ -969,7 +969,7 @@ class DMDBase(
         X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._validate_feature_names(X)
 
@@ -1083,7 +1083,7 @@ class DMDFull(DMDBase):
 
             This operation can fail if the eigenvalues of the matrix :math:`K` are too
             close to zero or the matrix logarithm is not well-defined because because of
-            non-uniqueness. For details see :cite:`dietrich_koopman_2019` (Eq.
+            non-uniqueness. For details see :cite:t:`dietrich-2020` (Eq.
             3.2. and 3.3. and discussion). Currently, there are no counter measurements
             implemented to increase numerical robustness (work is needed). Consider
             also :py:class:`.gDMDFull`, which provides an alternative way to
@@ -1116,11 +1116,11 @@ class DMDFull(DMDBase):
     References
     ----------
 
-    :cite:`schmid_dynamic_2010` - DMD method in the original sense
-    :cite:`rowley_spectral_2009` - connects the DMD method to Koopman operator theory
-    :cite:`tu_dynamic_2014` - generalizes the DMD to temporal snapshot pairs
-    :cite:`williams_datadriven_2015` - generalizes the approximation to a lifted space
-    :cite:`kutz_dynamic_2016` - an introductory book for DMD and Koopman connection
+    * :cite:t:`schmid-2010` - DMD method in the original sense
+    * :cite:t:`rowley-2009` - connects the DMD method to Koopman operator theory
+    * :cite:t:`tu-2014` - generalizes the DMD to temporal snapshot pairs
+    * :cite:t:`williams-2015` - generalizes the approximation to a lifted space
+    * :cite:t:`kutz-2016` - an introductory book for DMD and Koopman connection
     """
 
     def __init__(
@@ -1279,7 +1279,7 @@ class DMDFull(DMDBase):
         self._validate_datafold_data(
             X=X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
 
@@ -1386,7 +1386,7 @@ class gDMDFull(DMDBase):
     References
     ----------
 
-    :cite:`klus_data-driven_2020`
+    :cite:`klus-2020`
 
     """
 
@@ -1483,7 +1483,7 @@ class gDMDFull(DMDBase):
         self._validate_datafold_data(
             X=X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
 
@@ -1584,9 +1584,7 @@ class DMDEco(DMDBase):
     References
     ----------
 
-    :cite:`kutz_dynamic_2016`
-    :cite:`tu_dynamic_2014`
-
+    :cite:`kutz-2016,tu-2014`
     """
 
     def __init__(self, svd_rank=10, *, reconstruct_mode: str = "exact"):
@@ -1661,7 +1659,7 @@ class DMDEco(DMDBase):
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -1720,7 +1718,7 @@ class PyDMDWrapper(DMDBase):
     References
     ----------
 
-    :cite:`demo_pydmd_2018`
+    :cite:`demo-2018`
 
     """
 
@@ -1828,7 +1826,7 @@ class PyDMDWrapper(DMDBase):
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
         self._read_fit_params(attrs=None, fit_params=fit_params)

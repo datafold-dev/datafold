@@ -1,7 +1,6 @@
 """ Unit test for the dmap module.
 
 """
-
 import unittest
 
 import diffusion_maps as legacy_dmap
@@ -9,7 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
-import scipy.sparse.linalg.eigen.arpack
+import pytest
+import scipy.sparse
 from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 from sklearn.metrics import mean_squared_error
@@ -27,6 +27,7 @@ from datafold.dynfold.tests.helper import (
 from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
 from datafold.pcfold.kernels import ConeKernel
 from datafold.utils.general import random_subsample
+from datafold.utils.plot import plot_pairwise_eigenvector
 
 try:
     import rdist  # noqa
@@ -57,6 +58,28 @@ class DiffusionMapsTest(unittest.TestCase):
             rayleigh_quotients[i] = np.dot(v, matrix @ v) / np.dot(v, v)
         rayleigh_quotients = np.sort(np.abs(rayleigh_quotients))
         return rayleigh_quotients[::-1]
+
+    @staticmethod
+    def mock_eigensolver_call():
+        """This code is executed before each test.
+
+        The purpose is to overwrite the argument "validate_matrix" in
+        "compute_kernel_eigenpairs", which enables checks that are disabled by default
+        """
+        import datafold.dynfold.dmap as dmap
+        import datafold.pcfold.eigsolver as eigsolver
+
+        def mock_compute_kernel_eigenpairs(*args, **kwargs):
+            kwargs["validate_matrix"] = True  # always validate matrix
+            return eigsolver.compute_kernel_eigenpairs(*args, **kwargs)
+
+        dmap.compute_kernel_eigenpairs = mock_compute_kernel_eigenpairs
+
+    @pytest.fixture(autouse=True)
+    def run_before_each_test(self):
+        """This runs before each test."""
+        DiffusionMapsTest.mock_eigensolver_call()
+        yield
 
     def test_accuracy(self):
         n_samples = 5000
@@ -142,6 +165,23 @@ class DiffusionMapsTest(unittest.TestCase):
 
         if plot:
             plt.show()
+
+    def test_compute_all_eigenpairs(self):
+        # check that all eigenpairs can be computed
+        X_swiss_all, _ = make_swiss_roll(n_samples=100, noise=0, random_state=5)
+        actual1 = DiffusionMaps(kernel=GaussianKernel(epsilon=2), n_eigenpairs=100).fit(
+            X_swiss_all
+        )
+
+        actual2 = DiffusionMaps(
+            kernel=GaussianKernel(epsilon=2), n_eigenpairs=100, symmetrize_kernel=False
+        ).fit(X_swiss_all)
+
+        self.assertEqual(actual1.eigenvectors_.shape[1], 100)
+        self.assertEqual(actual1.eigenvalues_.shape[0], 100)
+
+        self.assertEqual(actual2.eigenvectors_.shape[1], 100)
+        self.assertEqual(actual2.eigenvalues_.shape[0], 100)
 
     def test_sanity_dense_sparse(self):
 
@@ -315,12 +355,10 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap_embed = DiffusionMaps(**setting).fit(X_swiss_all)
 
         if plot:
-            from datafold.utils.plot import plot_pairwise_eigenvector
-
             plot_pairwise_eigenvector(
-                eigenvectors=dmap_embed.transform(X_swiss_all).T,
+                eigenvectors=dmap_embed.transform(X_swiss_all),
                 n=1,
-                colors=color_all,
+                scatter_params=dict(c=color_all),
             )
 
         dmap_embed_eval_expected = dmap_embed.eigenvectors_[:, [1, 5]]
@@ -394,7 +432,7 @@ class DiffusionMapsTest(unittest.TestCase):
                 0.01,
                 0.5,
                 f"both have same setting \n epsilon="
-                f"{setting['epsilon']}, symmetrize_kernel="
+                f"{dmap_embed.kernel.epsilon}, symmetrize_kernel="
                 f"{setting['symmetrize_kernel']}, "
                 f"chosen_eigenvectors={[1, 5]}",
             )
@@ -754,6 +792,12 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
     are test to make sure this is the case. All dmaps have symmetrize_kernel=False to
     be able to compare the kernel."""
 
+    @pytest.fixture(autouse=True)
+    def run_before_each_test(self):
+        """This runs before each test."""
+        DiffusionMapsTest.mock_eigensolver_call()
+        yield
+
     def test_simple_dataset(self):
         """Taken from method_examples(/diffusion_maps/diffusion_maps.ipynb) repository."""
         data, epsilon = circle_data()
@@ -931,24 +975,15 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
                 points=data, num_eigenpairs=n_eigenpairs, epsilon=eps
             )
 
-            try:
-                actual_sparse = DiffusionMaps(
-                    GaussianKernel(epsilon=eps),
-                    n_eigenpairs=n_eigenpairs,
-                    symmetrize_kernel=False,
-                    dist_kwargs=dict(cut_off=3),
-                ).fit(data, store_kernel_matrix=True)
-                expected_sparse = legacy_dmap.SparseDiffusionMaps(
-                    points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
-                )
-
-            except scipy.sparse.linalg.eigen.arpack.ArpackNoConvergence as e:
-                print(
-                    f"Did not converge for epsilon={eps}. This can happen due to random "
-                    f"effects of the sparse eigenproblem solver (and usually a bad "
-                    f"conditioned matrix)."
-                )
-                raise e
+            actual_sparse = DiffusionMaps(
+                GaussianKernel(epsilon=eps),
+                n_eigenpairs=n_eigenpairs,
+                symmetrize_kernel=False,
+                dist_kwargs=dict(cut_off=3),
+            ).fit(data, store_kernel_matrix=True)
+            expected_sparse = legacy_dmap.SparseDiffusionMaps(
+                points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
+            )
 
             cmp_dmap_legacy(actual_dense, expected_dense, rtol=1e-15, atol=1e-15)
             cmp_dmap_legacy(actual_sparse, expected_sparse, rtol=1e-14, atol=1e-14)
@@ -1112,7 +1147,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
     @staticmethod
     def plot_quantities(data, dmap):
 
-        h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
+        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
         assert data.ndim == 2 and data.shape[1] == 1
 
         f, ax = plt.subplots(ncols=3, nrows=3)
@@ -1203,7 +1238,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
             plt.show()
 
         # TESTS:
-        h3 = lambda x: 1 / np.sqrt(6) * (x ** 3 - 3 * x)  # 3rd Hermetian polynomial
+        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
         factor = DiffusionMapsVariableTest.eig_neg_factor(
             h3(X), dmap.eigenvectors_[:, 3]
         )

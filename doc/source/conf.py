@@ -60,7 +60,7 @@ extensions = [
     # See below for configuration
     "sphinx.ext.imgmath",
     # Include bibtex citations
-    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html#overview
+    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/index.html
     "sphinxcontrib.bibtex",
     # 'napoleon' allows NumPy and Google style documentation (no external Sphinx
     #  package required)
@@ -141,26 +141,14 @@ imgmath_latex_preamble = r"\usepackage{amsmath,amstext}"
 
 # ----------------------------------------------------------------------------------------
 # "sphinxcontrib.bibtex"
-# Because exported BibTex files include file information to PDF -- remove in the
-# following snippet.
+# see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/usage.html#configuration
 
 filepath_literature_file = os.path.join(".", "_static", "literature.bib")
 filepath_literature_file = os.path.abspath(filepath_literature_file)
+bibtex_reference_style = "author_year"
 
-# read content
-with open(filepath_literature_file, "r") as file:
-    content = file.read()
-
-# leave out 'file' keys out
-new_content = []
-for line in content.splitlines(keepends=True):
-    if not line.lstrip().startswith("file") and not line.lstrip().startswith("urldate"):
-        new_content.append(line)
-
-# write content back to file
-with open(filepath_literature_file, "w") as file:
-    file.write("".join(new_content))
-
+# currently supported "alpha" (default)  "plain", "unsrt", "unsrtalpha"
+bibtex_default_style = "plain"
 bibtex_bibfiles = [filepath_literature_file]
 
 # ----------------------------------------------------------------------------------------
@@ -237,21 +225,27 @@ intersphinx_timeout = 30
 
 nbsphinx_allow_errors = False
 
+valid_keys = ["auto", "always", "never"]
 try:
     # allows to set expensive tutorial execution with environment variable
     # the environment variable should be set if publishing the pages
     nbsphinx_execute = str(os.environ["DATAFOLD_NBSPHINX_EXECUTE"])
-    print(nbsphinx_execute)
-    assert nbsphinx_execute in ["auto", "always", "never"]
+    assert nbsphinx_execute in valid_keys
     print(
         f"INFO: found valid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
         f"variable."
     )
-except KeyError:
-    # default
+except AssertionError:
+    # invalid key
     print(
-        "INFO: no environment variable DATFOLD_NBSPHINX_EXECUTE. Defaulting to not "
-        "execute tutorial notebooks."
+        f"WARNING: Found invalid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
+        f"variable. Choose from {valid_keys}. Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
+    )
+except KeyError:
+    # default if no environment variable is set
+    print(
+        "INFO: no environment variable DATFOLD_NBSPHINX_EXECUTE. "
+        "Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
     )
     nbsphinx_execute = "never"
 

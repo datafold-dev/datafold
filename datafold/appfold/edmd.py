@@ -133,7 +133,7 @@ class EDMD(
     sort_koopman_triplets
         Sort the Koopman triplets by the mean absolute value of the initial
         Koopman eigenfunctions of the data passed during fit. Ignored if the Koopman
-        triplet ist not available. Adapted from :cite:`manojlovic_applications_2020`.
+        triplet ist not available. Adapted from :cite:t:`manojlovic-2020`.
 
     use_transform_inverse
         If True, the mapping from EDMD-dictionary states to the full-state is
@@ -197,8 +197,7 @@ class EDMD(
 
     References
     ----------
-    :cite:`williams_datadriven_2015`
-    :cite:`manojlovic_applications_2020`
+    :cite:`williams-2015,manojlovic-2020`
 
     """
 
@@ -275,7 +274,7 @@ class EDMD(
             .. math::
                 \xi(x) = \Psi^{\dagger} g(x)
 
-        See also Eq. 18 in :cite:`williams_datadriven_2015`.
+        See also Eq. 18 in :cite:t:`williams-2015`.
 
         Parameters
         ----------
@@ -632,7 +631,7 @@ class EDMD(
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
 
         self._validate_dictionary()

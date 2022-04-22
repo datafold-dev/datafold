@@ -34,7 +34,7 @@ See also the `Introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`
 
 ---------------------------------------------------------------------------------
 
-Install the package with ``Python>=3.7``:
+Install the package with ``Python>=3.8``:
 
 .. code-block::
 
@@ -108,7 +108,10 @@ Software management
      - .. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
           :target: https://pre-commit.com/
           :alt: pre-commit
-       .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+       .. image:: https://img.shields.io/badge/code%20style-flake8-black
+          :target: https://flake8.pycqa.org/en/latest/
+          :alt: python-flake8
+       .. image:: https://img.shields.io/badge/code%20format-black-000000.svg
           :target: https://black.readthedocs.io/en/stable/
           :alt: python-black
 

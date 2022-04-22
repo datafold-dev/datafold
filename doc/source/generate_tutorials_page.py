@@ -3,6 +3,7 @@
 import glob
 import os
 import pathlib
+import warnings
 
 import requests  # type: ignore
 
@@ -48,7 +49,7 @@ package and dependencies install with
 
     python -m pip install jupyter
 
-For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a
+For further information visit the `Jupyter homepage <https://jupyter.org/>`__. To open a
 Jupyter notebook in a web browser, run
 
 .. code-block:: bash
@@ -94,8 +95,8 @@ def add_tutorial(filename, description, warning=None):
 
     _req_download_file = requests.head(download_link)
     if _req_download_file.status_code != 200:
-        print(
-            f"WARNING: The download link \n{download_link} \n does not exist. Check if "
+        warnings.warn(
+            f"The download link \n{download_link} \n does not exist. Check if "
             f"the tutorial will be published soon and that the link is correct."
         )
 
@@ -128,8 +129,8 @@ def get_tutorial_text_doc(filename, target):
     elif target == "readme":
         # "filename (download_link, doc_link)" in readme
         _str = (
-            f"* `{filename}` (`download <{_dict['download_link']}>`__ , "
-            f"`doc <{_dict['web_link']}>`__)\n"
+            f"* `{filename}` (`download <{_dict['download_link']}>`__, "
+            f"`web <{_dict['web_link']}>`__)\n"
         )
         _str += f"{INDENT}{_dict['description']}"
 
@@ -179,7 +180,7 @@ add_tutorial(
     "models such as the ``DiffusionMaps`` model. For this we use the "
     "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
     warning="The tutorial requires also the Python package "
-    "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ "
+    "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ "
     "which does not install with *datafold*.",
 )
 
@@ -198,6 +199,15 @@ add_tutorial(
     "``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer "
     "APIs. Finally, we demonstrate the out-of-sample extension.",
     warning="The code for jointly smooth functions inside this notebook is experimental.",
+)
+
+add_tutorial(
+    "08_basic_roseland_scurve_digits.ipynb",
+    "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
+    "S-curved point cloud manifold and to cluster data from handwritten digit. "
+    "We also select the best combination of intrinsic parameters automatically "
+    "with an optimization routine and demonstrate how to do include this in an "
+    "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
 )
 
 
