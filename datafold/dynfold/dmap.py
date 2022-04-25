@@ -387,8 +387,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
         if index_from is not None:
-            # TODO: BUG: I think this fails if index_coord are set because then there are
-            #  less than n_eigenpairs columns
             approx_eigenvectors = df_type_and_indices_from(
                 index_from,
                 values=approx_eigenvectors,
@@ -421,14 +419,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             )
 
         return dmap_embedding
-
-    def get_feature_names_out(self, input_features=None):
-        if hasattr(self, "target_coords_"):
-            feature_names = np.array([f"dmap{i}" for i in self.target_coords_])
-        else:
-            feature_names = np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
-
-        return feature_names
 
     def _setup_default_dist_kwargs(self):
 
@@ -490,6 +480,14 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         self.n_features_out_ = len(self.target_coords_)
 
         return self
+
+    def get_feature_names_out(self, input_features=None):
+        if hasattr(self, "target_coords_"):
+            feature_names = np.array([f"dmap{i}" for i in self.target_coords_])
+        else:
+            feature_names = np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
+
+        return feature_names
 
     def fit(
         self,
@@ -1152,6 +1150,14 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         return roseland_embedding
 
+    def get_feature_names_out(self, input_features=None):
+        if hasattr(self, "target_coords_"):
+            feature_names = np.array([f"coord{i}" for i in self.target_coords_])
+        else:
+            feature_names = np.array([f"coord{i}" for i in range(self.n_svdtriplet)])
+
+        return feature_names
+
     def set_target_coords(self, indices: Union[np.ndarray, List[int]]) -> "Roseland":
         """Set specific singular vector coordinates for a parsimonious mapping.
 
@@ -1633,7 +1639,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             )
 
     def get_feature_names_out(self, input_features=None):
-        if input_features is None and self.feature_names_in_ is None:
+        if input_features is None and not hasattr(self, "feature_names_in_"):
             return np.array(self.evec_indices_, dtype=str)
         else:
             if input_features is not None:
@@ -1723,7 +1729,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         X_selected = self._same_type_X(
             X,
             np.asarray(X)[:, self.evec_indices_],
-            feature_names=self.get_feature_names_out(self.feature_names_in_),
+            feature_names=self.get_feature_names_out(),
         )
 
         return X_selected
