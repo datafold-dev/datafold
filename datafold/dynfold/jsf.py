@@ -309,7 +309,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
                 extra_kwargs,
             ) = BaseManifoldKernel.read_kernel_output(output)
 
-            return_content[name]: Dict[str, Union[np.ndarray, pd.DataFrame]] = dict()
+            return_content[name] = dict()
             return_content[name]["kernel_matrix"] = kernel_matrix
             return_content[name]["cdist_kwargs"] = cdist_kwargs
             return_content[name]["extra_kwargs"] = extra_kwargs

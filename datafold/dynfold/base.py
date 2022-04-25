@@ -501,8 +501,8 @@ class TSCPredictMixin(TSCBase):
     def _validate_feature_names(
         self: Union[BaseEstimator, "TSCPredictMixin"], X: TransformType
     ):
-        self._check_n_features(X, reset=False)
-        self._check_feature_names(X, reset=False)
+        self._check_n_features(X, reset=False)  # type: ignore
+        self._check_feature_names(X, reset=False)  # type: ignore
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
 
