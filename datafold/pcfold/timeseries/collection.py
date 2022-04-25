@@ -15,7 +15,7 @@ from datafold.utils.general import (
     is_integer,
 )
 
-ColumnType = Union[pd.Index, List[str]]
+ColumnType = Union[pd.Index, List[str], np.ndarray]
 NumericalTimeType = Union[int, float, np.datetime64]
 
 
@@ -885,15 +885,22 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError("columns must be of type pd.Index")
 
         if columns.nlevels != 1:
-            # must exactly have two levels [ID, time]
             raise AttributeError(
                 f"Columns must be single level (columns.nlevels == 1).  "
                 f"Got: columns.nlevels={columns.nlevels}"
             )
 
+        col_types = sorted(t.__qualname__ for t in set(type(v) for v in columns))
+
+        if len(col_types) > 1:
+            raise AttributeError(
+                f"There are mixed types in the columns {col_types}. "
+                f"Use a consistent type over all column names."
+            )
+
         if columns.duplicated().any():
             raise AttributeError(
-                f"Duplicated columns found: "
+                f"Duplicated column names found: "
                 f"{columns[columns.duplicated()].to_numpy()}"
             )
 

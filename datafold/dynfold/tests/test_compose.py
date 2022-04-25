@@ -39,13 +39,16 @@ class TestTSCCompose(unittest.TestCase):
     #
     #     print(actual)
 
-    def test_pipeline(self):
-        X = TSCDataFrame.from_single_timeseries(
+    def _generate_random_tsc(self) -> TSCDataFrame:
+        return TSCDataFrame.from_single_timeseries(
             pd.DataFrame(
                 np.random.default_rng(1).uniform(low=0, high=1, size=(100, 2)),
                 columns=["a", "b"],
             )
         )
+
+    def test_pipeline(self):
+        X = self._generate_random_tsc()
 
         # NOTE: there is no final estimator set
         actual_transform = Pipeline(

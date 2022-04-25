@@ -195,10 +195,7 @@ add_tutorial(
 add_tutorial(
     filename="07_basic_jsf_common_eigensystem.ipynb",
     description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
-    "from multimodal data. Also, we introduce ``JsfDataset``, which is used to make "
-    "``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer "
-    "APIs. Finally, we demonstrate the out-of-sample extension.",
-    warning="The code for jointly smooth functions inside this notebook is experimental.",
+    "from multimodal data. We also demonstrate the out-of-sample extension.",
 )
 
 add_tutorial(

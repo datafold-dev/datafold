@@ -1324,6 +1324,30 @@ class TestTSCDataFrame(unittest.TestCase):
         initial_states = tsc.initial_states()
         self.assertTrue(TSCDataFrame.tsc_time_idx_name in initial_states.columns)
 
+    def test_column_dtypes(self):
+
+        d = np.array([[1, 2], [3, 4]])
+
+        tsc_int = TSCDataFrame.from_single_timeseries(pd.DataFrame(d, columns=[1, 2]))
+        tsc_str = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(d, columns=["1", "2"])
+        )
+
+        def _get_col_types(cols):
+            types = list(set([type(v) for v in cols]))
+            return types[0] if len(types) == 1 else types
+
+        self.assertEqual(_get_col_types(tsc_int.columns), int)
+        self.assertEqual(_get_col_types(tsc_str.columns), str)
+
+        with self.assertRaises(AttributeError):
+            # mixed dtypes are not supported
+            TSCDataFrame.from_single_timeseries(pd.DataFrame(d, columns=[1, "2"]))
+
+        with self.assertRaises(AttributeError):
+            # explicitly setting a mixed index also raises error
+            tsc_int.columns = pd.Index([1, "2"])
+
     def test_str_time_indices(self):
         simple_df = self.simple_df.copy(deep=True)
 

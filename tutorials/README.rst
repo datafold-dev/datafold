@@ -51,10 +51,6 @@ List
     We generate data from a dynamical system (Hopf system) and compare different dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate out-of-sample predictions with time ranges exceeding the time horizon of the training data.
 * `07_basic_jsf_common_eigensystem.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/07_basic_jsf_common_eigensystem.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_07_basic_jsf_common_eigensystem.html>`__)
     We use ``JointlySmoothFunctions`` to learn commonly smooth functions from multimodal data. Also, we introduce ``JsfDataset``, which is used to make ``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer APIs. Finally, we demonstrate the out-of-sample extension.
-
-    **Warning**
-        The code for jointly smooth functions inside this notebook is experimental.
-
 * `08_basic_roseland_scurve_digits.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/08_basic_roseland_scurve_digits.ipynb?inline=false>`__, `web <https://datafold-dev.gitlab.io/datafold/tutorial_08_basic_roseland_scurve_digits.html>`__)
     We use a ``Roseland`` model to compute lower dimensional embeddings of an S-curved point cloud manifold and to cluster data from handwritten digit. We also select the best combination of intrinsic parameters automatically with an optimization routine and demonstrate how to do include this in an scikit-learn pipeline. Based on the Diffusion Maps tutorials.
 

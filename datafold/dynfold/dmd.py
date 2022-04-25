@@ -868,6 +868,12 @@ class DMDBase(
 
         return tsc_df
 
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None and hasattr(self, "feature_names_in_"):
+            return self.feature_names_in_
+        else:
+            return input_features
+
     def predict(
         self,
         X: InitialConditionType,

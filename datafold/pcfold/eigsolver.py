@@ -247,6 +247,10 @@ def compute_kernel_eigenpairs(
     elif isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all():
         raise err_nonfinite
 
+    if kernel_matrix.dtype == np.bool_:
+        # cast bools to float64, otherwise the resulting vectors are in float32
+        kernel_matrix = kernel_matrix.astype(np.float64)
+
     if validate_matrix:
         if is_symmetric and not is_symmetric_matrix(kernel_matrix):
             raise ValueError("kernel_matrix is not symmetric")

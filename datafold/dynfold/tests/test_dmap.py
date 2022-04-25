@@ -300,10 +300,7 @@ class DiffusionMapsTest(unittest.TestCase):
         nptest.assert_array_equal(actual_dmap2.eigenvectors_, expected)
 
         self.assertEqual(actual_dmap.n_features_out_, 2)
-        self.assertEqual(actual_dmap.feature_names_out_, None)
-
         self.assertEqual(actual_dmap2.n_features_out_, 2)
-        self.assertEqual(actual_dmap2.feature_names_out_, None)
 
     def test_set_target_coords2(self):
         X_swiss_all, _ = make_swiss_roll(n_samples=2000, noise=0, random_state=5)
