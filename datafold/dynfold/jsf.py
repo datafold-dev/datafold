@@ -41,7 +41,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         zero implies machine precision.
 
     svd_solver_kwargs
-        Keyword arguments passed to the scipy `SVD solver <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.svds.html>`__.
+        Keyword arguments passed to the SciPy `SVD solver <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.svds.html>`__.
 
     Attributes
     ----------
