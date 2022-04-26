@@ -1391,10 +1391,8 @@ class EDMDCV(GridSearchCV):
 
                 if self.verbose > 0:
                     print(
-                        "Fitting {0} folds for each of {1} candidates,"
-                        " totalling {2} fits".format(
-                            n_splits, n_candidates, n_candidates * n_splits
-                        )
+                        f"Fitting {n_splits} folds for each of {n_candidates} candidates,"
+                        f" totalling {n_candidates * n_splits} fits."
                     )
 
                 out = parallel(
@@ -1410,7 +1408,7 @@ class EDMDCV(GridSearchCV):
                         **fit_and_score_kwargs,
                     )
                     for (cand_idx, parameters), (split_idx, (train, test)) in product(
-                        enumerate(candidate_params), enumerate(cv.fit(X, y))
+                        enumerate(candidate_params), enumerate(cv.split(X, y))
                     )
                 )
 

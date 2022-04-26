@@ -264,7 +264,12 @@ class TestKernelUtils(unittest.TestCase):
 class TestPCManifoldKernel(unittest.TestCase):
     def test_gaussian_kernel_print(self):
         kernel = GaussianKernel(epsilon=1)
-        self.assertEqual(kernel.__repr__(), "GaussianKernel(epsilon=1)")
+
+        r = (
+            "GaussianKernel(epsilon=1, "
+            "dist_kwargs={'metric': 'sqeuclidean', 'backend': 'guess_optimal'})"
+        )
+        self.assertEqual(kernel.__repr__(), r)
 
     def test_kernels_symmetry(self):
         data = np.random.default_rng(1).random(size=[100, 2])
@@ -324,34 +329,34 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         self.assertTrue(k1.is_symmetric)
 
         # No transformation to symmetrize the kernel is required
-        self.assertFalse(k1.is_symmetric_transform())
+        self.assertFalse(k1.is_conjugate)
 
         # Because the kernel is not stochastic, the kernel remains symmetric
         k2 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=False)
         self.assertTrue(k2.is_symmetric)
 
         # No transformation is required
-        self.assertFalse(k1.is_symmetric_transform())
+        self.assertFalse(k1.is_conjugate)
 
     def test_is_symmetric02(self):
         # symmetric_kernel and alpha == 0
         k1 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=False)
         self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform())
+        self.assertFalse(k1.is_conjugate)
 
         k2 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=True)
         self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform())
+        self.assertTrue(k2.is_conjugate)
 
     def test_is_symmetric03(self):
         # symmetric_kernel and alpha > 0
         k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=False)
         self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform())
+        self.assertFalse(k1.is_conjugate)
 
         k2 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
         self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform())
+        self.assertTrue(k2.is_conjugate)
 
     def test_missing_row_alpha_fit(self):
         data_X = np.random.rand(100, 5)
@@ -454,12 +459,13 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         for dist_cut_off in [None, 1e100]:
 
-            cknn = ContinuousNNKernel(k_neighbor=5, delta=2.3)
+            cknn = ContinuousNNKernel(
+                k_neighbor=5, delta=2.3, dist_kwargs=dict(cut_off=dist_cut_off)
+            )
             graph_train, cdist_kwargs = cknn(train_data)
             graph_test, _ = cknn(
                 train_data,
                 test_data,
-                dist_kwargs=dict(cut_off=dist_cut_off),
                 **cdist_kwargs,
             )
 
@@ -472,8 +478,8 @@ class TestContinuousNNKernel(unittest.TestCase):
             # Only reference testing for the examples possible.
             # This test fails if there are changes in the implementation and need to be
             # adapted.
-            print(graph_train.getnnz(axis=1).mean())
-            print(graph_test.getnnz(axis=1).mean())
+            # print(graph_train.getnnz(axis=1).mean())
+            # print(graph_test.getnnz(axis=1).mean())
             self.assertEqual(graph_train.getnnz(axis=1).mean(), 11.65)
             self.assertEqual(graph_test.getnnz(axis=1).mean(), 11.525)
 

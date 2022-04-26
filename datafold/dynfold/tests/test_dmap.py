@@ -191,9 +191,8 @@ class DiffusionMapsTest(unittest.TestCase):
             data, store_kernel_matrix=True
         )
         sparse_case = DiffusionMaps(
-            GaussianKernel(epsilon=1.25),
+            GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=1e100)),
             n_eigenpairs=11,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data, store_kernel_matrix=True)
 
         nptest.assert_allclose(
@@ -235,7 +234,7 @@ class DiffusionMapsTest(unittest.TestCase):
         ).fit(data)
 
         # make sure that the symmetric transformation is really used
-        self.assertTrue(dmap1._dmap_kernel.is_symmetric_transform())
+        self.assertTrue(dmap1._dmap_kernel.is_conjugate)
 
         # Note: cannot compare kernel matrices, because they are only similar (sharing
         # same eigenvalues and eigenvectors [after transformation] not equal
@@ -249,21 +248,19 @@ class DiffusionMapsTest(unittest.TestCase):
         data, _ = make_swiss_roll(1500, random_state=2)
 
         dmap1 = DiffusionMaps(
-            GaussianKernel(epsilon=3),
+            GaussianKernel(epsilon=3, dist_kwargs=dict(cut_off=1e100)),
             n_eigenpairs=5,
             symmetrize_kernel=True,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data)
 
         dmap2 = DiffusionMaps(
-            GaussianKernel(epsilon=3),
+            GaussianKernel(epsilon=3, dist_kwargs=dict(cut_off=1e100)),
             n_eigenpairs=5,
             symmetrize_kernel=False,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data)
 
         # make sure that the symmetric transformation is really used
-        self.assertTrue(dmap1._dmap_kernel.is_symmetric_transform())
+        self.assertTrue(dmap1._dmap_kernel.is_conjugate)
 
         # Note: cannot compare kernel matrices, because they are only similar (sharing
         # same eigenvalues and eigenvectors [after transformation] not equal
@@ -453,7 +450,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
         # for variation use sparse code
         dmap_embed = DiffusionMaps(
-            GaussianKernel(epsilon=0.9), n_eigenpairs=2, dist_kwargs=dict(cut_off=1e100)
+            GaussianKernel(epsilon=0.9, dist_kwargs=dict(cut_off=1e100)), n_eigenpairs=2
         ).fit(X_all)
 
         expected_oos = (
@@ -570,11 +567,11 @@ class DiffusionMapsTest(unittest.TestCase):
         )
         tsc_data = TSCDataFrame.from_single_timeseries(df=df)
 
-        dmap = DiffusionMaps(kernel=GaussianKernel(), dist_kwargs=dict(cut_off=2)).fit(
+        dmap = DiffusionMaps(kernel=GaussianKernel(dist_kwargs=dict(cut_off=2))).fit(
             tsc_data, store_kernel_matrix=True
         )
 
-        self.assertEqual(dmap.X_fit_.dist_kwargs["cut_off"], 2)
+        self.assertEqual(dmap.kernel.dist_kwargs["cut_off"], 2)
         self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
 
     def test_kernel_symmetric_conjugate(self):
@@ -663,16 +660,14 @@ class DiffusionMapsTest(unittest.TestCase):
         X = TSCDataFrame.from_frame_list([X1, X2])
 
         actual_dmap = DiffusionMaps(
-            kernel=GaussianKernel(epsilon=1.25),
+            kernel=GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=10)),
             n_eigenpairs=6,
-            dist_kwargs=dict(cut_off=10),
         )
         actual_result = actual_dmap.fit_transform(X, store_kernel_matrix=True)
 
         expected_dmap = DiffusionMaps(
-            kernel=GaussianKernel(epsilon=1.25),
+            kernel=GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=10)),
             n_eigenpairs=6,
-            dist_kwargs=dict(cut_off=10),
         )
         expected_result = expected_dmap.fit_transform(
             X.to_numpy(), store_kernel_matrix=True
@@ -706,16 +701,16 @@ class DiffusionMapsTest(unittest.TestCase):
 
         t1 = time()
         cknn_kernel = pfold.kernels.ContinuousNNKernel(
-            k_neighbor=k_neighbor, delta=delta
+            k_neighbor=k_neighbor,
+            delta=delta,
+            dist_kwargs=dict(cut_off=pcm.cut_off, backend="rdist"),
         )
         k, distance = cknn_kernel(
             pcm,
-            dist_kwargs=dict(cut_off=pcm.cut_off, backend="rdist")
-            # dist_backend_kwargs={"kmin": k_neighbor + 1},
         )
         t2 = time()
 
-        dmap = DiffusionMaps(n_eigenpairs=10, dist_kwargs=dict(cut_off=pcm.cut_off))
+        dmap = DiffusionMaps(n_eigenpairs=10)
         dmap._dmap_kernel = cknn_kernel
         dmap.fit(pcm)
 
@@ -822,10 +817,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         data, epsilon = circle_data(nsamples=1000)
 
         actual = DiffusionMaps(
-            GaussianKernel(epsilon=epsilon),
+            GaussianKernel(epsilon=epsilon, dist_kwargs=dict(cut_off=1e100)),
             n_eigenpairs=11,
             symmetrize_kernel=False,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data, store_kernel_matrix=True)
         expected = legacy_dmap.SparseDiffusionMaps(points=data, epsilon=epsilon)
 
@@ -858,10 +852,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         ne = 5
         for cut_off in all_cut_offs:
             actual1 = DiffusionMaps(
-                GaussianKernel(epsilon=1e-3),
+                GaussianKernel(epsilon=1e-3, dist_kwargs=dict(cut_off=cut_off)),
                 n_eigenpairs=ne,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=cut_off),
             ).fit(data1)
             expected1 = legacy_dmap.DiffusionMaps(
                 points=data1, epsilon=1e-3, num_eigenpairs=ne, cut_off=cut_off
@@ -870,10 +863,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_eigenpairs(actual1, expected1)
 
             actual2 = DiffusionMaps(
-                GaussianKernel(epsilon=epsilon2),
+                GaussianKernel(epsilon=epsilon2, dist_kwargs=dict(cut_off=cut_off)),
                 n_eigenpairs=ne,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=cut_off),
             ).fit(data2)
             expected2 = legacy_dmap.DiffusionMaps(
                 points=data2, epsilon=epsilon2, num_eigenpairs=ne, cut_off=cut_off
@@ -904,10 +896,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
         # Sparse case
         actual = DiffusionMaps(
-            GaussianKernel(epsilon=epsilon),
+            GaussianKernel(epsilon=epsilon, dist_kwargs=dict(cut_off=3)),
             n_eigenpairs=11,
             is_stochastic=False,
-            dist_kwargs=dict(cut_off=3),
         ).fit(data, store_kernel_matrix=True)
 
         expected = legacy_dmap.SparseDiffusionMaps(
@@ -917,11 +908,10 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         cmp_kernel_matrix(actual, expected, rtol=1e-15, atol=1e-15)
 
         actual = DiffusionMaps(
-            GaussianKernel(epsilon=epsilon),
+            GaussianKernel(epsilon=epsilon, dist_kwargs=dict(cut_off=3)),
             n_eigenpairs=11,
             is_stochastic=True,
             symmetrize_kernel=False,
-            dist_kwargs=dict(cut_off=3),
         ).fit(data, store_kernel_matrix=True)
         expected = legacy_dmap.SparseDiffusionMaps(
             data, epsilon=1.25, num_eigenpairs=11, cut_off=3, normalize_kernel=True
@@ -945,11 +935,10 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
 
             actual = DiffusionMaps(
-                GaussianKernel(epsilon=1.25),
+                GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=3)),
                 n_eigenpairs=11,
                 symmetrize_kernel=False,
                 alpha=factor,
-                dist_kwargs=dict(cut_off=3),
             ).fit(data, store_kernel_matrix=True)
 
             expected = legacy_dmap.SparseDiffusionMaps(
@@ -973,10 +962,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             )
 
             actual_sparse = DiffusionMaps(
-                GaussianKernel(epsilon=eps),
+                GaussianKernel(epsilon=eps, dist_kwargs=dict(cut_off=3)),
                 n_eigenpairs=n_eigenpairs,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=3),
             ).fit(data, store_kernel_matrix=True)
             expected_sparse = legacy_dmap.SparseDiffusionMaps(
                 points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
@@ -1003,10 +991,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
 
             actual = DiffusionMaps(
-                GaussianKernel(epsilon=1.25),
+                GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=3)),
                 n_eigenpairs=n_eigenpairs,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=3),
             ).fit(data, store_kernel_matrix=True)
             expected = legacy_dmap.SparseDiffusionMaps(
                 data, epsilon=1.25, cut_off=3, num_eigenpairs=n_eigenpairs

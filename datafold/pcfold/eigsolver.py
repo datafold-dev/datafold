@@ -20,10 +20,7 @@ class NumericalMathError(Exception):
 
 
 def scipy_eigsolver(
-    kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
-    n_eigenpairs: int,
-    is_symmetric: bool,
-    is_stochastic: bool,
+    kernel, kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix], n_eigenpairs: int
 ):
     """Compute eigenpairs of kernel matrix with scipy backend.
 
@@ -85,7 +82,7 @@ def scipy_eigsolver(
     # check only for n_eigenpairs == n_features and n_eigenpairs < n_features
     # wrong parametrized n_eigenpairs are catched in scipy functions
     if n_eigenpairs == n_features:
-        if is_symmetric:
+        if kernel.is_symmetric:
             scipy_eigvec_solver = scipy.linalg.eigh
         else:
             scipy_eigvec_solver = scipy.linalg.eig
@@ -95,7 +92,7 @@ def scipy_eigsolver(
         }  # should be already checked
 
     else:  # n_eigenpairs < matrix.shape[1]
-        if is_symmetric:
+        if kernel.is_symmetric:
             scipy_eigvec_solver = scipy.sparse.linalg.eigsh
         else:
             scipy_eigvec_solver = scipy.sparse.linalg.eigs
@@ -108,7 +105,7 @@ def scipy_eigsolver(
         }
 
         # The selection of sigma is a result of a microbenchmark
-        if is_symmetric and is_stochastic:
+        if kernel.is_symmetric and kernel.is_stochastic:
             # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
             # setting sigma=1 resulted into a slower computation.
             NUMERICAL_EXACT_BREAKER = 0.1
@@ -187,10 +184,9 @@ def scipy_svdsolver(
 
 
 def compute_kernel_eigenpairs(
+    kernel,
     kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix],
     n_eigenpairs: int,
-    is_symmetric: bool = False,
-    is_stochastic: bool = False,
     normalize_eigenvectors: bool = False,
     backend: str = "scipy",
     validate_matrix: bool = False,
@@ -240,7 +236,7 @@ def compute_kernel_eigenpairs(
         "kernel_matrix must only contain finite values (no np.nan or np.inf)"
     )
     if (
-        isinstance(kernel_matrix, scipy.sparse.spmatrix)
+        scipy.sparse.issparse(kernel_matrix)
         and not np.isfinite(kernel_matrix.data).all()
     ):
         raise err_nonfinite
@@ -252,19 +248,18 @@ def compute_kernel_eigenpairs(
         kernel_matrix = kernel_matrix.astype(np.float64)
 
     if validate_matrix:
-        if is_symmetric and not is_symmetric_matrix(kernel_matrix):
+        if kernel.is_symmetric and not is_symmetric_matrix(kernel_matrix):
             raise ValueError("kernel_matrix is not symmetric")
 
         # TODO: include this after kernel refactor is carried out in #149
-        # if is_symmetric and not is_stochastic_matrix(kernel_matrix, axis=1):
-        #     raise ValueError("kernel_matrix is not stochastic")
+        # if kernel_content.is_symmetric and not is_stochastic_matrix(kernel_matrix, axis=1):
+        #      raise ValueError("kernel_matrix is not stochastic")
 
     if backend == "scipy":
         eigvals, eigvects = scipy_eigsolver(
+            kernel=kernel,
             kernel_matrix=kernel_matrix,
             n_eigenpairs=n_eigenpairs,
-            is_symmetric=is_symmetric,
-            is_stochastic=is_stochastic,
         )
     else:
         raise ValueError(f"backend {backend} not known.")
@@ -274,7 +269,7 @@ def compute_kernel_eigenpairs(
             "eigenvalues or eigenvectors contain 'NaN' or 'inf' values."
         )
 
-    if is_symmetric:
+    if kernel.is_symmetric:
         if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
             raise NumericalMathError(
                 "Eigenvalues have non-negligible imaginary part (larger than "

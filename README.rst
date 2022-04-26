@@ -56,6 +56,8 @@ For a mathematical thorough introduction, we refer to the `scientific literature
       only accessible via "deep imports"
       (e.g. :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning
       when using it.
+    * The interfaces within *datafold* are not stable. This means it is highly recommended to
+      use *datafold* with a specific version.
     * There is no deprecation cycle. Backwards compatibility is indicated by the
       package version, where we use a `semantic versioning <https://semver.org/>`__
       policy `[major].[minor].[patch]`, i.e.

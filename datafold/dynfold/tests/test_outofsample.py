@@ -95,9 +95,8 @@ class GeometricHarmonicsTest(unittest.TestCase):
         eps = 1e-1
 
         ghi = GeometricHarmonicsInterpolator(
-            GaussianKernel(epsilon=eps),
+            GaussianKernel(epsilon=eps, dist_kwargs=dict(cut_off=1e1 * eps)),
             n_eigenpairs=self.num_points - 3,
-            dist_kwargs=dict(cut_off=1e1 * eps),
         )
         ghi = ghi.fit(self.points, self.values)
 
@@ -138,16 +137,14 @@ class GeometricHarmonicsTest(unittest.TestCase):
         points = make_strip(0, 0, 1, 1e-1, 3000)
 
         dm = DiffusionMaps(
-            GaussianKernel(epsilon=eps),
+            GaussianKernel(epsilon=eps, dist_kwargs=dict(cut_off=1e100)),
             n_eigenpairs=n_eigenpairs,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(points)
 
         setting = {
-            "kernel": GaussianKernel(eps),
+            "kernel": GaussianKernel(eps, dist_kwargs=dict(cut_off=cut_off)),
             "n_eigenpairs": n_eigenpairs,
             "is_stochastic": False,
-            "dist_kwargs": dict(cut_off=cut_off),
         }
 
         ev1 = GeometricHarmonicsInterpolator(**setting).fit(
@@ -182,17 +179,15 @@ class GeometricHarmonicsTest(unittest.TestCase):
         dim_red_eps = 1.25
 
         dense_setting = {
-            "kernel": GaussianKernel(dim_red_eps),
+            "kernel": GaussianKernel(dim_red_eps, dist_kwargs=dict(cut_off=np.inf)),
             "n_eigenpairs": 6,
             "is_stochastic": False,
-            "dist_kwargs": dict(cut_off=np.inf),
         }
 
         sparse_setting = {
-            "kernel": GaussianKernel(dim_red_eps),
+            "kernel": GaussianKernel(dim_red_eps, dist_kwargs=dict(cut_off=1e100)),
             "n_eigenpairs": 6,
             "is_stochastic": False,
-            "dist_kwargs": dict(cut_off=1e100),
         }
 
         dmap_dense = DiffusionMaps(**dense_setting).fit(data)
@@ -263,8 +258,12 @@ class GeometricHarmonicsTest(unittest.TestCase):
         )
 
         for setting in parameter_grid:
+            _dkwg = setting.pop("dist_kwargs")
+
             gh = GeometricHarmonicsInterpolator(
-                GaussianKernel(epsilon=0.01), n_eigenpairs=3, **setting
+                GaussianKernel(epsilon=0.01, dist_kwargs=_dkwg),
+                n_eigenpairs=3,
+                **setting,
             ).fit(data, values)
 
             # larger number of samples than original data
@@ -563,12 +562,11 @@ class GeometricHarmonicsTest(unittest.TestCase):
         values = np.sin(data)
 
         gh_interp = GeometricHarmonicsInterpolator(
-            kernel=GaussianKernel(epsilon=0.5),
+            kernel=GaussianKernel(epsilon=0.5, dist_kwargs=dict(cut_off=np.inf)),
             n_eigenpairs=30,
             is_stochastic=True,
             alpha=0,
             symmetrize_kernel=False,
-            dist_kwargs=dict(cut_off=np.inf),
         ).fit(data, values)
 
         score = gh_interp.score(data, values)
@@ -591,14 +589,11 @@ class GeometricHarmonicsTest(unittest.TestCase):
         values = np.sin(data)
 
         gh_interp = GeometricHarmonicsInterpolator(
-            GaussianKernel(epsilon=2),
+            GaussianKernel(epsilon=2, dist_kwargs=dict(cut_off=np.inf)),
             n_eigenpairs=30,
             is_stochastic=True,
             alpha=1,
             symmetrize_kernel=True,
-            dist_kwargs=dict(
-                cut_off=np.inf,
-            ),
         ).fit(data, values)
 
         data_interp = np.linspace(0, 2 * np.pi, 100)[:, np.newaxis]
@@ -632,9 +627,8 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         dim_red_eps = 1.25
 
         dmap = DiffusionMaps(
-            GaussianKernel(epsilon=dim_red_eps),
+            GaussianKernel(epsilon=dim_red_eps, dist_kwargs=dict(cut_off=1e100)),
             n_eigenpairs=6,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(self.data)
 
         self.phi_all = dmap.eigenvectors_[:, [1, 5]]  # column wise like X_all
@@ -663,9 +657,10 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         )
 
         setting = {
-            "kernel": GaussianKernel(epsilon=eps_interp),
+            "kernel": GaussianKernel(
+                epsilon=eps_interp, dist_kwargs=dict(cut_off=1e100)
+            ),
             "n_eigenpairs": n_eigenpairs,
-            "dist_kwargs": dict(cut_off=1e100),
         }
 
         actual_phi0 = GeometricHarmonicsInterpolator(**setting).fit(
@@ -769,10 +764,11 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         )
 
         setting = {
-            "kernel": GaussianKernel(epsilon=eps_interp),
+            "kernel": GaussianKernel(
+                epsilon=eps_interp, dist_kwargs=dict(cut_off=1e100)
+            ),
             "n_eigenpairs": n_eigenpairs,
             "is_stochastic": False,
-            "dist_kwargs": dict(cut_off=1e100),
         }
 
         actual_x0 = GeometricHarmonicsInterpolator(**setting).fit(

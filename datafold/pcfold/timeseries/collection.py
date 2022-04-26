@@ -1444,7 +1444,6 @@ class TSCDataFrame(pd.DataFrame):
         kernel_output = self.kernel(
             X=self,
             Y=Y,
-            dist_kwargs=self.dist_kwargs,
             **kernel_kwargs,
         )
 
