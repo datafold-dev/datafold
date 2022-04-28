@@ -2,7 +2,6 @@
 
 from typing import List, Tuple
 
-import numpy as np
 import pandas as pd
 import sklearn.compose as compose
 import sklearn.pipeline as pipeline
@@ -53,15 +52,17 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         remainder="drop",
         n_jobs=None,
         transformer_weights=None,
-        verbose=False
+        verbose=False,
+        verbose_feature_names_out=True
     ):
         super(TSCColumnTransformer, self).__init__(
             transformers=transformers,
             remainder=remainder,
-            sparse_threshold=0.3,  # default value, will be ignored
+            sparse_threshold=0.3,  # default value, parameter will be ignored
             transformer_weights=transformer_weights,
             n_jobs=n_jobs,
             verbose=verbose,
+            verbose_feature_names_out=verbose_feature_names_out,
         )
 
     @property
@@ -75,16 +76,11 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
                 "Currently there is no support for sparse output in TSCColumnTransformer."
             )
 
-        all_columns = pd.Index(np.hstack([df.columns.to_numpy() for df in Xs]))
-
-        if all_columns.has_duplicates:
-            # handle feature names in case of conflict
-            for i in range(len(self.transformers_)):
-                Xs[i] = Xs[i].add_prefix(self.transformers_[i][0] + "__")
-
         # dropna(axis=0) removes all rows that were dropped during transform
         # (i.e. transformations that require multiple timesteps).
-        return pd.concat(Xs, axis=1, sort=True).dropna(axis=0)
+        Xs = pd.concat(Xs, axis=1, sort=True, ignore_index=True).dropna(axis=0)
+        Xs.columns = pd.Index(self.get_feature_names_out())
+        return Xs
 
     def fit(self, X: TransformType, y=None, **fit_params):
         X = self._validate_datafold_data(X)

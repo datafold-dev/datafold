@@ -11,7 +11,6 @@ from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold._decorators import warn_known_bug
 from datafold.dynfold.dmap import _DmapKernelAlgorithms
-from datafold.pcfold import PCManifold
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import DmapKernelFixed, GaussianKernel, PCManifoldKernel
 from datafold.utils.general import mat_dot_diagmat
@@ -52,7 +51,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     Attributes
     ----------
 
-    X_: PCManifold
+    X_fit_: np.ndarray
         Training data during fit of shape `(n_samples, n_features)`. The data is required
         to be stored to perform out-of-sample interpolations. Equipped with kernel
         :py:class:`DmapKernelFixed`.
@@ -196,7 +195,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             symmetrize_kernel=self.symmetrize_kernel,
         )
 
-        self.X_ = PCManifold(X, kernel=self._dmap_kernel)
+        self.X_fit_ = X
         self.y_ = y
 
         check_scalar(
@@ -204,10 +203,10 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             "n_eigenpairs",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=self.X_.shape[0] - 1,
+            max_val=self.X_fit_.shape[0] - 1,
         )
 
-        kernel_matrix_ = self.X_.compute_kernel_matrix()
+        kernel_matrix_ = self._dmap_kernel(X=X)
 
         (
             self.eigenvalues_,
@@ -250,11 +249,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             X, **self._validate_kwargs(X, ensure_min_samples=1, during_fit=False)
         )
 
-        kernel_output = self.X_.compute_kernel_matrix(Y=X)
-        kernel_matrix_, _, _ = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
-
+        kernel_matrix_ = self._dmap_kernel(self.X_fit_, X)
         return np.squeeze(kernel_matrix_ @ self._aux)
 
     @warn_known_bug(gitlab_issue=16)
@@ -289,7 +284,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             X, self._validate_kwargs(X, ensure_min_samples=1, during_fit=False)
         )
 
-        assert self.X_ is not None and self.y_ is not None  # prevents mypy warnings
+        assert self.X_fit_ is not None and self.y_ is not None  # prevents mypy warnings
 
         if vcol is None and self.y_.ndim > 1 and self.y_.shape[1] > 1:
             raise NotImplementedError(
@@ -308,16 +303,10 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         else:
             values = self.y_[:, 0]
 
-        kernel_output = self.X_.compute_kernel_matrix(X)
-        kernel_matrix, _, _sanity_check = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
-
-        assert _sanity_check == {}
+        kernel_matrix = self._dmap_kernel(self.X_fit_, X)
 
         # TODO: see issue #54 the to_ndarray() kills memory, when many points
         #  (xi.shape[0]) are requested
-
         if isinstance(kernel_matrix, scipy.sparse.coo_matrix):
             kernel_matrix = np.squeeze(kernel_matrix.toarray())
         elif isinstance(kernel_matrix, scipy.sparse.csr_matrix):
@@ -327,9 +316,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         ki_psis = kernel_matrix * values
 
         grad = np.zeros_like(X)
-        v = np.empty_like(self.X_)
+        v = np.empty_like(self.X_fit_)
         for p in range(X.shape[0]):
-            np.subtract(X[p, :], self.X_, out=v)
+            np.subtract(X[p, :], self.X_fit_, out=v)
             np.matmul(v.T, ki_psis[p, :], out=grad[p, :])
         return grad
 

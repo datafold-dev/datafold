@@ -7,7 +7,7 @@ import numpy as np
 import numpy.testing as nptest
 import scipy
 import scipy.sparse
-from scipy.sparse.base import SparseEfficiencyWarning
+from scipy.sparse import SparseEfficiencyWarning
 from scipy.spatial.distance import cdist, pdist, squareform
 
 from datafold.pcfold.distance import (

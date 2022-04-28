@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -11,8 +11,7 @@ from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScal
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
-from datafold.pcfold import MultiquadricKernel, PCManifold, TSCDataFrame
-from datafold.pcfold.kernels import PCManifoldKernel
+from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.timeseries.collection import TSCException
 
 
@@ -769,10 +768,11 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
     """
 
     _cls_valid_center_types = ["all_data", "fit_params", "initial_condition"]
+    _required_parameters = ["kernel"]
 
     def __init__(
         self,
-        kernel: Optional[PCManifoldKernel] = None,
+        kernel,
         *,  # keyword-only
         center_type: str = "all_data",
         exact_distance=True,
@@ -787,9 +787,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 f"center_type={center_type} not valid. Choose from "
                 f"{self._cls_valid_center_types} "
             )
-
-    def _get_default_kernel(self):
-        return MultiquadricKernel(epsilon=1.0)
 
     def get_feature_names_out(self, feature_names_in=None):
         return np.array([f"rbf{i}" for i in range(self.centers_.shape[0])])
@@ -854,16 +851,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 "center_type was not checked correctly. Please report bug."
             )
 
-        set_kernel = (
-            self.kernel if self.kernel is not None else self._get_default_kernel()
-        )
-
-        self.centers_ = PCManifold(
-            self.centers_,
-            kernel=set_kernel,
-            dist_kwargs=dict(backend="brute", exact_numeric=self.exact_distance),
-        )
-
         self._setup_feature_attrs_fit(X)
 
         return self
@@ -886,7 +873,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         self._validate_feature_input(X, direction="transform")
 
         X_intern = self._X_to_numpy(X)
-        rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
+        rbf_coeff = self.kernel(self.centers_, X_intern)
 
         return self._same_type_X(
             X, values=rbf_coeff, feature_names=self.get_feature_names_out()
@@ -915,9 +902,9 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if self.center_type == "all_data":
             # compute pdist distance matrix, which is often more efficient
-            rbf_coeff = self.centers_.compute_kernel_matrix()
+            rbf_coeff = self.kernel(X)
         else:  # self.center_type in ["initial_condition", "fit_params"]:
-            rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
+            rbf_coeff = self.kernel(self.centers_, X_intern)
 
         # import matplotlib.pyplot as plt; plt.matshow(rbf_coeff)
         return self._same_type_X(
@@ -947,7 +934,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if not hasattr(self, "inv_coeff_matrix_"):
             # save inv_coeff_matrix_
-            center_kernel = self.centers_.compute_kernel_matrix()
+            center_kernel = self.kernel(self.centers_)
             self.inv_coeff_matrix_ = np.linalg.lstsq(
                 center_kernel, self.centers_, rcond=None
             )[0]

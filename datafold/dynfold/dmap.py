@@ -13,7 +13,7 @@ from sklearn.utils import resample
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
-from datafold.pcfold import DmapKernelFixed, PCManifold, TSCDataFrame
+from datafold.pcfold import DmapKernelFixed, TSCDataFrame
 from datafold.pcfold.eigsolver import (
     NumericalMathError,
     compute_kernel_eigenpairs,
@@ -528,12 +528,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             symmetrize_kernel=self.symmetrize_kernel,
         )
 
-        if isinstance(X, TSCDataFrame):
-            self.X_fit_ = TSCDataFrame(X, kernel=self._dmap_kernel)
-        elif isinstance(X, (np.ndarray, pd.DataFrame)):
-            self.X_fit_ = PCManifold(X, kernel=self._dmap_kernel)
-
-        kernel_matrix_ = self.X_fit_.compute_kernel_matrix()
+        self.X_fit_ = X
+        kernel_matrix_ = self._dmap_kernel(X=X)
 
         # choose object to copy time information from, if applicable
         if isinstance(kernel_matrix_, TSCDataFrame):
@@ -607,7 +603,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        kernel_matrix_cdist = self.X_fit_.compute_kernel_matrix(X)
+        kernel_matrix_cdist = self._dmap_kernel(self.X_fit_, X)
 
         # choose object to copy time information from
         if isinstance(kernel_matrix_cdist, TSCDataFrame):
@@ -767,20 +763,14 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
         self._setup_feature_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        pcm = PCManifold(
-            X,
-            kernel=self.dmap_kernel_,
-        )
-
-        # basis_change_matrix is None if not required
-        self.operator_matrix_ = pcm.compute_kernel_matrix()
+        self.generator_matrix_ = self.dmap_kernel_(X=X)
 
         (
             self.eigenvalues_,
             self.eigenvectors_,
         ) = _DmapKernelAlgorithms.solve_eigenproblem(
             kernel=self.dmap_kernel_,
-            kernel_matrix=self.operator_matrix_,
+            kernel_matrix=self.generator_matrix_,
             n_eigenpairs=self.n_eigenpairs,
         )
 
@@ -789,8 +779,8 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
         #  Maybe think about a way to transform this?
 
         if self.dmap_kernel_.is_symmetric_transform(is_pdist=True):
-            self.operator_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
-                kernel_matrix=self.operator_matrix_,
+            self.generator_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
+                kernel_matrix=self.generator_matrix_,
                 basis_change_matrix=self.dmap_kernel_.basis_change_matrix_,
             )
 
@@ -880,7 +870,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
     Attributes
     ----------
 
-    landmarks_: PCManifold
+    landmarks_: np.ndarray
         The final landmark data used. It is required for both in-sample and
         out-of-sample embeddings. ``np.asarray(landmarks_)`` casts the object to a
         standard numpy array.
@@ -1092,9 +1082,9 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
     def get_feature_names_out(self, input_features=None):
         if hasattr(self, "target_coords_"):
-            feature_names = np.array([f"coord{i}" for i in self.target_coords_])
+            feature_names = np.array([f"rose{i}" for i in self.target_coords_])
         else:
-            feature_names = np.array([f"coord{i}" for i in range(self.n_svdtriplet)])
+            feature_names = np.array([f"rose{i}" for i in range(self.n_svdtriplet)])
 
         return feature_names
 
@@ -1164,7 +1154,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         )
 
         self._validate_setting(n_samples=X.shape[0])
-
         self._setup_feature_attrs_fit(X)
 
         if isinstance(self.landmarks, (int, float)):
@@ -1181,18 +1170,11 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         if self.kernel is None:
             self.kernel = self._get_default_kernel()
 
-        self.landmarks_ = PCManifold(
-            self.landmarks_,
-            kernel=RoselandKernel(internal_kernel=self.kernel, alpha=self.alpha),
+        self.rose_kernel_ = RoselandKernel(
+            internal_kernel=self.kernel, alpha=self.alpha
         )
 
-        kernel_output = self.landmarks_.compute_kernel_matrix(X)
-
-        (
-            kernel_matrix,
-            self._cdist_kwargs,
-            ret_extra,
-        ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
+        kernel_matrix = self.rose_kernel_(self.landmarks_, X)
 
         (
             self.svdvec_left_,
@@ -1201,7 +1183,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         ) = self._compute_kernel_svd(
             kernel_matrix=kernel_matrix,
             n_svdtriplet=self.n_svdtriplet,
-            normalize_diagonal=ret_extra["normalize_diagonal"],
+            normalize_diagonal=self.rose_kernel_.normalize_diagonal_,
             index_from=X if isinstance(X, TSCDataFrame) else None,
         )
 
@@ -1209,38 +1191,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             self.kernel_matrix_ = kernel_matrix
 
         return self
-
-    def fit_transform(self, X: TransformType, y=None, **fit_params) -> np.ndarray:
-        """Compute Roseland fit from data and apply embedding on the same data.
-
-        Parameters
-        ----------
-        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            Training data.
-
-        y: None
-
-        **fit_params: Dict[str, object]
-            See `fit` method for additional parameter.
-
-        Returns
-        -------
-        TSCDataFrame, pandas.DataFrame, numpy.ndarray
-            the new coordinates of the points in X
-
-        """
-
-        self.fit(X=X, **fit_params)
-        svdvec_left, svdvals, _ = self._select_svdpairs_target_coords()
-
-        if isinstance(X, TSCDataFrame):
-            svdvec_left = TSCDataFrame.from_same_indices_as(
-                indices_from=X,
-                values=svdvec_left,
-                except_columns=self.feature_names_out_,
-            )
-
-        return svdvec_left
 
     def transform(self, X: TransformType) -> TransformType:
         r"""Embed out-of-sample points with the Nyström extension:
@@ -1273,10 +1223,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        kernel_output = self.landmarks_.compute_kernel_matrix(X, **self._cdist_kwargs)
-        kernel_matrix_cdist, _, ret_extra = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
+        kernel_matrix_cdist = self.rose_kernel_(self.landmarks_, X)
 
         _, svdvals, svdvec_right = self._select_svdpairs_target_coords()
 
@@ -1284,7 +1231,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             kernel_matrix_cdist,
             svdvec_right=svdvec_right,
             svdvals=svdvals,
-            normalize_diagonal=ret_extra["normalize_diagonal"],
+            normalize_diagonal=self.rose_kernel_.normalize_diagonal_,
         )
 
         roseland_embedding = self._perform_roseland_embedding(
@@ -1295,10 +1242,42 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             roseland_embedding = TSCDataFrame.from_same_indices_as(
                 indices_from=X,
                 values=roseland_embedding,
-                except_columns=self._feature_names(),
+                except_columns=self.get_feature_names_out(),
             )
 
         return roseland_embedding
+
+    def fit_transform(self, X: TransformType, y=None, **fit_params) -> np.ndarray:
+        """Compute Roseland fit from data and apply embedding on the same data.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data.
+
+        y: None
+
+        **fit_params: Dict[str, object]
+            See `fit` method for additional parameter.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            the new coordinates of the points in X
+
+        """
+
+        self.fit(X=X, **fit_params)
+        svdvec_left, svdvals, _ = self._select_svdpairs_target_coords()
+
+        if isinstance(X, TSCDataFrame):
+            svdvec_left = TSCDataFrame.from_same_indices_as(
+                indices_from=X,
+                values=svdvec_left,
+                except_columns=self.get_feature_names_out(),
+            )
+
+        return svdvec_left
 
 
 class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):

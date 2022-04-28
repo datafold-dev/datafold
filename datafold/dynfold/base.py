@@ -427,7 +427,7 @@ class TSCPredictMixin(TSCBase):
             raise TypeError("Only TSCDataFrame can be used for 'X'.")
 
         self.n_features_in_ = X.shape[1]
-        self.feature_names_in_ = X.columns.to_numpy()
+        self.feature_names_in_ = X.columns
 
         time_values = X.time_values()
         time_values = self._validate_time_values(time_values=time_values)

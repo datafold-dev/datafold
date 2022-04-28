@@ -259,7 +259,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 class DMDTest(unittest.TestCase):
     def _create_random_tsc(self, dim, n_samples):
         data = np.random.default_rng(1).normal(size=(n_samples, dim))
-        data = pd.DataFrame(data)
+        data = pd.DataFrame(data, columns=np.arange(dim))
         return TSCDataFrame.from_single_timeseries(data)
 
     def _create_harmonic_tsc(self, n_samples, dim):

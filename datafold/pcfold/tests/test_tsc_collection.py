@@ -1,4 +1,5 @@
 import unittest
+import warnings
 
 import numpy as np
 import numpy.testing as nptest
@@ -913,8 +914,10 @@ class TestTSCDataFrame(unittest.TestCase):
         # behaviour if not all time points are present
         ts = TSCDataFrame(self.simple_df)
 
-        # -1 is even an illegal
-        new_ts = ts.select_time_values(time_values=np.array([0, 1, -1]))
+        with warnings.catch_warnings():
+            # -1 is even an illegal but this will raise an error in future
+            warnings.simplefilter(action="ignore", category=FutureWarning)
+            new_ts = ts.select_time_values(time_values=np.array([0, 1, -1]))
 
         self.assertTrue(np.in1d(new_ts.time_values(), (0, 1)).all())
         self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
@@ -1097,7 +1100,7 @@ class TestTSCDataFrame(unittest.TestCase):
         insert = pd.Series(["a", "b"], index=tsc.columns, name=(999, 0))
 
         with self.assertRaises(AttributeError):
-            tsc.append(insert)
+            tsc.concat(insert, axis=1)
 
         with self.assertRaises(AttributeError):
             pd.concat([tsc, insert], axis=0)

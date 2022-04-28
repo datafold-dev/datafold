@@ -163,22 +163,24 @@ def scipy_svdsolver(
     """
     max_n_triplets = np.min(kernel_matrix.shape)
 
-    v0 = kwargs.pop("v0", np.random.default_rng(1).random(min(kernel_matrix.shape)))
-    which = kwargs.pop("which", "LM")
-
     if n_svdvtriplets < max_n_triplets:
-        svdvec_left, svdvals, svdvec_right = scipy.sparse.linalg.svds(
-            kernel_matrix, k=n_svdvtriplets, which=which, v0=v0, **kwargs
-        )
+        random_state = kwargs.pop("random_state", 3)
+        which = kwargs.pop("which", "LM")
 
-        svdvals, svdvec_left, svdvec_right = sort_eigenpairs(
-            svdvals, svdvec_left, left_eigenvectors=svdvec_right
+        svdvec_left, svdvals, svdvec_right = scipy.sparse.linalg.svds(
+            kernel_matrix,
+            k=n_svdvtriplets,
+            which=which,
+            random_state=random_state,
+            **kwargs,
         )
     else:  # n_svdvtriplets == max_n_triplets:
         if scipy.sparse.isspmatrix(kernel_matrix):
             # must be a dense matrix for the solver -- TODO: maybe raise warning?
             kernel_matrix = kernel_matrix.toarray()
-        svdvec_left, svdvals, svdvec_right = scipy.linalg.svd(kernel_matrix)
+        svdvec_left, svdvals, svdvec_right = scipy.linalg.svd(
+            kernel_matrix, full_matrices=False
+        )
 
     return svdvec_left, svdvals, svdvec_right
 

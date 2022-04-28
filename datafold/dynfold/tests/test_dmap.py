@@ -610,7 +610,6 @@ class DiffusionMapsTest(unittest.TestCase):
         )
 
         self.assertIsInstance(dmap.eigenvectors_, TSCDataFrame)
-        self.assertIsInstance(dmap.kernel_matrix_, TSCDataFrame)
 
         # insert TSCDataFrame -> output TSCDataFrame
         actual_tsc = dmap.transform(tsc_data.iloc[:10, :])

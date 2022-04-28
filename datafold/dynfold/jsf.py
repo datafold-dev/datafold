@@ -104,7 +104,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         self.jointly_smooth_vectors_: np.ndarray
         self.eigenvalues_: np.ndarray
 
-    def _validate_input(self):
+    def _validate_parameter(self):
 
         if (
             not isinstance(self.data_splits, list)
@@ -157,12 +157,12 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
 
         for name in kernel_content:
             kernel_matrix = kernel_content[name]["kernel_matrix"]
+            kernel = kernel_content[name]["kernel"]
 
             kernel_eigenvalues, kernel_eigenvectors = compute_kernel_eigenpairs(
-                kernel_matrix,
+                kernel=kernel,
+                kernel_matrix=kernel_matrix,
                 n_eigenpairs=self.n_kernel_eigenvectors,
-                is_symmetric=True,
-                is_stochastic=False,
             )
 
             if isinstance(X, pd.DataFrame) and kernel_matrix.shape[0] == X.shape[0]:
@@ -192,38 +192,44 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
 
         if len(self.kernel_eigenvectors_) == 2:
             # cf. Algorithm 4.1 in https://arxiv.org/pdf/2004.04386.pdf
-            ev0, ev1 = list(kernel_eigenvectors.values())
+            W1, W2 = list(kernel_eigenvectors.values())
+
+            # turn to numpy arrays in case of DataFrame
+            W1, W2 = np.asarray(W1), np.asarray(W2)
 
             n_jointly_smooth_functions = min(
-                [self.n_jointly_smooth_functions, ev0.shape[1] - 1, ev1.shape[1] - 1]
-            )
-            if isinstance(X, pd.DataFrame):
-                evs = ev0.to_numpy().T @ ev1.to_numpy()
-            else:
-                evs = ev0.T @ ev1
-
-            Q, eigvals, R_t = compute_kernel_svd(
-                evs,
-                n_svdtriplet=n_jointly_smooth_functions,
-                **(self.svd_solver_kwargs or {}),
+                [self.n_jointly_smooth_functions, W1.shape[1] - 1, W2.shape[1] - 1]
             )
 
-            center = np.row_stack(
-                [np.column_stack([Q, Q]), np.column_stack([R_t.T, -R_t.T])]
+            # compute full SVD
+            Q, singular_vals, Rt = scipy.linalg.svd(W1.T @ W2, full_matrices=False)
+
+            center_blockmatrix = np.row_stack(
+                [np.column_stack([Q, Q]), np.column_stack([Rt.T, -Rt.T])]
             )
 
-            right = np.power(np.concatenate([1 + eigvals, 1 - eigvals]), -1 / 2)
+            # reduce the elements to the number of functions we actually need
+            center_blockmatrix = center_blockmatrix[:, :n_jointly_smooth_functions]
+
+            # diagonal matrix with 1 +/- singular_vals (Gamma in algorithm)
+            diagonal_elements = np.concatenate([1 + singular_vals, 1 - singular_vals])
+            diagonal_elements = diagonal_elements[:n_jointly_smooth_functions]
+            diagonal_elements = np.sqrt(diagonal_elements, out=diagonal_elements)
+            diagonal_elements = np.reciprocal(diagonal_elements, out=diagonal_elements)
+
             jointly_smooth_functions = (
-                1 / np.sqrt(2) * stacked_eigenvectors @ mat_dot_diagmat(center, right)
-            )[:, :n_jointly_smooth_functions]
-
+                1.0
+                / np.sqrt(2.0)
+                * stacked_eigenvectors
+                @ mat_dot_diagmat(center_blockmatrix, diagonal_elements)
+            )
         else:
             # cf. Algorithm 4.2 in https://arxiv.org/pdf/2004.04386.pdf
             n_jointly_smooth_functions = min(
                 [self.n_jointly_smooth_functions, stacked_eigenvectors.shape[1]]
             )
 
-            jointly_smooth_functions, eigvals, _ = compute_kernel_svd(
+            jointly_smooth_functions, singular_vals, _ = compute_kernel_svd(
                 stacked_eigenvectors,
                 n_svdtriplet=n_jointly_smooth_functions,
                 **(self.svd_solver_kwargs or {}),
@@ -236,7 +242,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
                 except_columns=self.get_feature_names_out(),
             )
 
-        return eigvals, jointly_smooth_functions
+        return singular_vals, jointly_smooth_functions
 
     def _nystrom(self, X):
         """Embed out-of-sample points with Nyström extension.
@@ -299,20 +305,13 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
             name, kernel, indices = split
 
             if isinstance(X, pd.DataFrame):
-                output = kernel(X.iloc[:, indices])
+                kernel_matrix = kernel(X.iloc[:, indices])
             else:
-                output = kernel(X[:, indices])
-
-            (
-                kernel_matrix,
-                cdist_kwargs,
-                extra_kwargs,
-            ) = BaseManifoldKernel.read_kernel_output(output)
+                kernel_matrix = kernel(X[:, indices])
 
             return_content[name] = dict()
             return_content[name]["kernel_matrix"] = kernel_matrix
-            return_content[name]["cdist_kwargs"] = cdist_kwargs
-            return_content[name]["extra_kwargs"] = extra_kwargs
+            return_content[name]["kernel"] = kernel
 
         return return_content
 
@@ -320,22 +319,20 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         return_content = dict()
 
         for i, split in enumerate(self.data_splits):
-            name, kernel, indices = split
+            name, _, indices = split
+            kernel = self.kernel_content_[name]["kernel"]
 
             if isinstance(X, pd.DataFrame):
-                output = kernel(
+                kernel_matrix = kernel(
                     self.X_fit_.iloc[:, indices],
                     X.iloc[:, indices],
-                    **self.kernel_content_[name]["cdist_kwargs"],
                 )
             else:
-                output = kernel(
+                kernel_matrix = kernel(
                     self.X_fit_[:, indices],
                     X[:, indices],
-                    **self.kernel_content_[name]["cdist_kwargs"],
                 )
 
-            kernel_matrix, _, _ = BaseManifoldKernel.read_kernel_output(output)
             return_content[name] = kernel_matrix
 
         return return_content
@@ -366,7 +363,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
             X=X, ensure_min_samples=max(2, self.n_kernel_eigenvectors + 1)
         )
 
-        self._validate_input()
+        self._validate_parameter()
 
         store_kernel_matrix = self._read_fit_params(
             attrs=[("store_kernel_matrix", False)],

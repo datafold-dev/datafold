@@ -19,7 +19,6 @@ from datafold.pcfold.kernels import (
     GaussianKernel,
     InverseMultiquadricKernel,
     MultiquadricKernel,
-    PCManifoldKernel,
     QuinticKernel,
     _kth_nearest_neighbor_dist,
     _symmetric_matrix_division,
@@ -284,19 +283,11 @@ class TestPCManifoldKernel(unittest.TestCase):
         kernels_tsc = [ConeKernel(zeta=0), ConeKernel(zeta=0.5)]
 
         for k in kernels:
-            kernel_output = k(data)
-            kernel_matrix, _, _ = PCManifoldKernel.read_kernel_output(
-                kernel_output=kernel_output
-            )
-
+            kernel_matrix = k(data)
             self.assertTrue(is_symmetric_matrix(kernel_matrix))
 
         for k in kernels_tsc:
-            kernel_output = k(data_tsc)
-            kernel_matrix, _, _ = PCManifoldKernel.read_kernel_output(
-                kernel_output=kernel_output
-            )
-
+            kernel_matrix = k(data_tsc)
             self.assertTrue(is_symmetric_matrix(kernel_matrix.to_numpy()))
 
     def test_gaussian_kernel_callable(self):
@@ -369,13 +360,11 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
             symmetrize_kernel=False,
         )
 
-        _, cdist_kwargs, _ = kernel(X=data_X)
-
-        with self.assertRaises(ValueError):
-            kernel(X=data_X, Y=data_Y)
+        _ = kernel(X=data_X)
+        self.assertIsInstance(kernel.row_sums_alpha_, np.ndarray)
 
         # No error:
-        kernel(X=data_X, Y=data_Y, **cdist_kwargs)
+        kernel(X=data_X, Y=data_Y)
 
 
 class TestContinuousNNKernel(unittest.TestCase):
@@ -423,17 +412,12 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         for dist_cut_off in [None, 1e100]:
             # test if a sparse distance matrix gets the same result
-            cknn = ContinuousNNKernel(k_neighbor=5, delta=1.5)
+            cknn = ContinuousNNKernel(
+                k_neighbor=5, delta=1.5, dist_kwargs=dict(cut_off=dist_cut_off)
+            )
 
-            graph_train, cdist_kwargs = cknn(
-                train_data, dist_kwargs=dict(cut_off=dist_cut_off)
-            )
-            graph_test, _ = cknn(
-                train_data,
-                test_data,
-                dist_kwargs=dict(cut_off=dist_cut_off),
-                **cdist_kwargs,
-            )
+            graph_train = cknn(train_data)
+            graph_test = cknn(train_data, test_data)
 
             self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
             self.assertIsInstance(graph_test, scipy.sparse.csr_matrix)
@@ -462,11 +446,10 @@ class TestContinuousNNKernel(unittest.TestCase):
             cknn = ContinuousNNKernel(
                 k_neighbor=5, delta=2.3, dist_kwargs=dict(cut_off=dist_cut_off)
             )
-            graph_train, cdist_kwargs = cknn(train_data)
-            graph_test, _ = cknn(
+            graph_train = cknn(train_data)
+            graph_test = cknn(
                 train_data,
                 test_data,
-                **cdist_kwargs,
             )
 
             self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
@@ -518,6 +501,7 @@ class TestContinuousNNKernel(unittest.TestCase):
         distance_matrix = compute_distance_matrix(generate_circle_data(20, 20, 1))
 
         with self.assertRaises(ValueError):
+            # k_neighbor larger than the distance matrix
             ContinuousNNKernel(k_neighbor=41, delta=1).eval(distance_matrix)
 
 
@@ -535,50 +519,60 @@ class TestConeKernel(unittest.TestCase):
         )
 
     def test_return_type(self):
-        actual, cdist_kwargs = ConeKernel(zeta=0.5)(self.X_tsc)
+        cone_kernel = ConeKernel(zeta=0.5)
+        actual = cone_kernel(self.X_tsc)
 
         self.assertIsInstance(actual, TSCDataFrame)
 
-        self.assertIsInstance(cdist_kwargs, dict)
-        self.assertIsInstance(cdist_kwargs["timederiv_X"], TSCDataFrame)
-        self.assertIsInstance(cdist_kwargs["norm_timederiv_X"], TSCDataFrame)
+        self.assertIsInstance(cone_kernel.timederiv_X_, TSCDataFrame)
+        self.assertIsInstance(cone_kernel.norm_timederiv_X_, TSCDataFrame)
 
-        actual, cdist_kwargs = ConeKernel(zeta=0.5)(
-            self.X_tsc, self.Y_tsc, **cdist_kwargs
-        )
-
-        self.assertIsInstance(actual, TSCDataFrame)
-        self.assertEqual(cdist_kwargs, None)
+        actual2 = cone_kernel(self.X_tsc, self.Y_tsc)
+        self.assertIsInstance(actual2, TSCDataFrame)
 
     def test_zeta_approx_zero(self):
-        actual, cdist_kwargs = ConeKernel(zeta=1e-15)(self.X_tsc)
-        expected, cdist_kwargs2 = ConeKernel(zeta=0)(self.X_tsc)
+
+        cone_one = ConeKernel(zeta=1e-15)
+        cone_two = ConeKernel(zeta=0)
+
+        actual = cone_one(self.X_tsc)
+        expected = cone_two(self.X_tsc)
 
         nptest.assert_allclose(actual, expected, rtol=0, atol=1e-15)
 
-        actual, _ = ConeKernel(zeta=1e-15)(self.X_tsc, self.Y_tsc, **cdist_kwargs)
-        expected, _ = ConeKernel(zeta=0)(self.X_tsc, self.Y_tsc, **cdist_kwargs2)
+        actual = cone_one(self.X_tsc, self.Y_tsc)
+        expected = cone_two(self.X_tsc, self.Y_tsc)
         nptest.assert_allclose(actual, expected, rtol=0, atol=1e-15)
 
     def test_cdist_evaluation_no_error(self):
         cone_kernel = ConeKernel(0.5)
-        kernel_pdist, cdist_kwargs = cone_kernel(self.X_tsc)
-        kernel_cdist, _ = cone_kernel(self.X_tsc, self.Y_tsc, **cdist_kwargs)
+        kernel_pdist = cone_kernel(self.X_tsc)
+        kernel_cdist = cone_kernel(self.X_tsc, self.Y_tsc)
 
         self.assertTrue(np.isfinite(kernel_pdist).all().all())
         self.assertTrue(np.isfinite(kernel_cdist).all().all())
 
     def test_cdist(self):
         kernel = ConeKernel(zeta=0.5)
-        expected_kernel, cdist_kwargs = kernel(self.X_tsc)
-        actual_kernel, _ = kernel(self.X_tsc, self.X_tsc, **cdist_kwargs)
+        expected_kernel = kernel(self.X_tsc)
+        actual_kernel = kernel(self.X_tsc, self.X_tsc)
         pdtest.assert_frame_equal(expected_kernel, actual_kernel)
 
         # zeta=0 is a special case
         kernel = ConeKernel(zeta=0.0)
-        expected_kernel, cdist_kwargs = kernel(self.X_tsc)
-        actual_kernel, _ = kernel(self.X_tsc, self.X_tsc, **cdist_kwargs)
+        expected_kernel = kernel(self.X_tsc)
+        actual_kernel = kernel(self.X_tsc, self.X_tsc)
         pdtest.assert_frame_equal(expected_kernel, actual_kernel)
+
+        # test pdist followed by cdist versus direct cdist versus
+        kernel1 = ConeKernel(zeta=0.5)
+        kernel2 = ConeKernel(zeta=0.5)
+
+        _ = kernel1(self.X_tsc)
+        actual = kernel1(self.X_tsc, self.Y_tsc)
+        expected = kernel2(self.X_tsc, self.Y_tsc)
+
+        pdtest.assert_frame_equal(actual, expected)
 
     def test_duplicate_samples(self):
         X = self.X_tsc.copy()
@@ -588,8 +582,8 @@ class TestConeKernel(unittest.TestCase):
         Y.iloc[0, :] = X.iloc[0, :]
 
         cone_kernel = ConeKernel(0.5)
-        kernel_pdist, cdist_kwargs = cone_kernel(self.X_tsc)
-        kernel_cdist, _ = cone_kernel(self.X_tsc, self.Y_tsc, **cdist_kwargs)
+        kernel_pdist = cone_kernel(self.X_tsc)
+        kernel_cdist = cone_kernel(self.X_tsc, self.Y_tsc)
 
         self.assertTrue(np.isfinite(kernel_pdist).all().all())
         self.assertTrue(np.isfinite(kernel_cdist).all().all())
@@ -605,19 +599,17 @@ class TestConeKernel(unittest.TestCase):
         with self.assertRaises(ValueError):
             ConeKernel(epsilon=-0.1)(self.X_tsc, self.Y_tsc)
 
-        with self.assertRaises(ValueError):
-            ConeKernel(0.5)(self.X_tsc, self.Y_tsc)
-
         # different sampling frequency in X than in Y
         Y_tsc = self.Y_tsc.copy().set_index(
             pd.MultiIndex.from_arrays(
                 [np.ones(self.Y_tsc.shape[0]), np.arange(0, 2 * self.Y_tsc.shape[0], 2)]
             )
         )
-        _, cdist_kwargs = ConeKernel(zeta=0.5)(self.X_tsc)
+        kernel = ConeKernel(zeta=0.5)
+        kernel(self.X_tsc)
 
         with self.assertRaises(TSCException):
-            ConeKernel(0.5)(self.X_tsc, Y_tsc, **cdist_kwargs)
+            ConeKernel(0.5)(self.X_tsc, Y_tsc)
 
         # non constant time sampling:
         X_tsc = self.X_tsc.copy().drop(5, level=1)

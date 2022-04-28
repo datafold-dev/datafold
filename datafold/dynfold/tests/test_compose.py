@@ -96,24 +96,49 @@ class TestTSCCompose(unittest.TestCase):
         transform1 = TSCPrincipalComponent(n_components=2)
         transform2 = TSCPolynomialFeatures(degree=2)
 
-        actual_transform = TSCColumnTransformer(
-            [("pca", transform1, X.columns), ("poly", transform2, X.columns)]
-        )
-        actual_result = actual_transform.fit_transform(X)
-
-        expected_col_index = pd.Index(
-            ["pca0", "pca1", "a^2", "a b", "b^2"], name="features"
+        actual_transform1 = TSCColumnTransformer(
+            [("t1", transform1, X.columns), ("t2", transform2, X.columns)],
+            verbose_feature_names_out=True,
         )
 
-        self.assertEqual(actual_transform.n_features_out_, 2 + 3)
+        expected_col_index1 = pd.Index(
+            ["t1__pca0", "t1__pca1", "t2__a^2", "t2__a b", "t2__b^2"],
+            name=TSCDataFrame.tsc_feature_col_name,
+        )
+
+        actual_transform2 = TSCColumnTransformer(
+            [("t1", transform1, X.columns), ("t2", transform2, X.columns)],
+            verbose_feature_names_out=False,
+        )
+
+        expected_col_index2 = pd.Index(
+            ["pca0", "pca1", "a^2", "a b", "b^2"],
+            name=TSCDataFrame.tsc_feature_col_name,
+        )
+
+        actual_result1 = actual_transform1.fit_transform(X)
+        actual_result2 = actual_transform2.fit_transform(X)
+
+        self.assertEqual(actual_transform1.n_features_out_, 2 + 3)
+        self.assertEqual(actual_transform2.n_features_out_, 2 + 3)
+
         nptest.assert_array_equal(
-            expected_col_index, actual_transform.feature_names_out_
+            expected_col_index1, actual_transform1.get_feature_names_out()
         )
 
-        nptest.assert_array_equal(expected_col_index, actual_result.columns)
+        nptest.assert_array_equal(
+            expected_col_index2, actual_transform2.get_feature_names_out()
+        )
 
-        self.assertEqual(actual_transform.n_features_in_, X.n_features)
-        nptest.assert_array_equal(actual_transform.feature_names_in_, X.columns)
+        nptest.assert_array_equal(expected_col_index1, actual_result1.columns)
+
+        nptest.assert_array_equal(expected_col_index2, actual_result2.columns)
+
+        self.assertEqual(actual_transform1.n_features_in_, X.n_features)
+        nptest.assert_array_equal(actual_transform1.feature_names_in_, X.columns)
+
+        self.assertEqual(actual_transform1.n_features_in_, X.n_features)
+        nptest.assert_array_equal(actual_transform1.feature_names_in_, X.columns)
 
     def test_column_transform_incl_timedrop(self):
         # tests of TSCColumnTransformer can handle dictionary elements that drop samples
@@ -129,7 +154,8 @@ class TestTSCCompose(unittest.TestCase):
         transform2 = TSCPolynomialFeatures(degree=2)
 
         actual_transform = TSCColumnTransformer(
-            [("pca", transform1, X.columns), ("poly", transform2, X.columns)]
+            [("pca", transform1, X.columns), ("poly", transform2, X.columns)],
+            verbose_feature_names_out=False,
         )
         actual_result = actual_transform.fit_transform(X)
 
@@ -140,7 +166,7 @@ class TestTSCCompose(unittest.TestCase):
 
         self.assertEqual(actual_transform.n_features_out_, 9)
         nptest.assert_array_equal(
-            expected_col_index, actual_transform.feature_names_out_
+            expected_col_index, actual_transform.get_feature_names_out()
         )
 
         nptest.assert_array_equal(expected_col_index, actual_result.columns)
@@ -230,6 +256,7 @@ class TestTSCCompose(unittest.TestCase):
                 ("data_mode1", way_1_pipeline, ["a", "b", "c"]),
                 ("data_mode2", way_2_pipeline, ["d", "e"]),
             ],
+            verbose_feature_names_out=False,
         )
 
         actual_transform = Pipeline(
