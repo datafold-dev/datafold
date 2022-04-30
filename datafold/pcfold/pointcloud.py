@@ -80,7 +80,7 @@ class PCManifold(np.ndarray):
 
         # Set the kernel according to user input
         obj.kernel = kernel
-        obj.dist_kwargs = dist_kwargs or {}
+        obj.distance = dist_kwargs or {}
 
         return obj
 

@@ -26,7 +26,7 @@ class RoselandTest(unittest.TestCase):
             GaussianKernel(epsilon=1.25), landmarks=data_landmark, n_svdtriplet=11
         ).fit(data, store_kernel_matrix=True)
         sparse_case = Roseland(
-            GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=1e100)),
+            GaussianKernel(epsilon=1.25, distance=dict(cut_off=1e100)),
             landmarks=data_landmark,
             n_svdtriplet=11,
         ).fit(data, store_kernel_matrix=True)
@@ -223,16 +223,16 @@ class RoselandTest(unittest.TestCase):
 
             plt.show()
 
-    def test_dist_kwargs(self):
+    def test_distance(self):
         X_swiss_all, _ = make_swiss_roll(n_samples=4000, noise=0, random_state=5)
         data_landmark, _ = random_subsample(X_swiss_all, 1000)
 
         rose = Roseland(
-            kernel=GaussianKernel(dist_kwargs=dict(cut_off=2)),
+            kernel=GaussianKernel(distance=dict(cut_off=2)),
             landmarks=data_landmark,
         ).fit(X_swiss_all, store_kernel_matrix=True)
 
-        self.assertEqual(rose.kernel.dist_kwargs["cut_off"], 2)
+        self.assertEqual(rose.kernel.distance.cut_off, 4)
         self.assertTrue(scipy.sparse.issparse(rose.kernel_matrix_))
 
     @pytest.mark.skip("too expensive")
@@ -373,14 +373,14 @@ class RoselandTest(unittest.TestCase):
         X = TSCDataFrame.from_frame_list([X1, X2])
 
         actual_rose = Roseland(
-            kernel=GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=10)),
+            kernel=GaussianKernel(epsilon=1.25, distance=dict(cut_off=10)),
             n_svdtriplet=6,
             random_state=42,
         )
         actual_result = actual_rose.fit_transform(X, store_kernel_matrix=True)
 
         expected_rose = Roseland(
-            kernel=GaussianKernel(epsilon=1.25, dist_kwargs=dict(cut_off=10)),
+            kernel=GaussianKernel(epsilon=1.25, distance=dict(cut_off=10)),
             n_svdtriplet=6,
             random_state=42,
         )

@@ -11,9 +11,10 @@ from scipy.sparse import SparseEfficiencyWarning
 from scipy.spatial.distance import cdist, pdist, squareform
 
 from datafold.pcfold.distance import (
+    DistanceAlgorithm,
     _all_available_distance_algorithm,
-    _ensure_kmin_nearest_neighbor,
     compute_distance_matrix,
+    init_distance_algorithm,
 )
 from datafold.utils.general import is_symmetric_matrix
 
@@ -37,19 +38,19 @@ class TestDistAlgorithms(unittest.TestCase):
             for algo in self.algos:
 
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=None,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        kmin=None,
                         **backend_options,
                     )
+                    actual = da(self.data_X)
 
                     self.assertIsInstance(actual, np.ndarray)
                     nptest.assert_allclose(actual, expected, atol=1e-14, rtol=1e-14)
                 except AssertionError as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
     def test_cdist_dense(self):
@@ -67,20 +68,21 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
-                        Y=self.data_Y,
+
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=None,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        kmin=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X, Y=self.data_Y)
 
                     self.assertIsInstance(actual, np.ndarray)
                     nptest.assert_allclose(actual, expected, atol=1e-15, rtol=1e-14)
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
     def test_pdist_sparse(self):
@@ -97,14 +99,15 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        kmin=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X)
 
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
@@ -114,7 +117,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     self.assertTrue(is_symmetric_matrix(actual, tol=0))
 
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
     def test_cdist_sparse(self):
@@ -133,22 +136,22 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
-                        Y=self.data_Y,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        kmin=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X, Y=self.data_Y)
 
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
                         actual.toarray(), expected, atol=1e-15, rtol=1e-14
                     )
                 except Exception as e:
-                    print(f"{algo.backend_name} failed with metric {metric}")
+                    print(f"{algo.name} failed with metric {metric}")
                     raise e
 
     def test_pdist_sparse_zeros(self):
@@ -172,14 +175,16 @@ class TestDistAlgorithms(unittest.TestCase):
             for algo in self.algos:
 
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
+
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        kmin=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X)
 
                     self.assertTrue(is_symmetric_matrix(actual, tol=0))
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
@@ -187,7 +192,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         expected.data, actual.data, atol=1e-14, rtol=1e-14
                     )
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
     def test_cdist_sparse_duplicate_zeros(self):
@@ -216,14 +221,15 @@ class TestDistAlgorithms(unittest.TestCase):
             for algo in self.algos:
 
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
-                        Y=data_Y,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        backend=algo.backend_name,
+                        kmin=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X, Y=data_Y)
 
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
@@ -231,7 +237,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     )
 
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
     def test_ensure_kmin_nearest_neighbours_pdist(self):
@@ -249,7 +255,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     self.data_X, cut_off=cut_off
                 )
 
-                distance_matrix = _ensure_kmin_nearest_neighbor(
+                distance_matrix = DistanceAlgorithm._ensure_kmin_nearest_neighbor(
                     self.data_X,
                     Y=None,
                     metric="euclidean",
@@ -294,7 +300,7 @@ class TestDistAlgorithms(unittest.TestCase):
                 )
 
                 # TODO: resolve SparsityWarning, see issue #93
-                distance_matrix = _ensure_kmin_nearest_neighbor(
+                distance_matrix = DistanceAlgorithm._ensure_kmin_nearest_neighbor(
                     self.data_X,
                     Y=self.data_Y,
                     metric="euclidean",

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -303,6 +304,9 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
 
         for i, split in enumerate(self.data_splits):
             name, kernel, indices = split
+
+            # copy kernels to not mutate the original attribute(sklearn conform)
+            kernel = deepcopy(kernel)
 
             if isinstance(X, pd.DataFrame):
                 kernel_matrix = kernel(X.iloc[:, indices])

@@ -43,11 +43,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         for (sparse) Hermitian matrices to be used. If the kernel matrix is symmetric
         already (`is_stochastic=False`), then the parameter has no effect.
 
-    dist_kwargs
-        Keyword arguments passed to the internal distance matrix computation. See
-        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
-        arguments.
-
     Attributes
     ----------
 
@@ -408,7 +403,6 @@ class MultiScaleGeometricHarmonicsInterpolator(
         is_stochastic: bool = False,
         alpha: float = 1,
         symmetrize_kernel=False,
-        dist_kwargs=None,
     ):
         """
         TODO: This is a work in progress algorithm.

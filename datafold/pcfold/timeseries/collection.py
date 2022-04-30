@@ -293,21 +293,10 @@ class TSCDataFrame(pd.DataFrame):
 
     def __init__(self, *args, **kwargs):
 
-        # remove specific attributes from kwargs first into local attributes
-        kernel = kwargs.pop("kernel", None)
-        dist_kwargs = kwargs.pop("dist_kwargs", dict())
-
         # NOTE: do not move this call after other setters "self.attribute = ...".
         # Otherwise, there is an infinite recursion because pandas handles the
         # __getattr__ magic function.
         super(TSCDataFrame, self).__init__(*args, **kwargs)
-
-        self.kernel = kernel
-
-        dist_kwargs.setdefault("cut_off", np.inf)
-        dist_kwargs.setdefault("kmin", 0)
-        dist_kwargs.setdefault("backend", "guess_optimal")
-        self.attrs["dist_kwargs"] = dist_kwargs
 
         self.flags.allows_duplicate_labels = False
 
@@ -1054,89 +1043,6 @@ class TSCDataFrame(pd.DataFrame):
         return pd.DataFrame(self).transpose(*args, copy=copy)
 
     @property
-    def kernel(self):
-        """The kernel to describe the proximity between samples.
-
-        Returns
-        -------
-
-        :py:class:`.BaseManifoldKernel`
-        """
-        if "kernel" not in self.attrs:
-            self.attrs["kernel"] = None
-
-        return self.attrs["kernel"]
-
-    @kernel.setter
-    def kernel(self, kernel) -> None:
-        """Set a new kernel.
-
-        Parameters
-        ----------
-        kernel
-            The new kernel to be set.
-
-        Returns
-        -------
-
-        """
-
-        from datafold.pcfold.kernels import BaseManifoldKernel
-
-        if kernel is not None and not isinstance(kernel, BaseManifoldKernel):
-            raise TypeError(
-                f"Kernel must be a subclass of type BaseManifoldKernel. Got "
-                f"type {type(kernel)}."
-            )
-        self.attrs["kernel"] = kernel
-
-    @property
-    def dist_kwargs(self) -> dict:
-        """Keyword arguments passed to the internal distance matrix computation.
-
-        See :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
-
-        Returns
-        -------
-
-        """
-        if "dist_kwargs" not in self.attrs:
-            self.attrs["dist_kwargs"] = dict()
-
-        return self.attrs["dist_kwargs"]
-
-    @dist_kwargs.setter
-    def dist_kwargs(self, dist_kwargs: Optional[dict]) -> None:
-        """Set new keyword arguments for the distance matrix computation.
-
-        Parameters
-        ----------
-        dist_kwargs
-            The new arguments passed to the distance matrix backend. To set the default
-            keywords pass ``None``.
-
-        Returns
-        -------
-
-        """
-
-        if dist_kwargs is not None and not isinstance(dist_kwargs, dict):
-            raise TypeError(
-                f"Keyword arguments for distance computation must be a dictionary or "
-                f"None. Got type {type(dist_kwargs)}."
-            )
-
-        dist_kwargs = {} or dist_kwargs
-
-        assert dist_kwargs is not None  # for mypy
-
-        dist_kwargs.setdefault("cut_off", np.inf)
-        dist_kwargs.setdefault("kmin", 0)
-        dist_kwargs.setdefault("backend", "guess_optimal")
-
-        self.attrs["dist_kwargs"] = dist_kwargs
-
-    @property
     def loc(self):
         """Label-based indexing.
 
@@ -1402,74 +1308,6 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         return distance_matrix
-
-    def compute_kernel_matrix(
-        self, Y: Optional[Union[np.ndarray, "TSCDataFrame"]] = None, **kernel_kwargs
-    ) -> pd.DataFrame:
-        """Compute the kernel matrix with the specified kernel.
-
-        Parameters
-        ----------
-        Y
-            Query point cloud or other time series collection of shape
-            `(n_samples_Y, n_features)`. If provided, it computes
-            the kernel matrix component-wise, else `Y=self` for a pair-wise kernel
-            matrix.
-
-        kernel_kwargs
-            Keyword arguments passed passed to the kernel.
-
-        Returns
-        -------
-        Union[numpy.ndarray, pandas.DataFrame, TSCDataFrame]
-            If the kernel is of type :class:`PCManifoldKernel` (i.e. acts on
-            point clouds), the time information is added in this routine. If the time
-            information. For :class:`.TSCManifoldKernel` (i.e. kernels natively act on
-            time series data), the result is directly returned from the kernel.
-
-        Optional
-            The specified kernel can return further objects, which are all forwarded
-            by this function. See :meth:`PCManifoldKernel.__call__`,
-            :meth:`TSCManifoldKernel.__call__` or the respective kernel for details.
-        """
-
-        if self.kernel is None:
-            raise TSCException.no_kernel()
-
-        if Y is not None:
-            is_attach_time = isinstance(Y, pd.DataFrame)
-        else:
-            is_attach_time = True
-
-        kernel_output = self.kernel(
-            X=self,
-            Y=Y,
-            **kernel_kwargs,
-        )
-
-        if isinstance(kernel_output, (tuple, list)):
-            ty_kernel_matrix = type(kernel_output[0])
-        else:
-            ty_kernel_matrix = type(kernel_output)
-
-        def _pcmkernel2tsc(kernel_matrix, indices_from):
-            return df_type_and_indices_from(
-                indices_from,
-                kernel_matrix,
-                except_columns=[f"X{i}" for i in np.arange(self.shape[0])],
-            )
-
-        if is_attach_time and ty_kernel_matrix == np.ndarray:
-            time_idx_from = self if Y is None else Y
-
-            if isinstance(kernel_output, (tuple, list)):
-                kernel_output = list(kernel_output)
-                kernel_output[0] = _pcmkernel2tsc(kernel_output[0], time_idx_from)
-                kernel_output = tuple(kernel_output)
-            else:
-                kernel_output = _pcmkernel2tsc(kernel_output, time_idx_from)
-
-        return kernel_output
 
     def insert_ts(
         self, df: pd.DataFrame, ts_id: Optional[int] = None

@@ -265,8 +265,8 @@ class TestPCManifoldKernel(unittest.TestCase):
         kernel = GaussianKernel(epsilon=1)
 
         r = (
-            "GaussianKernel(epsilon=1, "
-            "dist_kwargs={'metric': 'sqeuclidean', 'backend': 'guess_optimal'})"
+            "GaussianKernel(\n\tdistance=GuessOptimalDist(metric='sqeuclidean', "
+            "is_symmetric=True, is_sparse=False, cut_off=None, kmin=None)\n\tepsilon=1\n)"
         )
         self.assertEqual(kernel.__repr__(), r)
 
@@ -316,37 +316,49 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         # stochastic False
 
         # Note: in this case the alpha value is ignored
-        k1 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=True)
-        self.assertTrue(k1.is_symmetric)
+        k1 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=False, symmetrize_kernel=True
+        )
+        self.assertTrue(k1._is_symmetric_kernel)
 
         # No transformation to symmetrize the kernel is required
         self.assertFalse(k1.is_conjugate)
 
         # Because the kernel is not stochastic, the kernel remains symmetric
-        k2 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=False)
-        self.assertTrue(k2.is_symmetric)
+        k2 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=False, symmetrize_kernel=False
+        )
+        self.assertTrue(k2._is_symmetric_kernel)
 
         # No transformation is required
         self.assertFalse(k1.is_conjugate)
 
     def test_is_symmetric02(self):
         # symmetric_kernel and alpha == 0
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=False)
-        self.assertFalse(k1.is_symmetric)
+        k1 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=0, symmetrize_kernel=False
+        )
+        self.assertFalse(k1._is_symmetric_kernel)
         self.assertFalse(k1.is_conjugate)
 
-        k2 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=True)
-        self.assertTrue(k2.is_symmetric)
+        k2 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=0, symmetrize_kernel=True
+        )
+        self.assertTrue(k2._is_symmetric_kernel)
         self.assertTrue(k2.is_conjugate)
 
     def test_is_symmetric03(self):
         # symmetric_kernel and alpha > 0
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=False)
-        self.assertFalse(k1.is_symmetric)
+        k1 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=1, symmetrize_kernel=False
+        )
+        self.assertFalse(k1._is_symmetric_kernel)
         self.assertFalse(k1.is_conjugate)
 
-        k2 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
-        self.assertTrue(k2.is_symmetric)
+        k2 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=1, symmetrize_kernel=True
+        )
+        self.assertTrue(k2._is_symmetric_kernel)
         self.assertTrue(k2.is_conjugate)
 
     def test_missing_row_alpha_fit(self):
@@ -413,7 +425,7 @@ class TestContinuousNNKernel(unittest.TestCase):
         for dist_cut_off in [None, 1e100]:
             # test if a sparse distance matrix gets the same result
             cknn = ContinuousNNKernel(
-                k_neighbor=5, delta=1.5, dist_kwargs=dict(cut_off=dist_cut_off)
+                k_neighbor=5, delta=1.5, distance=dict(cut_off=dist_cut_off)
             )
 
             graph_train = cknn(train_data)
@@ -444,7 +456,7 @@ class TestContinuousNNKernel(unittest.TestCase):
         for dist_cut_off in [None, 1e100]:
 
             cknn = ContinuousNNKernel(
-                k_neighbor=5, delta=2.3, dist_kwargs=dict(cut_off=dist_cut_off)
+                k_neighbor=5, delta=2.3, distance=dict(cut_off=dist_cut_off)
             )
             graph_train = cknn(train_data)
             graph_test = cknn(

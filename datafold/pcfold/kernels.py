@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -10,7 +12,7 @@ from sklearn.gaussian_process.kernels import Kernel
 from sklearn.preprocessing import normalize
 from sklearn.utils import check_scalar
 
-from datafold.pcfold.distance import compute_distance_matrix
+from datafold.pcfold.distance import DistanceAlgorithm, init_distance_algorithm
 from datafold.pcfold.timeseries.accessor import TSCAccessor
 from datafold.utils.general import (
     df_type_and_indices_from,
@@ -401,52 +403,12 @@ def _kth_nearest_neighbor_dist(
     return dist_knn
 
 
-# import collections.abc
-#
-# class KernelContent(collections.abc.Mapping):
-#
-#     def __init__(self, is_sparse, is_pairwise, is_symmetric=True, is_stochastic=False,
-#     is_conjugate=False, cdist_kwargs=None, extra_kwargs=None):
-#         self.is_sparse = is_sparse
-#         self.is_pairwise = is_pairwise
-#         self.is_symmetric = is_symmetric
-#         self.is_stochastic = is_stochastic
-#         self.is_conjugate = is_conjugate
-#
-#     def __repr__(self):
-#
-#         return "\n".join([f"{self.is_sparse=}",
-#         f"{self.is_pairwise=}",
-#         f"{self.is_symmetric=}",
-#         f"{self.is_conjugate=}",
-#         f"{self.cdist_kwargs=}",
-#         f"{self.extra_kwargs=}"])
-#
-#
-#
-#     def __iter__(self):
-#         for key in self.cdist_kwargs.keys():
-#             yield key
-#
-#     def __len__(self):
-#         return len(self.cdist_kwargs.keys())
-#
-#     def __getitem__(self, item):
-#         try:
-#             return self.cdist_kwargs[item]
-#         except KeyError as e:
-#             try:
-#                 return self.extra_kwargs[item]
-#             except KeyError:
-#                 raise e
-
-
 class BaseManifoldKernel(Kernel):
     def __init__(
         self,
         is_symmetric: bool = True,
         is_stochastic: bool = False,
-        dist_kwargs: Optional[Dict] = None,
+        distance: Optional[dict | DistanceAlgorithm] = None,
     ):
         """Initialize new kernel.
 
@@ -464,12 +426,29 @@ class BaseManifoldKernel(Kernel):
             also be possible).
         """
 
-        self.is_symmetric = is_symmetric
+        self._is_symmetric_kernel = is_symmetric
         self.is_stochastic = is_stochastic
 
-        if dist_kwargs is not None:
-            self.dist_kwargs = dist_kwargs
-            self.dist_kwargs.setdefault("backend", "guess_optimal")
+        if distance is None or isinstance(distance, dict):
+            self.distance: DistanceAlgorithm = init_distance_algorithm(
+                **(distance or {})
+            )
+        else:
+            self.distance = distance
+
+    @property
+    def metric(self):
+        """Distance metric in the kernel."""
+        return self.distance.metric
+
+    @property
+    def is_symmetric(self):
+        """Indicates whether a pairwise kernel matrix is symmetric.
+
+        Note that a kernel matrix to be symmetric, also the distance matrix must be symmetric
+        (especially for k-nearest-neighbor this is often not the case).
+        """
+        return self.distance.is_symmetric and self._is_symmetric_kernel
 
     @abc.abstractmethod
     def __call__(
@@ -519,11 +498,21 @@ class BaseManifoldKernel(Kernel):
         # be implemented
         raise NotImplementedError("base class")
 
-    def __repr__(self):
-        param_str = ", ".join(
-            [f"{name}={val}" for name, val in self.get_params().items()]
-        )
-        return f"{self.__class__.__name__}({param_str})"
+    def __repr__(self, print_distance=True):
+
+        from copy import deepcopy
+
+        _params = deepcopy(self.get_params())
+        _params.pop("distance", None)
+
+        param_str = ", ".join([f"{name}={val}" for name, val in _params.items()])
+
+        if print_distance:
+            _distance = f"\n\t{self.distance=}".replace("self.", "")
+        else:
+            _distance = ""
+
+        return f"{self.__class__.__name__}({_distance}\n\t{param_str}\n)"
 
     def _read_kernel_kwargs(self, attrs: Optional[List[str]], kernel_kwargs: dict):
 
@@ -715,25 +704,31 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
 
     Parameters
     ----------
-    distance_metric
+    required_metric
         metric required for kernel
     """
 
-    def __init__(self, distance_metric: str, dist_kwargs: Optional[Dict] = None):
-        if dist_kwargs is None:
-            dist_kwargs = {"metric": distance_metric}
-        else:
-            _exist_metric = dist_kwargs.pop("metric", None)
+    def __init__(self, required_metric: str, distance: Optional[Dict] = None):
 
-            if _exist_metric is None or _exist_metric == distance_metric:
-                dist_kwargs["metric"] = distance_metric
+        _metric_mismatch = ValueError(
+            "The metric is fixed for radial basis kernel and should not set in "
+            "dist_kwargs"
+        )
+
+        if distance is None:
+            distance = {"metric": required_metric}
+        elif isinstance(distance, DistanceAlgorithm):
+            if distance.metric != required_metric:
+                raise _metric_mismatch
+        elif isinstance(distance, dict):
+            _exist_metric = distance.pop("metric", None)
+
+            if _exist_metric is None or _exist_metric == required_metric:
+                distance["metric"] = required_metric
             else:
-                raise ValueError(
-                    "The metric is fixed for radial basis kernel and should not set in "
-                    "dist_kwargs"
-                )
+                raise _metric_mismatch
 
-        super(RadialBasisKernel, self).__init__(dist_kwargs=dist_kwargs)
+        super(RadialBasisKernel, self).__init__(distance=distance)
 
     @classmethod
     def _check_bandwidth_parameter(cls, parameter, name) -> float:
@@ -779,11 +774,7 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
         if not is_pdist:
             Y = np.atleast_2d(Y)
 
-        distance_matrix = compute_distance_matrix(
-            X,
-            Y,
-            **self.dist_kwargs,
-        )
+        distance_matrix = self.distance(X, Y)
 
         kernel_matrix = self.eval(distance_matrix)
         return kernel_matrix
@@ -809,10 +800,10 @@ class GaussianKernel(RadialBasisKernel):
         positive float that is used as the epsilon.
     """
 
-    def __init__(self, epsilon: Union[float, Callable] = 1.0, dist_kwargs=None):
+    def __init__(self, epsilon: Union[float, Callable] = 1.0, distance=None):
         self.epsilon = epsilon
         super(GaussianKernel, self).__init__(
-            distance_metric="sqeuclidean", dist_kwargs=dist_kwargs
+            required_metric="sqeuclidean", distance=distance
         )
 
     def eval(
@@ -875,10 +866,10 @@ class MultiquadricKernel(RadialBasisKernel):
         Positive float to scale the kernel weights.
     """
 
-    def __init__(self, epsilon: float = 1.0, dist_kwargs: Optional[Dict] = None):
+    def __init__(self, epsilon: float = 1.0, distance: Optional[Dict] = None):
         self.epsilon = epsilon
         super(MultiquadricKernel, self).__init__(
-            distance_metric="sqeuclidean", dist_kwargs=dist_kwargs
+            required_metric="sqeuclidean", distance=distance
         )
 
     def eval(
@@ -925,10 +916,10 @@ class InverseMultiquadricKernel(RadialBasisKernel):
         Positive float to scale the kernel weights.
     """
 
-    def __init__(self, epsilon: float = 1.0, dist_kwargs=None):
+    def __init__(self, epsilon: float = 1.0, distance=None):
         self.epsilon = epsilon
         super(InverseMultiquadricKernel, self).__init__(
-            distance_metric="sqeuclidean", dist_kwargs=dist_kwargs
+            required_metric="sqeuclidean", distance=distance
         )
 
     def eval(
@@ -970,9 +961,9 @@ class CubicKernel(RadialBasisKernel):
     for more functionality and documentation.
     """
 
-    def __init__(self, dist_kwargs=None):
+    def __init__(self, distance=None):
         super(CubicKernel, self).__init__(
-            distance_metric="euclidean", dist_kwargs=dist_kwargs
+            required_metric="euclidean", distance=distance
         )
 
     def eval(
@@ -1006,9 +997,9 @@ class QuinticKernel(RadialBasisKernel):
     for more functionality and documentation.
     """
 
-    def __init__(self, dist_kwargs=None):
+    def __init__(self, distance=None):
         super(QuinticKernel, self).__init__(
-            distance_metric="euclidean", dist_kwargs=dist_kwargs
+            required_metric="euclidean", distance=distance
         )
 
     def eval(
@@ -1060,7 +1051,7 @@ class ContinuousNNKernel(PCManifoldKernel):
     :cite:t:`berry-2019`
     """
 
-    def __init__(self, k_neighbor: int, delta: float, dist_kwargs=None):
+    def __init__(self, k_neighbor: int, delta: float, distance=None):
 
         if not is_float(delta):
             if is_integer(delta):
@@ -1087,13 +1078,13 @@ class ContinuousNNKernel(PCManifoldKernel):
             # make sure to only use Python built-in
             self.k_neighbor = int(k_neighbor)
 
-        self.dist_kwargs = dist_kwargs or {}
+        self.dist_kwargs = distance or {}
         self.dist_kwargs.setdefault("kmin", self.k_neighbor)  # TODO: docu
         self.dist_kwargs.setdefault("metric", "euclidean")  # TODO: docu
 
         self.reference_dist_knn_: np.ndarray
 
-        super(ContinuousNNKernel, self).__init__(dist_kwargs=dist_kwargs)
+        super(ContinuousNNKernel, self).__init__(distance=distance)
 
     def _validate_reference_dist_knn(self, is_pdist, reference_dist_knn):
         if is_pdist and reference_dist_knn is None:
@@ -1171,7 +1162,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         self._read_kernel_kwargs(attrs=None, kernel_kwargs=kernel_kwargs)
         is_pdist = Y is None
 
-        distance_matrix = compute_distance_matrix(X, Y, **self.dist_kwargs)
+        distance_matrix = self.distance(X, Y)
         return self.eval(distance_matrix, is_pdist=is_pdist)
 
     def eval(self, distance_matrix, is_pdist=False) -> scipy.sparse.csr_matrix:
@@ -1266,7 +1257,8 @@ class DmapKernelFixed(BaseManifoldKernel):
 
     def __init__(
         self,
-        internal_kernel: PCManifoldKernel = GaussianKernel(epsilon=1.0),
+        internal_kernel: PCManifoldKernel,
+        *,
         is_stochastic: bool = True,
         alpha: float = 1.0,
         symmetrize_kernel: bool = True,
@@ -1289,6 +1281,18 @@ class DmapKernelFixed(BaseManifoldKernel):
             is_symmetric=is_symmetric, is_stochastic=is_stochastic
         )
 
+    def __repr__(self):
+        return super(DmapKernelFixed, self).__repr__(print_distance=False)
+
+    @property  # type: ignore
+    def distance(self):
+        return self.internal_kernel.distance
+
+    @distance.setter
+    def distance(self, d):
+        # do not use distance here (but forward the distance from the internal kernel
+        return None
+
     @property
     def is_conjugate(self) -> bool:
         """Indicates whether a symmetric matrix is computed that is conjugate to a
@@ -1300,7 +1304,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         """
         # If the kernel is made stochastic, it looses the symmetry, if symmetric_kernel
         # is set to True, then apply a symmetry transformation
-        return self.is_stochastic and self.is_symmetric
+        return self.is_stochastic and self._is_symmetric_kernel
 
     def _normalize_sampling_density(
         self, kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix], is_pdist: bool
@@ -1826,17 +1830,17 @@ class ConeKernel(TSCManifoldKernel):
         zeta: float = 0.0,
         epsilon: float = 1.0,
         fd_accuracy: int = 4,
-        dist_kwargs=None,
+        distance=None,
     ):
         self.zeta = zeta
         self.epsilon = epsilon
         self.fd_accuracy = fd_accuracy
 
-        dist_kwargs = dist_kwargs or {}
+        distance = distance or {}
 
-        dist_kwargs.setdefault("metric", "sqeuclidean")
+        distance.setdefault("metric", "sqeuclidean")
 
-        cut_off = dist_kwargs.get("cut_off", None)
+        cut_off = distance.get("cut_off", None)
         if cut_off is not None and not np.isinf(cut_off):
             raise NotImplementedError(
                 "Sparse kernel matrix (by setting cut_off) is currently not implemented!"
@@ -1845,7 +1849,7 @@ class ConeKernel(TSCManifoldKernel):
         self.timederiv_X_: np.ndarray
         self.norm_timederiv_X_: np.ndarray
 
-        super(ConeKernel, self).__init__(dist_kwargs=dist_kwargs)
+        super(ConeKernel, self).__init__(distance=distance)
 
     def _validate_parameter(self, X, Y):
 
@@ -2041,7 +2045,7 @@ class ConeKernel(TSCManifoldKernel):
                 # squared Euclidean metric
                 distance_matrix = np.square(distance_matrix, out=distance_matrix)
             else:
-                distance_matrix = compute_distance_matrix(X_numpy, **self.dist_kwargs)
+                distance_matrix = self.distance(X=X_numpy)
                 cos_matrix = np.ones((X_numpy.shape[0], X_numpy.shape[0]))
 
             factor_matrix = _symmetric_matrix_division(
@@ -2088,9 +2092,7 @@ class ConeKernel(TSCManifoldKernel):
                 # squared Euclidean metric
                 distance_matrix = np.square(distance_matrix, out=distance_matrix)
             else:
-                distance_matrix = compute_distance_matrix(
-                    X_numpy, Y_numpy, **self.dist_kwargs
-                )
+                distance_matrix = self.distance(X_numpy, Y_numpy)
                 cos_matrix = np.ones((Y_numpy.shape[0], X_numpy.shape[0]))
 
             factor_matrix = _symmetric_matrix_division(
@@ -2141,7 +2143,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
     """
 
     def __init__(
-        self, epsilon, k, expected_dim, beta, symmetrize_kernel, dist_kwargs=None
+        self, epsilon, k, expected_dim, beta, symmetrize_kernel, distance=None
     ):
         if expected_dim <= 0 and not is_integer(expected_dim):
             raise ValueError("expected_dim has to be a non-negative integer.")
@@ -2173,19 +2175,23 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
                 f"beta/2 + beta \n but is {c2}"
             )
 
-        self.dist_kwargs = dist_kwargs or {}
-        self.dist_kwargs.setdefault("metric", "sqeuclidean")
+        # TODO: this overwrites the user input -- also allow type DistanceAlgorithm
+        #  (e.g. sparse matrix)
+        distance = {}
+        distance["backend"] = "brute"
+        distance["metric"] = "sqeuclidean"
+        distance["cut_off"] = None
 
         # TODO: currently the kernel computes the LB generator (i.e. is_stochastic must be
         #  False, if the operator is computed, then max(eigval)==1
         super(DmapKernelVariable, self).__init__(
-            is_symmetric=symmetrize_kernel, is_stochastic=False
+            is_symmetric=symmetrize_kernel, is_stochastic=False, distance=distance
         )
 
     def is_symmetric_transform(self, is_pdist):
         # If the kernel is made stochastic, it looses the symmetry, if symmetric_kernel
         # is set to True, then apply the symmetry transformation
-        return is_pdist and self.is_symmetric
+        return is_pdist and self._is_symmetric_kernel
 
     def _compute_rho0(self, distance_matrix):
         """Ad hoc bandwidth function."""
@@ -2324,11 +2330,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
                 f"is larger than number of samples (={X.shape[0]})"
             )
 
-        distance_matrix = compute_distance_matrix(
-            X,
-            Y,
-            **self.dist_kwargs,
-        )
+        distance_matrix = self.distance(X, Y)
 
         (
             operator_l_matrix,
@@ -2364,7 +2366,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         # can be expensive
         assert is_symmetric_matrix(kernel_eps_alpha_s)
 
-        if self.is_symmetric:
+        if self._is_symmetric_kernel:
             q_eps_alpha_s = kernel_eps_alpha_s.sum(axis=1)
             operator_l_matrix, basis_change_matrix = self._compute_matrix_l_conjugate(
                 kernel_eps_alpha_s, rho, q_eps_alpha_s

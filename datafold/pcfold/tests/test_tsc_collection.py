@@ -6,7 +6,6 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.pcfold import GaussianKernel, PCManifold
 from datafold.pcfold.timeseries.collection import (
     InitialCondition,
     TSCDataFrame,
@@ -130,78 +129,6 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_shape(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))
-
-    def test_set_kernel(self):
-
-        actual = TSCDataFrame(self.simple_df)
-        self.assertEqual(actual.kernel, None)
-
-        actual = TSCDataFrame(self.simple_df, kernel=GaussianKernel(1))
-        self.assertEqual(actual.kernel, GaussianKernel(1))
-
-        actual.kernel = GaussianKernel(999)
-        self.assertEqual(actual.kernel, GaussianKernel(999))
-
-    def test_compute_kernel_matrix(self):
-        kernel = GaussianKernel(1)
-        actual = TSCDataFrame(self.simple_df, kernel=kernel)
-
-        actual_kernel = actual.compute_kernel_matrix()
-
-        expected = PCManifold(actual.to_numpy(), kernel=kernel)
-        expected_kernel = expected.compute_kernel_matrix()
-
-        # the time information is not lost when computing a kernel matrix
-        self.assertIsInstance(actual_kernel, TSCDataFrame)
-        self.assertIsInstance(expected_kernel, np.ndarray)
-
-        # the two kernels matrices must be identical
-        nptest.assert_array_equal(actual_kernel.to_numpy(), expected_kernel)
-
-        actual_kernel.kernel = None
-        with self.assertRaises(TSCException):
-            # no kernel available
-            actual_kernel.compute_kernel_matrix()
-
-    def test_set_dist_kwargs(self):
-
-        from copy import deepcopy
-
-        actual = TSCDataFrame(self.simple_df)
-        default_kwargs = dict(cut_off=np.inf, kmin=0, backend="guess_optimal")
-
-        # needs to be changed if the default dist_kwargs is changed
-        self.assertEqual(actual.dist_kwargs, default_kwargs)
-
-        other_kwargs = deepcopy(default_kwargs)
-        other_kwargs["cut_off"] = 2
-        other_kwargs["kmin"] = 100
-
-        actual = TSCDataFrame(self.simple_df, dist_kwargs=other_kwargs)
-        self.assertEqual(actual.dist_kwargs, other_kwargs)
-
-        other_kwargs["cut_off"] = 100
-        other_kwargs["kmin"] = 20
-
-        actual.dist_kwargs = other_kwargs
-        self.assertEqual(actual.dist_kwargs, other_kwargs)
-
-        actual.dist_kwargs = default_kwargs
-        self.assertEqual(actual.dist_kwargs, default_kwargs)
-
-    def test_compute_distance_matrix(self):
-        actual = TSCDataFrame(self.simple_df)
-        actual_distance = actual.compute_distance_matrix()
-
-        expected = PCManifold(actual.to_numpy())
-        expected_distance = expected.compute_distance_matrix()
-
-        # the time information is not lost when computing a kernel matrix
-        self.assertIsInstance(actual_distance, TSCDataFrame)
-        self.assertIsInstance(expected_distance, np.ndarray)
-
-        # the two kernels matrices must be identical
-        nptest.assert_array_equal(actual_distance.to_numpy(), expected_distance)
 
     def test_set_index1(self):
         tsc_df = TSCDataFrame(self.simple_df)

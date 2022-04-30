@@ -82,7 +82,7 @@ def scipy_eigsolver(
     # check only for n_eigenpairs == n_features and n_eigenpairs < n_features
     # wrong parametrized n_eigenpairs are catched in scipy functions
     if n_eigenpairs == n_features:
-        if kernel.is_symmetric:
+        if kernel._is_symmetric_kernel:
             scipy_eigvec_solver = scipy.linalg.eigh
         else:
             scipy_eigvec_solver = scipy.linalg.eig
@@ -92,7 +92,7 @@ def scipy_eigsolver(
         }  # should be already checked
 
     else:  # n_eigenpairs < matrix.shape[1]
-        if kernel.is_symmetric:
+        if kernel._is_symmetric_kernel:
             scipy_eigvec_solver = scipy.sparse.linalg.eigsh
         else:
             scipy_eigvec_solver = scipy.sparse.linalg.eigs
@@ -105,7 +105,7 @@ def scipy_eigsolver(
         }
 
         # The selection of sigma is a result of a microbenchmark
-        if kernel.is_symmetric and kernel.is_stochastic:
+        if kernel._is_symmetric_kernel and kernel.is_stochastic:
             # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
             # setting sigma=1 resulted into a slower computation.
             NUMERICAL_EXACT_BREAKER = 0.1
@@ -250,7 +250,7 @@ def compute_kernel_eigenpairs(
         kernel_matrix = kernel_matrix.astype(np.float64)
 
     if validate_matrix:
-        if kernel.is_symmetric and not is_symmetric_matrix(kernel_matrix):
+        if kernel._is_symmetric_kernel and not is_symmetric_matrix(kernel_matrix):
             raise ValueError("kernel_matrix is not symmetric")
 
         # TODO: include this after kernel refactor is carried out in #149
@@ -271,7 +271,7 @@ def compute_kernel_eigenpairs(
             "eigenvalues or eigenvectors contain 'NaN' or 'inf' values."
         )
 
-    if kernel.is_symmetric:
+    if kernel._is_symmetric_kernel:
         if np.any(eigvals.imag > 1e2 * sys.float_info.epsilon):
             raise NumericalMathError(
                 "Eigenvalues have non-negligible imaginary part (larger than "

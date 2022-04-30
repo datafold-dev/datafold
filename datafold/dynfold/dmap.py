@@ -1,5 +1,6 @@
 import sys
 import warnings
+from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -205,10 +206,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         conjugate improves numerical stability when solving the eigenvectors, because it
         allows using algorithms designed for (sparse) Hermitian matrices.
 
-    dist_kwargs  # TODO: remove
-        Keyword arguments passed to the internal distance matrix computation. See
-        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
-        arguments.
 
     Attributes
     ----------
@@ -517,8 +514,12 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         # The DmapKernel is a meta-kernel that wraps another (internal) kernel to provide
         # the specific normalizations in Diffusion Maps.
+        # deepcopy to not mutate the original self.kernel attribute (according to sklearn's
+        # rules)
         internal_kernel = (
-            self.kernel if self.kernel is not None else self._get_default_kernel()
+            deepcopy(self.kernel)
+            if self.kernel is not None
+            else self._get_default_kernel()
         )
 
         self._dmap_kernel = DmapKernelFixed(
@@ -862,10 +863,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         Random seed for the selection of the landmark set. If provided when `Y` is also
         given, it is ignored. When `Y` is not provided it is used for the subsampling of
         the landmarks.
-
-    dist_kwargs
-        Keyword arguments passed to the point clouds of the two sets. See
-        :py:meth:`datafold.pcfold.PCManifold` for parameter arguments.
 
     Attributes
     ----------
