@@ -562,3 +562,14 @@ class DMDTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _values = time_values.copy()[np.newaxis, :]
             dmd.predict(predict_ic, _values)
+
+    def test_invalid_feature_names(self):
+        tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
+        predict_ic = self._create_random_tsc(n_samples=1, dim=10)
+
+        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+
+        predict_ic.columns = pd.Index(np.arange(2, 12))
+
+        with self.assertRaises(ValueError):
+            dmd.predict(predict_ic)

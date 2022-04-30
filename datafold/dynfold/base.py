@@ -501,8 +501,17 @@ class TSCPredictMixin(TSCBase):
     def _validate_feature_names(
         self: Union[BaseEstimator, "TSCPredictMixin"], X: TransformType
     ):
+        import pandas.testing as pdtest
+
         self._check_n_features(X, reset=False)  # type: ignore
-        self._check_feature_names(X, reset=False)  # type: ignore
+
+        try:
+            pdtest.assert_index_equal(X.columns, self.feature_names_in_)
+        except AssertionError:
+            raise ValueError(
+                f"model was fit with feature names\n{self.feature_names_in_.tolist()}\n"
+                f"but got\n{X.columns.tolist()}"
+            )
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
 
