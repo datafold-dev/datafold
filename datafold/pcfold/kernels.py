@@ -60,6 +60,7 @@ def _apply_kernel_function_numexpr(distance_matrix, expr, expr_dict=None):
 def _symmetric_matrix_division(
     matrix: Union[np.ndarray, scipy.sparse.spmatrix],
     vec: np.ndarray,
+    is_symmetric: bool,
     vec_right: Optional[np.ndarray] = None,
     scalar: float = 1.0,
     value_zero_division: Union[str, float] = "raise",
@@ -153,20 +154,12 @@ def _symmetric_matrix_division(
         # TODO: this can be replaced with diagmat_dot_mat and mat_dot_diagmat as this
         #  supports now sparse matrices too.
 
-        left_inv_diag_sparse = scipy.sparse.spdiags(
-            vec_inv_left, 0, m=matrix.shape[0], n=matrix.shape[0]
-        )
-        right_inv_diag_sparse = scipy.sparse.spdiags(
-            vec_inv_right, 0, m=matrix.shape[1], n=matrix.shape[1]
-        )
-
-        # The performance of DIA-sparse matrices is good if the matrix is actually
-        # sparse. I.e. the performance drops for a sparse-dense-sparse multiplication.
-
         # The zeros are removed in the matrix multiplication, but because 'matrix' is
         # usually a distance matrix we need to preserve the "true zeros"!
         matrix.data[matrix.data == 0] = np.inf
-        matrix = left_inv_diag_sparse @ matrix @ right_inv_diag_sparse
+
+        matrix = mat_dot_diagmat(matrix, vec_inv_right)
+        matrix = diagmat_dot_mat(vec_inv_left, matrix)
 
         matrix.data[np.isinf(matrix.data)] = 0
 
@@ -186,7 +179,7 @@ def _symmetric_matrix_division(
             matrix[np.isnan(matrix)] = value_zero_division
 
     # sparse and dense
-    if vec_right is None:
+    if is_symmetric and vec_right is None:
         matrix = remove_numeric_noise_symmetric_matrix(matrix)
 
     if scalar != 1.0:
@@ -254,7 +247,7 @@ def _conjugate_stochastic_kernel_matrix(
     left_vec = kernel_matrix.sum(axis=1)
 
     if scipy.sparse.issparse(kernel_matrix):
-        # to np.ndarray in case it is depricated format np.matrix
+        # to np.ndarray in case it is deprecated format np.matrix
         left_vec = left_vec.A1
 
     if left_vec.dtype.kind != "f":
@@ -263,7 +256,7 @@ def _conjugate_stochastic_kernel_matrix(
     left_vec = np.sqrt(left_vec, out=left_vec)
 
     kernel_matrix = _symmetric_matrix_division(
-        kernel_matrix, vec=left_vec, vec_right=None
+        kernel_matrix, vec=left_vec, is_symmetric=True, vec_right=None
     )
 
     # This is D^{-1/2} in sparse matrix form.
@@ -708,7 +701,9 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
         metric required for kernel
     """
 
-    def __init__(self, required_metric: str, distance: Optional[Dict] = None):
+    def __init__(
+        self, required_metric: str, distance: Optional[Dict | DistanceAlgorithm] = None
+    ):
 
         _metric_mismatch = ValueError(
             "The metric is fixed for radial basis kernel and should not set in "
@@ -1189,6 +1184,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         distance_factors = _symmetric_matrix_division(
             distance_matrix,
             vec=np.sqrt(dist_knn),
+            is_symmetric=self.distance.is_symmetric,
             vec_right=np.sqrt(self.reference_dist_knn_) if not is_pdist else None,
         )
 
@@ -1304,7 +1300,11 @@ class DmapKernelFixed(BaseManifoldKernel):
         """
         # If the kernel is made stochastic, it looses the symmetry, if symmetric_kernel
         # is set to True, then apply a symmetry transformation
-        return self.is_stochastic and self._is_symmetric_kernel
+        return (
+            self.is_stochastic
+            and self._is_symmetric_kernel
+            and self.distance.is_symmetric
+        )
 
     def _normalize_sampling_density(
         self, kernel_matrix: Union[np.ndarray, scipy.sparse.csr_matrix], is_pdist: bool
@@ -1340,6 +1340,7 @@ class DmapKernelFixed(BaseManifoldKernel):
         normalized_kernel = _symmetric_matrix_division(
             matrix=kernel_matrix,
             vec=row_sums_alpha,
+            is_symmetric=self.distance.is_symmetric,
             vec_right=row_sums_alpha_fit,
         )
 
@@ -1561,7 +1562,10 @@ class RoselandKernel(PCManifoldKernel):
         data_density = self._cast_array(kernel_matrix.sum(axis=1), is_sparse)
 
         normalized_kernel_matrix = _symmetric_matrix_division(
-            kernel_matrix, vec=data_density, vec_right=landmark_density
+            kernel_matrix,
+            vec=data_density,
+            is_symmetric=False,
+            vec_right=landmark_density,
         )
 
         return normalized_kernel_matrix, landmark_density
@@ -2051,6 +2055,7 @@ class ConeKernel(TSCManifoldKernel):
             factor_matrix = _symmetric_matrix_division(
                 cos_matrix,
                 vec=norm_timederiv_X.to_numpy().ravel(),
+                is_symmetric=True,
                 vec_right=None,
                 scalar=(delta_time**2) * self.epsilon,
                 value_zero_division=0,
@@ -2098,6 +2103,7 @@ class ConeKernel(TSCManifoldKernel):
             factor_matrix = _symmetric_matrix_division(
                 cos_matrix,
                 vec=norm_timederiv_Y.to_numpy().ravel(),
+                is_symmetric=False,
                 vec_right=norm_timederiv_X.to_numpy().ravel(),
                 scalar=(delta_time**2) * self.epsilon,
                 value_zero_division=0,
@@ -2252,7 +2258,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         eps0 = meanrho0**2
 
         expon_matrix = _symmetric_matrix_division(
-            matrix=-distance_matrix, vec=rho0tilde, scalar=2 * eps0
+            matrix=-distance_matrix, vec=rho0tilde, is_symmetric=True, scalar=2 * eps0
         )
 
         nr_samples = distance_matrix.shape[0]
@@ -2275,7 +2281,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
 
     def _compute_kernel_eps_s(self, distance_matrix, rho):
         expon_matrix = _symmetric_matrix_division(
-            matrix=distance_matrix, vec=rho, scalar=-4 * self.epsilon
+            matrix=distance_matrix, vec=rho, is_symmetric=True, scalar=-4 * self.epsilon
         )
         kernel_eps_s = np.exp(expon_matrix, out=expon_matrix)
         return kernel_eps_s
@@ -2287,7 +2293,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
 
     def _compute_kernel_eps_alpha_s(self, kernel_eps_s, q_eps_s):
         kernel_eps_alpha_s = _symmetric_matrix_division(
-            matrix=kernel_eps_s, vec=np.power(q_eps_s, self.alpha)
+            matrix=kernel_eps_s, vec=np.power(q_eps_s, self.alpha), is_symmetric=True
         )
 
         return kernel_eps_alpha_s

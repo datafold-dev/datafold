@@ -48,15 +48,16 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         indicate whether the distance matrix is symmetric (typically standard
         k-nearest-neighbor is not symmetric)
 
-    kmin
-        for range/radius based algorithms, make sure that the matrix has at least ``kmin``
-        neighbors per samples (also ones that are outside the range)
+    k
+        * for k-nearest-neighbors the number of neighbors
+        * for radius-based distance algorithms, there is a follow-up routine to make sure that
+          each sample has at least ``kmin`` neighbors (including ones larger than radius)
     """
 
     # distances cannot be negative - an easy to identify negative value
     _invalid_dist_value = -999
 
-    def __init__(self, metric, is_symmetric, cut_off, kmin):
+    def __init__(self, metric, is_symmetric, cut_off=None, k=None):
         assert hasattr(
             self, "name"
         ), f"Attribute 'name' is missing in subclass {type(self)}."
@@ -65,13 +66,52 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         self.metric = metric
         self.is_symmetric = is_symmetric
 
+        if cut_off is not None:
+            self._set_attrs_range(cut_off=cut_off, kmin=k)
+
+        if k is not None:
+            self._set_attrs_knn(k)
+
+    def _set_attrs_range(self, cut_off, kmin):
         if kmin is not None and not is_integer(kmin):
             raise TypeError(
                 f"parameter 'kmin' must be an integer type or None. Got: {type(kmin)}"
             )
 
+        try:
+            cut_off = float(cut_off)  # make sure to only deal with Python built-in
+        except ValueError:
+            raise TypeError(f"type(cut_off)={type(cut_off)} must be of type float")
+
+        if cut_off <= 0:
+            raise ValueError(
+                f"cut_off={cut_off} must be a positive number number of "
+                f"type 'float'"
+            )
+        if self.metric == "sqeuclidean":
+            if cut_off is not None:
+                # NOTE: this is a special case. Usually the cut_off is represented in the
+                # respective metric. However, for the 'sqeuclidean' case we use the
+                # 'euclidean' metric for the cut-off.
+                cut_off = cut_off**2
+
+        self.cut_off = cut_off
         self.kmin = kmin
-        self.cut_off = self._validate_cut_off(cut_off=cut_off)
+
+    @property
+    def dist_type(self):
+        if hasattr(self, "cut_off"):
+            return "radius"
+        elif hasattr(self, "k"):
+            return "knn"
+        else:
+            return "full"
+
+    def _set_attrs_knn(self, k):
+        if k <= 0:
+            raise ValueError("parameter 'k' must be a positive integer")
+
+        self.k = k
 
     def __repr__(self):
         _name = self.__class__.__name__
@@ -84,10 +124,6 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     @property
     def is_sparse(self):
         return self.cut_off is not None
-
-    @property
-    def max_distance(self):
-        return np.inf if self.cut_off is None else self.cut_off
 
     def _validate_cut_off(self, cut_off):
         if cut_off is None or np.isinf(cut_off):
@@ -146,7 +182,7 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
         return distance_matrix
 
-    def _set_zeros_sparse_diagonal(self, distance_matrix):
+    def _set_zeros_diagonal_sparse(self, distance_matrix):
         # This function sets the diagonal to zero of a sparse matrix.
 
         # Some algorithms don't store the zeros on the diagonal for the pdist case.
@@ -331,9 +367,8 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         return self._validate_final_sparse_matrix(distance_matrix=distance_matrix)
 
     def _validate_final_sparse_matrix(self, distance_matrix):
-
         # actually return a dense matrix
-        if scipy.sparse.issparse(distance_matrix) and self.cut_off is None:
+        if scipy.sparse.issparse(distance_matrix) and np.isinf(self.cut_off):
             # dense case stored in a sparse distance matrix -> convert to np.ndarray
             distance_matrix = distance_matrix.toarray()
         elif not isinstance(distance_matrix, scipy.sparse.csr_matrix):
@@ -431,13 +466,13 @@ class BruteForceDist(DistanceAlgorithm):
         self,
         metric: str,
         exact_numeric: bool = True,
-        cut_off: Optional[Union[float, int]] = None,
+        cut_off: Optional[Union[float, int]] = np.inf,
         **backend_options,
     ):
         self.exact_numeric = exact_numeric
         self.backend_options = backend_options
         super(BruteForceDist, self).__init__(
-            metric=metric, is_symmetric=True, cut_off=cut_off, kmin=None
+            metric=metric, is_symmetric=True, cut_off=cut_off or np.inf
         )
 
     def __call__(
@@ -485,7 +520,7 @@ class BruteForceDist(DistanceAlgorithm):
                     Y, X, metric=self.metric, **self.backend_options
                 )
 
-        if self.cut_off is not None:
+        if not np.isinf(self.cut_off):
             distance_matrix = self._dense2csr_matrix(
                 distance_matrix, cut_off=self.cut_off
             )
@@ -528,28 +563,26 @@ class RDist(DistanceAlgorithm):
 
     name = "rdist" if IS_IMPORTED_RDIST else None  # type: ignore
 
-    def __init__(self, cut_off, metric="euclidean", **backend_options):
+    def __init__(self, cut_off, kmin=None, metric="euclidean", **backend_options):
 
         if not IS_IMPORTED_RDIST:
             raise ImportError("Could not import rdist. Check if it is installed.")
         self.backend_options = backend_options
         self._validate_metric(valid=["euclidean", "sqeuclidean"], metric=metric)
         super(RDist, self).__init__(
-            metric=metric, is_symmetric=True, cut_off=cut_off, kmin=None
+            metric=metric, is_symmetric=True, cut_off=cut_off, k=kmin
         )
 
-    def _adapt_correct_metric_max_distance(self, max_distance):
+    def _adapt_radius(self):
         # Generally: the cut-off is represented like self.metric. The scipy.kdtree can
         # only compute Euclidean distances. Therefore, undo the squaring of cut-off.
         # For sqeuclidean distance, the squaring has to be done after the
         # distance matrix was computed.
 
         if self.metric == "sqeuclidean":
-            max_distance = np.sqrt(
-                max_distance
-            )  # note if max_distance==np.inf, it is still np.inf
-
-        return max_distance
+            return np.sqrt(self.cut_off)
+        else:
+            return self.cut_off
 
     def _get_dist_options(self):
         return {"max_incr_radius": 0, "kmin": 0}
@@ -579,18 +612,18 @@ class RDist(DistanceAlgorithm):
 
         is_pdist = Y is None
 
-        max_distance = self._adapt_correct_metric_max_distance(self.max_distance)
+        radius = self._adapt_radius()
 
         if is_pdist or not hasattr(self, "rdist_"):
             self.rdist_ = rdist.Rdist(X, **self.backend_options)
 
         if is_pdist:
             distance_matrix = self.rdist_.sparse_pdist(
-                r=max_distance, rtype="radius", **self._get_dist_options()
+                r=radius, rtype="radius", **self._get_dist_options()
             )
         else:
             distance_matrix = self.rdist_.sparse_cdist(
-                req_points=Y, r=max_distance, rtype="radius", **self._get_dist_options()
+                req_points=Y, r=radius, rtype="radius", **self._get_dist_options()
             )
 
         if self.metric == "euclidean":
@@ -631,7 +664,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         self.backend_options = backend_options
         self._validate_metric(valid=["euclidean", "sqeuclidean"], metric=metric)
         super(ScipyKdTreeDist, self).__init__(
-            metric=metric, is_symmetric=True, cut_off=cut_off, kmin=kmin
+            metric=metric, is_symmetric=True, cut_off=cut_off or np.inf, k=kmin
         )
 
     def _get_max_distance(self):
@@ -642,9 +675,9 @@ class ScipyKdTreeDist(DistanceAlgorithm):
 
         if self.metric == "sqeuclidean":
             # note if max_distance==np.inf, it is still np.inf
-            return np.sqrt(self.max_distance)
+            return np.sqrt(self.cut_off)
         else:
-            return self.max_distance
+            return self.cut_off
 
     def __call__(
         self,
@@ -733,17 +766,14 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         self.backend_options = backend_options
         self._validate_metric(valid=["euclidean", "sqeuclidean"], metric=metric)
         super(SklearnBalltreeDist, self).__init__(
-            metric=metric, is_symmetric=True, cut_off=cut_off, kmin=kmin
+            metric=metric, is_symmetric=True, cut_off=cut_off or np.inf, k=kmin
         )
 
     def _map_metric_and_radius(self):
         if self.metric == "sqeuclidean":
-            if self.cut_off is not None:
-                return "euclidean", np.sqrt(self.cut_off)
-            else:
-                return "euclidean", self.max_distance
+            return "euclidean", np.sqrt(self.cut_off)
         else:
-            return self.metric, self.max_distance
+            return self.metric, self.cut_off
 
     def _fit_nearest_neighbor(self, X):
         metric, radius = self._map_metric_and_radius()
@@ -793,33 +823,45 @@ class SklearnBalltreeDist(DistanceAlgorithm):
             )
 
         if is_pdist:
-            distance_matrix = self._set_zeros_sparse_diagonal(distance_matrix)
+            distance_matrix = self._set_zeros_diagonal_sparse(distance_matrix)
 
         return self._handle_kmin(X, Y, distance_matrix)
 
 
-# @NotImplementedError
-# class SkleanNearestNeighbor(DistanceAlgorithm):
-#     name
-#
-#     def __init__(self, metric, k, **backend_options):
-#         backend_options = backend_options
-#         super(SkleanNearestNeighbor, self).__init__(metric=metric, is_symmetric=False, k=k)
-#
-#     def __call__(self, X, Y=None):
-#
-#         from sklearn.neighbors import NearestNeighbors
-#
-#         X, Y, is_pdist = self._validate_X_Y(X, Y=Y)
-#
-#         if hasattr(self, "nn_"):
-#             self.nn_ = NearestNeighbors(n_neighbors=self.k, metric=self.metric)
-#             self.nn_.fit(X)
-#
-#         if is_pdist:
-#             self.nn_.kneighbors()
-#         else:
-#             self.nn_.kneighbors(Y)
+class SklearnKNN:
+
+    name = "sklearn.knn"
+
+    def __init__(self, metric, k, **backend_options):
+        self.backend_options = backend_options
+        super(SklearnKNN, self).__init__(metric=metric, is_symmetric=False, k=k)
+
+    def __call__(self, X, Y=None):
+
+        from sklearn.neighbors import KNeighborsTransformer
+
+        X, Y, is_pdist = self._validate_X_Y(X, Y=Y)
+
+        if is_pdist or not hasattr(self, "nn_"):
+            self.nn_ = KNeighborsTransformer(
+                mode="distance",
+                n_neighbors=self.k,
+                metric=self.metric,
+                **self.backend_options,
+            )
+            self.nn_.fit(X)
+
+        if is_pdist:
+            distance_matrix = self.nn_.kneighbors_graph(
+                n_neighbors=self.k - 1, mode="distance"
+            )
+            distance_matrix = self._set_zeros_diagonal_sparse(distance_matrix)
+        else:
+            distance_matrix = self.nn_.kneighbors_graph(
+                Y, n_neighbors=self.k, mode="distance"
+            )
+
+        return distance_matrix
 
 
 class GuessOptimalDist(DistanceAlgorithm):
@@ -830,78 +872,29 @@ class GuessOptimalDist(DistanceAlgorithm):
     ----------
     metric
         distance metric
+
+    cut_off
     """
 
     name = "guess_optimal"
 
-    def __init__(self, metric="euclidean", cut_off=None, is_symmetric=True, kmin=None):
-        self.kmin = kmin
-        self._cut_off = cut_off
-        super(GuessOptimalDist, self).__init__(
-            metric=metric, cut_off=None, is_symmetric=is_symmetric, kmin=None
-        )
+    def __new__(cls, metric="euclidean", is_symmetric=True, cut_off=np.inf, k=None):
 
-    def __repr__(self):
-        try:
-            return self.selected_dist_algo_.__repr__()
-        except AttributeError:
-            return super(GuessOptimalDist, self).__repr__()
+        cut_off = cut_off or np.inf
 
-    def _guess_optimal_backend(self):
-
-        if self._cut_off is None:  # dense case
-            backend_class = BruteForceDist(cut_off=self._cut_off, metric=self.metric)
+        if np.isinf(cut_off):  # dense case
+            backend_class = BruteForceDist(cut_off=cut_off, metric=metric)
         else:
-            if IS_IMPORTED_RDIST and self.metric in ["euclidean", "sqeuclidean"]:
-                backend_class = RDist(cut_off=self._cut_off, metric=self.metric)
+            if IS_IMPORTED_RDIST and metric in ["euclidean", "sqeuclidean"]:
+                backend_class = RDist(cut_off=cut_off, metric=metric)
                 assert backend_class is not None
 
-            elif self.metric in ["euclidean", "sqeuclidean"]:
-                backend_class = ScipyKdTreeDist(
-                    cut_off=self._cut_off, metric=self.metric
-                )
+            elif metric in ["euclidean", "sqeuclidean"]:
+                backend_class = ScipyKdTreeDist(cut_off=cut_off, metric=metric)
             else:
-                backend_class = BruteForceDist(
-                    cut_off=self._cut_off, metric=self.metric
-                )
+                backend_class = BruteForceDist(cut_off=cut_off, metric=metric)
 
         return backend_class
-
-    def __call__(
-        self,
-        X: np.ndarray,
-        Y: Optional[np.ndarray] = None,
-    ) -> scipy.sparse.csr_matrix:
-        """Compute distance matrix.
-
-        Parameters
-        ----------
-        X
-            Reference dataset of shape `(n_samples_X, n_features)`.
-
-        Y
-            Query dataset of shape `(n_samples_Y, n_features)`. If set then the computation
-            is component-wise and if ``None``, the reference dataset is taken as the query
-            points (i.e. `Y=X`).
-
-        Returns
-        -------
-        scipy.sparse.csr_matrix
-            distance matrix
-        """
-
-        is_pdist = Y is None
-
-        if is_pdist:
-            self.selected_dist_algo_ = self._guess_optimal_backend()
-            self.cut_off = self.selected_dist_algo_.cut_off
-            return self.selected_dist_algo_(X)
-        else:
-            if not hasattr(self, "selected_dist_algo_"):
-                self.selected_dist_algo_ = self._guess_optimal_backend()
-
-            self.cut_off = self.selected_dist_algo_.cut_off
-            return self.selected_dist_algo_(X, Y)
 
 
 def _all_available_distance_algorithm():
@@ -973,13 +966,15 @@ def init_distance_algorithm(
     backend="guess_optimal",
     metric="euclidean",
     cut_off=None,
-    kmin=None,
+    k=None,
     **backend_options,
 ) -> DistanceAlgorithm:
     """Initialize a distance matrix by name and keywords.
 
     Parameters
     ----------
+    backend
+        Backend to compute distance matrix.
 
     metric
         Distance metric. Needs to be supported by backend.
@@ -992,14 +987,11 @@ def init_distance_algorithm(
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
             cut-off must be stated in in Eucledian distance (not squared cut-off).
 
-    kmin
+    k
         Minimum number of neighbors per point. Ignored if `cut_off=np.inf` to indicate
         a dense distance matrix, where all distance pairs are computed.
 
-    backend
-        Backend to compute distance matrix.
-
-    **backend_kwargs
+    **backend_options
         Keyword arguments handled to selected backend.
 
     Returns
@@ -1015,7 +1007,7 @@ def init_distance_algorithm(
     kwargs = {
         "metric": metric,
         "cut_off": cut_off,
-        "kmin": kmin,
+        "kmin": k,
         "backend_options": backend_options,
     }
     keys = deepcopy(list(kwargs.keys()))
@@ -1033,7 +1025,7 @@ def compute_distance_matrix(
     Y: Optional[np.ndarray] = None,
     metric: str = "euclidean",
     cut_off: Optional[float] = None,
-    kmin: int = 0,
+    k: int = 0,
     backend: Union[str, Type[DistanceAlgorithm]] = "guess_optimal",
     **backend_kwargs,
 ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
@@ -1060,7 +1052,7 @@ def compute_distance_matrix(
             The pseudo-metric "sqeuclidean" is handled differently in a way that the
             cut-off must be stated in in Eucledian distance (not squared cut-off).
 
-    kmin
+    k
         Minimum number of neighbors per point. Ignored if `cut_off=np.inf` to indicate
         a dense distance matrix, where all distance pairs are computed.
 
@@ -1078,7 +1070,7 @@ def compute_distance_matrix(
     """
 
     backend_class = init_distance_algorithm(
-        backend, metric, cut_off, kmin, **backend_kwargs
+        backend, metric, cut_off, k, **backend_kwargs
     )
     return backend_class(X, Y)
 

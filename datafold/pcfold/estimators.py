@@ -79,7 +79,7 @@ def estimate_cutoff(
             pcm,
             metric="euclidean",
             backend="brute",
-            kmin=k,
+            k=k,
             # for estimation it is okay to be not exact and compute faster
             **dict(exact_numeric=False)
         )

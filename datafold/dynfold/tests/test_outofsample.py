@@ -193,8 +193,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
         dmap_dense = DiffusionMaps(**dense_setting).fit(data)
         values = dmap_dense.eigenvectors_[:, 1]
 
-        dmap_sparse = DiffusionMaps(**sparse_setting).fit(data)
-
         # The parameters are set equal to the previously generated DMAP, therefore both
         # have to be equal.
         gh_dense_cmp = GeometricHarmonicsInterpolator(**dense_setting).fit(
@@ -203,9 +201,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
         gh_sparse_cmp = GeometricHarmonicsInterpolator(**sparse_setting).fit(
             data, values, store_kernel_matrix=True
         )
-
-        self.assertEqual(gh_dense_cmp._dmap_kernel, dmap_dense._dmap_kernel)
-        self.assertEqual(gh_sparse_cmp._dmap_kernel, dmap_sparse._dmap_kernel)
 
         # Check the the correct format is set
         self.assertTrue(isinstance(gh_dense_cmp.kernel_matrix_, np.ndarray))
@@ -874,9 +869,9 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         )
 
     def test_same_underlying_kernel(self):
-        # Actually not a legacy test, but uses the set up.
+        # Actually not a legacy test, but uses the setup.
 
-        from datafold.pcfold.distance import GuessOptimalDist
+        from datafold.pcfold.distance import BruteForceDist
 
         eps_interp = 0.0005
 
@@ -892,7 +887,7 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
         self.assertTrue(gh._dmap_kernel.is_stochastic)
         self.assertEqual(gh._dmap_kernel.alpha, 0.5)
         self.assertTrue(gh._dmap_kernel.is_symmetric)
-        self.assertIsInstance(gh._dmap_kernel.distance, GuessOptimalDist)
+        self.assertIsInstance(gh._dmap_kernel.distance, BruteForceDist)
 
 
 class LaplacianPyramidsTest(unittest.TestCase):

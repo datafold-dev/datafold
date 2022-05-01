@@ -60,14 +60,6 @@ def scipy_eigsolver(
     n_eigenpairs
         Number of eigenpairs to compute.
 
-    is_symmetric
-        True if matrix is symmetric. Note that there is no check and also numerical
-        noise that breaks the symmetry can lead to instabilities.
-
-    is_stochastic
-        If True, the kernel matrix is assumed to be row-stochastic. This enables
-        setting a `sigma` close to 1 to accelerate convergence.
-
     Returns
     -------
     numpy.ndarray
@@ -89,10 +81,10 @@ def scipy_eigsolver(
 
         solver_kwargs: Dict[str, object] = {
             "check_finite": False
-        }  # should be already checked
+        }  # should be checked already
 
     else:  # n_eigenpairs < matrix.shape[1]
-        if kernel._is_symmetric_kernel:
+        if kernel.is_symmetric:
             scipy_eigvec_solver = scipy.sparse.linalg.eigsh
         else:
             scipy_eigvec_solver = scipy.sparse.linalg.eigs
@@ -105,13 +97,15 @@ def scipy_eigsolver(
         }
 
         # The selection of sigma is a result of a microbenchmark
-        if kernel._is_symmetric_kernel and kernel.is_stochastic:
+        if kernel.is_symmetric and kernel.is_stochastic:
             # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
             # setting sigma=1 resulted into a slower computation.
             NUMERICAL_EXACT_BREAKER = 0.1
             solver_kwargs["sigma"] = 1.0 + NUMERICAL_EXACT_BREAKER
             solver_kwargs["mode"] = "normal"
         else:
+            # NOTE: it turned out that for self.kernel_.is_symmetric=False (-> eigs),
+            # setting sigma=1 resulted into a slower computation.
             solver_kwargs["sigma"] = None
 
         # the scipy solvers only work on floating points
@@ -119,7 +113,7 @@ def scipy_eigsolver(
             kernel_matrix
         ) and kernel_matrix.data.dtype.kind not in ["fdFD"]:
             kernel_matrix = kernel_matrix.asfptype()
-        elif isinstance(kernel_matrix, np.ndarray) and kernel_matrix.dtype != "f":
+        elif isinstance(kernel_matrix, np.ndarray) and kernel_matrix.dtype.kind != "f":
             kernel_matrix = kernel_matrix.astype(float)
 
     eigvals, eigvects = scipy_eigvec_solver(kernel_matrix, **solver_kwargs)
@@ -204,14 +198,6 @@ def compute_kernel_eigenpairs(
     n_eigenpairs
         Number of eigenpairs to compute.
 
-    is_symmetric
-        If True, this allows using specialized algorithms for symmetric matrices and
-        enables an additional numerical sanity check that all eigenvalues are real-valued.
-
-    is_stochastic
-        If True, this allows convergence to be improved because the trivial first
-        eigenvalue is known and all following eigenvalues are smaller.
-
     normalize_eigenvectors
         If True, all eigenvectors are normalized to length 1.
 
@@ -250,7 +236,7 @@ def compute_kernel_eigenpairs(
         kernel_matrix = kernel_matrix.astype(np.float64)
 
     if validate_matrix:
-        if kernel._is_symmetric_kernel and not is_symmetric_matrix(kernel_matrix):
+        if kernel.is_symmetric and not is_symmetric_matrix(kernel_matrix):
             raise ValueError("kernel_matrix is not symmetric")
 
         # TODO: include this after kernel refactor is carried out in #149

@@ -501,12 +501,16 @@ class TSCPredictMixin(TSCBase):
     def _validate_feature_names(
         self: Union[BaseEstimator, "TSCPredictMixin"], X: TransformType
     ):
-        import pandas.testing as pdtest
 
         self._check_n_features(X, reset=False)  # type: ignore
 
         try:
-            pdtest.assert_index_equal(X.columns, self.feature_names_in_)
+            # alternative check in datafold comared to sklearn
+            # self._check_feature_names(reset=False)
+            # Reason: in datafold there are also non-string feature names allowed
+            nptest.assert_array_equal(
+                np.asarray(X.columns), np.asarray(self.feature_names_in_)
+            )
         except AssertionError:
             raise ValueError(
                 f"model was fit with feature names\n{self.feature_names_in_.tolist()}\n"

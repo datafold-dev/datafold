@@ -484,8 +484,8 @@ class DiffusionMapsTest(unittest.TestCase):
 
         # Therefore, only reference solutions can be tested here.
 
-        X_swiss_train, _ = make_swiss_roll(2700, random_state=1)
-        X_swiss_test, _ = make_swiss_roll(1300, random_state=1)
+        X_swiss_train, color_train = make_swiss_roll(2700, random_state=1)
+        X_swiss_test, color_test = make_swiss_roll(1300, random_state=1)
 
         setting = {
             "kernel": GaussianKernel(epsilon=1.9),
@@ -501,12 +501,25 @@ class DiffusionMapsTest(unittest.TestCase):
             X_swiss_test
         )
 
+        if plot:
+            plot_pairwise_eigenvector(
+                eigenvectors=dmap_embed.eigenvectors_,
+                n=1,
+                scatter_params=dict(c=color_train),
+            )
+
+            plot_pairwise_eigenvector(
+                eigenvectors=dmap_embed_test_eval,
+                n=1,
+                scatter_params=dict(c=color_test),
+            )
+            plt.show()
+
         # NOTE: These tests are only to detect potentially unwanted changes in computation
         # NOTE: For some reason the remote computer produces other results. Therefore,
         # it is only checked with "allclose"
-
         np.set_printoptions(precision=17)
-        # print(dmap_embed_test_eval.sum(axis=0))
+        print(dmap_embed_test_eval.sum(axis=0))
 
         nptest.assert_allclose(
             dmap_embed_test_eval.sum(axis=0),
@@ -576,6 +589,39 @@ class DiffusionMapsTest(unittest.TestCase):
         # in Euclidean metric)
         self.assertEqual(dmap._dmap_kernel.distance.cut_off, 4)
         self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
+
+    def test_knn_kernel_matrix(self):
+        X_swiss_train, color_train = make_swiss_roll(2700, random_state=1)
+        X_swiss_oos, color_oos = make_swiss_roll(1300, random_state=1)
+
+        from datafold.pcfold.distance import SklearnKNN
+
+        setting = {
+            "kernel": GaussianKernel(
+                epsilon=2.1, distance=SklearnKNN(metric="sqeuclidean", k=50)
+            ),
+            "n_eigenpairs": 7,
+            "is_stochastic": True,
+            "alpha": 1,
+            "symmetrize_kernel": False,
+        }
+
+        dmap = DiffusionMaps(**setting).fit(X_swiss_train)
+        psi_oos = dmap.transform(X_swiss_oos)
+
+        if True:
+            plot_pairwise_eigenvector(
+                eigenvectors=dmap.eigenvectors_,
+                n=1,
+                scatter_params=dict(c=color_train),
+            )
+
+            plot_pairwise_eigenvector(
+                eigenvectors=psi_oos,
+                n=1,
+                scatter_params=dict(c=color_oos),
+            )
+            plt.show()
 
     def test_kernel_symmetric_conjugate(self):
         X = make_swiss_roll(1000)[0]

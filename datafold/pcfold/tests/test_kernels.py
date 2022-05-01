@@ -80,13 +80,17 @@ class TestKernelUtils(unittest.TestCase):
 
         with self.assertRaises(ZeroDivisionError):
             _symmetric_matrix_division(
-                matrix=distance_matrix, vec=vec_left, value_zero_division="raise"
+                matrix=distance_matrix,
+                vec=vec_left,
+                is_symmetric=True,
+                value_zero_division="raise",
             )
 
         with self.assertRaises(ZeroDivisionError):
             _symmetric_matrix_division(
                 matrix=distance_matrix,
                 vec=np.arange(1, distance_matrix.shape[0] + 1),
+                is_symmetric=True,
                 vec_right=vec_right,
                 value_zero_division="raise",
             )
@@ -102,6 +106,7 @@ class TestKernelUtils(unittest.TestCase):
         actual_dense = _symmetric_matrix_division(
             matrix=np.copy(distance_matrix),
             vec=np.copy(vec_left),
+            is_symmetric=True,
             value_zero_division=value_zero_division,
         )
 
@@ -125,6 +130,7 @@ class TestKernelUtils(unittest.TestCase):
         actual_sparse = _symmetric_matrix_division(
             matrix=distance_matrix,
             vec=np.copy(vec_left),
+            is_symmetric=True,
             value_zero_division=value_zero_division,
         )
 
@@ -140,11 +146,13 @@ class TestKernelUtils(unittest.TestCase):
         actual = _symmetric_matrix_division(
             matrix=scipy.sparse.csr_matrix(distance_matrix),
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=True,
         )
 
         expected = _symmetric_matrix_division(
             matrix=distance_matrix,
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=True,
         )
 
         nptest.assert_array_equal(actual.toarray(), expected)
@@ -157,16 +165,17 @@ class TestKernelUtils(unittest.TestCase):
         actual = _symmetric_matrix_division(
             matrix=scipy.sparse.csr_matrix(distance_matrix),
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
 
         expected = _symmetric_matrix_division(
             matrix=distance_matrix,
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
-
-        nptest.assert_array_equal(actual.toarray(), expected)
+        nptest.assert_allclose(actual.toarray(), expected, rtol=1e-16, atol=1e-17)
 
     def test_symmetric_division_sparse_dense03(self):
 
@@ -177,16 +186,18 @@ class TestKernelUtils(unittest.TestCase):
         actual = _symmetric_matrix_division(
             matrix=scipy.sparse.csr_matrix(distance_matrix),
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
 
         expected = _symmetric_matrix_division(
             matrix=distance_matrix,
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
 
-        nptest.assert_array_equal(actual.toarray(), expected)
+        nptest.assert_allclose(actual.toarray(), expected, rtol=1e-16, atol=1e-17)
 
     def test_sparse_kth_dist01(self):
         data = generate_circle_data(100, 100, 1)
@@ -265,7 +276,7 @@ class TestPCManifoldKernel(unittest.TestCase):
         kernel = GaussianKernel(epsilon=1)
 
         r = (
-            "GaussianKernel(\n\tdistance=GuessOptimalDist(metric='sqeuclidean', "
+            "GaussianKernel(\n\tdistance=BruteForceDist(metric='sqeuclidean', "
             "is_symmetric=True, is_sparse=False, cut_off=None, kmin=None)\n\tepsilon=1\n)"
         )
         self.assertEqual(kernel.__repr__(), r)

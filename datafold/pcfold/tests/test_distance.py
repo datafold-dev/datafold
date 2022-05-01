@@ -26,7 +26,7 @@ class TestDistAlgorithms(unittest.TestCase):
 
         self.algos = _all_available_distance_algorithm()
 
-    def test_pdist_dense(self):
+    def test_range_pdist_dense(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
 
@@ -42,7 +42,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         backend=algo.name,
                         metric=metric,
                         cut_off=None,
-                        kmin=None,
+                        k=None,
                         **backend_options,
                     )
                     actual = da(self.data_X)
@@ -53,7 +53,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_cdist_dense(self):
+    def test_range_cdist_dense(self):
         backend_options = {}
 
         # NOTE: first Y and then X because, the Y (query points) should be in rows, the X
@@ -68,12 +68,11 @@ class TestDistAlgorithms(unittest.TestCase):
 
             for algo in self.algos:
                 try:
-
                     da = init_distance_algorithm(
                         backend=algo.name,
                         metric=metric,
                         cut_off=None,
-                        kmin=None,
+                        k=None,
                         **backend_options,
                     )
 
@@ -85,7 +84,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_pdist_sparse(self):
+    def test_range_pdist_sparse(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
         cut_off = float(np.median(expected))
@@ -103,7 +102,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=None,
+                        k=None,
                         **backend_options,
                     )
 
@@ -120,7 +119,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_cdist_sparse(self):
+    def test_range_cdist_sparse(self):
         backend_options = {}
 
         # See also comment in 'test_cdist_dense'
@@ -140,7 +139,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=None,
+                        k=None,
                         **backend_options,
                     )
 
@@ -154,7 +153,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     print(f"{algo.name} failed with metric {metric}")
                     raise e
 
-    def test_pdist_sparse_zeros(self):
+    def test_range_pdist_sparse_zeros(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
         cut_off = float(np.median(expected))
@@ -180,7 +179,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=None,
+                        k=None,
                         **backend_options,
                     )
 
@@ -195,7 +194,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_cdist_sparse_duplicate_zeros(self):
+    def test_range_cdist_sparse_duplicate_zeros(self):
         backend_options = {}
 
         data_Y = self.data_Y.copy()  # make copy to manipulate values
@@ -225,7 +224,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=None,
+                        k=None,
                         **backend_options,
                     )
 
@@ -325,3 +324,10 @@ class TestDistAlgorithms(unittest.TestCase):
                 except AssertionError as e:
                     print(f"Failed for quantile={quantile} and kmin={kmin}")
                     raise e
+
+    def test_knn_pdist(self):
+
+        from datafold.pcfold.distance import SklearnKNN
+
+        dist = SklearnKNN(metric="euclidean", k=3)
+        dist(self.data_X)
