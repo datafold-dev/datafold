@@ -16,9 +16,9 @@ Classes
    .. automethod:: is_differential_system
    .. automethod:: is_flowmap_system
    .. automethod:: is_linear_system_setup
-   .. automethod:: setup_sys_spectral
-   .. automethod:: setup_sys_matrix
-   .. automethod:: evolve_linear_system
+   .. automethod:: setup_spectral_system
+   .. automethod:: setup_matrix_system
+   .. automethod:: evolve_system
 
 .. autoclass:: datafold.pcfold.timeseries.accessor.TSCAccessor
 
@@ -27,7 +27,10 @@ Classes
    .. automethod:: assign_ids_sequential
    .. automethod:: assign_ids_train_test
    .. automethod:: check_const_time_delta
+   .. automethod:: check_equal_delta_time
+   .. automethod:: check_equal_timevalues
    .. automethod:: check_finite
+   .. automethod:: check_min_samples
    .. automethod:: check_no_degenerate_ts
    .. automethod:: check_non_overlapping_timeseries
    .. automethod:: check_normalized_time
@@ -36,9 +39,9 @@ Classes
    .. automethod:: check_required_n_timesteps
    .. automethod:: check_required_time_delta
    .. automethod:: check_timeseries_same_length
-   .. automethod:: check_timeseries_same_timevalues
    .. automethod:: check_tsc
-   .. automethod:: compute_shift_matrices
+   .. automethod:: shift_matrices
+   .. automethod:: equal_const_delta_time
    .. automethod:: iter_timevalue_window
    .. automethod:: normalize_time
    .. automethod:: plot_density2d
@@ -53,18 +56,14 @@ Classes
 Modules
 ~~~~~~~
 
-.. Fill in classes that have 
+.. Fill in classes that have
        WARNING: autosummary: stub file not found 'XXXXX'. Check your autosummary_generate setting.
 
 .. automodapi:: datafold.dynfold.base
-    :skip: List,NotFittedError,TSCDataFrame,TSCMetric,TSCScoring,TimePredictType,TransformerMixin,Tuple,TSCException
+    :skip: List,NotFittedError,TSCDataFrame,TSCMetric,TSCScoring,TimePredictType,TransformerMixin,Tuple,TSCException,InitialCondition,BaseEstimator
 
 .. automodapi:: datafold.pcfold.distance
-    :skip: NearestNeighbors,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec
+    :skip: NearestNeighbors,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec,is_integer
 
 .. automodapi:: datafold.pcfold.eigsolver
-    :skip: Callable,sort_eigenpairs,is_symmetric_matrix,Tuple,Dict
-
-
-
-
+    :skip: sort_eigenpairs,is_symmetric_matrix,Tuple,Dict,is_matrix

@@ -1,5 +1,5 @@
 import enum
-from typing import Optional, Union
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,9 +9,8 @@ from sklearn.metrics import mean_squared_error
 from sklearn.utils import check_array, check_consistent_length, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold.decorators import warn_experimental_class, warn_known_bug
+from datafold._decorators import warn_known_bug
 from datafold.dynfold.dmap import _DmapKernelAlgorithms
-from datafold.pcfold import PCManifold
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import DmapKernelFixed, GaussianKernel, PCManifoldKernel
 from datafold.utils.general import mat_dot_diagmat
@@ -44,15 +43,10 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         for (sparse) Hermitian matrices to be used. If the kernel matrix is symmetric
         already (`is_stochastic=False`), then the parameter has no effect.
 
-    dist_kwargs
-        Keyword arguments passed to the internal distance matrix computation. See
-        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
-        arguments.
-
     Attributes
     ----------
 
-    X_: PCManifold
+    X_fit_: np.ndarray
         Training data during fit of shape `(n_samples, n_features)`. The data is required
         to be stored to perform out-of-sample interpolations. Equipped with kernel
         :py:class:`DmapKernelFixed`.
@@ -72,7 +66,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     References
     ----------
 
-    :cite:`coifman_geometric_2006`
+    :cite:`coifman-2006a`
 
     See Also
     --------
@@ -89,7 +83,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         is_stochastic: bool = False,
         alpha: float = 1,
         symmetrize_kernel=True,
-        dist_kwargs=None,
     ) -> None:
 
         self.kernel = kernel
@@ -97,7 +90,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         self.is_stochastic = is_stochastic
         self.alpha = alpha
         self.symmetrize_kernel = symmetrize_kernel
-        self.dist_kwargs = dist_kwargs
 
     def _precompute_aux(self) -> None:
         # TODO: [style, minor] "aux" should get a better name
@@ -152,14 +144,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     def _get_default_kernel(self):
         return GaussianKernel(epsilon=1.0)
 
-    def _setup_default_dist_kwargs(self):
-        from copy import deepcopy
-
-        self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
-        self.dist_kwargs_.setdefault("cut_off", np.inf)
-        self.dist_kwargs_.setdefault("kmin", 0)
-        self.dist_kwargs_.setdefault("backend", "guess_optimal")
-
     def fit(
         self, X: np.ndarray, y: np.ndarray, store_kernel_matrix: bool = False
     ) -> "GeometricHarmonicsInterpolator":
@@ -195,8 +179,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             y = y[:, np.newaxis]
         check_consistent_length(X, y)
 
-        self._setup_default_dist_kwargs()
-
         internal_kernel = (
             self.kernel if self.kernel is not None else self._get_default_kernel()
         )
@@ -208,45 +190,35 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             symmetrize_kernel=self.symmetrize_kernel,
         )
 
-        self.X_ = PCManifold(
-            X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_,
-        )
+        self.X_fit_ = X
         self.y_ = y
 
         check_scalar(
             self.n_eigenpairs,
             "n_eigenpairs",
-            target_type=(np.integer, int),
+            target_type=(int, np.integer),
             min_val=1,
-            max_val=self.X_.shape[0] - 1,
+            max_val=self.X_fit_.shape[0] - 1,
         )
 
-        kernel_output = self.X_.compute_kernel_matrix()
-        (
-            kernel_matrix_,
-            self._cdist_kwargs,
-            ret_extra,
-        ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
-        basis_change_matrix = ret_extra["basis_change_matrix"]
+        kernel_matrix_ = self._dmap_kernel(X=X)
 
         (
             self.eigenvalues_,
             self.eigenvectors_,
         ) = _DmapKernelAlgorithms.solve_eigenproblem(
+            kernel=self._dmap_kernel,
             kernel_matrix=kernel_matrix_,
             n_eigenpairs=self.n_eigenpairs,
-            is_symmetric=self._dmap_kernel.is_symmetric,
-            is_stochastic=self.is_stochastic,
-            basis_change_matrix=basis_change_matrix,
         )
 
         self._precompute_aux()
 
         if store_kernel_matrix:
-            if self._dmap_kernel.is_symmetric_transform():
+            if self._dmap_kernel.is_conjugate:
                 self.kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
                     kernel_matrix=kernel_matrix_,
-                    basis_change_matrix=basis_change_matrix,
+                    basis_change_matrix=self._dmap_kernel.basis_change_matrix_,
                 )
             else:
                 self.kernel_matrix_ = kernel_matrix_
@@ -272,11 +244,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             X, **self._validate_kwargs(X, ensure_min_samples=1, during_fit=False)
         )
 
-        kernel_output = self.X_.compute_kernel_matrix(Y=X, **self._cdist_kwargs)
-        kernel_matrix_, _, _ = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
-
+        kernel_matrix_ = self._dmap_kernel(self.X_fit_, X)
         return np.squeeze(kernel_matrix_ @ self._aux)
 
     @warn_known_bug(gitlab_issue=16)
@@ -291,7 +259,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         ----------
         X
             Out-of-sample points to compute the gradient at.
-            
+
         vcol
             Column index of the corresponding function value to compute the gradient of.
             Has to be given for multivariate interpolation.
@@ -311,7 +279,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
             X, self._validate_kwargs(X, ensure_min_samples=1, during_fit=False)
         )
 
-        assert self.X_ is not None and self.y_ is not None  # prevents mypy warnings
+        assert self.X_fit_ is not None and self.y_ is not None  # prevents mypy warnings
 
         if vcol is None and self.y_.ndim > 1 and self.y_.shape[1] > 1:
             raise NotImplementedError(
@@ -330,16 +298,10 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         else:
             values = self.y_[:, 0]
 
-        kernel_output = self.X_.compute_kernel_matrix(X)
-        kernel_matrix, _, _sanity_check = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
-
-        assert _sanity_check == {}
+        kernel_matrix = self._dmap_kernel(self.X_fit_, X)
 
         # TODO: see issue #54 the to_ndarray() kills memory, when many points
         #  (xi.shape[0]) are requested
-
         if isinstance(kernel_matrix, scipy.sparse.coo_matrix):
             kernel_matrix = np.squeeze(kernel_matrix.toarray())
         elif isinstance(kernel_matrix, scipy.sparse.csr_matrix):
@@ -349,9 +311,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         ki_psis = kernel_matrix * values
 
         grad = np.zeros_like(X)
-        v = np.empty_like(self.X_)
+        v = np.empty_like(self.X_fit_)
         for p in range(X.shape[0]):
-            np.subtract(X[p, :], self.X_, out=v)
+            np.subtract(X[p, :], self.X_fit_, out=v)
             np.matmul(v.T, ki_psis[p, :], out=grad[p, :])
         return grad
 
@@ -421,7 +383,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
 
 @NotImplementedError
-class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
+class MultiScaleGeometricHarmonicsInterpolator(
+    GeometricHarmonicsInterpolator
+):  # pragma: no cover
     """
     .. warning::
         This class is not documented and in experimental state. Contributions are welcome:
@@ -439,7 +403,6 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         is_stochastic: bool = False,
         alpha: float = 1,
         symmetrize_kernel=False,
-        dist_kwargs=None,
     ):
         """
         TODO: This is a work in progress algorithm.
@@ -452,7 +415,6 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
             is_stochastic=is_stochastic,
             alpha=alpha,
             symmetrize_kernel=symmetrize_kernel,
-            dist_kwargs=dist_kwargs,
         )
 
         self.condition = condition
@@ -464,10 +426,11 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
         scale = self.initial_scale
         error_not_in_range = True
 
+        from scipy.sparse.linalg import eigsh
+
         from datafold.pcfold import PCManifold
         from datafold.pcfold.kernels import GaussianKernel
         from datafold.utils.general import diagmat_dot_mat, sort_eigenpairs
-        from scipy.sparse.linalg import eigsh
 
         mu_l_ = None
         phi_l_ = None
@@ -489,7 +452,7 @@ class MultiScaleGeometricHarmonicsInterpolator(GeometricHarmonicsInterpolator):
             ratio_eigenvalues = mu[0] / mu
             max_l = np.argmax(~(ratio_eigenvalues < self.condition))
 
-            coeff_l_, coeff_l_err_ = (coeff_[:max_l], coeff_[max_l:])
+            _, coeff_l_err_ = (coeff_[:max_l], coeff_[max_l:])
 
             mu_l_ = mu[:max_l]
             phi_l_ = phi[:, :max_l]
@@ -584,8 +547,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
     References
     ----------
 
-    :cite:`fernandez_auto-adaptative_2014`
-    :cite:`rabin_heterogeneous_2012`
+    :cite:`fernandez-2014,rabin-2012`
 
     """
 
@@ -631,15 +593,14 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
                 name="residual_tol",
                 target_type=(float, np.floating),
                 min_val=0,
-                max_val=np.inf,
             )
 
         check_scalar(
             self.mu,
             "mu",
             target_type=(int, np.integer, float, np.floating),
-            min_val=1 + np.finfo(float).eps,
-            max_val=np.inf,
+            min_val=1,
+            include_boundaries="right",
         )
 
         if isinstance(X, np.memmap):
@@ -738,12 +699,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
             return max(self._level_tracker.keys()) + 1
 
     def _track_new_level(
-        self,
-        kernel,
-        target_values,
-        residual_norm,
-        active_func_indices,
-        row_sums_fit_alpha,
+        self, kernel, target_values, residual_norm, active_func_indices
     ):
         new_level = self._get_next_level_()
 
@@ -755,7 +711,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
             "target_values": target_values,
             "residual_norm": residual_norm,
             "active_indices": active_func_indices,
-            "row_sums_fit_alpha": row_sums_fit_alpha,
         }
 
     def _remove_increase_loocv_indices(
@@ -806,23 +761,17 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
             symmetrize_kernel=False,
         )
 
-        kernel_output = dmap_kernel.eval(distance_matrix=distance_matrix, is_pdist=True)
-        kernel_matrix, cdist_kwargs, _check = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
+        kernel_matrix = dmap_kernel.eval(distance_matrix=distance_matrix, is_pdist=True)
 
-        row_sums_alpha_fit = cdist_kwargs["row_sums_alpha_fit"]
-
-        assert (
-            _check["basis_change_matrix"] is None
-        ), "no symmetrize of kernel supported"
+        if dmap_kernel.is_conjugate:
+            raise NotImplementedError("no symmetric conjugation of kernel supported")
 
         if self.auto_adaptive:
             # inplace: set diagonal to zero to obtain LOOCV estimation
             # TODO: this requires special handling for a sparse kernel matrix
             np.fill_diagonal(kernel_matrix, 0)
 
-        return dmap_kernel, kernel_matrix, row_sums_alpha_fit
+        return dmap_kernel, kernel_matrix
 
     def _compute_residual(
         self, y, func_approx, active_func_indices, current_residual_norm
@@ -840,7 +789,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
     def _laplacian_pyramid(self, X, y):
 
-        func_approx = np.zeros_like(y, dtype=np.float)
+        func_approx = np.zeros_like(y, dtype=float)
 
         # compute once and only apply eval
         distance_matrix = self._distance_matrix(X)
@@ -858,11 +807,9 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
         while self._LoopCond.NO_TERMINATION in func_loop_conditions:
 
-            (
-                dmap_kernel,
-                kernel_matrix,
-                row_sums_fit_alpha,
-            ) = self._prepare_kernel_and_matrix(distance_matrix, epsilon)
+            (dmap_kernel, kernel_matrix) = self._prepare_kernel_and_matrix(
+                distance_matrix, epsilon
+            )
 
             # improve function approximation
             func_approx[:, active_func_indices] += kernel_matrix @ target_values
@@ -909,7 +856,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
                     target_values=target_values,
                     residual_norm=current_residual_norm,
                     active_func_indices=active_func_indices,
-                    row_sums_fit_alpha=row_sums_fit_alpha,
                 )
 
                 # Remove all indices now that fulfill the residual criteria and do not
@@ -982,9 +928,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
         for level, level_content in self._level_tracker.items():
 
-            kernel_matrix, _, _ = level_content["kernel"].eval(
-                distance_matrix, row_sums_alpha_fit=level_content["row_sums_fit_alpha"]
-            )
+            kernel_matrix = level_content["kernel"].eval(distance_matrix)
 
             active_indices = level_content["active_indices"]
             y_hat[:, active_indices] += kernel_matrix @ level_content["target_values"]
@@ -994,9 +938,8 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
         return y_hat
 
-    def plot_eps_vs_residual(self) -> None:
-        """Plot residuals versus kernel scales (epsilon) from model fit.
-        """
+    def plot_eps_vs_residual(self) -> None:  # pragma: no cover
+        """Plot residuals versus kernel scales (epsilon) from model fit."""
 
         check_is_fitted(self)
 

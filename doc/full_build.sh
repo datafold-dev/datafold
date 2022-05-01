@@ -8,6 +8,12 @@
 
 export DATAFOLD_NBSPHINX_EXECUTE="never"
 
+# remove existing generated API files (after files becom obsolete they can
+# confuse other files leading to many warnings in sphinx-build)
+rm -f -r build/
+rm -f source/api/*.rst
+rm -f source/_apidoc/*.rst
+
 # create html of the documentation
 make html
 

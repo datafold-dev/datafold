@@ -29,14 +29,16 @@ There are three types of models in this layer:
    :class:`LaplacianPyramidsInterpolator`.
 
 2. Models subclassing :py:class:`.TSCPredictMixin`:
-   On this level this tpye of model are mainly variants of the Dynamic Mode
+   On this level this type of model are mainly variants of the Dynamic Mode
    Decomposition algorithm (:class:`.DMDBase`). These models fit time series data,
    meaning the input is restricted to :class:`TSCDataFrame` input. A fitted model
    defines a linear dynamical system which can be used to predict time series.
 """
 
-from datafold.dynfold.dmap import DiffusionMaps, LocalRegressionSelection
+from datafold.dynfold.compose import TSCColumnTransformer
+from datafold.dynfold.dmap import DiffusionMaps, LocalRegressionSelection, Roseland
 from datafold.dynfold.dmd import DMDBase, DMDEco, DMDFull, PyDMDWrapper, gDMDFull
+from datafold.dynfold.jsf import JointlySmoothFunctions
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
     LaplacianPyramidsInterpolator,

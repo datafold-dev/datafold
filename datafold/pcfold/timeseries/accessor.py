@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import itertools
 import warnings
 from typing import Generator, Optional, Tuple, Union
 
@@ -9,18 +8,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
+import pandas.testing as pdtest
 from scipy.stats import multivariate_normal
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
-from datafold.utils.general import is_float, is_integer
+from datafold.utils.general import is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
 class TSCAccessor(object):
-    """Accessor functions operatoring on TSCDataFrame.
+    """Extension functions for TSCDataFrame.
 
-    See `documentation <https://pandas.pydata.org/pandas-docs/stable/development/extending.html?highlight=accessor>`_
-    for regular pandas accessors.
+    See `documentation <https://pandas.pydata.org/pandas-docs/stable/development/
+    extending.html?highlight=accessor>`__ for regular pandas accessors.
+
+    The functions are available through the accessor `tsc`, for example,
+
+    .. code::
+
+            tsc_object.tsc.normalize_time()
 
     Parameters
     ----------
@@ -35,14 +41,17 @@ class TSCAccessor(object):
         # DataFrame. This is because the accessor has to know when updating this object.
         if not isinstance(tsc_df, TSCDataFrame):
             raise TypeError(
-                "Can use 'tsc' extension only for type TSCDataFrame (convert before)"
+                "The 'tsc' extension only works for type TSCDataFrame (convert before)."
             )
 
         self._tsc_df = tsc_df
 
     def check_tsc(
         self,
+        *,
         ensure_all_finite: bool = True,
+        ensure_min_samples: int = 1,
+        ensure_min_features: int = 1,
         ensure_same_length: bool = False,
         ensure_const_delta_time: bool = True,
         ensure_delta_time: Optional[float] = None,
@@ -61,6 +70,9 @@ class TSCAccessor(object):
         ----------
         ensure_all_finite
             If True, check if all values are finite (no 'nan' or 'inf' values).
+
+        ensure_min_samples
+            If provided, check that the frame has at least required samples.
 
         ensure_same_length
             If True, check if all time series have the same length.
@@ -98,10 +110,11 @@ class TSCAccessor(object):
             validated time series collection (without changes)
         """
 
-        # TODO: allow handle_fail="raise | warn | return"?
-
         if ensure_all_finite:
             self.check_finite()
+
+        self.check_min_samples(min_samples=ensure_min_samples)
+        self.check_min_features(min_features=ensure_min_features)
 
         if ensure_same_length:
             self.check_timeseries_same_length()
@@ -113,7 +126,7 @@ class TSCAccessor(object):
             self.check_required_time_delta(required_time_delta=ensure_delta_time)
 
         if ensure_same_time_values:
-            self.check_timeseries_same_timevalues()
+            self.check_equal_timevalues()
 
         if ensure_normalized_time:
             self.check_normalized_time()
@@ -133,28 +146,36 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def check_finite(self) -> None:
-        """Check if all values are finite (i.e. does not contain `nan` or `inf`).
-        """
+        """Check if all values are finite (i.e. does not contain `nan` or `inf`)."""
         if not self._tsc_df.is_finite():
             raise TSCException.not_finite()
 
+    def check_min_samples(self, min_samples) -> None:
+        """Check if there is a minimum number of samples included in the collection."""
+        if self._tsc_df.shape[0] < min_samples:
+            raise TSCException.not_min_samples(min_samples=min_samples)
+
+    def check_min_features(self, min_features) -> None:
+        """Check if there is a minimum number of features included in the collection."""
+        if self._tsc_df.shape[1] < min_features:
+            raise TSCException.not_min_features(min_features=min_features)
+
     def check_timeseries_same_length(self) -> None:
-        """Check if time series in the collection have the same length.
-        """
+        """Check if time series in the collection have the same length."""
         if not self._tsc_df.is_equal_length():
             raise TSCException.not_same_length(
                 actual_lengths=self._tsc_df.is_equal_length()
             )
 
-    def check_const_time_delta(self) -> None:
-        """Check if all time series have the same time-delta.
-        """
+    def check_const_time_delta(self) -> Union[pd.Series, float]:
+        """Check if all time series have the same time-delta."""
+        delta_time = self._tsc_df.delta_time
         if not self._tsc_df.is_const_delta_time():
             raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
+        return delta_time
 
-    def check_timeseries_same_timevalues(self) -> None:
-        """Check if all time series in the collection share the same time values.
-        """
+    def check_equal_timevalues(self) -> None:
+        """Check if all time series in the collection share the same time values."""
         if not self._tsc_df.is_same_time_values():
             raise TSCException.not_same_time_values()
 
@@ -182,12 +203,21 @@ class TSCAccessor(object):
         """
 
         try:
-            # this is a better variant than
-            # np.asarray(self._tsc_df.delta_time) == np.asarray(required_time_delta)
-            # because the shapes can also mismatch
-            nptest.assert_array_equal(
-                np.asarray(self._tsc_df.delta_time), np.asarray(required_time_delta)
-            )
+            delta_times = np.asarray(self._tsc_df.delta_time)
+
+            if self._tsc_df.is_datetime_index():
+                if (delta_times != required_time_delta).any():
+                    raise AttributeError
+            else:
+                # this is a better variant than
+                # np.asarray(self._tsc_df.delta_time) == np.asarray(required_time_delta)
+                # because the shapes can also mismatch
+                nptest.assert_allclose(
+                    delta_times,
+                    np.asarray(required_time_delta),
+                    rtol=1e-12,
+                    atol=1e-15,
+                )
         except AssertionError:
             raise TSCException.not_required_delta_time(
                 required_delta_time=required_time_delta,
@@ -251,14 +281,94 @@ class TSCAccessor(object):
         if (counts > 1).any():
             raise TSCException("time series are required to be non-overlapping")
 
+    @classmethod
+    def check_equal_delta_time(
+        cls, X: TSCDataFrame, Y: TSCDataFrame, atol=1e-15, require_const=False
+    ) -> Tuple[Union[float, pd.Series], Union[float, pd.Series]]:
+        """Check if two time series collections have the same delta times.
+
+        Parameters
+        ----------
+        X
+            First time series collection.
+        Y
+            Second time series collection.
+        atol
+            Tolerance passed to :py:meth:`.equal_const_delta_time`
+
+        require_const
+            If True, both `X` and `Y` must have constant delta times.
+
+        Raises
+        ------
+        :py:class:`TSCException` - if time_delta not equal or if either `X` or `Y` is not
+        constant with ``require_const=True``.
+
+        Returns
+        -------
+
+        """
+        X_dt = X.delta_time
+        Y_dt = Y.delta_time
+
+        equal = True
+        if isinstance(X_dt, pd.Series) and not require_const:
+            if not isinstance(Y_dt, pd.Series):
+                equal = False
+            else:
+                try:
+                    pdtest.assert_series_equal(X_dt, Y_dt, atol=atol)
+                except AssertionError:
+                    equal = False
+
+        elif (
+            isinstance(X_dt, pd.Series) or isinstance(Y_dt, pd.Series)
+        ) and require_const:
+            raise TSCException.not_const_delta_time()
+        else:
+            if not cls.equal_const_delta_time(X_dt, Y_dt, atol=atol):
+                equal = False
+
+        if not equal:
+            raise TSCException.not_required_delta_time(X_dt, Y_dt)
+
+        return X_dt, Y_dt
+
+    @classmethod
+    def equal_const_delta_time(cls, dt1: float, dt2: float, atol=1e-15) -> bool:
+        """Returns True, if the time deltas should be treated equally.
+
+        Parameters
+        ----------
+        dt1
+            First delta time.
+
+        dt2
+            Second delta time.
+
+        atol
+            Acceptable absolute tolerance between the two delta times. This is
+            relevant for floating delta times that have "numerical noise" when
+            equally spaced.
+
+        Returns
+        -------
+        bool
+        """
+        return np.abs(dt1 - dt2) <= atol
+
     def iter_timevalue_window(
-        self, blocksize: int, offset: int, per_time_series: bool = False
+        self,
+        window_size: int,
+        offset: int,
+        per_time_series: bool = False,
+        strictly_sequential: bool = True,
     ) -> Generator[TSCDataFrame, None, None]:
         """Iterator over time series intervals (window).
 
         Parameters
         ----------
-        blocksize
+        window_size
             The number of samples for each window. Note that the `blocksize` is not
             guaranteed and is usually shorter in last iterations if the number of samples
             are not a multiple of `blocksize`.
@@ -268,10 +378,12 @@ class TSCAccessor(object):
             shifted. If ``offset=blocksize``, then the windows are non-overlapping.
 
         per_time_series
-            If True, then the windows are generated for each time series separately.
-            This is recommended for cases when a collection consists of disjoint time
-            series (i.e. non-overlapping time intervals). Otherwise, the time
-            values that match the current window of multiple time series are returned.
+            If True, the windows are generated for each time series separately. This is
+            recommended for time series a collection consists where the time series are
+            disjoint (i.e. non-overlapping time intervals).
+
+        strictly_sequential
+            TODO
 
         Returns
         -------
@@ -279,28 +391,30 @@ class TSCAccessor(object):
             An iterator for the windowed time series data.
         """
 
-        if not is_integer(blocksize):
+        self.check_const_time_delta()
+
+        if not is_integer(window_size):
             raise TypeError(
-                f"The parameter 'blocksize={blocksize}' must be of type integer. "
-                f"Got {type(blocksize)}"
+                f"The parameter 'window_size={window_size}' must be of type integer. "
+                f"Got {type(window_size)}"
             )
 
         if not is_integer(offset):
             raise TypeError(
                 f"The parameter 'offset={offset}' must be of type integer."
-                f"Got {type(blocksize)}"
+                f"Got {type(window_size)}"
             )
 
-        if blocksize <= 0:
+        if window_size <= 0:
             raise ValueError(
-                f"The parameter 'blocksize={blocksize}' must be positive."
-                f"Got {type(blocksize)}"
+                f"The parameter 'window_size={window_size}' must be positive."
+                f"Got {type(window_size)}"
             )
 
         if offset <= 0:
             raise ValueError(
                 f"The parameter 'offset={offset}' must be positive."
-                f"Got {type(blocksize)}"
+                f"Got {type(window_size)}"
             )
 
         if per_time_series:
@@ -315,15 +429,20 @@ class TSCAccessor(object):
         for _, current_tsc in _iter_timeseries_collection:
             time_values = current_tsc.time_values()
             start = 0
-            end = start + blocksize
+            end = start + window_size
 
             while end <= time_values.shape[0]:
                 selected_time_values = time_values[start:end]
 
                 start = start + offset
-                end = start + blocksize
+                end = start + window_size
 
-                yield current_tsc.select_time_values(selected_time_values)
+                _ret = current_tsc.select_time_values(selected_time_values)
+
+                if strictly_sequential and isinstance(_ret.n_timesteps, pd.Series):
+                    pass
+                else:
+                    yield _ret
 
     def shift_time(self, shift_t: float):
         """Shift all time values from the time series by a constant value.
@@ -355,12 +474,14 @@ class TSCAccessor(object):
         return self._tsc_df
 
     def normalize_time(self):
-        """Normalize time for time series in the collection.
+        """Normalize time in time series collection.
 
-        Normalized time has the following properties:
+        A :py:class:`TSCDataFrame` with normalized time has the following properties:
 
-        * global time starts at zero (at least one time series has time value 0)
-        * time delta is constant 1
+        * the global time starts at zero
+        * delta_time is constant one
+
+        Note, that at least one time series starts at time zero, but other can
 
         Returns
         -------
@@ -383,13 +504,11 @@ class TSCAccessor(object):
             raise TSCException.not_const_delta_time()
 
         if self._tsc_df.is_datetime_index():
-            convert_times = convert_times.astype(np.int64)
-            min_time = min_time.astype(np.int64)
-            delta_time = delta_time.astype(np.int64)
+            convert_times = convert_times.astype(int)
+            min_time = min_time.astype(int)
+            delta_time = delta_time.astype(int)
 
-        convert_times = np.array(
-            (convert_times - min_time) / delta_time, dtype=np.int64
-        )
+        convert_times = np.array((convert_times - min_time) / delta_time, dtype=int)
         convert_times = pd.Index(convert_times, name=TSCDataFrame.tsc_time_idx_name)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
@@ -428,7 +547,7 @@ class TSCAccessor(object):
             The order of the derivative.
 
         accuracy
-            The accuracy level of the derivative scheme.
+            The accuracy (even positive integer) of the derivative scheme.
 
         shift_index
             If True, then the time is shifted such that no future samples are included.
@@ -470,7 +589,7 @@ class TSCAccessor(object):
                     for k in range(len(offsets))
                 ]
 
-                data_dt = np.zeros_like(data, dtype=np.float)
+                data_dt = np.zeros_like(data, dtype=float)
 
                 if isinstance(data, pd.DataFrame):
                     data_numpy = data.to_numpy()
@@ -483,7 +602,7 @@ class TSCAccessor(object):
 
                 data_dt = data_dt[start_sample:end_sample, :]
 
-                h_inv = 1.0 / spacing ** self.order
+                h_inv = 1.0 / spacing**self.order
                 data_dt *= h_inv
 
                 if scheme in ["center", "forward"] and shift_index:
@@ -514,7 +633,9 @@ class TSCAccessor(object):
 
         for ts_id, time_series in self._tsc_df.itertimeseries():
             time_series_dt = dt_func.diff(
-                data=time_series, spacing=spacing, accuracy=accuracy,
+                data=time_series,
+                spacing=spacing,
+                accuracy=accuracy,
             )
             min_samples = min(min_samples, time_series_dt.shape[0])
 
@@ -536,11 +657,13 @@ class TSCAccessor(object):
             The data with time series IDs in sequential order.
         """
 
-        self._tsc_df.set_index(self._tsc_df.index.remove_unused_levels(), inplace=True)
+        self._tsc_df.index = self._tsc_df.index.remove_unused_levels()
         # levels[0] = IDs, levels[1] = time
         n_timeseries = len(self._tsc_df.index.levels[0])
 
-        self._tsc_df.index.set_levels(np.arange(n_timeseries), level=0, inplace=True)
+        self._tsc_df.index = self._tsc_df.index.set_levels(
+            np.arange(n_timeseries), level=0
+        )
         return self._tsc_df
 
     def assign_ids_train_test(
@@ -565,8 +688,8 @@ class TSCAccessor(object):
             The indices to indicate which samples are included in the test set.
 
         return_dropped
-            If True, a DataFrame is returned in the third return value which includes
-            all samples that were neigher included in the training indices nor the test
+            If True, a DataFrame is returned to the third return value which includes
+            all samples that were neither included in the training indices nor the test
             indices.
 
         Returns
@@ -585,7 +708,7 @@ class TSCAccessor(object):
             bool_dim = _array.ndim == 1
             bool_positive = np.all(_array >= 0)
             bool_sorted = np.all(_array[:-1] < _array[1:])
-            bool_type = _array.dtype == np.integer
+            bool_type = np.issubdtype(_array.dtype, np.integer)
 
             if not (bool_dim and bool_positive and bool_sorted and bool_type):
                 raise ValueError(
@@ -611,22 +734,23 @@ class TSCAccessor(object):
         # -- both change detections are required to reassign new IDs
 
         # i) detect switch between test / train
-        change_fold_indicator = np.append(0, np.diff(mask_test)).astype(np.bool)
+        change_fold_indicator = np.append(0, np.diff(mask_test)).astype(bool)
 
         # ii) detect switch of new ID
         change_id_indicator = np.append(
             0,
             np.diff(self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)),
-        ).astype(np.bool)
+        ).astype(bool)
 
         # iii) detect switch of dropped indices
-        mask_dropped = np.ones(self._tsc_df.shape[0], dtype=np.bool)
+        mask_dropped = np.ones(self._tsc_df.shape[0], dtype=bool)
         mask_dropped[train_indices] = False
         mask_dropped[test_indices] = False
 
         # cumulative sum of on or the other change and reassign IDs
         id_cum_sum_mask = np.logical_or(
-            np.logical_or(change_fold_indicator, change_id_indicator), mask_dropped,
+            np.logical_or(change_fold_indicator, change_id_indicator),
+            mask_dropped,
         )
         new_ids = np.cumsum(id_cum_sum_mask)
 
@@ -718,7 +842,7 @@ class TSCAccessor(object):
             )
 
             if local_tsc_df.is_datetime_index():
-                first_diff = first_diff.astype(np.int)
+                first_diff = first_diff.astype(int)
 
             first_diff = np.append(np.inf, first_diff)
 
@@ -738,8 +862,8 @@ class TSCAccessor(object):
 
             # remove the indentifications of the first kind from the second diff
             # from the example above remove the 6 and the neighboring -6
-            second_diff[np.append(0, indicator).astype(np.bool)] = 0
-            second_diff[np.append(indicator, 0).astype(np.bool)] = 0
+            second_diff[np.append(0, indicator).astype(bool)] = 0
+            second_diff[np.append(indicator, 0).astype(bool)] = 0
 
             indicator = np.append(0, indicator)
 
@@ -752,7 +876,7 @@ class TSCAccessor(object):
             # I.e. there is a single difference (without a neighboring)
             # We simply take the second_diff (after removals of the first case) as
             # indicator for the start of a new time series ID).
-            indicator = np.logical_or(indicator, second_diff.astype(np.bool))
+            indicator = np.logical_or(indicator, second_diff.astype(bool))
 
             new_ids = np.cumsum(indicator)
             new_ids += min_id
@@ -786,8 +910,8 @@ class TSCAccessor(object):
                         ),
                     )
                 )
-                local_tsc_df.set_index(reassigned_ids_idx, inplace=True)
-                return local_tsc_df
+
+                return local_tsc_df.set_index(reassigned_ids_idx)
 
         result_dfs = list()
 
@@ -799,7 +923,7 @@ class TSCAccessor(object):
             else:
                 # reset time series ID
                 new_df = timeseries_df
-                new_df.index = new_df.index.set_levels([min_id], 0)
+                new_df.index = new_df.index.set_levels([min_id], level=0)
 
             if new_df is not None:
                 min_id = max(new_df.ids) + 1
@@ -825,7 +949,7 @@ class TSCAccessor(object):
         else:
             return None
 
-    def compute_shift_matrices(
+    def shift_matrices(
         self, snapshot_orientation: str = "col"
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes shift matrices from time series data.
@@ -861,25 +985,28 @@ class TSCAccessor(object):
 
         self.check_const_time_delta()
 
+        # can be implemented if required:
+        self.check_required_min_timesteps(required_min_timesteps=2)
+
         ts_counts = self._tsc_df.n_timesteps
 
         if is_integer(ts_counts):
             ts_counts = pd.Series(
-                np.ones(self._tsc_df.n_timeseries, dtype=np.int) * ts_counts,
+                np.ones(self._tsc_df.n_timeseries, dtype=int) * ts_counts,
                 index=self._tsc_df.ids,
             )
 
         assert isinstance(ts_counts, pd.Series)  # for mypy
 
-        nr_shift_snapshots = (ts_counts.subtract(1)).sum()
+        n_shift_snapshots = (ts_counts.subtract(1)).sum()
         insert_indices = np.append(0, (ts_counts.subtract(1)).cumsum().to_numpy())
 
         assert len(insert_indices) == self._tsc_df.n_timeseries + 1
 
         if snapshot_orientation == "col":
-            shift_left = np.zeros([self._tsc_df.n_features, nr_shift_snapshots])
+            shift_left = np.zeros([self._tsc_df.n_features, n_shift_snapshots])
         elif snapshot_orientation == "row":
-            shift_left = np.zeros([nr_shift_snapshots, self._tsc_df.n_features])
+            shift_left = np.zeros([n_shift_snapshots, self._tsc_df.n_features])
         else:
             raise ValueError(f"snapshot_orientation={snapshot_orientation} not known")
 
@@ -888,10 +1015,10 @@ class TSCAccessor(object):
         # NOTE: if this has performance issues or memory issues, then it may be beneficial
         # to do the whole thing with boolean indexing
 
+        # TODO: maybe three is a better readable code using pandas' functionatlity?
+        #  e.g. shift https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.shift.html # noqa
+        #  could also be more efficient than cmp to itertimeseries()
         for i, (id_, ts_df) in enumerate(self._tsc_df.itertimeseries()):
-            # transpose because snapshots are column-wise by convention, whereas here they
-            # are row-wise
-
             if snapshot_orientation == "col":
                 # start from 0 and exclude last snapshot
                 shift_left[:, insert_indices[i] : insert_indices[i + 1]] = ts_df.iloc[

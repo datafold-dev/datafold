@@ -79,7 +79,7 @@ def estimate_cutoff(
             pcm,
             metric="euclidean",
             backend="brute",
-            kmin=k,
+            k=k,
             # for estimation it is okay to be not exact and compute faster
             **dict(exact_numeric=False)
         )
@@ -89,10 +89,10 @@ def estimate_cutoff(
         # _kth_nearest_neighbor_dist
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix.T, k)
     else:
+        # distance matrix is assumed to be symmetric here (no transpose required)
         k_smallest_values = _kth_nearest_neighbor_dist(distance_matrix, k)
 
     est_cutoff = np.max(k_smallest_values)
-
     return float(est_cutoff)
 
 
@@ -109,7 +109,7 @@ def estimate_scale(
 
     tol
         Tolerance where the cut_off should be made.
-        
+
     cut_off
         The `tol` parameter is ignored and the cut-off is used directly
 
@@ -124,5 +124,5 @@ def estimate_scale(
 
     # this formula is derived by solving for epsilon in
     # tol >= exp(-cut_off**2 / epsilon)
-    eps0 = cut_off ** 2 / (-np.log(tol))
+    eps0 = cut_off**2 / (-np.log(tol))
     return float(eps0)

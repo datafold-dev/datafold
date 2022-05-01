@@ -1,74 +1,125 @@
 stages:
-  - setup_remote
+  - setup
   - test
   - code_analysis
   - deploy
 
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PRE_COMMIT_DIR: "${CI_PROJECT_DIR}/.cache/pre-commit"
+  VENV_DIR: "${CI_PROJECT_DIR}/.venv"
+
+cache:
+  paths:
+    - ${PIP_CACHE_DIR}
+    - ${PRE_COMMIT_DIR}
+    - ${VENV_DIR}
+
+# https://gitlab.com/gitlab-org/gitlab/-/issues/33694#note_335120563
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: always
+
+
+# See keyword reference for the .gitlab-ci.yml file
+# https://docs.gitlab.com/ee/ci/yaml/
 setup:
-  stage: setup_remote
+  stage: setup
   script:
-    - python3 -m pip uninstall datafold
-    - python3 -m pip install --upgrade pip --user
-    - python3 -m pip install --upgrade twine --user
-    - python3 -m pip install --upgrade setuptools --user
-    - python3 -m pip install -r requirements-dev.txt --user
-  allow_failure: false
+    - make install_devdeps PYTHON=python3.8
+    - make versions
 
 unittests:
   stage: test
   script:
-    - nosetests --with-coverage --cover-erase --cover-inclusive --cover-package=datafold/ --cover-html --cover-html-dir="./coverage/" datafold/ -v
+    - make clean_test
+    - make unittest
   allow_failure: false
   artifacts:
     paths:
       - ./coverage/
     expire_in: 1 week
     when: on_success
+  interruptible: true
 
 functional_tests:
   script:
-    - export PYTHONPATH=`pwd`
-    - echo $PYTHONPATH
-    - nosetests tutorials/ -v
+    - make tutorialtest
+  allow_failure: false
+  interruptible: true
 
-black_check:
+code_checks:
   stage: code_analysis
   script:
-    - black ./datafold/ --check --diff
+    - make precommit
   allow_failure: true
+  interruptible: true
 
-mypy_check:
+docu_check_build:
   stage: code_analysis
   script:
-    - mypy ./
-  allow_failure: true
-
-docu_check:
-  stage: code_analysis
-  script:
-    - cd doc/ && make html
+    - make clean_docs
+    - make docs OPEN_DOCS_BROWSER=false
   except:
     - master
-  allow_failure: false
+  allow_failure: true
+  interruptible: true
+
+docu_check_urls:
+  stage: code_analysis
+  script:
+    - make docs_linkcheck
+  when: manual
+  except:
+    - master
+  allow_failure: true
+  interruptible: true
+
+install_check:
+    stage: code_analysis
+    script:
+      - make test_install
+    except:
+      - master
+    allow_failure: false
+    interruptible: true
 
 pages:
   stage: deploy
   script:
-    - export DATAFOLD_NBSPHINX_EXECUTE=always
-    - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
-    - sphinx-build -b html ./doc/source/ ./public/
+    - make clean_docs
+    - make docs OPEN_DOCS_BROWSER=false EXECUTE_TUTORIAL=always OUTPUT_DOCS=./public
   artifacts:
     paths:
     - public
-  only:
-    - master
+  rules:
+    # from: https://forum.gitlab.com/t/how-to-setup-manual-job-from-feature-branch-that-runs-automatically-on-master/38892
+    # always update pages if on master
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: always
+    # manual option if push to branches other than master
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
 
-# requires to set TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD variables
+# For infos of testPyPI see here: https://packaging.python.org/guides/using-testpypi/
+# Note that
+# 1) It is required to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
+# 2) The database for TestPyPI may be periodically pruned, so it is not unusual for user
+#    accounts to be deleted. It is therefore best to use the same account and password as for
+#    the "true PyPI", This way the twine variables from 1) can be re-used.
+pypi_upload_test:
+  stage: deploy
+  script:
+    - make test_pypi
+  when: manual
+
 pypi_upload:
   stage: deploy
   script:
-    - python3 setup.py sdist bdist_wheel
-    - twine upload dist/*
+    - make pypi
   only:
     - master
   when: manual

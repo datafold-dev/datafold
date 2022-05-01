@@ -1,4 +1,10 @@
+[build-system]
+# Minimum requirements for the build system to execute.
+requires = ["setuptools>=43.0.0", "wheel"]  # PEP 508 specifications.
+
+
 [tool.black]
+# https://black.readthedocs.io/en/stable/?badge=stable
 exclude = '''
 (
   /(
@@ -7,9 +13,44 @@ exclude = '''
     | \.hg
     | \.mypy_cache
     | \.idea
-    | _build
-    | build
-    | dist
+    | \.venv
+    | \__pycache__
+    | \.pytest_cache
+    | \.mypy_cache
+    | \build
+    | \dist
   )/
 )
 '''
+
+
+[tool.pytest.ini_options]
+# https://docs.pytest.org/en/stable/customize.html
+minversion = "6.0"
+
+
+[tool.coverage.run]
+# https://coverage.readthedocs.io/en/latest/config.html#
+source=["datafold"]
+omit=["*/tests/*",
+      "datafold/_version.py",
+      "datafold/_decorators.py",
+      "datafold/__init__.py",
+      "datafold/*/__init__.py",
+      "datafold/utils/_systems.py",
+      "datafold/utils/plot.py"]
+
+[tool.coverage.report]
+exclude_lines =["pragma: no cover",
+                "if __name__ == .__main__.:"]
+
+
+[tool.isort]
+# https://pycqa.github.io/isort/
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 88
+combine_star = true
+combine_as_imports = true

@@ -3,16 +3,12 @@
 import copy
 from typing import Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.sparse
 
 from datafold.pcfold import GaussianKernel, PCManifoldKernel
-from datafold.pcfold.distance import (
-    compute_distance_matrix,
-    get_backend_distance_algorithm,
-)
+from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 
 
@@ -84,7 +80,7 @@ class PCManifold(np.ndarray):
 
         # Set the kernel according to user input
         obj.kernel = kernel
-        obj.dist_kwargs = dist_kwargs or {}
+        obj.distance = dist_kwargs or {}
 
         return obj
 
@@ -121,7 +117,10 @@ class PCManifold(np.ndarray):
     def __repr__(self):
         # att information about PCManifold kernels
         attributes_line = " | ".join(
-            [f"kernel={self.kernel}", f"dist_kwargs={str(self.dist_kwargs)}",]
+            [
+                f"kernel={self.kernel}",
+                f"dist_kwargs={str(self.dist_kwargs)}",
+            ]
         )
 
         repr = "\n".join([attributes_line, super(PCManifold, self).__repr__()])
@@ -137,7 +136,10 @@ class PCManifold(np.ndarray):
         pickled_state = super(PCManifold, self).__reduce__()
 
         # Create own tuple to pass to __setstate__ (see below)
-        new_state = pickled_state[2] + (self.kernel, self.dist_kwargs,)  # -2  # -1
+        new_state = pickled_state[2] + (
+            self.kernel,
+            self.dist_kwargs,
+        )  # -2  # -1
 
         # Return a tuple that replaces the parent's __setstate__ tuple with own
         return (pickled_state[0], pickled_state[1], new_state)
@@ -200,7 +202,12 @@ class PCManifold(np.ndarray):
         Union[np.ndarray, scipy.sparse.csr_matrix]
             distance matrix
         """
-        return compute_distance_matrix(X=self, Y=Y, metric=metric, **self.dist_kwargs,)
+        return compute_distance_matrix(
+            X=self,
+            Y=Y,
+            metric=metric,
+            **self.dist_kwargs,
+        )
 
     def compute_kernel_matrix(self, Y=None, **kernel_kwargs):
         """Compute the kernel matrix on the point cloud.
@@ -214,7 +221,7 @@ class PCManifold(np.ndarray):
 
         **kernel_kwargs
             Keyword arguments passed passed to the kernel.
-            
+
         Returns
         -------
         Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -224,7 +231,7 @@ class PCManifold(np.ndarray):
             A kernel can return further values see :meth:`PCManifoldKernel.__call__`
             for details.
         """
-        return self.kernel(X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs)
+        return self.kernel(X=self, Y=Y, **kernel_kwargs)
 
     def optimize_parameters(
         self,
@@ -236,7 +243,7 @@ class PCManifold(np.ndarray):
         inplace: bool = True,
     ) -> Tuple[float, float]:
         """Estimates ``cut_off`` and kernel bandwidth ``epsilon`` for a Gaussian kernel.
-        
+
         Parameters
         ----------
 
@@ -259,7 +266,7 @@ class PCManifold(np.ndarray):
         inplace
             If True, the `cut_off` and `kernel.epsilon` parameters are set for this
             instance.
-            
+
         Returns
         -------
         float

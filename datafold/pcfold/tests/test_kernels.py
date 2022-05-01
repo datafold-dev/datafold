@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import unittest
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,11 +14,17 @@ from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.kernels import (
     ConeKernel,
     ContinuousNNKernel,
+    CubicKernel,
     DmapKernelFixed,
     GaussianKernel,
+    InverseMultiquadricKernel,
+    MultiquadricKernel,
+    QuinticKernel,
     _kth_nearest_neighbor_dist,
+    _symmetric_matrix_division,
 )
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
+from datafold.utils.general import is_symmetric_matrix
 
 
 def generate_box_data(n_left, n_middle, n_right, seed):
@@ -64,25 +71,93 @@ def generate_circle_data(n_large, n_small, seed):
 
 
 class TestKernelUtils(unittest.TestCase):
-    def test_symmetric_division_sparse_dense01(self):
-        from datafold.pcfold.kernels import _symmetric_matrix_division
+    def test_symmetric_division_raise_zero_division(self):
+        data = generate_circle_data(100, 100, 100)
+        distance_matrix = compute_distance_matrix(data)
 
+        vec_left = np.arange(0, distance_matrix.shape[0])
+        vec_right = np.arange(distance_matrix.shape[0] - 1, -1, -1)
+
+        with self.assertRaises(ZeroDivisionError):
+            _symmetric_matrix_division(
+                matrix=distance_matrix,
+                vec=vec_left,
+                is_symmetric=True,
+                value_zero_division="raise",
+            )
+
+        with self.assertRaises(ZeroDivisionError):
+            _symmetric_matrix_division(
+                matrix=distance_matrix,
+                vec=np.arange(1, distance_matrix.shape[0] + 1),
+                is_symmetric=True,
+                vec_right=vec_right,
+                value_zero_division="raise",
+            )
+
+    def test_symmetric_division_fill_value(self):
+        data = generate_circle_data(100, 100, 100)
+        distance_matrix = compute_distance_matrix(data)
+
+        vec_left = np.arange(0, distance_matrix.shape[0]).astype(float)
+
+        value_zero_division = -1
+
+        actual_dense = _symmetric_matrix_division(
+            matrix=np.copy(distance_matrix),
+            vec=np.copy(vec_left),
+            is_symmetric=True,
+            value_zero_division=value_zero_division,
+        )
+
+        # dense case
+        with warnings.catch_warnings():
+            warnings.simplefilter(action="ignore", category=RuntimeWarning)
+            expected = (
+                np.diag(np.reciprocal(vec_left))
+                @ distance_matrix
+                @ np.diag(np.reciprocal(vec_left))
+            )
+            expected[~np.isfinite(expected)] = value_zero_division
+
+        self.assertIsInstance(actual_dense, np.ndarray)
+        nptest.assert_allclose(actual_dense, expected, atol=1e-16, rtol=1e-17)
+
+        # sparse
+        distance_matrix[distance_matrix == 0] = np.nan
+        distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
+        distance_matrix.data[np.isnan(distance_matrix.data)] = 0
+        actual_sparse = _symmetric_matrix_division(
+            matrix=distance_matrix,
+            vec=np.copy(vec_left),
+            is_symmetric=True,
+            value_zero_division=value_zero_division,
+        )
+
+        self.assertTrue(scipy.sparse.isspmatrix_csr(actual_sparse))
+        nptest.assert_allclose(
+            actual_sparse.toarray(), expected, atol=1e-16, rtol=1e-17
+        )
+
+    def test_symmetric_division_sparse_dense01(self):
         data = generate_circle_data(100, 100, 100)
         distance_matrix = compute_distance_matrix(data)
 
         actual = _symmetric_matrix_division(
             matrix=scipy.sparse.csr_matrix(distance_matrix),
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=True,
         )
 
         expected = _symmetric_matrix_division(
-            matrix=distance_matrix, vec=np.arange(1, distance_matrix.shape[0] + 1),
+            matrix=distance_matrix,
+            vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=True,
         )
 
         nptest.assert_array_equal(actual.toarray(), expected)
 
     def test_symmetric_division_sparse_dense02(self):
-        from datafold.pcfold.kernels import _symmetric_matrix_division
 
         data = generate_circle_data(100, 100, 100)
         distance_matrix = compute_distance_matrix(data)
@@ -90,19 +165,19 @@ class TestKernelUtils(unittest.TestCase):
         actual = _symmetric_matrix_division(
             matrix=scipy.sparse.csr_matrix(distance_matrix),
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
 
         expected = _symmetric_matrix_division(
             matrix=distance_matrix,
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
-
-        nptest.assert_array_equal(actual.toarray(), expected)
+        nptest.assert_allclose(actual.toarray(), expected, rtol=1e-16, atol=1e-17)
 
     def test_symmetric_division_sparse_dense03(self):
-        from datafold.pcfold.kernels import _symmetric_matrix_division
 
         data_ref = generate_circle_data(100, 100, 100)
         data_query = generate_circle_data(50, 50, 100)
@@ -111,22 +186,24 @@ class TestKernelUtils(unittest.TestCase):
         actual = _symmetric_matrix_division(
             matrix=scipy.sparse.csr_matrix(distance_matrix),
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
 
         expected = _symmetric_matrix_division(
             matrix=distance_matrix,
             vec=np.arange(1, distance_matrix.shape[0] + 1),
+            is_symmetric=False,
             vec_right=np.arange(1, distance_matrix.shape[1] + 1)[::-1],
         )
 
-        nptest.assert_array_equal(actual.toarray(), expected)
+        nptest.assert_allclose(actual.toarray(), expected, rtol=1e-16, atol=1e-17)
 
     def test_sparse_kth_dist01(self):
         data = generate_circle_data(100, 100, 1)
         distance_matrix = compute_distance_matrix(data)
 
-        for k in np.linspace(2, 90, 20).astype(np.int):
+        for k in np.linspace(2, 90, 20).astype(int):
             expected = _kth_nearest_neighbor_dist(distance_matrix, k)
 
             distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
@@ -143,7 +220,7 @@ class TestKernelUtils(unittest.TestCase):
 
         distance_matrix = compute_distance_matrix(data_ref, data_query)
 
-        for k in np.linspace(2, 90, 20).astype(np.int):
+        for k in np.linspace(2, 90, 20).astype(int):
 
             actual = _kth_nearest_neighbor_dist(
                 scipy.sparse.csr_matrix(distance_matrix), k
@@ -197,7 +274,32 @@ class TestKernelUtils(unittest.TestCase):
 class TestPCManifoldKernel(unittest.TestCase):
     def test_gaussian_kernel_print(self):
         kernel = GaussianKernel(epsilon=1)
-        self.assertEqual(kernel.__repr__(), "GaussianKernel(epsilon=1)")
+
+        r = (
+            "GaussianKernel(\n\tdistance=BruteForceDist(metric='sqeuclidean', "
+            "is_symmetric=True, is_sparse=False, cut_off=None, kmin=None)\n\tepsilon=1\n)"
+        )
+        self.assertEqual(kernel.__repr__(), r)
+
+    def test_kernels_symmetry(self):
+        data = np.random.default_rng(1).random(size=[100, 2])
+        data_tsc = TSCDataFrame.from_single_timeseries(pd.DataFrame(data))
+
+        kernels = [
+            MultiquadricKernel(),
+            QuinticKernel(),
+            InverseMultiquadricKernel(),
+            CubicKernel(),
+        ]
+        kernels_tsc = [ConeKernel(zeta=0), ConeKernel(zeta=0.5)]
+
+        for k in kernels:
+            kernel_matrix = k(data)
+            self.assertTrue(is_symmetric_matrix(kernel_matrix))
+
+        for k in kernels_tsc:
+            kernel_matrix = k(data_tsc)
+            self.assertTrue(is_symmetric_matrix(kernel_matrix.to_numpy()))
 
     def test_gaussian_kernel_callable(self):
 
@@ -225,38 +327,50 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         # stochastic False
 
         # Note: in this case the alpha value is ignored
-        k1 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=True)
-        self.assertTrue(k1.is_symmetric)
+        k1 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=False, symmetrize_kernel=True
+        )
+        self.assertTrue(k1._is_symmetric_kernel)
 
         # No transformation to symmetrize the kernel is required
-        self.assertFalse(k1.is_symmetric_transform())
+        self.assertFalse(k1.is_conjugate)
 
         # Because the kernel is not stochastic, the kernel remains symmetric
-        k2 = DmapKernelFixed(is_stochastic=False, symmetrize_kernel=False)
-        self.assertTrue(k2.is_symmetric)
+        k2 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=False, symmetrize_kernel=False
+        )
+        self.assertTrue(k2._is_symmetric_kernel)
 
         # No transformation is required
-        self.assertFalse(k1.is_symmetric_transform())
+        self.assertFalse(k1.is_conjugate)
 
     def test_is_symmetric02(self):
         # symmetric_kernel and alpha == 0
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=False)
-        self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform())
+        k1 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=0, symmetrize_kernel=False
+        )
+        self.assertFalse(k1._is_symmetric_kernel)
+        self.assertFalse(k1.is_conjugate)
 
-        k2 = DmapKernelFixed(is_stochastic=True, alpha=0, symmetrize_kernel=True)
-        self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform())
+        k2 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=0, symmetrize_kernel=True
+        )
+        self.assertTrue(k2._is_symmetric_kernel)
+        self.assertTrue(k2.is_conjugate)
 
     def test_is_symmetric03(self):
         # symmetric_kernel and alpha > 0
-        k1 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=False)
-        self.assertFalse(k1.is_symmetric)
-        self.assertFalse(k1.is_symmetric_transform())
+        k1 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=1, symmetrize_kernel=False
+        )
+        self.assertFalse(k1._is_symmetric_kernel)
+        self.assertFalse(k1.is_conjugate)
 
-        k2 = DmapKernelFixed(is_stochastic=True, alpha=1, symmetrize_kernel=True)
-        self.assertTrue(k2.is_symmetric)
-        self.assertTrue(k2.is_symmetric_transform())
+        k2 = DmapKernelFixed(
+            GaussianKernel(), is_stochastic=True, alpha=1, symmetrize_kernel=True
+        )
+        self.assertTrue(k2._is_symmetric_kernel)
+        self.assertTrue(k2.is_conjugate)
 
     def test_missing_row_alpha_fit(self):
         data_X = np.random.rand(100, 5)
@@ -269,20 +383,27 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
             symmetrize_kernel=False,
         )
 
-        _, cdist_kwargs, _ = kernel(X=data_X)
-
-        with self.assertRaises(ValueError):
-            kernel(X=data_X, Y=data_Y)
+        _ = kernel(X=data_X)
+        self.assertIsInstance(kernel.row_sums_alpha_, np.ndarray)
 
         # No error:
-        kernel(X=data_X, Y=data_Y, **cdist_kwargs)
+        kernel(X=data_X, Y=data_Y)
 
 
 class TestContinuousNNKernel(unittest.TestCase):
     @staticmethod
-    def plot_data(train_data, train_graph, test_data=None, test_graph=None):
+    def plot_data(train_data, train_graph, test_data=None, test_graph=None, ax=None):
 
-        fig, ax = plt.subplots()
+        if ax is None:
+            if train_data.shape[1] == 2:
+                fig, ax = plt.subplots()
+            elif train_data.shape[1] == 3:
+                from mpl_toolkits.mplot3d import Axes3D  # noqa
+
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection="3d")
+            else:
+                raise RuntimeError("only 2d or 3d")
 
         def _plot_data(query_data, ref_data, graph, color):
 
@@ -304,7 +425,9 @@ class TestContinuousNNKernel(unittest.TestCase):
         if test_data is not None:
             _plot_data(test_data, train_data, test_graph, color="red")
 
-        ax.axis("equal")
+        if train_data.shape[1] == 2:
+            ax.axis("equal")
+        return ax
 
     def test_box_example(self, plot=False):
         train_data = generate_box_data(300, 300, 20, 1)
@@ -312,23 +435,18 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         for dist_cut_off in [None, 1e100]:
             # test if a sparse distance matrix gets the same result
-            cknn = ContinuousNNKernel(k_neighbor=5, delta=1.5)
+            cknn = ContinuousNNKernel(
+                k_neighbor=5, delta=1.5, distance=dict(cut_off=dist_cut_off)
+            )
 
-            graph_train, cdist_kwargs = cknn(
-                train_data, dist_kwargs=dict(cut_off=dist_cut_off)
-            )
-            graph_test, _ = cknn(
-                train_data,
-                test_data,
-                dist_kwargs=dict(cut_off=dist_cut_off),
-                **cdist_kwargs,
-            )
+            graph_train = cknn(train_data)
+            graph_test = cknn(train_data, test_data)
 
             self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
             self.assertIsInstance(graph_test, scipy.sparse.csr_matrix)
 
-            self.assertTrue(graph_train.dtype == np.bool)
-            self.assertTrue(graph_test.dtype == np.bool)
+            self.assertTrue(graph_train.dtype == bool)
+            self.assertTrue(graph_test.dtype == bool)
 
             # Only reference testing for the examples possible.
             # This test fails if there are changes in the implementation and need to be
@@ -348,26 +466,26 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         for dist_cut_off in [None, 1e100]:
 
-            cknn = ContinuousNNKernel(k_neighbor=5, delta=2.3)
-            graph_train, cdist_kwargs = cknn(train_data)
-            graph_test, _ = cknn(
+            cknn = ContinuousNNKernel(
+                k_neighbor=5, delta=2.3, distance=dict(cut_off=dist_cut_off)
+            )
+            graph_train = cknn(train_data)
+            graph_test = cknn(
                 train_data,
                 test_data,
-                dist_kwargs=dict(cut_off=dist_cut_off),
-                **cdist_kwargs,
             )
 
             self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
             self.assertIsInstance(graph_test, scipy.sparse.csr_matrix)
 
-            self.assertTrue(graph_train.dtype == np.bool)
-            self.assertTrue(graph_test.dtype == np.bool)
+            self.assertTrue(graph_train.dtype == bool)
+            self.assertTrue(graph_test.dtype == bool)
 
             # Only reference testing for the examples possible.
             # This test fails if there are changes in the implementation and need to be
             # adapted.
-            print(graph_train.getnnz(axis=1).mean())
-            print(graph_test.getnnz(axis=1).mean())
+            # print(graph_train.getnnz(axis=1).mean())
+            # print(graph_test.getnnz(axis=1).mean())
             self.assertEqual(graph_train.getnnz(axis=1).mean(), 11.65)
             self.assertEqual(graph_test.getnnz(axis=1).mean(), 11.525)
 
@@ -406,6 +524,7 @@ class TestContinuousNNKernel(unittest.TestCase):
         distance_matrix = compute_distance_matrix(generate_circle_data(20, 20, 1))
 
         with self.assertRaises(ValueError):
+            # k_neighbor larger than the distance matrix
             ContinuousNNKernel(k_neighbor=41, delta=1).eval(distance_matrix)
 
 
@@ -423,50 +542,60 @@ class TestConeKernel(unittest.TestCase):
         )
 
     def test_return_type(self):
-        actual, cdist_kwargs = ConeKernel(zeta=0.5)(self.X_tsc)
+        cone_kernel = ConeKernel(zeta=0.5)
+        actual = cone_kernel(self.X_tsc)
 
         self.assertIsInstance(actual, TSCDataFrame)
 
-        self.assertIsInstance(cdist_kwargs, dict)
-        self.assertIsInstance(cdist_kwargs["timederiv_X"], TSCDataFrame)
-        self.assertIsInstance(cdist_kwargs["norm_timederiv_X"], TSCDataFrame)
+        self.assertIsInstance(cone_kernel.timederiv_X_, TSCDataFrame)
+        self.assertIsInstance(cone_kernel.norm_timederiv_X_, TSCDataFrame)
 
-        actual, cdist_kwargs = ConeKernel(zeta=0.5)(
-            self.X_tsc, self.Y_tsc, **cdist_kwargs
-        )
-
-        self.assertIsInstance(actual, TSCDataFrame)
-        self.assertEqual(cdist_kwargs, None)
+        actual2 = cone_kernel(self.X_tsc, self.Y_tsc)
+        self.assertIsInstance(actual2, TSCDataFrame)
 
     def test_zeta_approx_zero(self):
-        actual, cdist_kwargs = ConeKernel(zeta=1e-15)(self.X_tsc)
-        expected, cdist_kwargs2 = ConeKernel(zeta=0)(self.X_tsc)
+
+        cone_one = ConeKernel(zeta=1e-15)
+        cone_two = ConeKernel(zeta=0)
+
+        actual = cone_one(self.X_tsc)
+        expected = cone_two(self.X_tsc)
 
         nptest.assert_allclose(actual, expected, rtol=0, atol=1e-15)
 
-        actual, _ = ConeKernel(zeta=1e-15)(self.X_tsc, self.Y_tsc, **cdist_kwargs)
-        expected, _ = ConeKernel(zeta=0)(self.X_tsc, self.Y_tsc, **cdist_kwargs2)
+        actual = cone_one(self.X_tsc, self.Y_tsc)
+        expected = cone_two(self.X_tsc, self.Y_tsc)
         nptest.assert_allclose(actual, expected, rtol=0, atol=1e-15)
 
     def test_cdist_evaluation_no_error(self):
         cone_kernel = ConeKernel(0.5)
-        kernel_pdist, cdist_kwargs = cone_kernel(self.X_tsc)
-        kernel_cdist, _ = cone_kernel(self.X_tsc, self.Y_tsc, **cdist_kwargs)
+        kernel_pdist = cone_kernel(self.X_tsc)
+        kernel_cdist = cone_kernel(self.X_tsc, self.Y_tsc)
 
         self.assertTrue(np.isfinite(kernel_pdist).all().all())
         self.assertTrue(np.isfinite(kernel_cdist).all().all())
 
     def test_cdist(self):
         kernel = ConeKernel(zeta=0.5)
-        expected_kernel, cdist_kwargs = kernel(self.X_tsc)
-        actual_kernel, _ = kernel(self.X_tsc, self.X_tsc, **cdist_kwargs)
+        expected_kernel = kernel(self.X_tsc)
+        actual_kernel = kernel(self.X_tsc, self.X_tsc)
         pdtest.assert_frame_equal(expected_kernel, actual_kernel)
 
         # zeta=0 is a special case
         kernel = ConeKernel(zeta=0.0)
-        expected_kernel, cdist_kwargs = kernel(self.X_tsc)
-        actual_kernel, _ = kernel(self.X_tsc, self.X_tsc, **cdist_kwargs)
+        expected_kernel = kernel(self.X_tsc)
+        actual_kernel = kernel(self.X_tsc, self.X_tsc)
         pdtest.assert_frame_equal(expected_kernel, actual_kernel)
+
+        # test pdist followed by cdist versus direct cdist versus
+        kernel1 = ConeKernel(zeta=0.5)
+        kernel2 = ConeKernel(zeta=0.5)
+
+        _ = kernel1(self.X_tsc)
+        actual = kernel1(self.X_tsc, self.Y_tsc)
+        expected = kernel2(self.X_tsc, self.Y_tsc)
+
+        pdtest.assert_frame_equal(actual, expected)
 
     def test_duplicate_samples(self):
         X = self.X_tsc.copy()
@@ -476,8 +605,8 @@ class TestConeKernel(unittest.TestCase):
         Y.iloc[0, :] = X.iloc[0, :]
 
         cone_kernel = ConeKernel(0.5)
-        kernel_pdist, cdist_kwargs = cone_kernel(self.X_tsc)
-        kernel_cdist, _ = cone_kernel(self.X_tsc, self.Y_tsc, **cdist_kwargs)
+        kernel_pdist = cone_kernel(self.X_tsc)
+        kernel_cdist = cone_kernel(self.X_tsc, self.Y_tsc)
 
         self.assertTrue(np.isfinite(kernel_pdist).all().all())
         self.assertTrue(np.isfinite(kernel_cdist).all().all())
@@ -493,19 +622,17 @@ class TestConeKernel(unittest.TestCase):
         with self.assertRaises(ValueError):
             ConeKernel(epsilon=-0.1)(self.X_tsc, self.Y_tsc)
 
-        with self.assertRaises(ValueError):
-            ConeKernel(0.5)(self.X_tsc, self.Y_tsc)
-
         # different sampling frequency in X than in Y
         Y_tsc = self.Y_tsc.copy().set_index(
             pd.MultiIndex.from_arrays(
                 [np.ones(self.Y_tsc.shape[0]), np.arange(0, 2 * self.Y_tsc.shape[0], 2)]
             )
         )
-        _, cdist_kwargs = ConeKernel(zeta=0.5)(self.X_tsc)
+        kernel = ConeKernel(zeta=0.5)
+        kernel(self.X_tsc)
 
         with self.assertRaises(TSCException):
-            ConeKernel(0.5)(self.X_tsc, Y_tsc, **cdist_kwargs)
+            ConeKernel(0.5)(self.X_tsc, Y_tsc)
 
         # non constant time sampling:
         X_tsc = self.X_tsc.copy().drop(5, level=1)

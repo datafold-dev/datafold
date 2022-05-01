@@ -4,9 +4,8 @@ import pickle
 import unittest
 
 import numpy as np
-import sklearn.datasets
 
-from datafold.pcfold import *
+from datafold.pcfold import PCManifold
 
 
 class TestPCManifold(unittest.TestCase):
@@ -31,7 +30,7 @@ class TestPCManifold(unittest.TestCase):
             PCManifold(np.linspace(0, 10, 20))
 
         with self.assertRaises(ValueError):
-            data = np.linspace(0, 10, 20).reshape(10, 2).astype(np.str)
+            data = np.linspace(0, 10, 20).reshape(10, 2).astype(np.str_)
             PCManifold(data)
 
         with self.assertRaises(TypeError):

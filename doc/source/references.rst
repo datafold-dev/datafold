@@ -1,5 +1,8 @@
-Literature references
-=====================
+.. _references:
+
+==========
+References
+==========
 
 .. bibliography:: _static/literature.bib
     :all:

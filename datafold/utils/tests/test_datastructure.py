@@ -6,7 +6,14 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.utils.general import *
+from datafold.utils.general import (
+    if1dim_colvec,
+    if1dim_rowvec,
+    is_df_same_index,
+    is_float,
+    is_integer,
+    series_if_applicable,
+)
 
 
 class TestDataStructureUtils(unittest.TestCase):
@@ -56,7 +63,7 @@ class TestDataStructureUtils(unittest.TestCase):
         self.assertTrue(is_integer(6.0))
 
     def test_is_integer2(self):
-        self.assertTrue(is_integer(np.float64(5)))
+        self.assertTrue(is_integer(np.float_(5)))
 
     def test_is_integer3(self):
         self.assertFalse(is_integer(1.3))

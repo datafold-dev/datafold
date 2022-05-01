@@ -1,7 +1,7 @@
+#!/usr/bin/env python3
+# type: ignore
+
 # Configuration file for the Sphinx documentation builder.
-#
-# For a full list of Sphinx configuration see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # -- Path setup --------------------------------------------------------------
 
@@ -11,37 +11,37 @@
 
 import importlib
 import os
+import pathlib
 import shutil
 import sys
 from datetime import datetime
 
-# "read the doc" theme
-# -- https://sphinx-rtd-theme.readthedocs.io/en/stable/
-# import sphinx_rtd_theme
-
-PATH2DOC = os.path.abspath(".")
-PATH2ROOT = os.path.abspath(os.path.join(PATH2DOC, "..", ".."))
-PATH2SRC = os.path.abspath(os.path.join(PATH2ROOT, "datafold"))
+PATH2DOC = pathlib.Path(__file__).parent.resolve()
+PATH2ROOT = PATH2DOC.parent.parent
+PATH2SRC = PATH2ROOT.joinpath("datafold")
 
 try:
-    sys.path.insert(0, PATH2DOC)
-    sys.path.insert(0, PATH2ROOT)
-    sys.path.insert(0, PATH2SRC)
+    sys.path.insert(0, PATH2DOC.as_posix())
+    sys.path.insert(0, PATH2ROOT.as_posix())
+    sys.path.insert(0, PATH2SRC.as_posix())
 
     from datafold import __version__
 except ImportError:
     raise ImportError(f"The path to datafold is not correct \npath:" f"{PATH2ROOT}")
 
-
+# For a details on Sphinx configuration see documentation:
+# https://www.sphinx-doc.org/en/master/usage/configuration.html
 # -- Project information -----------------------------------------------------------------
 project = "datafold"
 copyright = f"2019-{datetime.now().year}, the datafold contributors"
 author = "datafold contributors"
 version = __version__
+release = version  # no need to make it separate
+today_fmt = "%d %B %Y"
 
 # -- General configuration ---------------------------------------------------------------
 
-needs_sphinx = "2.0"
+needs_sphinx = "4.0.0"
 
 # document name of the “master” document, that is, the document that contains the root
 # toctree directive
@@ -51,7 +51,7 @@ master_doc = "index"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
     # See build_full.sh file to execute sphinx-apidoc which fetches
-    # the documentation automatically.
+    # the documentation from the Python source code automatically.
     "sphinx.ext.autodoc",
     # generates function/method/attribute summary lists
     "sphinx.ext.autosummary",
@@ -59,7 +59,8 @@ extensions = [
     "sphinx.ext.todo",
     # See below for configuration
     "sphinx.ext.imgmath",
-    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/quickstart.html
+    # Include bibtex citations
+    # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/index.html
     "sphinxcontrib.bibtex",
     # 'napoleon' allows NumPy and Google style documentation (no external Sphinx
     #  package required)
@@ -67,33 +68,36 @@ extensions = [
     # numpydoc docstring guide
     #  -> https://numpydoc.readthedocs.io/en/latest/format.html
     "sphinx.ext.napoleon",
-    # Faciliates the automatic generation of API documentation pages for Python package
+    # Provides automatic generation of API documentation pages for Python package
     # modules. https://sphinx-automodapi.readthedocs.io/en/latest/
     "sphinx_automodapi.automodapi",
-    # "sphinx_automodapi.smart_resolver",
     # Allows to use type-hinting for documenting acceptable argument types and return
     # value types of functions.
     # https://github.com/agronholm/sphinx-autodoc-typehints
-    # NOTE: sphinx_autodoc_typehints must be AFTER "sphinx.ext.napoleon" include!!
-    # https://github.com/agronholm/sphinx-autodoc-typehints/issues/15#issuecomment\
-    # -298224484
+    # NOTE: sphinx_autodoc_typehints must be AFTER the "sphinx.ext.napoleon" include!!
+    # https://github.com/agronholm/sphinx-autodoc-typehints/issues/15#issuecomment\-298224484
     "sphinx_autodoc_typehints",
     # Tries to find the source files where the objects are contained. When found,
     # a separate HTML page will be output for each module with a highlighted version of
     # the source code.
     # https://www.sphinx-doc.org/en/master/usage/extensions/viewcode.html
     "sphinx.ext.viewcode",
-    # "numpydoc",
-    # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
     # Generate automatic links to the documentation of objects in other projects.
     # see options below
+    # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
     "sphinx.ext.intersphinx",
-    # https://nbsphinx.readthedocs.io/en/0.6.0/
+    # https://nbsphinx.readthedocs.io/en/0.8.5/
     # provides a source parser for *.ipynb files
     "nbsphinx",
     # Include notebook files from outside the sphinx source root.
     # https://github.com/vidartf/nbsphinx-link
     "nbsphinx_link",
+    # Include panels in a grid layout or as drop-downs
+    # https://sphinx-panels.readthedocs.io/en/latest/
+    "sphinx_panels",
+    # Include copy buttons in code blocks
+    # https://sphinx-copybutton.readthedocs.io/en/latest/
+    "sphinx_copybutton",
 ]
 
 # If the API folder is not removed, classes that were renamed can produce errors
@@ -132,30 +136,20 @@ imgmath_font_size = 12  # default=12
 # command name with which to invoke LaTeX. The default is 'latex';
 # you may need to set this to a full path if latex is not in the executable search path
 imgmath_latex = "latex"
-imgmath_latex_args = []  # TODO raise error if not found?
+imgmath_latex_args = []
 imgmath_latex_preamble = r"\usepackage{amsmath,amstext}"
 
 # ----------------------------------------------------------------------------------------
 # "sphinxcontrib.bibtex"
-# Because exported BibTex files include file information to PDF -- remove in the
-# following snippet.
+# see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/usage.html#configuration
 
 filepath_literature_file = os.path.join(".", "_static", "literature.bib")
 filepath_literature_file = os.path.abspath(filepath_literature_file)
+bibtex_reference_style = "author_year"
 
-# read content
-with open(filepath_literature_file, "r") as file:
-    content = file.read()
-
-# leave out 'file' keys out
-new_content = []
-for line in content.splitlines(keepends=True):
-    if not line.lstrip().startswith("file"):
-        new_content.append(line)
-
-# write content back to file
-with open(filepath_literature_file, "w") as file:
-    file.write("".join(new_content))
+# currently supported "alpha" (default)  "plain", "unsrt", "unsrtalpha"
+bibtex_default_style = "plain"
+bibtex_bibfiles = [filepath_literature_file]
 
 # ----------------------------------------------------------------------------------------
 # napoleon (see full list of available options:
@@ -205,13 +199,14 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scikit-learn": ("https://scikit-learn.org/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "pandas": ("http://pandas.pydata.org/pandas-docs/stable/", None),
 }
 
 # TODO: many pandas links are not resolved -- See:
 #  https://github.com/agronholm/sphinx-autodoc-typehints/issues/47
 #  in order to have not a mix between some links that work and many that don't
 #  pandas is unfortunately excluded for now
-#  a solution would be to make an own .inv fil, that replaces the short links to
+#  a solution would be to make an own .inv file, that replaces the short links to
 #  deep-links (see github issue)
 #  "pandas": ("http://pandas.pydata.org/pandas-docs/dev", None)
 #  ~
@@ -230,21 +225,27 @@ intersphinx_timeout = 30
 
 nbsphinx_allow_errors = False
 
+valid_keys = ["auto", "always", "never"]
 try:
     # allows to set expensive tutorial execution with environment variable
     # the environment variable should be set if publishing the pages
     nbsphinx_execute = str(os.environ["DATAFOLD_NBSPHINX_EXECUTE"])
-    print(nbsphinx_execute)
-    assert nbsphinx_execute in ["auto", "always", "never"]
+    assert nbsphinx_execute in valid_keys
     print(
         f"INFO: found valid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
         f"variable."
     )
-except KeyError:
-    # default
+except AssertionError:
+    # invalid key
     print(
-        "INFO: no environment variable DATFOLD_NBSPHINX_EXECUTE. Defaulting to not "
-        "execute tutorial files."
+        f"WARNING: Found invalid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
+        f"variable. Choose from {valid_keys}. Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
+    )
+except KeyError:
+    # default if no environment variable is set
+    print(
+        "INFO: no environment variable DATFOLD_NBSPHINX_EXECUTE. "
+        "Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
     )
     nbsphinx_execute = "never"
 
@@ -285,6 +286,22 @@ exclude_patterns = ["README.rst", "setup.py"]
 # html_theme = "sphinx_rtd_theme" # alternative theme
 html_theme = "pydata_sphinx_theme"
 html_logo = "_static/img/datafold_logo_pre.svg"
+
+html_theme_options = {
+    "icon_links": [
+        {
+            "name": "GitLab",
+            "url": "https://gitlab.com/datafold-dev/datafold/",
+            "icon": "fab fa-gitlab",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/datafold/",
+            "icon": "fab fa-python",
+        },
+    ],
+    "icon_links_label": "Quick Links",
+}
 
 
 # Add any paths that contain custom static files (such as style sheets) here,
