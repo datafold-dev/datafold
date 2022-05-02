@@ -507,8 +507,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         self._setup_feature_attrs_fit(X)
 
-        store_kernel_matrix = self._read_fit_params(
-            attrs=[("store_kernel_matrix", False)],
+        store_kernel_matrix, kernel_kwargs = self._read_fit_params(
+            attrs=[("store_kernel_matrix", False), ("kernel_kwargs", {})],
             fit_params=fit_params,
         )
 
@@ -530,7 +530,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         )
 
         self.X_fit_ = X
-        kernel_matrix_ = self._dmap_kernel(X=X)
+        kernel_matrix_ = self._dmap_kernel(X=X, **kernel_kwargs)
 
         # choose object to copy time information from, if applicable
         if isinstance(kernel_matrix_, TSCDataFrame):
