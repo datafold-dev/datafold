@@ -1221,11 +1221,7 @@ class MahalanobisKernel(PCManifoldKernel):
         N*m*m array of N covariance matrices of shape m*m each.
     """
 
-    def __init__(
-        self,
-        epsilon=None,
-        distance=None
-    ):
+    def __init__(self, epsilon=None, distance=None):
 
         self.epsilon = epsilon
         super(MahalanobisKernel, self).__init__(is_symmetric=True, distance=distance)
@@ -1267,8 +1263,9 @@ class MahalanobisKernel(PCManifoldKernel):
             Y = np.atleast_2d(Y)
 
         # TODO: Can they also be computed within the kernel?
-        cov_matrices = self._read_kernel_kwargs(attrs=["cov_matrices"],
-                                                kernel_kwargs=kernel_kwargs)
+        cov_matrices = self._read_kernel_kwargs(
+            attrs=["cov_matrices"], kernel_kwargs=kernel_kwargs
+        )
 
         distance_matrix = self.distance(X, Y)
 
@@ -1285,10 +1282,16 @@ class MahalanobisKernel(PCManifoldKernel):
         Replace the given distance_matrix with the mahalanobis kernel matrix.
         """
 
-        # point_indices = np.arange(points.shape[0])
-
-        # TODO: avoid to *always* transform to csr_matrix -> make it a case distinction
-        #  - between dense and sparse
+        # TODO: efficiency
+        #    -- only compute upper triangle from symmetric distance matrix?
+        #    -- possible to vectorize the inner loop in eval()?
+        #    -- parallelize / use numba
+        #    -- efficiently compute cov-matrices?
+        # TODO: out-of-sample property is currently missing
+        # TODO: compute and store cov-matrices for training data within kernel?
+        # TODO: avoid to *only* consider sparse distance matrices -> make it a case
+        #       distinction between dense and sparse
+        # TODO: require epsilon (no additional routine for estimating epsilon)
 
         # Need only connectivity matrix, NOT distance matrix!!
         distance_matrix = scipy.sparse.csr_matrix(distance_matrix)
@@ -1311,9 +1314,9 @@ class MahalanobisKernel(PCManifoldKernel):
                     # dist = np.sqrt(0.5 * ||x-y|| @ (V_x + V_y) @ ||x-y||)
                     mahalanobis_distance = np.sqrt(
                         0.5
-                        * point_diff.T
+                        * point_diff
                         @ (row_cov_matrix + col_cov_matrix)
-                        @ point_diff
+                        @ point_diff.T
                     )
 
                     # TODO: the indexing could be improved!
@@ -1334,8 +1337,9 @@ class MahalanobisKernel(PCManifoldKernel):
         # distance_matrix.data = np.exp(-np.square(distance_matrix.data) / (2 * _epsilon))
         # TODO: check: above we have sqrt around the mahalanobis_distance, here we have
         #  a square -- shouldn't this cancel out?
+        distance_matrix.data = np.square(distance_matrix.data, out=distance_matrix.data)
         kernel_matrix = _apply_kernel_function_numexpr(
-            distance_matrix=np.square(distance_matrix),
+            distance_matrix=distance_matrix,
             expr="exp((- 1. / (2*eps)) * D)",
             expr_dict={"eps": _epsilon},
         )
@@ -1380,7 +1384,9 @@ class MahalanobisKernel(PCManifoldKernel):
         if _epsilon is None:
             from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 
-            cut_off = estimate_cutoff(X, k=dist_kwargs.get("kmin", 25), distance_matrix=distance_matrix)
+            cut_off = estimate_cutoff(
+                X, k=dist_kwargs.get("kmin", 25), distance_matrix=distance_matrix
+            )
             _epsilon = estimate_scale(X, cut_off=cut_off)
 
         # convert distance to kernel
@@ -1395,7 +1401,6 @@ class MahalanobisKernel(PCManifoldKernel):
         )
 
         return distance_matrix
-
 
 
 class DmapKernelFixed(BaseManifoldKernel):
