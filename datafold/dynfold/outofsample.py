@@ -74,6 +74,9 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
     :cite:`coifman-2006a`
 
+    See :cite:t:`evangelou-2022` for using geometric harmonics to map between ambient and
+    latent space variables (diffusion coordinates).
+
     See Also
     --------
 
