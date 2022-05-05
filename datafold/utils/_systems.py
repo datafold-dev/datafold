@@ -359,11 +359,7 @@ class InvertedPendulum(DynamicalSystem):
         sin_th = np.sin(theta)
         cos_th = np.cos(theta)
 
-        # Sabin Ref.[16] version
-
-        # u = self.tension_force_gain * control_input
-        # f2 = m*g/M*theta + 1/M*u - m*l*thetadot**2/M - 2*self.cart_friction/M*xdot
-        # f4 = (m*g/l/M + g/l)*theta + 1/M/l*(u - 2*self.cart_friction*xdot)
+        # See doc/reports/cartpole/report.pdf for derivation
 
         f2 = (
             self.tension_force_gain * control_input
