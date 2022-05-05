@@ -376,7 +376,7 @@ class EDMD(
         """
         if self.include_id_state:
             # copy required to properly attach X later on
-            X_dict = X.copy(deep=True)
+            X_dict = deepcopy(X)
         else:
             X_dict = X
 
