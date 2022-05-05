@@ -351,25 +351,34 @@ class InvertedPendulum(DynamicalSystem):
         f1 = xdot
         f3 = thetadot
 
+        m = self.pendulum_mass
+        M = self.cart_mass
+        l = self.pendulum_length
+        g = self.g
+
+        sin_th = np.sin(theta)
+        cos_th = np.cos(theta)
+
         # Sabin Ref.[16] version
+
+        # u = self.tension_force_gain * control_input
+        # f2 = m*g/M*theta + 1/M*u - m*l*thetadot**2/M - 2*self.cart_friction/M*xdot
+        # f4 = (m*g/l/M + g/l)*theta + 1/M/l*(u - 2*self.cart_friction*xdot)
+
         f2 = (
             self.tension_force_gain * control_input
-            - self.cart_friction * xdot
-            - self.pendulum_mass * self.pendulum_length * thetadot ** 2 * np.sin(theta)
-        ) / (self.cart_mass + self.pendulum_mass * np.sin(theta) ** 2)
+            + m * g * sin_th*cos_th
+            - m * l * thetadot**2 * sin_th
+            - 2 * self.cart_friction * xdot
+        ) / (M + m * sin_th ** 2)
+
         f4 = (
-            self.tension_force_gain * control_input
-            - self.cart_friction * xdot
-            - self.pendulum_mass
-            * self.pendulum_length
-            * thetadot ** 2
-            * np.sin(theta)
-            * np.cos(theta)
-            + (self.cart_mass + self.pendulum_mass) * self.g * np.sin(theta)
-        ) / (
-            self.pendulum_length
-            - self.pendulum_mass * self.pendulum_length * np.cos(theta) ** 2
-        )
+            self.tension_force_gain * control_input * cos_th
+            - m*l*thetadot**2 * sin_th * cos_th
+            + (M + m) * g * sin_th
+            - 2 * self.cart_friction * xdot * cos_th
+        ) / (l * (M+m*sin_th**2))
+
         return np.array((f1, f2, f3, f4))
 
     def _check_state(self, state, default_state=None):
