@@ -10,7 +10,7 @@ from datafold.utils.general import if1dim_colvec
 
 
 class KoopmanMPC:
-    """
+    r"""
     Class to implement Lifting based Model Predictive Control
 
     Given a linear controlled model evolving at timestep :math:`k`
@@ -287,7 +287,7 @@ class KoopmanMPC:
         as in Korda-Mezic, Algorithm 1. This method solves thefollowing optimization problem (Korda-Mezic, Equation 24).
 
         .. math::
-            \text{minimize : } U^{T} H U^{T} + h^{T} + z_0^{T} GU - y_{r}^{T} U
+            \text{minimize : } U^{T} H U^{T} + h^{T} U + z_0^{T} GU - y_{r}^{T} U
             \text{subject to : } LU + Mz_{0} \leq c
             \text{parameter : } z_{0} = \Psi(x_{k})
 
@@ -344,3 +344,31 @@ class KoopmanMPC:
             raise ValueError("The solver did not converge.")
 
         return U
+
+    def compute_cost(self, U, reference, initial_conditions):
+        z0 = self.lifting_function(initial_conditions)
+        z0 = if1dim_colvec(z0)
+
+        try:
+            z0 = z0.to_numpy().reshape(self.lifted_state_size, 1)
+        except ValueError as e:
+            raise ValueError(
+                "The initial state should match the shape of the system state before the lifting."
+            ) from e
+
+        try:
+            yr = np.array(reference)
+            assert yr.shape[1] == self.output_size
+            yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
+        except:
+            raise ValueError(
+                "The reference signal should be a frame or array with n (output_size) columns and  Np (prediction horizon) rows."
+            )
+
+        U = U.reshape(-1,1)
+        e1 = U.T @ self.H @ U
+        e2 = self.h.T @ U
+        e3 = z0.T @ self.G @ U
+        e4 = -yr.T @ self.Y @ U
+
+        return (e1 + e2 + e3 + e4)[0,0]
