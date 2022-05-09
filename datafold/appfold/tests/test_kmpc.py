@@ -5,16 +5,16 @@ import numpy.testing as nptest
 import pandas as pd
 
 from datafold.appfold.edmd import EDMDControl
-from datafold.appfold.kmpc import KoopmanMPC
+from datafold.appfold.kmpc import LinearKMPC
 from datafold.dynfold.dmd import ControlledLinearDynamicalSystem
 from datafold.dynfold.transform import TSCIdentity
 from datafold.pcfold import InitialCondition, TSCDataFrame
 from datafold.utils._systems import InvertedPendulum
 
 
-class KMPCTest(unittest.TestCase):
+class LinearKMPCTest(unittest.TestCase):
     def __init__(self, *args, **kwargs) -> None:
-        super(KMPCTest, self).__init__(*args, **kwargs)
+        super(LinearKMPCTest, self).__init__(*args, **kwargs)
         self._state_columns = ["x", "xdot", "theta", "thetadot"]
         self._control_columns = ["u"]
         self.X, self.t, self.u, self.dfx, self.dfu = self._generate_data()
@@ -96,7 +96,7 @@ class KMPCTest(unittest.TestCase):
         edmdmock.control_columns = ["u"]
         edmdmock.transform = lambda x: x
 
-        kmpcperfect = KoopmanMPC(
+        kmpcperfect = LinearKMPC(
             predictor=edmdmock,
             horizon=n_timesteps - 1,
             state_bounds=np.array([[5, -5], [5, -5]]),
@@ -123,7 +123,7 @@ class KMPCTest(unittest.TestCase):
             control=self._control_columns,
         )
 
-        kmpc = KoopmanMPC(
+        kmpc = LinearKMPC(
             predictor=edmdcontrol,
             horizon=horizon,
             state_bounds=np.array([[1, -1], [6.28, 0]]),
@@ -147,4 +147,4 @@ class KMPCTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    test = KMPCTest()
+    test = LinearKMPCTest()

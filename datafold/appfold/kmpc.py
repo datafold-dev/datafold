@@ -9,7 +9,7 @@ from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec
 
 
-class KoopmanMPC:
+class LinearKMPC:
     r"""
     Class to implement Lifting based Model Predictive Control
 
