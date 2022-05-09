@@ -2454,7 +2454,9 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
             raise ValueError("Control inputs and initial conditions don't match!")
 
         for i in range(n_ic):
-            interp_control = interp1d(time_values, control_input[i], axis=0, kind='cubic')
+            interp_control = interp1d(
+                time_values, control_input[i], axis=0, kind="cubic"
+            )
 
             affine_system_func = lambda t, state: (
                 sys_matrix @ state + control_matrix @ interp_control(t) @ state
@@ -2465,7 +2467,7 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
                 t_span=(time_values[0], time_values[-1]),
                 y0=initial_conditions[:, i],
                 t_eval=time_values,
-                method='RK23',
+                method="RK23",
             )
 
             if not ivp_solution.success:

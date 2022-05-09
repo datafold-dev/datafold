@@ -363,17 +363,17 @@ class InvertedPendulum(DynamicalSystem):
 
         f2 = (
             self.tension_force_gain * control_input
-            + m * g * sin_th*cos_th
-            - m * l * thetadot**2 * sin_th
+            + m * g * sin_th * cos_th
+            - m * l * thetadot ** 2 * sin_th
             - 2 * self.cart_friction * xdot
         ) / (M + m * sin_th ** 2)
 
         f4 = (
             self.tension_force_gain * control_input * cos_th
-            - m*l*thetadot**2 * sin_th * cos_th
+            - m * l * thetadot ** 2 * sin_th * cos_th
             + (M + m) * g * sin_th
             - 2 * self.cart_friction * xdot * cos_th
-        ) / (l * (M+m*sin_th**2))
+        ) / (l * (M + m * sin_th ** 2))
 
         return np.array((f1, f2, f3, f4))
 

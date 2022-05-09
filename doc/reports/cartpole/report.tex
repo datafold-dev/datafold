@@ -52,7 +52,7 @@ gravity.
 \begin{align}
     K &= \frac{1}{2} M \dot{x}^2 \nonumber
       + \frac{1}{2} m \qty[ \dot{x} - l \dot{\theta} \cos \theta]^2
-      + \frac{1}{2} m \qty(l \dot{\theta} \sin \theta)^2 \\ 
+      + \frac{1}{2} m \qty(l \dot{\theta} \sin \theta)^2 \\
       &= \frac{1}{2} \qty(M+m) \dot{x}^2 + \frac{1}{2} m l^2 \dot{\theta}^2
       - ml \dot{x} \dot{\theta} \cos \theta
 \end{align}
@@ -78,20 +78,20 @@ The derivatives needed for the Euler-Lagrange equation are listed below
     \pdv{\mathcal{L}}{\dot{x}} &= (M+m)\dot{x} - ml \dot{\theta} \cos \theta
         - \int u \dd t \\
     %
-    \dv{t}\pdv{\mathcal{L}}{\dot{x}} &= 
+    \dv{t}\pdv{\mathcal{L}}{\dot{x}} &=
         (M+m) \ddot{x}
         - ml \ddot{\theta} \cos \theta
         + ml \dot{\theta}^2 \sin\theta
         - u(t) \\
     %
-    \pdv{\mathcal{L}}{\theta} &= 
+    \pdv{\mathcal{L}}{\theta} &=
         mgl \sin\theta
         + ml\dot{x} \dot{\theta} \sin\theta \\
     %
-    \pdv{\mathcal{L}}{\dot{\theta}} &= 
+    \pdv{\mathcal{L}}{\dot{\theta}} &=
         ml^2 \dot{\theta} - ml \dot{x} \cos \theta \\
     %
-    \dv{t} \pdv{\mathcal{L}}{\dot{\theta}} &= 
+    \dv{t} \pdv{\mathcal{L}}{\dot{\theta}} &=
         ml^2 \ddot{\theta}^2
         - ml \ddot{x} \cos \theta
         + ml \dot{x}\dot{\theta} \sin \theta
@@ -141,7 +141,7 @@ quadratic drag at low velocities.
 
 The Lagrangian becomes:
 \begin{align*}
-    \mathcal{L} 
+    \mathcal{L}
         =& \frac{1}{2} \qty(M+m) \dot{x}^2
         + \frac{1}{2} m l^2 \dot{\theta}^2
         - ml \dot{x} \dot{\theta} \cos \theta \\
@@ -158,7 +158,7 @@ respect to $x$ become:
     \pdv{\mathcal{L}}{\dot{x}} &= (M+m)\dot{x} - ml \dot{\theta} \cos \theta
         - \int \qty\Big( u - \mu_r(M+m) g - 2b\dot{x} ) \dd t \\
     %
-    \dv{t}\pdv{\mathcal{L}}{\dot{x}} &= 
+    \dv{t}\pdv{\mathcal{L}}{\dot{x}} &=
         (M+m) \ddot{x}
         - ml \ddot{\theta} \cos \theta
         + ml \dot{\theta}^2 \sin\theta

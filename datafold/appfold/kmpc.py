@@ -365,10 +365,10 @@ class KoopmanMPC:
                 "The reference signal should be a frame or array with n (output_size) columns and  Np (prediction horizon) rows."
             )
 
-        U = U.reshape(-1,1)
+        U = U.reshape(-1, 1)
         e1 = U.T @ self.H @ U
         e2 = self.h.T @ U
         e3 = z0.T @ self.G @ U
         e4 = -yr.T @ self.Y @ U
 
-        return (e1 + e2 + e3 + e4)[0,0]
+        return (e1 + e2 + e3 + e4)[0, 0]
