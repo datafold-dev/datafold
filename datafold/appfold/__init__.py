@@ -25,4 +25,4 @@ configurations and model accuracies in a parameter space.
 """
 
 from datafold.appfold.edmd import EDMD, EDMDCV, EDMDControl
-from datafold.appfold.kmpc import LinearKMPC
+from datafold.appfold.kmpc import AffineKgMPC, LinearKMPC
