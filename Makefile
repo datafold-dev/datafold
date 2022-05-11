@@ -147,7 +147,7 @@ install_devdeps: venv
 install_docdeps:
 ifeq ($(OS),Linux)
 ifeq ($(IS_DOCKER),) # no docker
-	sudo apt-get install $(_DOCDEPS)
+	sudo apt install $(_DOCDEPS)
 else # in docker "sudo" is not available and everything is executed with root
 	apt-get -y install $(_DOCDEPS)
 endif
@@ -156,6 +156,9 @@ else # OS = Windows
 	@echo "INFO: Make sure to execute with sudo / administrator rights."
 	choco install $(_DOCDEPS)
 endif
+
+#devenv: @ Set up development environment (executing targets 'install_devdeps' and 'install_docdeps')
+devenv: install_devdeps install_docdeps
 
 #versions: @ Show current datafold version and of the essential dependencies.
 versions:
@@ -211,7 +214,7 @@ precommit:
 #ci: @ Run continuous integration pipeline.
 ci: install_devdeps test precommit test_install
 
-#build: @ Build a source distribution (sdist) and wheel (bdist_wheel).
+#build: @ Build a Python source distribution (sdist) and wheel (bdist_wheel).
 build:
 	@$(ACTIVATE_VENV); \
 	python setup.py sdist bdist_wheel; \
