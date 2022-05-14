@@ -314,7 +314,7 @@ class LinearKMPC:
 
         Returns
         -------
-        U : np.ndarray(shape=(horizon,1))
+        U : np.ndarray(shape=(horizon,m))
             Sequence of control inputs.
 
         Raises
@@ -355,7 +355,7 @@ class LinearKMPC:
         if U is None:
             raise ValueError("The solver did not converge.")
 
-        return U
+        return U.reshape((-1,self.input_size))
 
     def compute_cost(self, U, reference, initial_conditions):
         z0 = self.lifting_function(initial_conditions)
@@ -392,8 +392,8 @@ class AffineKgMPC(object):
         predictor: EDMDControl,
         horizon: int,
         input_bounds: np.array,
-        cost_state: np.array,
-        cost_input: np.array,
+        cost_state: Optional[Union[float, np.ndarray]]=1,
+        cost_input: Optional[Union[float, np.ndarray]]=1,
         interpolation="cubic",
         ivp_method="RK23",
     ):
@@ -414,7 +414,7 @@ class AffineKgMPC(object):
         The resulting control input is chosen such as to minimize
 
         .. math::
-            J = \sum_{k=0}^{N_p} Q (x^{(k)}-x_r^{(k)}) + R u_k
+            J = \sum_{k=0}^{N_p} || Q * (x^{(k)}-x_r^{(k)})||^2 + ||R u_k||^2
 
         and requiring :math:`u` the input bounds
 
@@ -430,10 +430,10 @@ class AffineKgMPC(object):
             [[u1max, u1min],
             ...
             [ummax, ummin]]
-        cost_state : float | np.ndarray(shape=(1,n)), optional, by default 0.1
+        cost_state : float | np.ndarray(shape=(n,1)), optional, by default 1
             Linear cost of the state  :math:`Q`.
             If float, the same cost will be applied to all state dimensions.
-        cost_input : float | np.ndarray(shape=(1,n)), optional, by default 0.01
+        cost_input : float | np.ndarray(shape=(m,1)), optional, by default 1
             Linear cost of the input :math:`R`.
             If float, the same cost will be applied to all input dimensions.
         interpolation: string (default 'cubic')
@@ -467,31 +467,29 @@ class AffineKgMPC(object):
                 f"input_bounds is of shape {input_bounds.shape}, should be ({self.input_size},2)"
             )
 
-        cost_input = (
-            np.ones((1, self.input_size)) * cost_input
-            if not isinstance(cost_input, np.ndarray)
-            else if1dim_rowvec(cost_input)
-        )
-        if cost_input.shape != (1, self.input_size):
+
+        try:
+            self.cost_input = cost_input.reshape((self.input_size,1))
+        except AttributeError:
+            self.cost_input = cost_input * np.ones((self.input_size,1))
+        except ValueError:
             raise ValueError(
-                f"cost_input is of shape {cost_input.shape}, should be (1,{self.input_size})"
+                f"cost_input is of shape {cost_input.shape}, should be ({self.input_size},1)"
             )
 
-        cost_state = (
-            np.ones((1, self.state_size)) * cost_state
-            if not isinstance(cost_state, np.ndarray)
-            else if1dim_rowvec(cost_state)
-        )
-        if cost_state.shape != (1, self.state_size):
+        try:
+            self.cost_state = cost_state.reshape((self.state_size,1))
+        except AttributeError:
+            self.cost_state = cost_state * np.ones((self.state_size,1))
+        except ValueError:
             raise ValueError(
-                f"cost_state is of shape {cost_state.shape}, should be (1,{self.state_size})"
+                f"cost_state is of shape {cost_state.shape}, should be ({self.state_size},1)"
             )
 
         self.input_bounds = np.repeat(
             np.fliplr(input_bounds).T, self.horizon + 1, axis=1
         ).T
-        self.cost_state = cost_state
-        self.cost_input = cost_input
+
         self._cached_init_state = None
         self._cached_lifted_state = None
 
@@ -567,6 +565,7 @@ class AffineKgMPC(object):
         x = self._predict(x0, u, t)
         cost = self.cost(u, x0, xref, t, x[: self.state_size, :])
         jacobian = self.jacobian(u, x0, xref, t, x)
+        print(cost, u)
         return (cost, jacobian)
 
     def cost(
@@ -603,11 +602,9 @@ class AffineKgMPC(object):
         u = u.reshape(self.input_size, self.horizon + 1)
         if x is None:
             x = self._predict(x0, u, t)[: self.state_size, :]
-        Lhat = np.linalg.norm(self.cost_state @ (x - xref), axis=0) + np.linalg.norm(
-            self.cost_input @ u, axis=0
-        )
-        J = np.sum(Lhat[1:])
-
+        Lhat = np.linalg.norm(self.cost_state * (x - xref), axis=0)**2
+        Lhat += np.linalg.norm(self.cost_input * u, axis=0)**2
+        J = np.sum(Lhat)
         return J
 
     def jacobian(
@@ -684,14 +681,12 @@ class AffineKgMPC(object):
     def _dcost_dx(self, x, xref):
         # gamma(t0:te)
         gamma = np.zeros((self.lifted_state_size, self.horizon + 1))
-        gamma[: self.state_size, :] = (
-            2 * self.cost_state @ (x[: self.state_size, :] - xref)
-        )
+        gamma[: self.state_size, :] = 2 * self.cost_state * (x[:self.state_size]-xref)
         return gamma
 
     def _dcost_du(self, u):
         # rho(t0:te)
-        return 2 * self.cost_input @ u
+        return 2 * self.cost_input * u
 
     def generate_control_signal(
         self,
@@ -731,7 +726,7 @@ class AffineKgMPC(object):
             Passed to scipy.optimize.minimize. If method is not provided, 'L-BFGS-B' is used.
         Returns
         -------
-        U : np.ndarray(shape=(horizon,1))
+        U : np.ndarray(shape=(horizon,m))
             Sequence of control inputs.
 
         Raises
@@ -800,6 +795,4 @@ class AffineKgMPC(object):
                 f"Could not find a minimum solution. Solver says '{res.message}'. Using closest solution."
             )
 
-        return res.x.reshape(self.input_size, self.horizon + 1)[
-            :, :-1
-        ]  # last input not considered
+        return res.x.reshape(self.input_size,self.horizon + 1).T[:-1, :]
