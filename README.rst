@@ -51,23 +51,21 @@ For a mathematical thorough introduction, we refer to the `scientific literature
     * Code quality varies from "experimental/early stage" to "well-tested". Well tested
       code is listed in the
       `software documentation <https://datafold-dev.gitlab.io/datafold/api.html>`__
-      and are directly accessible through the package levels ``pcfold``, ``dynfold`` or
-      ``appfold`` (e.g. :code:`from datafold.dynfold import ...`). Experimental code is
-      only accessible via "deep imports"
-      (e.g. :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning
-      when using it.
-    * The interfaces within *datafold* are not stable. This means it is highly recommended to
-      use *datafold* with a specific version.
-    * There is no deprecation cycle. Backwards compatibility is indicated by the
-      package version, where we use a `semantic versioning <https://semver.org/>`__
-      policy `[major].[minor].[patch]`, i.e.
+      and are directly accessible through the highest module level (e.g.
+      :code:`from datafold import ...`). Experimental code is
+      only accessible via "deep imports" (e.g.
+      :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning when using
+      it.
+    * The interfaces within *datafold* are not stable. The software is no intended for
+      production. Instead it is highly recommended to use *datafold* with a specific version.
+    * There is no deprecation cycle. The software uses
+      `semantic versioning <https://semver.org/>`__ policy `[major].[minor].[patch]`, i.e.
 
          * `major` - making incompatible changes in the (documented) API
          * `minor` - adding functionality in a backwards-compatible manner
          * `patch` - backwards-compatible bug fixes
 
       We do not intend to indicate a feature complete milestone with version `1.0`.
-
 
 Cite
 ====

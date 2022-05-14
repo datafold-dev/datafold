@@ -32,7 +32,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     :py:class:`TSCDataFrame` in the pipeline.
 
     For the undocumented attributes please go to the base class documentation
-    `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html>`__. # noqa E501
+    `ColumnTransformer <https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html>`__.
 
     .. note::
         The parameter ``sparse_threshold`` of the super class is not supported.
@@ -43,7 +43,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         All transformers included in the list must be able to process
         :py:class:`TSCDataFrame`. See base class for the detailed specification of
         the tuple.
-    """
+    """  # noqa E501
 
     def __init__(
         self,
@@ -58,7 +58,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         super(TSCColumnTransformer, self).__init__(
             transformers=transformers,
             remainder=remainder,
-            sparse_threshold=0.3,  # default value, parameter will be ignored
+            sparse_threshold=0.3,  # default value, parameter ignored in TSCColumnTransformer
             transformer_weights=transformer_weights,
             n_jobs=n_jobs,
             verbose=verbose,

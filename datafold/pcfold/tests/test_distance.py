@@ -5,6 +5,7 @@ import warnings
 
 import numpy as np
 import numpy.testing as nptest
+import pytest
 import scipy
 import scipy.sparse
 from scipy.sparse import SparseEfficiencyWarning
@@ -12,6 +13,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 
 from datafold.pcfold.distance import (
     DistanceAlgorithm,
+    SklearnKNN,
     _all_available_distance_algorithm,
     compute_distance_matrix,
     init_distance_algorithm,
@@ -24,7 +26,7 @@ class TestDistAlgorithms(unittest.TestCase):
         self.data_X = np.random.rand(500, 100)
         self.data_Y = np.random.rand(300, 100)
 
-        self.algos = _all_available_distance_algorithm()
+        self.symmetric_algos = _all_available_distance_algorithm(require_symmetric=True)
 
     def test_range_pdist_dense(self):
         backend_options = {}
@@ -35,7 +37,7 @@ class TestDistAlgorithms(unittest.TestCase):
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
 
                 try:
                     da = init_distance_algorithm(
@@ -66,7 +68,7 @@ class TestDistAlgorithms(unittest.TestCase):
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
                 try:
                     da = init_distance_algorithm(
                         backend=algo.name,
@@ -96,7 +98,7 @@ class TestDistAlgorithms(unittest.TestCase):
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
                 try:
                     da = init_distance_algorithm(
                         backend=algo.name,
@@ -133,7 +135,7 @@ class TestDistAlgorithms(unittest.TestCase):
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
                 try:
                     da = init_distance_algorithm(
                         backend=algo.name,
@@ -171,7 +173,7 @@ class TestDistAlgorithms(unittest.TestCase):
             if metric == "sqeuclidean":
                 expected.data = np.square(expected.data)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
 
                 try:
 
@@ -217,7 +219,7 @@ class TestDistAlgorithms(unittest.TestCase):
             if metric == "sqeuclidean":
                 expected.data = np.square(expected.data)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
 
                 try:
                     da = init_distance_algorithm(
@@ -325,9 +327,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     print(f"Failed for quantile={quantile} and kmin={kmin}")
                     raise e
 
+    @pytest.mark.skip("TODO: finish k-NN tests")
     def test_knn_pdist(self):
-
-        from datafold.pcfold.distance import SklearnKNN
-
         dist = SklearnKNN(metric="euclidean", k=3)
         dist(self.data_X)

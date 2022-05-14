@@ -94,7 +94,8 @@ class TSCException(Exception):
     @classmethod
     def not_n_timesteps(cls, required: int):
         return cls(
-            f"Invalid TSCDataFrame format. Each time series must have {required} samples."
+            f"Invalid TSCDataFrame format. Each time series in the collection must have "
+            f"exactly {required} samples."
         )
 
     @classmethod

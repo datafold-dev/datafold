@@ -33,7 +33,7 @@ class TSCBase(object):
 
     def get_feature_names_out(self, input_features=None):
         raise NotImplementedError(
-            "class does not provide 'get_feature_names_out' method"
+            "class has not implemented 'get_feature_names_out' method"
         )
 
     def _has_feature_names(self, _obj):
@@ -238,13 +238,13 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
     ----------
 
     n_features_in_: int
-        Number of features passed in input `X` in `fit`. The same number of features are
+        Number of features in input `X` during `fit`. The same number of features are
         required for `transform`.
 
     feature_names_in_: Optional[np.array]
         Feature names passed in input `X` in `fit`. The attribute is only set if the input is
-        a pandas object. The feature names are used for validation in `transform` and as
-        output feature names in `inverse_transform`.
+        a pandas object. The feature names are used for validation of input in `transform` and
+        as output feature names in `inverse_transform`.
 
     n_features_out_: int
         Number of features in output of `transform`.

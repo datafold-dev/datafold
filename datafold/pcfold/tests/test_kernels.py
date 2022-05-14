@@ -277,7 +277,7 @@ class TestPCManifoldKernel(unittest.TestCase):
 
         r = (
             "GaussianKernel(\n\tdistance=BruteForceDist(metric='sqeuclidean', "
-            "is_symmetric=True, is_sparse=False, cut_off=None, kmin=None)\n\tepsilon=1\n)"
+            "is_symmetric=True, is_sparse=True, cut_off=inf, kmin=None)\n\tepsilon=1\n)"
         )
         self.assertEqual(kernel.__repr__(), r)
 
