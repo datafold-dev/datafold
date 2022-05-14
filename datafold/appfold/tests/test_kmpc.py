@@ -101,20 +101,20 @@ class LinearKMPCTest(unittest.TestCase):
         kmpcperfect = LinearKMPC(
             predictor=edmdmock,
             horizon=n_timesteps - 1,
-            state_bounds=np.array([[5, -5]]*state_size),
-            input_bounds=np.array([[5, -5]]*input_size),
-            cost_running=np.array([1]*state_size),
+            state_bounds=np.array([[5, -5]] * state_size),
+            input_bounds=np.array([[5, -5]] * input_size),
+            cost_running=np.array([1] * state_size),
             cost_terminal=1,
             cost_input=0,
         )
         pred = kmpcperfect.generate_control_signal(x0, df)
-        nptest.assert_allclose(pred, u[:-1,:])
+        nptest.assert_allclose(pred, u[:-1, :])
 
     def test_kmpc_mock_edmd_1d(self):
-       self._execute_mock_test(2,1,50)
+        self._execute_mock_test(2, 1, 50)
 
     def test_kmpc_mock_edmd_2d(self):
-       self._execute_mock_test(2,2,50)
+        self._execute_mock_test(2, 2, 50)
 
     def test_kmpc_generate_control_signal(self):
         horizon = 100
@@ -151,7 +151,7 @@ class LinearKMPCTest(unittest.TestCase):
         )
 
         assert U.any() is not None
-        assert U.shape == (horizon,len(self._control_columns))
+        assert U.shape == (horizon, len(self._control_columns))
 
 
 class AffineKMPCTest(unittest.TestCase):
@@ -213,7 +213,9 @@ class AffineKMPCTest(unittest.TestCase):
 
             return X_tsc, t, control_input, dfx, dfu
 
-    def _execute_mock_test(self, state_size, input_size, n_timesteps, AffineMPCtype, seed=42):
+    def _execute_mock_test(
+        self, state_size, input_size, n_timesteps, AffineMPCtype, seed=42
+    ):
         gen = np.random.default_rng(seed)
         x0 = gen.uniform(size=state_size)
         A = gen.uniform(-0.4, 0.5, size=(state_size, state_size))
@@ -223,13 +225,10 @@ class AffineKMPCTest(unittest.TestCase):
             2,
         )
 
-        t = np.linspace(0, n_timesteps - 1, n_timesteps)*0.1
-        u = 0.5+gen.uniform(-0.1,0.1,size=(1, input_size))
+        t = np.linspace(0, n_timesteps - 1, n_timesteps) * 0.1
+        u = 0.5 + gen.uniform(-0.1, 0.1, size=(1, input_size))
         u = (u.T + np.sin(u.T + u.T * np.atleast_2d(t))).T
-        sys = (
-            ControlledAffineDynamicalSystem()
-            .setup_matrix_system(A, Bi)
-        )
+        sys = ControlledAffineDynamicalSystem().setup_matrix_system(A, Bi)
         df = sys.evolve_system(x0, u, t)
 
         from unittest.mock import Mock
@@ -237,27 +236,27 @@ class AffineKMPCTest(unittest.TestCase):
         edmdmock = Mock()
         edmdmock.sys_matrix = A
         edmdmock.control_matrix = Bi
-        edmdmock.state_columns =  [f"x{i}" for i in range(state_size)]
+        edmdmock.state_columns = [f"x{i}" for i in range(state_size)]
         edmdmock.control_columns = [f"u{i}" for i in range(input_size)]
         edmdmock.transform = lambda x: x
 
         kmpcperfect = AffineMPCtype(
             predictor=edmdmock,
             horizon=n_timesteps - 1,
-            input_bounds=np.array([[5, -5]]*input_size),
-            cost_state=np.array([1]*state_size),
+            input_bounds=np.array([[5, -5]] * input_size),
+            cost_state=np.array([1] * state_size),
             cost_input=0,
         )
         pred = kmpcperfect.generate_control_signal(x0, df)
-        dfpred = sys.evolve_system(x0, np.pad(pred,((0,1),(0,0))), t)
-        nptest.assert_allclose(dfpred.values, df.values,rtol=0.1,atol=0.1)
+        dfpred = sys.evolve_system(x0, np.pad(pred, ((0, 1), (0, 0))), t)
+        nptest.assert_allclose(dfpred.values, df.values, rtol=0.1, atol=0.1)
 
     def test_kgmpc_mock_edmd_1d(self):
-        self._execute_mock_test(2,1,10,AffineKgMPC)
+        self._execute_mock_test(2, 1, 10, AffineKgMPC)
 
     def test_kgmpc_mock_edmd_2d(self):
-        self._execute_mock_test(2,2,10,AffineKgMPC) 
-    
+        self._execute_mock_test(2, 2, 10, AffineKgMPC)
+
     def test_kmpc_generate_control_signal(self):
         horizon = 100
 
@@ -291,4 +290,4 @@ class AffineKMPCTest(unittest.TestCase):
         )
 
         assert U.any() is not None
-        assert U.shape == (horizon,len(self._control_columns))
+        assert U.shape == (horizon, len(self._control_columns))

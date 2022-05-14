@@ -1,4 +1,5 @@
 import warnings
+from tkinter.tix import ExFileSelectBox
 from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
@@ -355,7 +356,7 @@ class LinearKMPC:
         if U is None:
             raise ValueError("The solver did not converge.")
 
-        return U.reshape((-1,self.input_size))
+        return U.reshape((-1, self.input_size))
 
     def compute_cost(self, U, reference, initial_conditions):
         z0 = self.lifting_function(initial_conditions)
@@ -392,8 +393,8 @@ class AffineKgMPC(object):
         predictor: EDMDControl,
         horizon: int,
         input_bounds: np.array,
-        cost_state: Optional[Union[float, np.ndarray]]=1,
-        cost_input: Optional[Union[float, np.ndarray]]=1,
+        cost_state: Optional[Union[float, np.ndarray]] = 1,
+        cost_input: Optional[Union[float, np.ndarray]] = 1,
         interpolation="cubic",
         ivp_method="RK23",
     ):
@@ -467,24 +468,25 @@ class AffineKgMPC(object):
                 f"input_bounds is of shape {input_bounds.shape}, should be ({self.input_size},2)"
             )
 
+        if isinstance(cost_input, np.ndarray):
+            try:
+                self.cost_input = cost_input.reshape((self.input_size, 1))
+            except ValueError:
+                raise ValueError(
+                    f"cost_input is of shape {cost_input.shape}, should be ({self.input_size},1)"
+                )
+        else:
+            self.cost_input = cost_input * np.ones((self.input_size, 1))
 
-        try:
-            self.cost_input = cost_input.reshape((self.input_size,1))
-        except AttributeError:
-            self.cost_input = cost_input * np.ones((self.input_size,1))
-        except ValueError:
-            raise ValueError(
-                f"cost_input is of shape {cost_input.shape}, should be ({self.input_size},1)"
-            )
-
-        try:
-            self.cost_state = cost_state.reshape((self.state_size,1))
-        except AttributeError:
-            self.cost_state = cost_state * np.ones((self.state_size,1))
-        except ValueError:
-            raise ValueError(
-                f"cost_state is of shape {cost_state.shape}, should be ({self.state_size},1)"
-            )
+        if isinstance(cost_state, np.ndarray):
+            try:
+                self.cost_state = cost_state.reshape((self.state_size, 1))
+            except ValueError:
+                raise ValueError(
+                    f"cost_state is of shape {cost_state.shape}, should be ({self.state_size},1)"
+                )
+        else:
+            self.cost_state = cost_state * np.ones((self.state_size, 1))
 
         self.input_bounds = np.repeat(
             np.fliplr(input_bounds).T, self.horizon + 1, axis=1
@@ -602,8 +604,8 @@ class AffineKgMPC(object):
         u = u.reshape(self.input_size, self.horizon + 1)
         if x is None:
             x = self._predict(x0, u, t)[: self.state_size, :]
-        Lhat = np.linalg.norm(self.cost_state * (x - xref), axis=0)**2
-        Lhat += np.linalg.norm(self.cost_input * u, axis=0)**2
+        Lhat = np.linalg.norm(self.cost_state * (x - xref), axis=0) ** 2
+        Lhat += np.linalg.norm(self.cost_input * u, axis=0) ** 2
         J = np.sum(Lhat)
         return J
 
@@ -681,7 +683,9 @@ class AffineKgMPC(object):
     def _dcost_dx(self, x, xref):
         # gamma(t0:te)
         gamma = np.zeros((self.lifted_state_size, self.horizon + 1))
-        gamma[: self.state_size, :] = 2 * self.cost_state * (x[:self.state_size]-xref)
+        gamma[: self.state_size, :] = (
+            2 * self.cost_state * (x[: self.state_size] - xref)
+        )
         return gamma
 
     def _dcost_du(self, u):
@@ -795,4 +799,4 @@ class AffineKgMPC(object):
                 f"Could not find a minimum solution. Solver says '{res.message}'. Using closest solution."
             )
 
-        return res.x.reshape(self.input_size,self.horizon + 1).T[:-1, :]
+        return res.x.reshape(self.input_size, self.horizon + 1).T[:-1, :]
