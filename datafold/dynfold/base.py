@@ -431,7 +431,7 @@ class TSCPredictMixin(TSCBase):
 
         time_values = X.time_values()
         time_values = self._validate_time_values(time_values=time_values)
-        self.time_values_in_ = time_values
+
         self.dt_ = X.delta_time
 
         if isinstance(self.dt_, pd.Series) or np.isnan(
@@ -445,7 +445,7 @@ class TSCPredictMixin(TSCBase):
         # TODO: check this closer why are there 5 decimals required?
         assert (
             np.around(
-                (self.time_interval_[1] - self.time_interval_[0]) / self.dt_, decimals=5
+                (np.max(time_values) - np.min(time_values)) / self.dt_, decimals=5
             )
             % 1
             == 0
@@ -544,17 +544,18 @@ class TSCPredictMixin(TSCBase):
         self, X: TSCDataFrame, time_values: Optional[np.ndarray]
     ):
 
-        self._check_attributes_set_up(check_attributes=["time_values_in_"])
-
-        if time_values is None:
-            time_values = self.time_values_in_
-
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")
 
-        time_values = self._validate_time_values(time_values=time_values)
-        self._validate_feature_names(X)
+        if time_values is None:
+            reference = X.final_states(n_samples=1).time_values()
+            if np.size(reference) != 1:
+                raise NotImplementedError("Currently all initial conditions must have the same time reference")
 
+            time_values = reference + self.dt_
+        else:
+            time_values = self._validate_time_values(time_values=time_values)
+        self._validate_feature_names(X)
         return X, time_values
 
     def predict(
