@@ -158,7 +158,7 @@ else # OS = Windows
 endif
 
 #devenv: @ Setup full development environment by executing target s 'install_devdeps' and 'install_docdeps'
-devenv: install_devdeps install_docdeps
+devenv: install_devdeps install_docdeps precommit
 
 #versions: @ Show current datafold version and of the essential dependencies.
 versions:

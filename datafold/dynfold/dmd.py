@@ -826,7 +826,9 @@ class DMDBase(
             # with this shift. The linear system handles the shifted time start as time
             # zero.
             # shift = self.time_interval_[0]
-            raise NotImplementedError("'time_invariant = False' is currently not supported")
+            raise NotImplementedError(
+                "'time_invariant = False' is currently not supported"
+            )
 
         norm_time_samples = time_values - shift
 
@@ -889,8 +891,8 @@ class DMDBase(
             Initial conditions of shape `(n_initial_condition, n_features)`.
 
         time_values
-            Time values to evaluate the model at. If not provided, then the time at the initial condition plus ``dt_``
-            is set.
+            Time values to evaluate the model at. If not provided, then the time at the
+            initial condition plus ``dt_`` is set.
 
         Keyword Args
         ------------
