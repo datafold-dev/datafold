@@ -157,6 +157,9 @@ else # OS = Windows
 	choco install $(_DOCDEPS)
 endif
 
+#devenv: @ Setup full development environment by executing target s 'install_devdeps' and 'install_docdeps'
+devenv: install_devdeps install_docdeps
+
 #versions: @ Show current datafold version and of the essential dependencies.
 versions:
 	@$(ACTIVATE_VENV); \
