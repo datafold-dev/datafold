@@ -567,7 +567,6 @@ class AffineKgMPC(object):
         x = self._predict(x0, u, t)
         cost = self.cost(u, x0, xref, t, x[: self.state_size, :])
         jacobian = self.jacobian(u, x0, xref, t, x)
-        print(cost, u)
         return (cost, jacobian)
 
     def cost(
