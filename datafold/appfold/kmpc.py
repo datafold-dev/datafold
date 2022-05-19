@@ -85,6 +85,10 @@ class LinearKMPC:
     c : np.ndarray
         Linear constraint.
 
+    References
+    ----------
+
+    :cite:`korda2018linear` 
     """
 
     def __init__(
@@ -186,7 +190,7 @@ class LinearKMPC:
         return Cb, output_size
 
     def _setup_optimizer(self):
-        # implements relevant parts of korda-mezic-2018 for setting up the optimization problem
+        # implements relevant parts of :cite:`korda2018linear` for setting up the optimization problem
 
         Ab, Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
@@ -203,7 +207,7 @@ class LinearKMPC:
         return H, h, G, Y, L, M, c
 
     def _create_evolution_matrices(self):
-        # implemenets appendix from korda-mezic-2018
+        # implemenets appendix from :cite:`korda2018linear` 
         # same as Sabin 2.44
         Np = self.horizon
         N = self.lifted_state_size
@@ -225,7 +229,7 @@ class LinearKMPC:
         return self.Cb @ Ab, self.Cb @ Bb
 
     def _create_constraint_matrices(self):
-        # implemenets appendix from korda-mezic-2018
+        # implemenets appendix from :cite:`korda2018linear` 
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
         Np = self.horizon
@@ -268,7 +272,7 @@ class LinearKMPC:
             return np.ones(N) * cost
 
     def _create_cost_matrices(self):
-        # implemenets appendix from korda-mezic-2018
+        # implemenets appendix from :cite:`korda2018linear` 
         # same as Sabin 2.44
         Np = self.horizon
         N = self.output_size
@@ -297,7 +301,7 @@ class LinearKMPC:
     ) -> np.ndarray:
         """
         Method to generate a control sequence, given some initial conditions and a reference trajectory,
-        as in Korda-Mezic, Algorithm 1. This method solves thefollowing optimization problem (Korda-Mezic, Equation 24).
+        as in :cite:`korda2018linear` , Algorithm 1. This method solves thefollowing optimization problem (:cite:`korda2018linear` , Equation 24).
 
         .. math::
             \text{minimize : } U^{T} H U^{T} + h^{T} U + z_0^{T} GU - y_{r}^{T} U
@@ -441,6 +445,11 @@ class AffineKgMPC(object):
             Interpolation type passed to `scipy.interpolate.interp1d`
         ivp_method: string (default 'RK23')
             Initial value problem solution scheme passed to `scipy.integrate.solve_ivp`
+
+        References
+        ----------
+
+        :cite:`peitz2020data` 
         """
         self.horizon = horizon
 
@@ -700,8 +709,8 @@ class AffineKgMPC(object):
     ) -> np.ndarray:
         """
         Method to generate a control sequence, given some initial conditions and a reference trajectory,
-        as in Peitz-Otto-Rowley, Section 4.1. This method solves the following optimization problem
-        (Peitz-Otto-Rowley, Equation K-MPC).
+        as in :cite:`peitz2020data` , Section 4.1. This method solves the following optimization problem
+        (:cite:`peitz2020data` , Equation K-MPC).
 
         .. math::
             \text{given : } x_{0}, x_r

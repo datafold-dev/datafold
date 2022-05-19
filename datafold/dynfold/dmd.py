@@ -1741,6 +1741,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     ----------
 
     :cite:`kutz_dynamic_2016` (Chapter 6)
+    :cite:`korda2018linear`
 
     See Also
     --------
@@ -2042,6 +2043,11 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
     control_matrix : np.ndarray
         Koopman approximation of the control matrix
 
+    References
+    ----------
+
+    :cite:`kutz_dynamic_2016` (Chapter 6)
+    :cite:`korda2018linear`
     """
 
     _cls_split_params = ("split_by", "control", "state")
@@ -2076,7 +2082,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             )
 
         XU = np.vstack([XT.T, UT.T])
-        # from `korda_mezic_kmpc_2018` - eq. 22
+        # from :cite:`korda2018linear` - eq. 22
         G = XU @ XU.T
         np.multiply(1 / state.shape[0], G, out=G)  # improve condition?
         V = YT.T @ XU.T
@@ -2379,6 +2385,11 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
     :py:class:`.LinearDynamicalSystem`
     :py:class:`.ControlledLinearDynamicalSystem`
+
+    References
+    ----------
+
+    :cite:`peitz2020data` 
     """
 
     def __init__(self, time_invariant=True):
@@ -2533,7 +2544,11 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
 
     control_matrix : np.ndarray
         Koopman approximation of the control matrix
+        
+    References
+    ----------
 
+    :cite:`peitz2020data` 
     """
 
     def __init__(
@@ -2581,7 +2596,7 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
             n_snapshots, control_cols * state_cols
         )
 
-        # match naming convention from Peitz 2020
+        # match naming convention from cite:`peitz2020data`
         Psi_XU = np.vstack([X.T, u_x_cwise_kron.T])
         Psidot_XU = Xdot.T
 
