@@ -75,7 +75,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils import _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
-from datafold.dynfold import DMDBase, DMDControl, DMDFull, gDMDAffine
+from datafold.dynfold import (
+    DMDBase,
+    DMDControl,
+    DMDFull,
+    DynamicalSystemBase,
+    gDMDAffine,
+)
 from datafold.dynfold.base import (
     InitialConditionType,
     TimePredictType,
@@ -1982,7 +1988,6 @@ class EDMDPostObservable(object):  # pragma: no cover
 
 
 class EDMDControl(
-    Pipeline,
     TSCTransformerMixin,
     TSCPredictMixin,
 ):
@@ -2037,12 +2042,13 @@ class EDMDControl(
     def __init__(
         self,
         dict_steps: List[Tuple[str, object]],
-        dmd_model: Union[DMDControl, gDMDAffine] = DMDControl(),
+        dmd_model: Optional[Union[DMDControl, gDMDAffine]] = None,
         include_id_state: bool = True,
         **kwargs,
     ):
         self.dict_steps = dict_steps
-        self._dmd_model = dmd_model
+        self._dmd_model = dmd_model if dmd_model is not None else DMDControl()
+        self.include_id_state = include_id_state
         self._edmd = EDMD(
             self.dict_steps,
             include_id_state=include_id_state,

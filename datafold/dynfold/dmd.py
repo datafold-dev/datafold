@@ -2389,7 +2389,7 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
     References
     ----------
 
-    :cite:`peitz2020data` 
+    :cite:`peitz2020data`
     """
 
     def __init__(self, time_invariant=True):
@@ -2544,11 +2544,11 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
 
     control_matrix : np.ndarray
         Koopman approximation of the control matrix
-        
+
     References
     ----------
 
-    :cite:`peitz2020data` 
+    :cite:`peitz2020data`
     """
 
     def __init__(

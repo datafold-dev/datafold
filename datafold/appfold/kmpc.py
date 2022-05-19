@@ -88,7 +88,7 @@ class LinearKMPC:
     References
     ----------
 
-    :cite:`korda2018linear` 
+    :cite:`korda2018linear`
     """
 
     def __init__(
@@ -207,7 +207,7 @@ class LinearKMPC:
         return H, h, G, Y, L, M, c
 
     def _create_evolution_matrices(self):
-        # implemenets appendix from :cite:`korda2018linear` 
+        # implemenets appendix from :cite:`korda2018linear`
         # same as Sabin 2.44
         Np = self.horizon
         N = self.lifted_state_size
@@ -229,7 +229,7 @@ class LinearKMPC:
         return self.Cb @ Ab, self.Cb @ Bb
 
     def _create_constraint_matrices(self):
-        # implemenets appendix from :cite:`korda2018linear` 
+        # implemenets appendix from :cite:`korda2018linear`
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
         Np = self.horizon
@@ -272,7 +272,7 @@ class LinearKMPC:
             return np.ones(N) * cost
 
     def _create_cost_matrices(self):
-        # implemenets appendix from :cite:`korda2018linear` 
+        # implemenets appendix from :cite:`korda2018linear`
         # same as Sabin 2.44
         Np = self.horizon
         N = self.output_size
@@ -449,7 +449,7 @@ class AffineKgMPC(object):
         References
         ----------
 
-        :cite:`peitz2020data` 
+        :cite:`peitz2020data`
         """
         self.horizon = horizon
 
