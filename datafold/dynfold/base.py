@@ -550,7 +550,9 @@ class TSCPredictMixin(TSCBase):
         if time_values is None:
             reference = X.final_states(n_samples=1).time_values()
             if np.size(reference) != 1:
-                raise NotImplementedError("Currently all initial conditions must have the same time reference")
+                raise NotImplementedError(
+                    "Currently all initial conditions must have the same time reference"
+                )
 
             time_values = reference + self.dt_
         else:
