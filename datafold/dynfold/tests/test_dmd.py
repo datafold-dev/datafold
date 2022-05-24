@@ -829,14 +829,14 @@ class DMDControlTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = DMDControl(state_columns=state_cols, control_columns=input_cols).fit(
-            tsc_df.iloc[:-n_predict]
-        )
 
         u = tsc_df[input_cols].iloc[-n_predict:]
         t = tsc_df.index.get_level_values(1)[-n_predict:]
         expected = tsc_df[state_cols].iloc[-n_predict:]
-        actual = dmd.predict(expected.initial_states(), control_input=u, time_values=t)
+
+        dmd = DMDControl().fit(expected, u)
+
+        actual = dmd.predict(expected.initial_states(), U=u, time_values=t)
 
         pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
 
@@ -870,43 +870,12 @@ class DMDControlTest(unittest.TestCase):
         )
         tsc_df = TSCDataFrame.from_frame_list([df, df.copy(deep=True)])
 
-        dmd = DMDControl(state_columns=state_cols, control_columns=input_cols)
+        dmd = DMDControl()
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        u = tsc_df[input_cols]
+        actual = dmd.fit_predict(expected, U=u)
 
         pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
-
-    def test_control_split(self):
-        state_size = 4
-        input_size = 2
-        n_timesteps = 5
-
-        tsc_df = self._create_control_tsc(state_size, input_size, n_timesteps)
-
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
-
-        dmd1 = DMDControl().fit(tsc_df, split_by="name", state=state_cols)
-
-        assert dmd1.control_columns == input_cols
-        assert dmd1.state_columns == state_cols
-
-        dmd2 = DMDControl().fit(tsc_df, split_by="name", control=state_cols)
-
-        assert dmd2.control_columns == state_cols
-        assert dmd2.state_columns == input_cols
-
-        dmd3 = DMDControl().fit(tsc_df, split_by="index", state=range(state_size))
-
-        assert dmd3.control_columns == input_cols
-        assert dmd3.state_columns == state_cols
-
-        dmd4 = DMDControl().fit(
-            tsc_df, split_by="index", control=range(state_size, state_size + input_size)
-        )
-
-        assert dmd4.control_columns == input_cols
-        assert dmd4.state_columns == state_cols
 
     def test_dmd_control_reconstruct(self):
         state_size = 4
@@ -919,10 +888,8 @@ class DMDControlTest(unittest.TestCase):
         input_cols = [f"u{i+1}" for i in range(input_size)]
 
         reconstructed = DMDControl().fit_predict(
-            X=original,
-            split_by="name",
-            state=state_cols,
-            control=input_cols,
+            X=original[state_cols],
+            U=original[input_cols],
         )
 
         pdtest.assert_frame_equal(

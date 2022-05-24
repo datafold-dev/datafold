@@ -71,7 +71,6 @@ class LinearKMPCTest(unittest.TestCase):
             X_tsc[self._control_columns] = TSCDataFrame.from_frame_list(Ulist)[
                 self._control_columns
             ]
-            X_tsc
 
             return X_tsc, t, control_input, dfx, dfu
 
@@ -125,10 +124,8 @@ class LinearKMPCTest(unittest.TestCase):
             ],
             include_id_state=False,
         ).fit(
-            self.X,
-            split_by="name",
-            state=self._state_columns,
-            control=self._control_columns,
+            self.X[self._state_columns],
+            self.X[self._control_columns],
         )
 
         kmpc = LinearKMPC(

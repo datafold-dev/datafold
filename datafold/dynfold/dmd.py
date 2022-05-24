@@ -2029,12 +2029,6 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         Cut-off ratio for small singular values.
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
-    state_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the state
-
-    control_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the control input
-
     Attributes
     -------
     sys_matrix : np.ndarray
@@ -2056,14 +2050,10 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         *,  # keyword-only
         rcond: Optional[float] = None,
-        state_columns: Optional[List[str]] = None,
-        control_columns: Optional[List[str]] = None,
         **kwargs,
     ):
         self.rcond = rcond
-        if state_columns is not None and control_columns is not None:
-            self.state_columns = state_columns
-            self.control_columns = control_columns
+
         super().__init__(time_invariant=True)
 
     def _compute_koompan_matrices(
@@ -2102,64 +2092,20 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
         return sys_matrix, control_matrix
 
-    def _split_X(self, X: TSCDataFrame, **params):
+    def _validate_matching_state_control(self, X: TSCDataFrame, U: TSCDataFrame):
+        # TODO:
+        pass
 
-        if params == {}:
-            try:
-                return self.state_columns, self.control_columns
-            except AttributeError:
-                warnings.warn(
-                    "No control/state split provided to DMDControl, "
-                    "all columns of the input are assumed to be state."
-                )
-        (
-            split_by,
-            control,
-            state,
-        ) = [params.pop(key, None) for key in self._cls_split_params]
-
-        if split_by is None:
-            if control is not None or state is not None:
-                raise ValueError("split_by parameter is required.")
-            else:
-                split_by = "name"
-
-        state, control = split_control_state_columns(
-            X,
-            split_by=split_by,
-            control=control,
-            state=state,
-        )
-
-        self.state_columns = state
-        self.control_columns = control
-
-        return state, control
-
-    def fit(self, X: TSCDataFrame, **fit_params):
+    def fit(self, X: TSCDataFrame, U: Optional[TSCDataFrame] = None, **fit_params):
         """Compute Koopman approximation of state and control matrices
 
         Parameters
         ----------
         X : TSCDataFrame
-            Input data with both state columns and control input columns.
-            To differentiate between state and control columns, use the
-            optional parameters as follows:
+            Input state data
 
-        split_by : str
-            Splitting mode: 'index', 'name' or 'pattern'.
-            In the index mode, the other parameters are lists of column indices.
-            In the name mode, the other parameters are list of column names.
-            In the pattern mode, the other parameters provide patterns for column names.
-        control : list | str, optional
-            If provided, the matching columns will be the control columns.
-            If not provided, but state is provided, the control columns
-            will be the leftover columns which are not state.
-        state : list | str, optional
-            If provided, the columns with given indices will be the state columns.
-            If not provided, but control is provided, the state columns
-            will be the leftover columns which are not control.
-            If neither is provided, all columns are state columns.
+        U : TSCDataFrame
+            Input control data
 
         Returns
         -------
@@ -2170,18 +2116,20 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             ensure_tsc=True,
             tsc_kwargs={"ensure_const_delta_time": True},
         )
+
         self._setup_features_and_time_attrs_fit(X=X)
 
-        split_params = {
-            key: fit_params[key]
-            for key in fit_params.keys()
-            if key in self._cls_split_params
-        }
-        state_cols, control_cols = self._split_X(X, **split_params)
+        if U is None:
+            U = X[[]]  # empty input
+        else:
+            self._validate_datafold_data(
+                X=U,
+                ensure_tsc=True,
+                tsc_kwargs={"ensure_const_delta_time": True},
+            )
+            self._validate_matching_state_control(X, U)
 
-        sys_matrix, control_matrix = self._compute_koompan_matrices(
-            X[state_cols], X[control_cols]
-        )
+        sys_matrix, control_matrix = self._compute_koompan_matrices(X, U)
         self.setup_matrix_system(sys_matrix, control_matrix)
 
         return self
@@ -2190,7 +2138,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        control_input: Optional[Union[TSCDataFrame, np.ndarray]] = None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
         check_inputs: bool = True,
         **predict_params,
     ) -> TSCDataFrame:
@@ -2207,7 +2155,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             Time series at which to evaluate the system. Must be equally spaced
             and use the same timestep as the training data.
 
-        control_input : np.ndarray | TSCDataFrame
+        U : np.ndarray | TSCDataFrame
             The control input at the provided time values with shape
             `(n_timesteps, n_control_dimensions) or
             `(n_initial_conditions, n_timesteps, n_control_dimensions)`.
@@ -2229,7 +2177,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
             if isinstance(X, np.ndarray):
                 # work internally only with DataFrames
-                X = InitialCondition.from_array(X, columns=self.state_columns)
+                X = InitialCondition.from_array(X, columns=self.feature_names_in_)
             else:
                 # for DMD the number of samples per initial condition is always 1
                 InitialCondition.validate(X, n_samples_ic=1)
@@ -2238,12 +2186,14 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
             self.is_linear_system_setup(True)
 
-            if isinstance(control_input, TSCDataFrame):
+            if isinstance(U, TSCDataFrame):
                 if time_values is None:
-                    time_values = control_input.time_values()
-                control_input = control_input.values.reshape(
-                    len(control_input.ids), -1, len(self.control_columns)
-                )
+                    time_values = U.time_values()
+                U = U.values.reshape(len(U.ids), -1, len(U.columns))
+            elif U is None:
+                if time_values is None:
+                    time_values = np.array([0, 1]) * self.dt_
+                U = pd.DataFrame(index=time_values).values
 
             if time_values is not None:
                 time_values = self._validate_time_values(time_values)
@@ -2252,7 +2202,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
         state_tsc = self.evolve_system(
             X.to_numpy().T,
-            control_input,
+            U,
             time_values,
             time_delta=self.dt_,
             check_inputs=check_inputs,
@@ -2265,6 +2215,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         X: InitialConditionType,
         y=None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
         check_inputs: bool = True,
         **fit_params,
     ) -> TSCDataFrame:
@@ -2273,13 +2224,11 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         Parameters
         ----------
         X : TSCDataFrame
-            Input data with both state columns and control input columns.
-            To differentiate between state and control columns, use the
-            optional parameters in **fit_params.
+            State input
 
 
-        y : any, optional
-            ignored
+        U : TSCDataFrame | np.ndarray, optional
+            Control input
 
         check_inputs : bool, optional, default True
             Allows skipping input checks and assignemnts to improve performance.
@@ -2293,12 +2242,15 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             A reconstruction of X based on predicting each separate time series
             in the collection using the training control input
         """
-        return self.fit(X, **fit_params).reconstruct(X, check_inputs)
+        return self.fit(X, U, **fit_params).reconstruct(
+            X, U=U, check_inputs=check_inputs
+        )
 
     def reconstruct(
         self,
         X: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        U: Optional[TSCDataFrame] = None,
         check_inputs: bool = True,
         **split_params,
     ) -> TSCDataFrame:
@@ -2310,12 +2262,11 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         Parameters
         ----------
         X : TSCDataFrame
-            Input data with both state columns and control input columns.
-            To differentiate between state and control columns, use the
-            optional parameters in **split_params.
+            State input
 
-        y : any, optional
-            ignored
+
+        U : TSCDataFrame | np.ndarray, optional
+            Control input
 
         check_inputs : bool, default True
             Allows skipping input checks and assignemnts to improve performance.
@@ -2344,9 +2295,9 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             X, n_samples_ic=1
         ):
             X_ts = self.predict(
-                X=X_ic[self.state_columns],
+                X=X_ic,
                 time_values=time_values,
-                control_input=X[self.control_columns],
+                U=U,
                 check_inputs=check_inputs,
             )
             X_reconstruct_ts.append(X_ts)

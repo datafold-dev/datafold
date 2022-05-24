@@ -873,12 +873,7 @@ class EDMDTest(unittest.TestCase):
 
         actual = EDMDControl(
             dict_steps=dict_steps, include_id_state=False
-        ).fit_transform(
-            X_tsc,
-            split_by="name",
-            state=state_columns,
-            control=control_columns,
-        )
+        ).fit_transform(X_tsc[state_columns], U=X_tsc[control_columns])
         n_intermediate = len(state_columns) * (n_delays + 1)
         n_final = comb(n_intermediate, n_degrees) + 2 * n_intermediate
 
@@ -894,8 +889,8 @@ class EDMDTest(unittest.TestCase):
             X_tsc.loc[0][control_columns]
         )
 
-        dmdc = DMDControl(state_columns=state_columns, control_columns=control_columns)
-        dmdc.fit(X_tsc)
+        dmdc = DMDControl()
+        dmdc.fit(X_tsc[state_columns], X_tsc[control_columns])
 
         edmdid = EDMDControl(
             dict_steps=[
@@ -903,16 +898,11 @@ class EDMDTest(unittest.TestCase):
             ],
             include_id_state=False,
         )
-        edmdid.fit(
-            X_tsc,
-            split_by="name",
-            state=state_columns,
-            control=control_columns,
-        )
+        edmdid.fit(X_tsc[state_columns], X_tsc[control_columns])
 
-        expected = dmdc.predict(X=ic, control_input=control_input)
+        expected = dmdc.predict(X=ic, U=control_input)
 
-        actual = edmdid.predict(X=ic, control_input=control_input)
+        actual = edmdid.predict(X=ic, U=control_input)
 
         pdtest.assert_frame_equal(expected, actual)
 
@@ -921,7 +911,7 @@ class EDMDTest(unittest.TestCase):
         control_columns = ["u"]
         X_tsc = self._setup_inverted_pendulum()
 
-        dmdc = DMDControl(state_columns=state_columns, control_columns=control_columns)
+        dmdc = DMDControl()
 
         edmdid = EDMDControl(
             dict_steps=[
@@ -929,21 +919,10 @@ class EDMDTest(unittest.TestCase):
             ],
             include_id_state=False,
         )
-        edmdid.fit(
-            X_tsc,
-            split_by="name",
-            state=state_columns,
-            control=control_columns,
-        )
 
-        expected = dmdc.fit_predict(X_tsc)
+        expected = dmdc.fit_predict(X_tsc[state_columns], U=X_tsc[control_columns])
 
-        actual = edmdid.fit_predict(
-            X_tsc,
-            split_by="name",
-            state=state_columns,
-            control=control_columns,
-        )
+        actual = edmdid.fit_predict(X_tsc[state_columns], U=X_tsc[control_columns])
 
         pdtest.assert_frame_equal(expected, actual)
 

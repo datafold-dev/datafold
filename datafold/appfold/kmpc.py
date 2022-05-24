@@ -120,7 +120,7 @@ class LinearKMPC:
             raise TypeError(
                 "The shape of the control matrix is not as expected. "
                 "This is likely due to an incompatible dmd_model type of the predictor. "
-                "The predictor.dmd_model should be support linear controlled systems (e.g. DMDControl)."
+                "The predictor.dmd_model should support linear controlled systems (e.g. DMDControl)."
             )
         self.state_size = len(predictor.state_columns)
 
@@ -173,7 +173,7 @@ class LinearKMPC:
                 ) from e
             try:
                 if qtype is str:
-                    ixs.append(predictor.state_columns.index(qoi))
+                    ixs.append(list(predictor.state_columns).index(qoi))
                 else:
                     assert qoi < self.state_size
                     ixs.append(qoi)
