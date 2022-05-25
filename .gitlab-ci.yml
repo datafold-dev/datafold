@@ -44,8 +44,10 @@ setup:
   script:
     - source venv/bin/activate
     - python -V
+    - python -m pip install --upgrade pip
     - python -m pip install --upgrade setuptools
     - python -m pip install --upgrade twine
+    - git config --global url."https://github".insteadOf git://github
     - python -m pip install -r requirements-dev.txt
 
 
