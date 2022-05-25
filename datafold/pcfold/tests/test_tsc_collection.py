@@ -268,6 +268,37 @@ class TestTSCDataFrame(unittest.TestCase):
                 tc, matrix, except_columns=pd.Index(["A", "B"]), except_index=new_index
             )
 
+    def test_from_array1(self):
+        data = np.random.default_rng(None).uniform(size=(10, 2))
+
+        actual = TSCDataFrame.from_array(data)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        nptest.assert_array_equal(
+            actual.index.get_level_values(TSCDataFrame.tsc_time_idx_name), np.arange(10)
+        )
+        self.assertEqual(len(actual.ids), 1)
+        self.assertEqual(actual.ids[0], 0)
+
+    def test_from_array2(self):
+        data = np.random.default_rng(None).uniform(size=(10, 2))
+
+        expected_time_values = np.arange(10, 20)
+        expected_id = 2
+        actual = TSCDataFrame.from_array(
+            data, time_values=expected_time_values, ts_id=2
+        )
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        nptest.assert_array_equal(
+            actual.index.get_level_values(TSCDataFrame.tsc_time_idx_name),
+            expected_time_values,
+        )
+        self.assertEqual(len(actual.ids), 1)
+        self.assertEqual(actual.ids[0], expected_id)
+
     def test_from_frame_list0(self):
 
         frame_list = [self.simple_df.loc[i, :] for i in self.simple_df.index.levels[0]]
