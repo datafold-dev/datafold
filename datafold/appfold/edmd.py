@@ -1878,7 +1878,7 @@ class EDMDPostObservable(object):  # pragma: no cover
                         fit_params=fit_params,
                         verbose=self.verbose,
                     )
-                    for i, (train, test) in enumerate(cv.fit(X, y, groups=None))
+                    for i, (train, test) in enumerate(cv.split(X, y, groups=None))
                 )
 
                 if len(ret) < 1:
