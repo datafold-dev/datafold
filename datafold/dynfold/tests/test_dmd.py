@@ -16,6 +16,7 @@ from datafold.dynfold.dmd import (
     DMDFull,
     LinearDynamicalSystem,
     PyDMDWrapper,
+    StreamingDMD,
     gDMDFull,
 )
 from datafold.pcfold import TSCDataFrame
@@ -24,6 +25,7 @@ from datafold.utils.general import (
     is_df_same_index,
     sort_eigenpairs,
 )
+from datafold.utils.plot import plot_eigenvalues
 
 
 class LinearDynamicalSystemTest(unittest.TestCase):
@@ -573,3 +575,157 @@ class DMDTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             dmd.predict(predict_ic)
+
+
+class StreamingDMDTest(unittest.TestCase):
+    def _snapshots(self, n_states, n_snaps, noise_cov=0.0):
+
+        # Code part for test taken from
+        # https://github.com/cwrowley/dmdtools/blob/master/python/tests/test_dmd.py
+        # See also LICENSE_bundeled file for the copy of the BSD 3-Clause license
+
+        dt = 0.01  # timestep
+
+        # Define the example system
+        v1 = np.random.default_rng(1).normal(size=n_states)
+        v2 = np.random.default_rng(2).normal(size=n_states)
+        v3 = np.random.default_rng(3).normal(size=n_states)
+        v4 = np.random.default_rng(4).normal(size=n_states)
+
+        # characteristic frequencies
+        f1 = 5.2
+        f2 = 1.0
+
+        X = np.zeros([n_snaps, n_states])
+
+        for k in range(n_snaps):
+            shot = (
+                v1 * np.cos(2 * np.pi * f1 * dt * k)
+                + v2 * np.cos(2 * np.pi * f2 * dt * k)
+                + v3 * np.sin(2 * np.pi * f1 * dt * k)
+                + v4 * np.sin(2 * np.pi * f2 * dt * k)
+            )
+            X[k, :] = shot + np.sqrt(noise_cov) * np.random.default_rng(5).normal(
+                size=n_states
+            )
+
+        return TSCDataFrame.from_array(X)
+
+    def _generate_delayed_sine_wave(self, sigma_noise=0):
+        t_eval = np.linspace(0, 2 * 8 * np.pi, 1000)
+        data = np.sin(t_eval)
+        data += np.random.default_rng(1).normal(
+            loc=data, scale=sigma_noise, size=len(data)
+        )
+
+        df = TSCDataFrame.from_array(data, time_values=t_eval, feature_names=["sin"])
+        df = TSCTakensEmbedding(delays=4).fit_transform(df)
+        return df
+
+    def test_sine_curve(self, plot=True):
+
+        df = self._generate_delayed_sine_wave()
+
+        batchsize = 200
+
+        dmd = StreamingDMD(max_rank=None, ngram=5)
+
+        batches = np.array_split(df, df.shape[0] // batchsize)
+        predict = []
+        predict_fulldmd = []
+        train = []
+
+        for i in range(len(batches) - 1):
+            fit_batch = batches[i]
+            predict_batch = batches[i + 1]
+
+            dmd_full = DMDFull().fit(pd.concat(batches[: i + 1], axis=0))
+            dmd_full.eigenvectors_right_ = dmd_full.eigenvectors_right_[:, 0:2]
+            dmd_full.eigenvalues_ = dmd_full.eigenvalues_[0:2]
+
+            predict_fulldmd.append(dmd_full.reconstruct(predict_batch).loc[:, "sin"])
+
+            dmd = dmd.partial_fit(fit_batch)
+
+            train.append(dmd.reconstruct(fit_batch).loc[:, "sin"])
+            predict.append(dmd.reconstruct(predict_batch).loc[:, "sin"])
+
+            nptest.assert_allclose(
+                dmd_full.eigenvalues_, dmd.eigenvalues_, rtol=1e-15, atol=1e15
+            )
+
+        if plot:
+            ax = plot_eigenvalues(
+                dmd_full.eigenvalues_,
+                plot_unit_circle=True,
+                plot_kwargs=dict(marker="o", alpha=0.3, label="full"),
+            )
+            plot_eigenvalues(
+                dmd_full.eigenvalues_, ax=ax, plot_kwargs=dict(label="streaming")
+            )
+
+            ax = df.loc[:, ["sin"]].plot()
+
+            for p in predict_fulldmd:
+                ax.plot(p.time_values(), p.to_numpy(), c="orange", linewidth=3)
+
+            for p in train:
+                ax.plot(p.time_values(), p.to_numpy(), "-", c="green")
+
+            for p in predict:
+                ax.plot(p.time_values(), p.to_numpy(), "--", c="red")
+
+            plt.show()
+
+    def test_pod_compression(self):
+        df = self._generate_delayed_sine_wave()
+
+        dmd = StreamingDMD(max_rank=1)
+        dmd.partial_fit(df)
+
+        self.assertEqual(len(dmd.eigenvalues_), 1)
+
+    def test_compare_methods(self, plot=True):
+
+        n_samples = 500
+        n_states = 1000
+        noise_cov = 10  # measurement noise covariance
+
+        X = self._snapshots(n_states, n_samples, noise_cov)
+
+        dmd_full = DMDFull()
+        dmd_full.fit(X)
+
+        dmd_partial = StreamingDMD(max_rank=None)
+        dmd_partial.partial_fit(X)
+
+        # actual does not necessarily compute all possible eigenvalues
+        # -> compare only leading eigenvalues from DMDFull
+        ev_actual = dmd_partial.eigenvalues_
+        ev_expected = dmd_full.eigenvalues_[: len(ev_actual)]
+
+        nptest.assert_allclose(ev_expected, ev_actual, rtol=1e-14, atol=1e-15)
+
+        if plot:
+            print("standard:")
+            print(ev_expected)
+            print("\nstreaming:")
+            print(ev_actual)
+
+            ax = plot_eigenvalues(
+                ev_expected,
+                plot_unit_circle=True,
+                plot_kwargs=dict(marker="+", markersize=10, c="red", label="streaming"),
+            )
+            ax = plot_eigenvalues(
+                ev_actual,
+                ax=ax,
+                plot_kwargs=dict(marker="o", markersize=3, c="blue", label="full"),
+            )
+
+            ax.set_title("DMD eigenvalues")
+            ax.set_xlabel(r"$\Re(\lambda)$")
+            ax.set_ylabel(r"$\Im(\lambda)$")
+            plt.legend()
+
+            plt.show()

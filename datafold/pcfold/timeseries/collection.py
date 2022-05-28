@@ -755,8 +755,7 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         **kwargs
             All keyword arguments are passed to the super class. See
-            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.
-            DataFrame.to_csv.html>`__.
+            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_csv.html>`__.
 
         Returns
         -------
@@ -764,7 +763,7 @@ class TSCDataFrame(pd.DataFrame):
             If path is None, returns the resulting csv format as a
             string. Otherwise returns None.
 
-        """
+        """  # noqa E501
 
         return pd.DataFrame(self).to_csv(*args, **kwargs)
 
@@ -779,14 +778,13 @@ class TSCDataFrame(pd.DataFrame):
 
         **kwargs
             keyword arguments handled to
-            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/
-            pandas.read_csv.html>`__
+            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`__
 
         Returns
         -------
         TSCDataFrame
             new instance
-        """
+        """  # noqa E501
         # NOTE: Overwrites the super class method (which is deprecated since version 0.21
         # Here the csv is read from a csv file that was a
         # TSCDataFrame, i.e. tscdf.to_csv("filename.csv") and therefore should be valid.
@@ -1603,6 +1601,8 @@ class TSCDataFrame(pd.DataFrame):
             )
         elif c is not None:
             color = c
+        else:
+            color = "black"
 
         first = True
 
