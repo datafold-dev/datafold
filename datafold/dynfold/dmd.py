@@ -8,7 +8,7 @@ import pandas as pd
 import scipy.linalg
 from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
 from sklearn.base import BaseEstimator
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
@@ -202,7 +202,7 @@ class LinearDynamicalSystem(object):
 
         if len(feature_names_out) != n_features:
             raise ValueError(
-                f"len(feature_columns)={feature_names_out} != state_length={state_length}"
+                f"len(feature_columns)={len(feature_names_out)} != state_length={state_length}"
             )
 
         return (
@@ -650,12 +650,12 @@ class DMDBase(
     (see e.g. introduction in :cite:t:`tu-2014`), the DMD variants (subclasses)
     are framed in the context of this theory.
 
-    A DMD model approximates the Koopman operator with a matrix :math:`K`,
-    which defines a linear dynamical system
+    A DMD model approximates the Koopman operator with a matrix :math:`K`, which defines a
+    linear dynamical system
 
     .. math:: K^n x_0 &= x_n
 
-    with :math:`x_n` being the (column) state vectors of the system at time :math:`n`.
+    with :math:`x_n` being the (column) state vectors of the system at timestep :math:`n`.
     Note, that the state vectors :math:`x`, when used in conjunction with the
     :py:meth:`EDMD` model are not the original observations of a system, but states from a
     functional coordinate basis that seeks to linearize the dynamics (see reference for
@@ -892,7 +892,7 @@ class DMDBase(
 
         time_values
             Time values to evaluate the model at. If not provided, then the time at the
-            initial condition plus ``dt_`` is set.
+            initial condition plus ``dt_`` is set (i.e. predict a single step).
 
         Keyword Args
         ------------
@@ -1045,17 +1045,18 @@ class DMDBase(
 
 
 class DMDFull(DMDBase):
-    r"""Full Dynamic Mode Decomposition of time series data to approximate the Koopman
-    operator.
+    r"""Full dynamic mode decomposition of time series collection data.
 
-    The model computes the Koopman matrix :math:`K` with
+    The model computes a Koopman matrix :math:`K` with
 
     .. math::
         K X &= X^{+} \\
         K &= X^{+} X^{\dagger},
 
-    where :math:`X` is the data with column oriented snapshots, :math:`\dagger` the
+    where :math:`X` is the data with column oriented snapshots, :math:`\dagger`
     the Moore–Penrose inverse and :math:`+` the future time shifted data.
+
+    The actual decomposition contains the spectral elements of the matrix :math:`K`.
 
     ...
 
@@ -1857,3 +1858,285 @@ class PyDMDWrapper(DMDBase):
         )
 
         return self
+
+
+class StreamingDMD(DMDBase, TSCPredictMixin):
+    """Dynamic mode decomposition on streaming data.
+
+    Parameters
+    ----------
+    max_rank
+        The maximal rank of the system matrix. If set to `None`, then there is no limit.
+
+    ngram
+        Number of Gram-Schmidt iterations.
+
+    incr_basis_tol
+        Tolerance of when to expand the basis,
+        :math:`\vert\vert e \vert\vert / \vert \vert x \vert \vert`, where :math:`e` is the
+        error from the Gram-Schmidt iterations.
+
+    Attributes
+    ----------
+    Qx, Qy, Gx, Gy, A
+        System matrices of the model. For detailed explanations see :cite:t:`hemati-2014`.
+
+    References
+    ----------
+
+    This implementation is an adapted and extended form of the open-soruce implementation in
+    `dmdtools <https://github.com/cwrowley/dmdtools>`__ (for the compatible license see the
+    `LICENSE_bundeled <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSES_bundled>`__
+    in datafold).
+
+    :cite:``
+    """  # noqa E501
+
+    def __init__(self, max_rank=None, ngram=5, incr_basis_tol=1.0e-10):
+        self.max_rank = max_rank
+        self.ngram = ngram
+        self.incr_basis_tol = incr_basis_tol
+        super(StreamingDMD, self).__init__(sys_type="flowmap", sys_mode="spectral")
+
+    def _gram_schmidt(self, xm, xp):
+        # TODO: can the Gram-Schmidt be replaced? Usually GS has numerical troubles
+
+        # classical Gram-Schmidt re-orthonormalization
+        rx = self.Qx.shape[1]
+        ry = self.Qy.shape[1]
+        xtilde = np.zeros([rx])
+        ytilde = np.zeros([ry])
+
+        em = xm.copy()
+        ep = xp.copy()
+
+        for i in range(self.ngram):
+            dx = self.Qx.T @ em
+            dy = self.Qy.T @ ep
+
+            xtilde += dx
+            ytilde += dy
+            em -= self.Qx @ dx
+            ep -= self.Qy @ dy
+
+        return em, ep
+
+    def _validate_parameter(self):
+        if self.max_rank is not None:
+            check_scalar(self.max_rank, name="max_rank", target_type=int, min_val=1)
+
+        check_scalar(self.ngram, name="ngram", target_type=int, min_val=1)
+
+        check_scalar(
+            self.incr_basis_tol, "incr_basis_tol", target_type=float, min_val=0
+        )
+
+    def _increase_basis(self, em, norm_m, ep, norm_p):
+        rx = self.Qx.shape[1]
+        ry = self.Qy.shape[1]
+
+        # ---- Algorithm step 2 ----
+        # check basis for x and expand, if necessary
+        if np.linalg.norm(em) / norm_m > self.incr_basis_tol:
+            # update basis for x
+            self.Qx = np.column_stack([self.Qx, em / np.linalg.norm(em)])
+            # increase size of Gx and A (by zero-padding)
+            self.Gx = np.block([[self.Gx, np.zeros([rx, 1])], [np.zeros([1, rx + 1])]])
+            self.A = np.block([self.A, np.zeros([rx, 1])])
+
+        # check basis for y and expand if necessary
+        if np.linalg.norm(ep) / norm_p > self.incr_basis_tol:
+            # update basis for y
+            self.Qy = np.column_stack([self.Qy, ep / np.linalg.norm(ep)])
+            # increase size of Gy and A (by zero-padding)
+            self.Gy = np.block([[self.Gy, np.zeros([ry, 1])], [np.zeros([1, ry + 1])]])
+            self.A = np.block([[self.A], [np.zeros([1, ry + 1])]])
+
+    def _pod_compression(self):
+        n_qx = self.Qx.shape[1]
+        n_qy = self.Qy.shape[1]
+
+        # check if compression is needed
+        if self.max_rank is not None:
+            if n_qx > self.max_rank:
+                evals, evecs = np.linalg.eig(self.Gx)
+                idx = np.argsort(evals)
+
+                # indices of largest eigenvalues
+                idx = idx[: self.max_rank]
+
+                self.Qx = self.Qx @ evecs[:, idx]
+                self.A = self.A @ evecs[:, idx]
+                self.Gx = np.diag(evals[idx])
+            if n_qy > self.max_rank:
+                evals, evecs = np.linalg.eig(self.Gy)
+                idx = np.argsort(evals)
+
+                # indices of largest eigenvalues
+                idx = idx[: self.max_rank]
+
+                self.Qy = self.Qy @ evecs[:, idx]
+                self.A = evecs[:, idx].T @ self.A
+                self.Gy = np.diag(evals[idx])
+
+    def _update_sys_matrix(self, Xm, Xp):
+        # ---- Algorithm step 4 ----
+        xtilde = self.Qx.T @ Xm
+        ytilde = self.Qy.T @ Xp
+
+        # update A and Gx
+        self.A += np.outer(ytilde, xtilde)
+        self.Gx += np.outer(xtilde, xtilde)
+        self.Gy += np.outer(ytilde, ytilde)
+
+    def _update(self, Xm, Xp, norm_m, norm_p):
+        em, ep = self._gram_schmidt(Xm, Xp)
+        self._increase_basis(em, norm_m, ep, norm_p)
+        self._pod_compression()
+        self._update_sys_matrix(Xm, Xp)
+
+    def fit(self, X: TimePredictType, **fit_params) -> "DMDBase":
+        """Initial fit of the model (used within :py:meth`partial_fit`).
+
+        .. note::
+            This function is not intended to be used directly. Use the :py:meth:`partial_fit`
+            method instead.
+        """
+
+        self._validate_datafold_data(
+            X, ensure_tsc=True, tsc_kwargs=dict(ensure_n_timeseries=1)
+        )
+
+        if X.n_timesteps != 2:
+            raise ValueError(
+                "Only a single time series with two samples is permitted for the "
+                "initial fit."
+            )
+
+        self._setup_features_and_time_attrs_fit(X)
+
+        s1, s2 = X.iloc[0, :].to_numpy(), X.iloc[1, :].to_numpy()
+
+        norm_s1 = np.linalg.norm(s1)
+        norm_s2 = np.linalg.norm(s2)
+
+        self.Qx = if1dim_colvec(s1 / norm_s1)
+        self.Qy = if1dim_colvec(s2 / norm_s2)
+
+        # copy operations included to allocate new memory
+        self.Gx = np.atleast_2d(np.square(norm_s1)).copy()
+        self.Gy = np.atleast_2d(np.square(norm_s2)).copy()
+        self.A = np.atleast_2d(norm_s1 * norm_s2).copy()
+
+        return self
+
+    def _separate_init_pairs(self, X: TSCDataFrame):
+
+        X_init_fit, X_other = X.iloc[0:2, :], X.iloc[2:, :]
+        X_init_fit.tsc.check_tsc(ensure_n_timeseries=1)
+
+        if X.has_degenerate():
+            raise ValueError(
+                "The time series must contain time series with at least two "
+                "samples per time series. Note that the very first time series (to "
+                "fit the model initially) should contain either exactly two or "
+                "more than three time samples."
+            )
+
+        return X_init_fit, X_other
+
+    def _compute_koopman_matrix(self):
+        # original: self.Qx.T @ self.Qy @ self.A @ np.linalg.pinv(self.Gx)
+        # here I write it specifically as a linear regression
+        # return self.Qx.T @ self.Qy @ self.A @ np.linalg.pinv(self.Gx)
+        return np.linalg.lstsq(self.Gx.T, (self.Qx.T @ self.Qy @ self.A).T, rcond=0)[
+            0
+        ].T
+
+    def _compute_spectral_components(self):
+        Ktilde = self._compute_koopman_matrix()
+
+        evals, right_evec = np.linalg.eig(Ktilde)
+        evals, right_evec = sort_eigenpairs(evals, right_eigenvectors=right_evec)
+
+        modes = self.Qx @ right_evec
+        return modes, right_evec, evals
+
+    def partial_fit(self, X: TSCDataFrame) -> "StreamingDMD":
+        """Perform a single epoch of updates on the system matrices on a given time series
+        collection.
+
+        Parameters
+        ----------
+        X
+            time series collections
+
+        Returns
+        -------
+        StreamingDMD
+            updated model
+        """
+        self._validate_parameter()
+
+        if not hasattr(self, "dt_"):  # initial fit
+            X_init_fit, X = self._separate_init_pairs(X)
+            self.fit(X_init_fit)
+
+            if X.empty:
+                return self
+
+        self._validate_datafold_data(X, ensure_tsc=True, ensure_min_samples=2)
+        X, _ = self._validate_features_and_time_values(X, time_values=None)
+
+        (
+            Xm,
+            Xp,
+        ) = X.tsc.shift_matrices(snapshot_orientation="row")
+
+        norm_m = np.linalg.norm(Xm, axis=1)
+        norm_p = np.linalg.norm(Xp, axis=1)
+
+        for i in range(Xm.shape[0]):
+            self._update(Xm[i, :], Xp[i, :], norm_m[i], norm_p[i])
+
+        # required to perform predictions:
+        modes, evecK, evals = self._compute_spectral_components()
+
+        self.modes_ = modes
+        self.eigenvectors_right_ = evecK
+        self.eigenvalues_ = evals
+        return self
+
+    def predict(self, X: TimePredictType, time_values=None, **predict_kwargs):
+        """Predict time series data for each initial condition and time values.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, numpy.ndarray
+            Initial conditions of shape `(n_initial_condition, n_features)`.
+
+        time_values
+            Time values to evaluate the model at. If not provided, then the time at the
+            initial condition plus ``dt_`` is set (i.e. predict a single step).
+
+        Returns
+        -------
+        TSCDataFrame
+            The computed time series predictions, where each time series has shape
+            `(n_time_values, n_features)`.
+        """
+
+        check_is_fitted(self)
+        X, time_values = self._validate_features_and_time_values(
+            X, time_values=time_values
+        )
+
+        X_adapted = X @ self.Qx
+        X_predict = self._evolve_dmd_system(
+            X_ic=X_adapted,
+            overwrite_sys_matrix=self.modes_,
+            time_values=time_values,
+            feature_columns=self.feature_names_in_,
+        )
+
+        return X_predict
