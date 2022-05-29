@@ -1719,7 +1719,7 @@ class InitialCondition(object):
         """Extract and iterate over initial conditions over groups of time series that
         have identical time values.
 
-        This iterator is particulary usefule to reconstruct time series.
+        This iterator is useful for reconstructing time series.
 
         Parameters
         ----------

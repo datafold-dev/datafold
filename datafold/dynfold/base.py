@@ -250,8 +250,6 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
         Number of features in output of `transform`.
     """  # noqa: E501
 
-    _feature_attrs = ["n_features_in_", "n_features_out_"]
-
     def _setup_feature_attrs_fit(
         self: Union[BaseEstimator, "TSCTransformerMixin"],
         X,
@@ -286,7 +284,7 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
         self: Union[BaseEstimator, "TSCTransformerMixin"], X: TransformType, direction
     ):
 
-        self._check_attributes_set_up(self._feature_attrs)
+        self._check_attributes_set_up(["n_features_in_", "n_features_out_"])
 
         if direction == "transform":
             self._check_n_features(X, reset=False)
@@ -310,18 +308,26 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
                         f"Required: {should_features}."
                     )
 
+    def _more_tags(self):
+        """Add tag to scikit-learn tags to indicate whether the original states in `X` are
+        preserved during the transformation.
+
+        Defaults to False and can be overwritten by transformers.
+        """
+        return dict(tsc_contains_orig_states=False)
+
     def _same_type_X(
         self,
         X: TransformType,
         values: np.ndarray,
         feature_names: Union[pd.Index, np.ndarray],
     ) -> Union[pd.DataFrame, TransformType]:
-        """Chooses the same type for input as type of `X`.
+        """Return object with the same type as for input `X`.
 
         Parameters
         ----------
         X
-            Object from which the type will be inferred.
+            Object from which the type is inferred.
 
         values
             Data to transform in the same format as `X`.
@@ -378,6 +384,23 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
         # This is only to overwrite the datafold documentation from scikit-learns docs
         return super(TSCTransformerMixin, self).fit_transform(X=X, y=y, **fit_params)
 
+    def partial_fit_transform(
+        self, X: TransformType, y=None, **fit_params
+    ) -> TransformType:
+        """TODO
+        Parameters
+        ----------
+        X
+        y
+        fit_params
+
+        Returns
+        -------
+
+        """
+        self.partial_fit: Callable
+        return self.partial_fit(X, y=y, **fit_params).transform(X)
+
 
 class TSCPredictMixin(TSCBase):
     """Mixin to provide functionality for models that train on time series data.
@@ -406,14 +429,8 @@ class TSCPredictMixin(TSCBase):
     _cls_feature_attrs = [
         "n_features_in_",
         "feature_names_in_",
-        "time_values_in_",
         "dt_",
     ]
-
-    @property
-    def time_interval_(self):
-        self._check_attributes_set_up(check_attributes="time_values_in_")
-        return (self.time_values_in_[0], self.time_values_in_[-1])
 
     def _setup_default_tsc_metric_and_score(self):
         self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")

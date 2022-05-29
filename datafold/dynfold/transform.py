@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, clone
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScaler
-from sklearn.utils.validation import check_is_fitted, check_scalar
+from sklearn.utils.validation import NotFittedError, check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
 from datafold.pcfold import TSCDataFrame
@@ -202,6 +202,9 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
     def __init__(self, *, include_const: bool = False, rename_features: bool = False):
         self.include_const = include_const
         self.rename_features = rename_features
+
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=not self.rename_features)
 
     def get_feature_names_out(self, input_features=None):
 
@@ -482,6 +485,9 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         self.frequency = frequency
         self.kappa = kappa
 
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=True)
+
     def _validate_parameter(self):
 
         check_scalar(self.lag, name="lag", target_type=(int, np.integer), min_val=0)
@@ -602,6 +608,36 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         # transform have the same delta time
         self.delta_time_fit_ = X.delta_time
         self._setup_feature_attrs_fit(X)
+
+        return self
+
+    def partial_fit(
+        self, X: TransformType, y=None, **fit_params
+    ) -> "TSCTakensEmbedding":
+        """# TODO
+
+        Parameters
+        ----------
+        X
+        y
+        fit_params
+
+        Returns
+        -------
+
+        """
+        try:
+            check_is_fitted(self)
+            # there is no real model update needed, just check if the data still complies with
+            # the data used during the initial fit
+            self._validate_datafold_data(
+                X,
+                ensure_tsc=True,
+                tsc_kwargs=dict(ensure_delta_time=self.delta_time_fit_),
+            )
+        except NotFittedError:
+            # fit the model
+            self.fit(X, y, **fit_params)
 
         return self
 
@@ -982,6 +1018,9 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
             return powers
         else:
             return powers[powers.sum(axis=1) != 1, :]
+
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=self.include_first_order)
 
     def _get_poly_feature_names(self, X, input_features=None):
         # Note: get_feature_names function is already provided by super class
