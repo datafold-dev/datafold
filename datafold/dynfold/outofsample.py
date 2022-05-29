@@ -139,6 +139,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         return {"requires_y": True, "multioutput": True, "poor_score": True}
 
     def _get_tags(self):
+        # TODO: check if this function can be removed, as it anyway only calls super class
         return super(GeometricHarmonicsInterpolator, self)._get_tags()
 
     def _get_default_kernel(self):

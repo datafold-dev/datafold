@@ -1995,7 +1995,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         self._pod_compression()
         self._update_sys_matrix(Xm, Xp)
 
-    def fit(self, X: TimePredictType, **fit_params) -> "DMDBase":
+    def fit(self, X: TimePredictType, y=None, **fit_params) -> "DMDBase":
         """Initial fit of the model (used within :py:meth`partial_fit`).
 
         .. note::
@@ -2059,10 +2059,10 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         evals, right_evec = np.linalg.eig(Ktilde)
         evals, right_evec = sort_eigenpairs(evals, right_eigenvectors=right_evec)
 
-        modes = self.Qx @ right_evec
-        return modes, right_evec, evals
+        right_evec = self.Qx @ right_evec
+        return right_evec, evals
 
-    def partial_fit(self, X: TSCDataFrame) -> "StreamingDMD":
+    def partial_fit(self, X: TSCDataFrame, y=None, **fit_params) -> "StreamingDMD":
         """Perform a single epoch of updates on the system matrices on a given time series
         collection.
 
@@ -2071,12 +2071,19 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         X
             time series collections
 
+        y
+            ignored
+
+        **fit_params
+            None
+
         Returns
         -------
         StreamingDMD
             updated model
         """
         self._validate_parameter()
+        self._read_fit_params(attrs=None, fit_params=fit_params)
 
         if not hasattr(self, "dt_"):  # initial fit
             X_init_fit, X = self._separate_init_pairs(X)
@@ -2084,9 +2091,10 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
 
             if X.empty:
                 return self
+        else:
+            self._validate_feature_names(X)
 
         self._validate_datafold_data(X, ensure_tsc=True, ensure_min_samples=2)
-        X, _ = self._validate_features_and_time_values(X, time_values=None)
 
         (
             Xm,
@@ -2100,14 +2108,14 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
             self._update(Xm[i, :], Xp[i, :], norm_m[i], norm_p[i])
 
         # required to perform predictions:
-        modes, evecK, evals = self._compute_spectral_components()
+        (
+            self.eigenvectors_right_,
+            self.eigenvalues_,
+        ) = self._compute_spectral_components()
 
-        self.modes_ = modes
-        self.eigenvectors_right_ = evecK
-        self.eigenvalues_ = evals
         return self
 
-    def predict(self, X: TimePredictType, time_values=None, **predict_kwargs):
+    def predict(self, X: TimePredictType, time_values=None, **predict_params):
         """Predict time series data for each initial condition and time values.
 
         Parameters
@@ -2131,12 +2139,26 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
             X, time_values=time_values
         )
 
-        X_adapted = X @ self.Qx
+        post_map, user_set_modes, feature_columns = self._read_predict_params(
+            predict_params=predict_params
+        )
+
+        user_sys_matrix = self._read_user_sys_matrix(
+            post_map=post_map, user_set_modes=user_set_modes
+        )
+
+        if user_sys_matrix is None:
+            system_matrix = self.eigenvectors_right_
+            _feat_names = self.feature_names_in_
+        else:
+            system_matrix = user_sys_matrix
+            _feat_names = feature_columns
+
         X_predict = self._evolve_dmd_system(
-            X_ic=X_adapted,
-            overwrite_sys_matrix=self.modes_,
+            X_ic=X,
+            overwrite_sys_matrix=system_matrix,
             time_values=time_values,
-            feature_columns=self.feature_names_in_,
+            feature_columns=_feat_names,
         )
 
         return X_predict
