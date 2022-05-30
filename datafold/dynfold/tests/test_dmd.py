@@ -622,7 +622,7 @@ class StreamingDMDTest(unittest.TestCase):
         df = TSCTakensEmbedding(delays=4).fit_transform(df)
         return df
 
-    def test_sine_curve(self, plot=True):
+    def test_sine_curve(self, plot=False):
 
         df = self._generate_delayed_sine_wave()
 
@@ -685,7 +685,7 @@ class StreamingDMDTest(unittest.TestCase):
 
         self.assertEqual(len(dmd.eigenvalues_), 1)
 
-    def test_compare_methods(self, plot=True):
+    def test_compare_methods(self, plot=False):
 
         n_samples = 500
         n_states = 1000

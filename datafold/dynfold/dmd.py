@@ -1932,25 +1932,25 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         )
 
     def _increase_basis(self, em, norm_m, ep, norm_p):
-        rx = self.Qx.shape[1]
-        ry = self.Qy.shape[1]
 
         # ---- Algorithm step 2 ----
         # check basis for x and expand, if necessary
         if np.linalg.norm(em) / norm_m > self.incr_basis_tol:
+            rx = self.Qx.shape[1]
             # update basis for x
             self.Qx = np.column_stack([self.Qx, em / np.linalg.norm(em)])
             # increase size of Gx and A (by zero-padding)
             self.Gx = np.block([[self.Gx, np.zeros([rx, 1])], [np.zeros([1, rx + 1])]])
-            self.A = np.block([self.A, np.zeros([rx, 1])])
+            self.A = np.block([self.A, np.zeros([self.A.shape[0], 1])])
 
         # check basis for y and expand if necessary
         if np.linalg.norm(ep) / norm_p > self.incr_basis_tol:
+            ry = self.Qy.shape[1]
             # update basis for y
             self.Qy = np.column_stack([self.Qy, ep / np.linalg.norm(ep)])
             # increase size of Gy and A (by zero-padding)
             self.Gy = np.block([[self.Gy, np.zeros([ry, 1])], [np.zeros([1, ry + 1])]])
-            self.A = np.block([[self.A], [np.zeros([1, ry + 1])]])
+            self.A = np.block([[self.A], [np.zeros([1, self.A.shape[1]])]])
 
     def _pod_compression(self):
         n_qx = self.Qx.shape[1]
