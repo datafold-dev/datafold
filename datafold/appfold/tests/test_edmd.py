@@ -851,28 +851,52 @@ class EDMDTest(unittest.TestCase):
 
         self.assertIsInstance(edmdcv.cv_results_, dict)
 
-    def test_streaming_dmd_multi_sine(self, plot=True):
+    def test_streaming_dmd_multi_sine(self, plot=False):
 
-        data = self._setup_multi_sine_wave_data(1500)
+        data = self._setup_multi_sine_wave_data(3000)
+
+        _tse = TSCTakensEmbedding(delays=150)
 
         edmd = EDMD(
-            dict_steps=[("delay", TSCTakensEmbedding(delays=2))],
+            dict_steps=[("delay", _tse)],
             dmd_model=StreamingDMD(),
         )
 
         test_batches = []
+        test_batches_dmd = []
 
-        for train_idx, test_idx in TSCKFoldTime(n_splits=3).split(X=data):
-            X_train = data.iloc[train_idx, :]
-            X_test = data.iloc[test_idx, :]
+        tv_batches = np.array_split(data.time_values(), 10)
+
+        apply_dmd = True
+        for i in range(len(tv_batches)-1):
+
+            current_time_values = tv_batches[i]
+            next_time_values = tv_batches[i+1]
+            X_train = data.loc[pd.IndexSlice[:, current_time_values], :]
+            X_test = data.loc[pd.IndexSlice[:, next_time_values], :]
+
+            if apply_dmd:
+                dmd = DMDFull().fit(_tse.fit_transform(X_train))
+                test_batches_dmd.append(dmd.reconstruct(_tse.fit_transform(X_test)).loc[:, "sin"])
 
             edmd = edmd.partial_fit(X_train)
             test_batches.append(edmd.reconstruct(X_test))
 
+        # TODO: test that eigenvalues are either close to zero or one
+        print(np.abs(edmd.koopman_eigenvalues))
+
         if plot:
+
+            plot_eigenvalues(edmd.dmd_model.eigenvalues_, plot_unit_circle=True)
+
             ax = data.plot()
             for b in test_batches:
                 b.plot(ax=ax, c="red")
+
+            if apply_dmd:
+                ax = data.plot()
+                for b in test_batches_dmd:
+                    b.plot(ax=ax, c="green")
 
             plt.show()
 
