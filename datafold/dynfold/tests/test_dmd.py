@@ -424,10 +424,11 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
         self.state_size = 4
         self.input_size = 2
         self.n_timesteps = 6
-        self.A = gen.uniform(-1.0, 1.0, size=(self.state_size, self.state_size))
+        self.A = gen.uniform(-0.5, 0.5, size=(self.state_size, self.state_size))
+        np.fill_diagonal(self.A, gen.uniform(-1.0, -0.5, size=self.state_size))
         self.x0 = gen.uniform(-1.0, 1.0, size=self.state_size)
         Bi = [
-            gen.uniform(-1.0, 1.0, size=(self.state_size, self.state_size))
+            gen.uniform(-0.5, 0.5, size=(self.state_size, self.state_size))
             for i in range(self.input_size)
         ]
         self.u = gen.uniform(-1.0, 1.0, size=(self.n_timesteps, self.input_size))
@@ -456,7 +457,7 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
             .evolve_system(self.x0, self.u)
         )
 
-        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)
+        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=0.1, rtol=0.1)
 
     def test_affine_vs_linear(self):
 
@@ -472,7 +473,9 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
         )
 
         # use high tolerance since RK numerical integration compared to matrix exponent
-        nptest.assert_allclose(controlled.to_numpy(), linear.to_numpy(), rtol=0.01)
+        nptest.assert_allclose(
+            controlled.to_numpy(), linear.to_numpy(), rtol=1e-3, atol=1e-3
+        )
 
 
 class DMDTest(unittest.TestCase):
