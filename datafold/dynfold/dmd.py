@@ -2093,8 +2093,10 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         return sys_matrix, control_matrix
 
     def _validate_matching_state_control(self, X: TSCDataFrame, U: TSCDataFrame):
-        # TODO:
-        pass
+        if not np.all(X.index == U.index):
+            raise ValueError(
+                "X and U should be sampled at the same times and time intervals."
+            )
 
     def fit(self, X: TSCDataFrame, U: Optional[TSCDataFrame] = None, **fit_params):
         """Compute Koopman approximation of state and control matrices
@@ -2482,12 +2484,6 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
         Cut-off ratio for small singular values
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
-    state_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the state
-
-    control_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the control input
-
     Attributes
     -------
     sys_matrix : np.ndarray
@@ -2508,15 +2504,10 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
         diff_scheme: Optional[str] = "center",
         diff_accuracy: Optional[int] = 2,
         rcond: Optional[float] = None,
-        state_columns: Optional[List[str]] = None,
-        control_columns: Optional[List[str]] = None,
     ):
         self.rcond = rcond
         self.diff_scheme = diff_scheme
         self.diff_accuracy = diff_accuracy
-        if state_columns is not None and control_columns is not None:
-            self.state_columns = state_columns
-            self.control_columns = control_columns
         super(gDMDAffine, self).__init__(time_invariant=True)
 
     def _compute_koompan_matrices(

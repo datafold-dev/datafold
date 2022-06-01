@@ -94,7 +94,6 @@ class LinearKMPCTest(unittest.TestCase):
         edmdmock.sys_matrix = A
         edmdmock.control_matrix = B
         edmdmock.state_columns = [f"x{i}" for i in range(state_size)]
-        edmdmock.control_columns = [f"u{i}" for i in range(input_size)]
         edmdmock.transform = lambda x: x
 
         kmpcperfect = LinearKMPC(
@@ -234,7 +233,6 @@ class AffineKMPCTest(unittest.TestCase):
         edmdmock.sys_matrix = A
         edmdmock.control_matrix = Bi
         edmdmock.state_columns = [f"x{i}" for i in range(state_size)]
-        edmdmock.control_columns = [f"u{i}" for i in range(input_size)]
         edmdmock.transform = lambda x: x
 
         kmpcperfect = AffineMPCtype(
@@ -264,10 +262,8 @@ class AffineKMPCTest(unittest.TestCase):
             ],
             include_id_state=False,
         ).fit(
-            self.X,
-            split_by="name",
-            state=self._state_columns,
-            control=self._control_columns,
+            self.X[self._state_columns],
+            self.X[self._control_columns],
         )
 
         kmpc = AffineKgMPC(

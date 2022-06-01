@@ -988,12 +988,12 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols)
+        dmd = gDMDAffine()
 
         u = tsc_df[input_cols]
         t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1009,14 +1009,12 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(
-            state_columns=state_cols, control_columns=input_cols, diff_accuracy=6
-        )
+        dmd = gDMDAffine(diff_accuracy=6)
 
         u = tsc_df[input_cols]
         t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1032,9 +1030,7 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols).fit(
-            tsc_df
-        )
+        dmd = gDMDAffine().fit(tsc_df[state_cols], U=tsc_df[input_cols])
 
         t = tsc_df.index.get_level_values(1)
         t0 = t.min()
@@ -1043,9 +1039,7 @@ class gDMDAffineTest(unittest.TestCase):
         u = np.vstack([np.sin(0.2 * np.pi * t), np.cos(0.3 * np.pi * t)]).T
         x0 = np.random.default_rng(42).uniform(-1.0, 1.0, size=state_size)
         expected = sys.evolve_system(x0, u, time_values=t, feature_names_out=state_cols)
-        actual = dmd.predict(
-            expected.initial_states()[state_cols], control_input=u, time_values=t
-        )
+        actual = dmd.predict(expected.initial_states()[state_cols], U=u, time_values=t)
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1061,11 +1055,11 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols)
+        dmd = gDMDAffine()
 
         u = tsc_df[input_cols]
         t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
         pdtest.assert_frame_equal(actual, expected, rtol=0.01, atol=0.05)
