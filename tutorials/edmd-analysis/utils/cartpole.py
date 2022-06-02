@@ -6,6 +6,7 @@ import matplotlib.axes
 import matplotlib.patches as mpatches
 import matplotlib.collections
 import matplotlib.lines as mlines
+from matplotlib.animation import FuncAnimation
 
 from datafold.utils._systems import InvertedPendulum
 
@@ -72,55 +73,118 @@ class CartPole(Model):
 
         return pandas.DataFrame(state)
 
-    def draw_state(self, ax: matplotlib.axes.Axes, state, xmin=-5, xmax=5):
-        artist = CartpoleArtist()
-        artist(ax)
-        # patches = []
-        # 
-        # # draw the centerline
-        # line = mlines.Line2D([0,1], [0.5, 0.5], color='black')
-        # ax.add_artist(line)
-
-        # x = 0
-
-        # # draw the body
-        # patch = mpatches.Rectangle((0.5,0.5), .10, .05, 0)
-        # patches.append(patch)
-
-        # # draw the pole
-        # line = mlines.Line2D([0.5,])
-
-        # collection = matplotlib.collections.PatchCollection(patches)
-        # ax.add_collection(collection)
-
 
 class CartpoleArtist:
-    def __init__(self):
-        self.offset = np.array([0.5,0.5])
-        self.scale = np.array([1,1])
+    def __init__(self, xmin=-5, xmax=5):
+        self.xmin = xmin
+        self.xmax = xmax
+        
+        self.body_size = np.array([0.5, 0.25])
+        self.arm_length = 0.365
+        self.mass_radius = 0.1
+        
+        self.artists = {}
+        
+        self._init()
+        
+    def _init(self):
+        x1 = self.xmax
+        x0 = self.xmin
+        
+        a1 = 1/(x1-x0)
+        b1 = -a1*x0
+        b2 = 0.5
+        
+        self.scale = a1
+        self.offset = np.array([b1, b2])
+        
+    def _project(self, xy):
+        if xy.ndim > 1:
+            offset = self.offset.reshape(1,-1)
+        else:
+            offset = self.offset
+            
+        xy = np.array(xy)
+        return self.scale * xy + offset
+    
+    def _unproject(self, xy):
+        return (xy - self.offset) / self.scale
+        
+    def draw_centerline(self, state):
+        name = 'centerline'
+        if name not in self.artists:
+            x1 = np.array([self.xmin, 0])
+            x2 = np.array([self.xmax, 0])
+            X = self._project(np.array([x1, x2]))
+            line = mlines.Line2D(X[:,0], X[:,1], color='black', zorder=-1)
+            self.artists[name] = line
 
-        self.body_size = np.array([0.1,0.05])
-
-    def draw_centerline(self, ax):
-        line = mlines.Line2D([0,1], [0.5, 0.5], color='black')
-        ax.add_artist(line, zorder=-1)
-
-    def draw_body(self, ax, xy, size):
-        xy = (xy * self.scale) + self.offset
-        size = size * self.scale
+    def draw_body(self, state):
+        xy = self._project(np.array([state['x'], 0]))
+        size = self.body_size * self.scale
 
         xy_ = xy - size/2
         width, height = size
 
-        patch = mpatches.Rectangle(xy_, width, height)
-        ax.add_artist(patch)
+        if 'body' not in self.artists:
+            patch = mpatches.Rectangle(xy_, width, height)
+            self.artists['body'] = patch
+        else:
+            patch = self.artists['body']
+            patch.set_xy(xy_)
+            patch.set_width(width)
+            patch.set_height(height)
 
-    def draw(self, ax, xy):
-        self.draw_centerline(ax)
-        self.draw_body(ax, xy, self.body_size)
-
-
-
+    def draw_arm(self, state):
+        th = state['theta']
+        xy1 = np.array([state['x'], 0])
+        xy2 = xy1 + np.array([np.sin(th), np.cos(th)]) * self.arm_length
+        X = np.array([xy1, xy2])
+        X_ = self._project(X)
+        
+        x = X_[:,0]
+        y = X_[:,1]
+        r = self.mass_radius * self.scale
+        
+        if 'arm' not in self.artists:
+            line = mlines.Line2D(x, y, color='black')
+            self.artists['arm'] = line
+        else:
+            line = self.artists['arm']
+            line.set_xdata(x)
+            line.set_ydata(y)
+            
+        if 'mass' not in self.artists:
+            patch = mpatches.Ellipse(X_[1], r, r, color='black')
+            self.artists['mass'] = patch
+        else:
+            patch = self.artists['mass']
+            patch.set_center(X_[1])
+            patch.set_width(r)
+            patch.set_height(r)
+        
+    def _draw(self, state):
+        self.draw_centerline(state)
+        self.draw_body(state)                  
+        self.draw_arm(state)
+    
+    def draw(self, ax, state):
+        print(self.__dict__)
+        self._draw(state)
+        for artist in self.artists.values():
+            ax.add_artist(artist)
+        
+    def animate(self, ax, dfx):
+        def init():
+            self._draw(dfx.iloc[0].to_dict())
+            return self.artists.values()
+        
+        def update(i):
+            self._draw(dfx.iloc[i].to_dict())
+            return self.artists.values()
+        
+        anim = FuncAnimation(ax, update, frames=dfx.shape[0], interval=20, blit=True)
+        return anim
 
 
 class CartpoleAugmenter(ScalingAugmenter):
