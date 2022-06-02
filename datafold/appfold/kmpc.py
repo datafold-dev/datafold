@@ -1,5 +1,4 @@
 import warnings
-from tkinter.tix import ExFileSelectBox
 from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
@@ -299,7 +298,7 @@ class LinearKMPC:
     def generate_control_signal(
         self, initial_conditions: InitialConditionType, reference: TransformType
     ) -> np.ndarray:
-        """
+        r"""
         Method to generate a control sequence, given some initial conditions and a reference trajectory,
         as in :cite:`korda2018linear` , Algorithm 1. This method solves thefollowing optimization problem (:cite:`korda2018linear` , Equation 24).
 

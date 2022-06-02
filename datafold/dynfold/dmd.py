@@ -2009,7 +2009,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
 
 
 class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin):
-    """Dynamic Mode Decomposition of time series data with control input to
+    r"""Dynamic Mode Decomposition of time series data with control input to
     approximate the Koopman operator.
 
     The model computes the system and control matrices :math:`A` and :math:`B` with
@@ -2492,7 +2492,7 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
 
 class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
-    """Dynamic Mode Decomposition of time series data with control input to
+    r"""Dynamic Mode Decomposition of time series data with control input to
     approximate the Koopman generator for an input affine system.
 
     The model computes the system matrix :math:`A` and control tensor :math:`B` with
