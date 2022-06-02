@@ -382,3 +382,28 @@
     year = "2015",
     pages = "1307--1346"
 }
+
+@article{korda2018linear,
+  title={Linear predictors for nonlinear dynamical systems: Koopman operator meets model predictive control},
+  author={Korda, Milan and Mezi{\'c}, Igor},
+  journal={Automatica},
+  volume={93},
+  pages={149--160},
+  language={en},
+  month=mar,
+  year={2018},
+  publisher={Elsevier},
+  abstract={This paper presents a class of linear predictors for nonlinear controlled dynamical systems. The basic idea is to lift (or embed) the nonlinear dynamics into a higher dimensional space where its evolution is approximately linear. In an uncontrolled setting, this procedure amounts to numerical approximations of the Koopman operator associated to the nonlinear dynamics. In this work, we extend the Koopman operator to controlled dynamical systems and apply the Extended Dynamic Mode Decomposition (EDMD) to compute a finite-dimensional approximation of the operator in such a way that this approximation has the form of a linear controlled dynamical system. In numerical examples, the linear predictors obtained in this way exhibit a performance superior to existing linear predictors such as those based on local linearization or the so called Carleman linearization. Importantly, the procedure to construct these linear predictors is completely data-driven and extremely simple – it boils down to a nonlinear transformation of the data (the lifting) and a linear least squares problem in the lifted space that can be readily solved for large data sets. These linear predictors can be readily used to design controllers for the nonlinear dynamical system using linear controller design methodologies. We focus in particular on model predictive control (MPC) and show that MPC controllers designed in this way enjoy computational complexity of the underlying optimization problem comparable to that of MPC for a linear dynamical system with the same number of control inputs and the same dimension of the state-space. Importantly, linear inequality constraints on the state and control inputs as well as nonlinear constraints on the state can be imposed in a linear fashion in the proposed MPC scheme. Similarly, cost functions nonlinear in the state variable can be handled in a linear fashion. We treat both the full-state measurement case and the input-output case, as well as systems with disturbances / noise. Numerical examples (including a high-dimensional nonlinear PDE control) demonstrate the approach with the source code available online.}
+}
+
+@article{peitz2020data,
+  title={Data-driven model predictive control using interpolated Koopman generators},
+  author={Peitz, Sebastian and Otto, Samuel E and Rowley, Clarence W},
+  journal={SIAM Journal on Applied Dynamical Systems},
+  volume={19},
+  number={3},
+  pages={2162--2193},
+  year={2020},
+  publisher={SIAM},
+  abstract={In recent years, the success of the Koopman operator in dynamical systems analysis has also fueled the development of Koopman operator-based control frameworks. In order to preserve the relatively low data requirements for an approximation via dynamic mode decomposition, a quantization approach was recently proposed in [S. Peitz and S. Klus, Automatica J. IFAC, 106 (2019), pp. 184-- 191]. This way, control of nonlinear dynamical systems can be realized by means of switched systems techniques, using only a finite set of autonomous Koopman operator-based reduced models. These individual systems can be approximated very efficiently from data. The main idea is to transform a control system into a set of autonomous systems for which the optimal switching sequence has to be computed. In this article, we extend these results to continuous control inputs using relaxation. This way, we combine the advantages of the data efficiency of approximating a finite set of autonomous systems with continuous controls, as the data requirements increase only linearly with the input dimension. We show that when using the Koopman generator, this relaxation -- realized by linear interpolation between two operators -- does not introduce any error for control affine systems. This allows us to control high-dimensional nonlinear systems using bilinear, low-dimensional surrogate models. The efficiency of the proposed approach is demonstrated using several examples with increasing complexity, from the Duffing oscillator to the chaotic fluidic pinball.}
+}

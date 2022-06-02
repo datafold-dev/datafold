@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import scipy.linalg
 from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
+from scipy.integrate import solve_ivp
+from scipy.interpolate import interp1d
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
@@ -18,6 +20,7 @@ from datafold.utils.general import (
     is_scalar,
     mat_dot_diagmat,
     sort_eigenpairs,
+    split_control_state_columns,
 )
 
 try:
@@ -29,7 +32,235 @@ else:
     IS_IMPORTED_PYDMD = True
 
 
-class LinearDynamicalSystem(object):
+class DynamicalSystemBase(object):
+    r"""Base class for dynamical systems"""
+    _cls_valid_sys_type = ("differential", "flowmap")
+    _cls_valid_sys_mode = ("matrix", "spectral")
+
+    def __init__(self, sys_type: str, sys_mode: str, time_invariant: bool = True):
+        self.sys_type = sys_type
+        self.sys_mode = sys_mode
+        self.time_invariant = time_invariant
+
+        self._check_system_type()
+        self._check_system_mode()
+
+    def _check_system_type(self) -> None:
+        if self.sys_type not in self._cls_valid_sys_type:
+            raise ValueError(
+                f"system_type={self.sys_type} is invalid. "
+                f"Choose from {self._cls_valid_sys_type}"
+            )
+
+    def _check_system_mode(self) -> None:
+        if self.sys_mode not in self._cls_valid_sys_mode:
+            raise ValueError(
+                f"'sys_mode={self.sys_mode}' is invalid."
+                f"Choose from {self._cls_valid_sys_mode}"
+            )
+
+    def _check_matrix(self, matrix):
+        if not isinstance(matrix, np.ndarray) or matrix.ndim != 2:
+            raise ValueError("Any matrix must be 2-dim. and of type np.ndarray")
+
+    @abc.abstractmethod
+    def _check_sys_matrix(self, sys_matrix: Optional[np.ndarray]):
+        pass
+
+    def _check_initial_condition(
+        self, initial_condition: np.ndarray, state_length: int
+    ) -> np.ndarray:
+        try:
+            if is_scalar(initial_condition):
+                initial_condition = [initial_condition]
+            initial_condition = np.asarray(initial_condition)
+        except:
+            raise TypeError(
+                "Parameter ic must be be an array like object. "
+                f"Got type(ic)={type(initial_condition)}"
+            )
+
+        if initial_condition.ndim == 1:
+            initial_condition = if1dim_colvec(initial_condition)
+
+        if initial_condition.ndim != 2:
+            raise ValueError(  # in case ndim > 2
+                f"Initial conditions 'ic' must have 2 dimensions. "
+                f"Got ic.ndim={initial_condition.ndim}."
+            )
+
+        if initial_condition.shape[0] != state_length:
+            raise ValueError(
+                f"Mismatch in dimensions between initial condition and system matrix. "
+                f"ic.shape[0]={initial_condition.shape[0]} is not "
+                f"dynmatrix.shape[1]={state_length}."
+            )
+        return initial_condition
+
+    def _check_time_values(self, time_values: np.ndarray):
+        try:
+            if is_scalar(time_values):
+                time_values = [time_values]
+            time_values = np.asarray(time_values)
+        except:
+            raise TypeError(
+                "The parameter 'time_values' must be an array-like object. "
+                f"Got type(time_values)={time_values}"
+            )
+
+        # see https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
+        if time_values.ndim != 1 and time_values.dtype.kind in "buif":
+            raise ValueError(
+                "The array must be 1-dim. and only contain real-valued numeric data."
+            )
+
+        if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
+            time_values = time_values.astype(np.int64)
+
+        return time_values
+
+    def _check_time_delta(self, time_delta: Optional[Union[float, int]]):
+        if self.is_differential_system():
+            # for a differential system there is no time_delta -- all input is ignored
+            time_delta = None
+        elif time_delta is None or not is_scalar(time_delta):
+            raise TypeError(
+                "In a 'flowmap' system the parameter 'time_delta' must be provided "
+                f"and a scalar value. Got type(time_delta)={type(time_delta)}"
+            )
+        else:
+            assert time_delta is not None  # mypy
+            # cast to built-in Python value
+            if np.asarray(time_delta).dtype.kind in "mli":
+                time_delta = int(time_delta)
+            else:
+                time_delta = float(time_delta)
+            if time_delta <= 0:
+                raise ValueError(f"time_delta={time_delta} must be positive.")
+        return time_delta
+
+    def _check_and_set_system_params(
+        self,
+        sys_matrix: Optional[np.ndarray],
+        initial_condition: np.ndarray,
+        time_values: np.ndarray,
+        time_delta: Optional[Union[float, int]],
+        time_series_ids,
+        feature_names_out,
+    ):
+        # SYSTEM MATRIX
+        sys_matrix = self._check_sys_matrix(sys_matrix)
+        n_features, state_length = sys_matrix.shape
+
+        # INITIAL CONDITION
+        initial_condition = self._check_initial_condition(
+            initial_condition, state_length
+        )
+
+        # TIME VALUES
+        time_values = self._check_time_values(time_values)
+
+        # TIME DELTA
+        time_delta = self._check_time_delta(time_delta)
+
+        # TIME SERIES IDS and FEATURE COLUMNS
+        # Note: all the other checks are made during TSCDataFrame allocation.
+        if time_series_ids is None:
+            time_series_ids = np.arange(initial_condition.shape[1])
+
+        if feature_names_out is None:
+            feature_names_out = np.arange(state_length)
+
+        if len(feature_names_out) != n_features:
+            raise ValueError(
+                f"len(feature_columns)={feature_names_out} != state_length={state_length}"
+            )
+
+        return (
+            sys_matrix,
+            initial_condition,
+            time_values,
+            time_delta,
+            n_features,
+            state_length,
+            time_series_ids,
+            feature_names_out,
+        )
+
+    def is_matrix_mode(self) -> bool:
+        r"""Whether the set up linear system is in "matrix" mode.
+
+        The system uses either matrix :math:`A` for flowmap or :math:`\mathcal{A}`
+        for differential.
+
+        Returns
+        -------
+
+        """
+        self._check_system_mode()
+        return self.sys_mode == "matrix"
+
+    def is_spectral_mode(self) -> bool:
+        r"""Whether the set up linear system is in "spectral" mode.
+
+        The system uses the spectral components of either matrix :math:`A` for flowmap or
+        :math:`\mathcal{A}` for differential.
+
+        Returns
+        -------
+
+        """
+        self._check_system_mode()
+        return self.sys_mode == "spectral"
+
+    def is_differential_system(self) -> bool:
+        r"""Whether the set up linear system is of "differential" type.
+
+        The system uses either the matrix :math:`\mathcal{A}` directly or its spectral
+        components to evolve the system.
+
+        Returns
+        -------
+
+        """
+        self._check_system_type()
+        return self.sys_type == "differential"
+
+    def is_flowmap_system(self) -> bool:
+        r"""Whether the set up linear system is of "flowmap" type.
+
+        The system uses either the matrix :math:`A` directly or its spectral
+        components to evolve the system.
+
+        Returns
+        -------
+
+        """
+        self._check_system_type()
+        return self.sys_type == "flowmap"
+
+    def is_linear_system_setup(self, raise_error_if_not_setup: bool = False) -> bool:
+        """Whether the set up linear system is set up.
+
+        Returns
+        -------
+
+        """
+
+        if self.is_matrix_mode():
+            is_setup = hasattr(self, "sys_matrix_")
+        else:  # self.is_spectrum_mode():
+            is_setup = hasattr(self, "eigenvectors_right_") and hasattr(
+                self, "eigenvalues_"
+            )
+
+        if not is_setup and raise_error_if_not_setup:
+            raise RuntimeError("Linear system has not been setup.")
+        else:
+            return is_setup
+
+
+class LinearDynamicalSystem(DynamicalSystemBase):
     r"""Evolve linear dynamical system forward in time.
 
     A mathematical description of a linear dynamical system is
@@ -72,45 +303,14 @@ class LinearDynamicalSystem(object):
     References
     ----------
 
-    :cite:`kutz-2016` (pages 3 ff.)
+    :cite:`kutz_dynamic_2016` (pages 3 ff.)
 
     """
 
-    _cls_valid_sys_type = ("differential", "flowmap")
-    _cls_valid_sys_mode = ("matrix", "spectral")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    def __init__(self, sys_type: str, sys_mode: str, time_invariant: bool = True):
-        self.sys_type = sys_type
-        self.sys_mode = sys_mode
-        self.time_invariant = time_invariant
-
-        self._check_system_type()
-        self._check_system_mode()
-
-    def _check_system_type(self) -> None:
-        if self.sys_type not in self._cls_valid_sys_type:
-            raise ValueError(
-                f"system_type={self.sys_type} is invalid. "
-                f"Choose from {self._cls_valid_sys_type}"
-            )
-
-    def _check_system_mode(self) -> None:
-        if self.sys_mode not in self._cls_valid_sys_mode:
-            raise ValueError(
-                f"'sys_mode={self.sys_mode}' is invalid."
-                f"Choose from {self._cls_valid_sys_mode}"
-            )
-
-    def _check_and_set_system_params(
-        self,
-        sys_matrix: Optional[np.ndarray],
-        initial_condition: np.ndarray,
-        time_values: np.ndarray,
-        time_delta: Optional[Union[float, int]],
-        time_series_ids,
-        feature_names_out,
-    ):
-        # SYSTEM MATRIX
+    def _check_sys_matrix(self, sys_matrix: Optional[np.ndarray]):
         if sys_matrix is None:
             # The system matrix can be overwritten from outside
             # (if sys_matrix is not None).
@@ -120,101 +320,9 @@ class LinearDynamicalSystem(object):
                 sys_matrix = self.eigenvectors_right_
             else:  # self.is_matrix_mode()
                 sys_matrix = self.sys_matrix_
+        self._check_matrix(sys_matrix)
 
-        if not isinstance(sys_matrix, np.ndarray) or sys_matrix.ndim != 2:
-            raise ValueError("'sys_matrix' must be 2-dim. and of type np.ndarray")
-
-        n_features, state_length = sys_matrix.shape
-
-        # INITIAL CONDITION
-        try:
-            if is_scalar(initial_condition):
-                initial_condition = [initial_condition]
-            initial_condition = np.asarray(initial_condition)
-        except:
-            raise TypeError(
-                "Parameter ic must be be an array like object. "
-                f"Got type(ic)={type(initial_condition)}"
-            )
-
-        if initial_condition.ndim == 1:
-            initial_condition = if1dim_colvec(initial_condition)
-
-        if initial_condition.ndim != 2:
-            raise ValueError(  # in case ndim > 2
-                f"Initial conditions 'ic' must have 2 dimensions. "
-                f"Got ic.ndim={initial_condition.ndim}."
-            )
-
-        if initial_condition.shape[0] != state_length:
-            raise ValueError(
-                f"Mismatch in dimensions between initial condition and system matrix. "
-                f"ic.shape[0]={initial_condition.shape[0]} is not "
-                f"dynmatrix.shape[1]={state_length}."
-            )
-
-        # TIME VALUES
-        try:
-            if is_scalar(time_values):
-                time_values = [time_values]
-            time_values = np.asarray(time_values)
-        except:
-            raise TypeError(
-                "The parameter 'time_values' must be an array-like object. "
-                f"Got type(time_values)={time_values}"
-            )
-
-        # see https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
-        if time_values.ndim != 1 and time_values.dtype.kind in "buif":
-            raise ValueError(
-                "The array must be 1-dim. and only contain real-valued numeric data."
-            )
-
-        if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
-            time_values = time_values.astype(np.int64)
-
-        # TIME DELTA
-        if self.is_differential_system():
-            # for a differential system there is no time_delta -- all input is ignored
-            time_delta = None
-        elif time_delta is None or not is_scalar(time_delta):
-            raise TypeError(
-                "In a 'flowmap' system the parameter 'time_delta' must be provided "
-                f"and a scalar value. Got type(time_delta)={type(time_delta)}"
-            )
-        else:
-            assert time_delta is not None  # mypy
-            # cast to built-in Python value
-            if np.asarray(time_delta).dtype.kind in "mli":
-                time_delta = int(time_delta)
-            else:
-                time_delta = float(time_delta)
-            if time_delta <= 0:
-                raise ValueError(f"time_delta={time_delta} must be positive.")
-
-        # TIME SERIES IDS and FEATURE COLUMNS
-        # Note: all the other checks are made during TSCDataFrame allocation.
-        if time_series_ids is None:
-            time_series_ids = np.arange(initial_condition.shape[1])
-
-        if feature_names_out is None:
-            feature_names_out = np.arange(state_length)
-
-        if len(feature_names_out) != n_features:
-            raise ValueError(
-                f"len(feature_columns)={feature_names_out} != state_length={state_length}"
-            )
-
-        return (
-            sys_matrix,
-            initial_condition,
-            time_values,
-            time_delta,
-            n_features,
-            state_length,
-            time_series_ids,
-            feature_names_out,
-        )
+        return sys_matrix
 
     def _evolve_system_states(
         self,
@@ -377,77 +485,6 @@ class LinearDynamicalSystem(object):
             )
 
         return states
-
-    def is_matrix_mode(self) -> bool:
-        r"""Whether the set up linear system is in "matrix" mode.
-
-        The system uses either matrix :math:`A` for flowmap or :math:`\mathcal{A}`
-        for differential.
-
-        Returns
-        -------
-
-        """
-        self._check_system_mode()
-        return self.sys_mode == "matrix"
-
-    def is_spectral_mode(self) -> bool:
-        r"""Whether the set up linear system is in "spectral" mode.
-
-        The system uses the spectral components of either matrix :math:`A` for flowmap or
-        :math:`\mathcal{A}` for differential.
-
-        Returns
-        -------
-
-        """
-        self._check_system_mode()
-        return self.sys_mode == "spectral"
-
-    def is_differential_system(self) -> bool:
-        r"""Whether the set up linear system is of "differential" type.
-
-        The system uses either the matrix :math:`\mathcal{A}` directly or its spectral
-        components to evolve the system.
-
-        Returns
-        -------
-
-        """
-        self._check_system_type()
-        return self.sys_type == "differential"
-
-    def is_flowmap_system(self) -> bool:
-        r"""Whether the set up linear system is of "flowmap" type.
-
-        The system uses either the matrix :math:`A` directly or its spectral
-        components to evolve the system.
-
-        Returns
-        -------
-
-        """
-        self._check_system_type()
-        return self.sys_type == "flowmap"
-
-    def is_linear_system_setup(self, raise_error_if_not_setup: bool = False) -> bool:
-        """Whether the set up linear system is set up.
-
-        Returns
-        -------
-
-        """
-
-        if self.is_matrix_mode():
-            is_setup = hasattr(self, "sys_matrix_")
-        else:  # self.is_spectrum_mode():
-            is_setup = hasattr(self, "eigenvectors_right_") and hasattr(
-                self, "eigenvalues_"
-            )
-        if not is_setup and raise_error_if_not_setup:
-            raise RuntimeError("Linear system has not been setup.")
-        else:
-            return is_setup
 
     def setup_spectral_system(
         self, eigenvectors_right, eigenvalues, eigenvectors_left=None
@@ -1090,7 +1127,8 @@ class DMDFull(DMDBase):
             approximate the Koopman generator by using finite differences.
 
     rcond: Optional[float]
-        Parameter passed to :class:`numpy.linalg.lstsq`.
+        Cut-off ratio for small singular values
+        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
     Attributes
     ----------
@@ -1180,7 +1218,6 @@ class DMDFull(DMDBase):
         # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
         # solution of the linear equation system.
         koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
-
         if rank != G.shape[1]:
             warnings.warn(
                 f"Shift matrix (shape={G.shape}) has not full rank (={rank}), falling "
@@ -1671,6 +1708,863 @@ class DMDEco(DMDBase):
         )
 
         return self
+
+
+class ControlledLinearDynamicalSystem(DynamicalSystemBase):
+    r"""Evolve linear dynamical system forward in time according to control input.
+
+    A flowmap description of a linear dynamical system with control
+    is written in terms of a discrete-time system
+
+        .. math::
+            x_{n+1} = A \cdot x_{n} + B \cdot u_{n}
+
+    with
+        :math:`A \mathbb{R}^{[m \times m]}`, a constant matrix, which describes
+        the linear evolution of the systems' states
+        :math:`x` is the state with length :math:`m`,
+        :math:`B \mathbb{R}^{[m \times q]}`, another constant matrix which describes
+        the effect of the control input
+        :math:`u` is the control input with length :math:`q`.
+
+    Parameters
+    ----------
+
+    time_invariant
+        If True, the system internally always starts with `time=0`. \
+        This is irrespective of the time given in the time values. If the initial
+        time is larger than zero, the internal times are corrected to the requested time.
+
+    References
+    ----------
+
+    :cite:`kutz_dynamic_2016` (Chapter 6)
+    :cite:`korda2018linear`
+
+    See Also
+    --------
+
+    :py:class:`.LinearDynamicalSystem`
+    :py:class:`.ControlledAffineDynamicalSystem`
+    """
+
+    def __init__(self, time_invariant: bool = True):
+        super().__init__("flowmap", "matrix", time_invariant)
+
+    def _check_control_input(
+        self, control_input: np.ndarray, control_size: int, control_series: int = 1
+    ):
+        control_input = if1dim_colvec(control_input)
+        control_input = (
+            control_input[np.newaxis] if control_input.ndim == 2 else control_input
+        )
+        if control_input.shape[0] != control_series:
+            raise ValueError(
+                "control_input does not match the number of time series in the ic"
+            )
+        if control_input.shape[1] != control_size:
+            raise ValueError("control_input should have the same length as time_values")
+        if control_input.shape[2] != self.control_matrix_.shape[-1]:
+            raise ValueError(
+                "control_input columns should match control_matrix last dimension"
+            )
+        return control_input
+
+    def _check_control_matrix(self, control_matrix: np.ndarray):
+        if control_matrix is None:
+            control_matrix = self.control_matrix_
+        self._check_matrix(control_matrix)
+
+        return control_matrix
+
+    def _check_sys_matrix(self, sys_matrix: Optional[np.ndarray]):
+        if sys_matrix is None:
+            sys_matrix = self.sys_matrix_
+        self._check_matrix(sys_matrix)
+
+        return sys_matrix
+
+    def _evolve_system_states_integer(
+        self,
+        time_series_tensor: np.ndarray,
+        sys_matrix: np.ndarray,
+        control_matrix: np.ndarray,
+        initial_conditions: np.ndarray,
+        control_input: np.ndarray,
+        time_values: np.ndarray,
+        time_delta: Optional[float] = None,
+    ) -> np.ndarray:
+        next_state = initial_conditions
+        last_time = time_values[0]
+        for idx, time in enumerate(time_values):
+            time_series_tensor[:, idx, :] = next_state.T
+            next_state = (
+                sys_matrix @ next_state + control_matrix @ control_input[:, idx, :].T
+            )
+        # do not write state past last since t starts at 0
+        return time_series_tensor
+
+    def _evolve_system_states(
+        self,
+        time_series_tensor: np.ndarray,
+        sys_matrix: np.ndarray,
+        control_matrix: np.ndarray,
+        initial_conditions: np.ndarray,
+        control_input: np.ndarray,
+        time_values: np.ndarray,
+        time_delta: Optional[float],
+    ) -> np.ndarray:
+        raise NotImplementedError(
+            "Fractional timesteps are not implemented for controlled flowmap type systems.\n"
+            "Use a differential system (e.g. control affine) instead."
+        )
+
+    def setup_matrix_system(
+        self,
+        system_matrix: np.ndarray,
+        control_matrix: np.ndarray,
+    ):
+        r"""Set up linear system with system matrix and control matrix.
+
+        Parameters
+        ----------
+        system_matrix
+            The system matrix :math:`A` in flowmap representation
+
+        control_matrix
+            The control matrix :math:`B`
+
+        Returns
+        -------
+        ControlledLinearDynamicalSystem
+            self
+        """
+        self._check_matrix(system_matrix)
+        self._check_matrix(control_matrix)
+
+        if control_matrix.shape[0] != system_matrix.shape[0]:
+            raise ValueError(
+                "control_matrix and system_matrix must have the same number of  rows"
+            )
+        self.sys_matrix_ = system_matrix
+        self.control_matrix_ = control_matrix
+        return self
+
+    def evolve_system(
+        self,
+        initial_conditions: np.ndarray,
+        control_input: np.ndarray,
+        time_values: Optional[np.ndarray] = None,
+        overwrite_sys_matrix: Optional[np.ndarray] = None,
+        overwrite_control_matrix: Optional[np.ndarray] = None,
+        time_delta: Optional[float] = None,
+        time_series_ids: Optional[np.ndarray] = None,
+        feature_names_out: Optional[Union[pd.Index, list]] = None,
+        check_inputs: bool = True,
+    ):
+        r"""Evolve specified linear dynamical system according to given control input.
+
+        If time values are provided they must be positive real values :math:`t \in \mathbb{R}^+`
+        and the system is evaluated using `matrix_fractional_power`. (Not implemented yet)
+
+            .. math::
+                x(t_{k+1}) = A^{t_{k} / \delta t} \cdot x_0 + B^{(t_{k+1}-t_{k}) / \delta t} \cdot u(t_{k})
+
+        A better performing alternative is used if :math:`t=0\delta t, 1\delta t, 2\delta t ,...`
+        and evaluates the state via subsequent application of the matrix
+
+        Parameters
+        ----------
+        initial_conditions
+            Single initial condition of shape `(n_features,)` or multiple initial
+            conditions of shape `(n_features, n_initial_conditions)`.
+
+        control_input
+            The control input :math:`u` at the provided time values with shape (n,q) or
+            (n_initial_conditions, n, q)
+
+        time_values
+           Time values to evaluate the linear system at :math:`t \in \mathbb{R}^{+}`.
+           If not provided np.arange(len(control_inputs))*time_delta is assumed.
+
+        overwrite_sys_matrix
+            Primarily for performance reasons the a system matrix :math:`A` can also be
+            overwritten. An example is to include perform a projection matrix :math:`P`
+            to only return some quantities of interest :math:`A^{*} = P \cdot A`
+
+        overwrite_control_matrix
+            As above, the matrix :math:`B` can also be overwritten
+
+        time_delta
+            Time delta :math:`\delta t=t_{n+1}-t_{n}`. If ommited and if time_values
+            is evenly-spaced it is assumed that :math:`t_k = t_n \forall n, k`
+
+        time_series_ids
+           Unique integer time series IDs of shape `(n_initial_conditions,)` for each \
+           respective initial condition. Defaults to `(0, 1, 2, ...)`.
+
+        feature_names_out
+            Unique feature columns names of shape `(n_features,)`.
+            Defaults to `(0, 1, 2, ...)`.
+
+        check_inputs
+            Allows skipping input checks and assignemnts to improve performance.
+
+            .. warning::
+                Use with caution - May result in silent errors.
+
+        Returns
+        -------
+        TSCDataFrame
+            Collection with a time series for each initial condition with \
+            shape `(n_time_values, n_features)`.
+        """
+
+        if time_values is None:
+            time_values = np.arange(len(control_input), dtype=float)
+            if time_delta is not None:
+                time_values = time_values * time_delta
+        if time_delta is None:
+            time_delta = time_values[1] - time_values[0]
+            if (np.diff(time_values) - time_delta > 1e-12).any():
+                raise ValueError(
+                    "time_values is not equally spaced, so time_delta needs to be provided."
+                )
+        time_is_integer = not (np.abs(np.diff(time_values) - time_delta) > 1e-12).any()
+
+        if check_inputs:
+            control_matrix = self._check_control_matrix(overwrite_control_matrix)
+            (
+                sys_matrix,
+                initial_conditions,
+                time_values,
+                time_delta,
+                n_features,
+                state_length,
+                time_series_ids,
+                feature_names_out,
+            ) = self._check_and_set_system_params(
+                sys_matrix=overwrite_sys_matrix,
+                initial_condition=initial_conditions,
+                time_values=time_values,
+                time_delta=time_delta,
+                time_series_ids=time_series_ids,
+                feature_names_out=feature_names_out,
+            )
+            control_input = self._check_control_input(
+                control_input, len(time_values), len(time_series_ids)
+            )
+        else:
+            if (
+                overwrite_control_matrix is not None
+                and overwrite_sys_matrix is not None
+            ):
+                control_matrix = overwrite_control_matrix
+                sys_matrix = overwrite_sys_matrix
+            else:
+                try:
+                    control_matrix = self.control_matrix_
+                    sys_matrix = self.sys_matrix_
+                except AttributeError as ae:
+                    raise AttributeError(
+                        "Control and system matrices not set under check_inputs=False"
+                    ) from ae
+            n_features, state_length = sys_matrix.shape
+
+        time_series_tensor = allocate_time_series_tensor(
+            n_time_series=initial_conditions.shape[1],
+            n_timesteps=time_values.shape[0],
+            n_feature=n_features,
+        )
+
+        if time_is_integer:
+            time_series_tensor = self._evolve_system_states_integer(
+                time_series_tensor=time_series_tensor,
+                sys_matrix=sys_matrix,
+                control_matrix=control_matrix,
+                control_input=control_input,
+                initial_conditions=initial_conditions,
+                time_values=time_values,
+                time_delta=time_delta,
+            )
+        else:
+            time_series_tensor = self._evolve_system_states(
+                time_series_tensor=time_series_tensor,
+                sys_matrix=sys_matrix,
+                control_matrix=control_matrix,
+                control_input=control_input,
+                initial_conditions=initial_conditions,
+                time_values=time_values,
+                time_delta=time_delta,
+            )
+
+        return TSCDataFrame.from_tensor(
+            time_series_tensor,
+            time_series_ids=time_series_ids,
+            columns=feature_names_out,
+            time_values=time_values,
+        )
+
+
+class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin):
+    """Dynamic Mode Decomposition of time series data with control input to
+    approximate the Koopman operator.
+
+    The model computes the system and control matrices :math:`A` and :math:`B` with
+
+    .. math::
+        A X + B U &= X^{+} \\
+        [A,B] &= X^{+} [X, U]^{\dagger},
+
+    where :math:`X` is the data with column oriented snapshots, :math:`\dagger` the
+    the Moore–Penrose inverse and :math:`+` the future time shifted data.
+
+    ...
+
+    Parameters
+    ----------
+    rcond: Optional[float]
+        Cut-off ratio for small singular values.
+        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
+
+    Attributes
+    -------
+    sys_matrix : np.ndarray
+        Koopman approximation of the state matrix
+
+    control_matrix : np.ndarray
+        Koopman approximation of the control matrix
+
+    References
+    ----------
+
+    :cite:`kutz_dynamic_2016` (Chapter 6)
+    :cite:`korda2018linear`
+    """
+
+    _cls_split_params = ("split_by", "control", "state")
+
+    def __init__(
+        self,
+        *,  # keyword-only
+        rcond: Optional[float] = None,
+        **kwargs,
+    ):
+        self.rcond = rcond
+
+        super().__init__(time_invariant=True)
+
+    def _compute_koompan_matrices(
+        self,
+        state: TSCDataFrame,
+        control_inp: TSCDataFrame,
+    ):
+        XT, YT = state.tsc.shift_matrices(snapshot_orientation="row")
+        UT, _ = control_inp.tsc.shift_matrices(snapshot_orientation="row")
+
+        if XT.shape[1] > XT.shape[0]:
+            warnings.warn(
+                "There are more observables than snapshots. The current implementation "
+                "favors more snapshots than obserables. This may result in a bad "
+                "computational performance."
+            )
+
+        XU = np.vstack([XT.T, UT.T])
+        # from :cite:`korda2018linear` - eq. 22
+        G = XU @ XU.T
+        np.multiply(1 / state.shape[0], G, out=G)  # improve condition?
+        V = YT.T @ XU.T
+        np.multiply(1 / state.shape[0], V, out=V)  # improve condition?
+
+        # V = Mu @ G => V.T = G.T @ Mu.T
+        MuT, residual, rank, _ = np.linalg.lstsq(G.T, V.T, rcond=self.rcond)
+        if rank != G.shape[1]:
+            warnings.warn(
+                f"Shift matrix (shape={G.shape}) has not full rank (={rank}), falling "
+                f"back to least squares solution. The sum of residuals is: "
+                f"{np.sum(residual)}"
+            )
+        state_cols = XT.shape[1]
+        sys_matrix = MuT.conj().T[:, :state_cols]
+        control_matrix = MuT.conj().T[:, state_cols:]
+
+        return sys_matrix, control_matrix
+
+    def _validate_matching_state_control(self, X: TSCDataFrame, U: TSCDataFrame):
+        if not np.all(X.index == U.index):
+            raise ValueError(
+                "X and U should be sampled at the same times and time intervals."
+            )
+
+    def fit(self, X: TSCDataFrame, U: Optional[TSCDataFrame] = None, **fit_params):
+        """Compute Koopman approximation of state and control matrices
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            Input state data
+
+        U : TSCDataFrame
+            Input control data
+
+        Returns
+        -------
+        self
+        """
+        self._validate_datafold_data(
+            X=X,
+            ensure_tsc=True,
+            tsc_kwargs={"ensure_const_delta_time": True},
+        )
+
+        self._setup_features_and_time_attrs_fit(X=X)
+
+        if U is None:
+            U = X[[]]  # empty input
+        else:
+            self._validate_datafold_data(
+                X=U,
+                ensure_tsc=True,
+                tsc_kwargs={"ensure_const_delta_time": True},
+            )
+            self._validate_matching_state_control(X, U)
+
+        sys_matrix, control_matrix = self._compute_koompan_matrices(X, U)
+        self.setup_matrix_system(sys_matrix, control_matrix)
+
+        return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
+        check_inputs: bool = True,
+        **predict_params,
+    ) -> TSCDataFrame:
+        """Predict time series data for each initial condition at
+        specified time values given the specified control input.
+
+        Parameters
+        ----------
+        X : InitialConditionType
+            Single initial condition of shape `(n_features,)` or multiple initial
+            conditions of shape `(n_features, n_initial_conditions)`.
+
+        time_values : np.ndarray
+            Time series at which to evaluate the system. Must be equally spaced
+            and use the same timestep as the training data.
+
+        U : np.ndarray | TSCDataFrame
+            The control input at the provided time values with shape
+            `(n_timesteps, n_control_dimensions) or
+            `(n_initial_conditions, n_timesteps, n_control_dimensions)`.
+            If type is TSCDataFrame, the time index for all series
+            needs to be the same to infer the time_values.
+
+        check_inputs : bool, optional, default True
+            Allows skipping input checks and assignemnts to improve performance.
+
+            .. warning::
+                Use with caution - May result in silent errors.
+
+        Returns
+        -------
+        TSCDataFrame
+        """
+        if check_inputs:
+            check_is_fitted(self)
+
+            if isinstance(X, np.ndarray):
+                # work internally only with DataFrames
+                X = InitialCondition.from_array(X, columns=self.feature_names_in_)
+            else:
+                # for DMD the number of samples per initial condition is always 1
+                InitialCondition.validate(X, n_samples_ic=1)
+
+            self._validate_datafold_data(X)
+
+            self.is_linear_system_setup(True)
+
+            if isinstance(U, TSCDataFrame):
+                if time_values is None:
+                    time_values = U.time_values()
+                U = U.values.reshape(len(U.ids), -1, len(U.columns))
+            elif U is None:
+                if time_values is None:
+                    time_values = np.array([0, 1]) * self.dt_
+                U = pd.DataFrame(index=time_values).values
+
+            if time_values is not None:
+                time_values = self._validate_time_values(time_values)
+
+            self._validate_feature_names(X, require_all=False)
+
+        state_tsc = self.evolve_system(
+            X.to_numpy().T,
+            U,
+            time_values,
+            time_delta=self.dt_,
+            check_inputs=check_inputs,
+            feature_names_out=X.columns,
+        )
+
+        return state_tsc
+
+    def fit_predict(
+        self,
+        X: InitialConditionType,
+        y=None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
+        check_inputs: bool = True,
+        **fit_params,
+    ) -> TSCDataFrame:
+        """Fit model and reconstruct the time series data.
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            State input
+
+
+        U : TSCDataFrame | np.ndarray, optional
+            Control input
+
+        check_inputs : bool, optional, default True
+            Allows skipping input checks and assignemnts to improve performance.
+
+        **fit_params
+            Passed to :py:meth:`.fit(X,**fit_params)`
+
+        Returns
+        -------
+        TSCDataFrame
+            A reconstruction of X based on predicting each separate time series
+            in the collection using the training control input
+        """
+        return self.fit(X, U, **fit_params).reconstruct(
+            X, U=U, check_inputs=check_inputs
+        )
+
+    def reconstruct(
+        self,
+        X: TSCDataFrame,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        U: Optional[TSCDataFrame] = None,
+        check_inputs: bool = True,
+        **split_params,
+    ) -> TSCDataFrame:
+        """Reconstruct the time series data.
+
+        Extract the initial states from each time series in the collection and
+        predict the other states with the model at the same time values.
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            State input
+
+
+        U : TSCDataFrame | np.ndarray, optional
+            Control input
+
+        check_inputs : bool, default True
+            Allows skipping input checks and assignemnts to improve performance.
+
+        **split_params
+            Passed to :py:meth:`.fit(X,**split_params)`
+
+        Returns
+        -------
+        TSCDataFrame
+            A reconstruction of X based on predicting each separate time series
+            in the collection using the given control input
+        """
+
+        check_is_fitted(self)
+        X = self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            tsc_kwargs={"ensure_const_delta_time": True},
+        )
+        self._validate_feature_names(X)
+
+        X_reconstruct_ts = []
+
+        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
+            X, n_samples_ic=1
+        ):
+            X_ts = self.predict(
+                X=X_ic,
+                time_values=time_values,
+                U=U,
+                check_inputs=check_inputs,
+            )
+            X_reconstruct_ts.append(X_ts)
+
+        return pd.concat(X_reconstruct_ts, axis=0)
+
+
+class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
+    r"""Evolve an input affine dynamical system forward in time according to control input.
+
+    A mathematical description of an input affine dynamical system can be
+    written in terms of the differential equation
+
+        .. math::
+            \dot{x} = A \cdot x + B \cdot u \cdot x
+
+    with
+        :math:`A \mathbb{R}^{[m \times m]}`, a constant matrix, which describes
+        the linear evolution of the systems' states
+        :math:`x` is the state with length :math:`m`,
+        :math:`B \mathbb{R}^{[m \times m \times q]}`, a constant tensor which describes
+        the affine effect of the control inputs
+        :math:`u` is the control input with length :math:`q`.
+
+    Parameters
+    ----------
+
+    time_invariant
+        If True, the system internally always starts with `time=0`. \
+        This is irrespective of the time given in the time values. If the initial
+        time is larger than zero, the internal times are corrected to the requested time.
+
+
+    See Also
+    --------
+
+    :py:class:`.LinearDynamicalSystem`
+    :py:class:`.ControlledLinearDynamicalSystem`
+
+    References
+    ----------
+
+    :cite:`peitz2020data`
+    """
+
+    def __init__(self, time_invariant=True):
+        super(ControlledAffineDynamicalSystem, self).__init__(
+            time_invariant=time_invariant
+        )
+        self.sys_type = "differential"
+        self._evolve_system_states_integer = self._evolve_system_states
+
+    def _check_control_matrix(self, control_matrix):
+        if control_matrix is None:
+            control_matrix = self.control_matrix_
+        else:
+            if not isinstance(control_matrix, np.ndarray) or control_matrix.ndim != 3:
+                raise ValueError(
+                    "The control matrix tensor must be 3-dim. and of type np.ndarray"
+                )
+
+            if control_matrix.shape[:2] != self.system_matrix_.shape:
+                raise ValueError(
+                    "control_matrix and system_matrix must have the same number of rows and columns"
+                )
+            self.control_matrix_ = control_matrix
+        return control_matrix
+
+    def setup_matrix_system(
+        self,
+        system_matrix: np.ndarray,
+        control_matrix: np.ndarray,
+    ):
+        r"""Set up the differential representation of a control affine system
+        with a system matrix and control tensor.
+
+        Parameters
+        ----------
+        system_matrix
+            The system matrix :math:`A` in differential representation
+
+        control_matrix
+            The control tensor :math:`B`
+
+        Returns
+        -------
+        ControlledLinearDynamicalSystem
+            self
+        """
+        self._check_matrix(system_matrix)
+        if not isinstance(control_matrix, np.ndarray) or control_matrix.ndim != 3:
+            raise ValueError(
+                "The control matrix tensor must be 3-dim. and of type np.ndarray"
+            )
+
+        if control_matrix.shape[:2] != system_matrix.shape:
+            raise ValueError(
+                "control_matrix and system_matrix must have the same number of rows and columns"
+            )
+        self.sys_matrix_ = system_matrix
+        self.control_matrix_ = control_matrix
+        return self
+
+    def _evolve_system_states(
+        self,
+        time_series_tensor: np.ndarray,
+        sys_matrix: np.ndarray,
+        control_matrix: np.ndarray,
+        initial_conditions: np.ndarray,
+        control_input: np.ndarray,
+        time_values: np.ndarray,
+        time_delta: Optional[float] = None,
+    ) -> np.ndarray:
+        n_ic = initial_conditions.shape[1]
+        if n_ic != control_input.shape[0]:
+            raise ValueError("Control inputs and initial conditions don't match!")
+
+        for i in range(n_ic):
+            interp_control = interp1d(
+                time_values, control_input[i], axis=0, kind="cubic"
+            )
+
+            affine_system_func = lambda t, state: (
+                sys_matrix @ state + control_matrix @ interp_control(t) @ state
+            )
+
+            ivp_solution = solve_ivp(
+                affine_system_func,
+                t_span=(time_values[0], time_values[-1]),
+                y0=initial_conditions[:, i],
+                t_eval=time_values,
+                method="RK23",
+            )
+
+            if not ivp_solution.success:
+                raise RuntimeError(
+                    f"The system could not be envolved for the requested timespan for initial condition {initial_conditions[i]}."
+                )
+
+            time_series_tensor[i] = ivp_solution.y.T
+
+        return time_series_tensor
+
+
+class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
+    """Dynamic Mode Decomposition of time series data with control input to
+    approximate the Koopman generator for an input affine system.
+
+    The model computes the system matrix :math:`A` and control tensor :math:`B` with
+
+    .. math::
+        X &= [x^{(1)} ... x^{(n)}]
+        B &= [B_{e_1} ... B_{e_q}] \\
+        \Psi &= \begin{bmatrix}
+                x^{(1)}                      & ... & x^{(n)} \\
+                u^{(1)} \otimes x^{(1)}& ... & u^{(n)} \otimes x^{(n)}\\
+                \end{bmatrix}\\
+        \Psi_dot &= [\dot{x}^{(1)} ... \dot{x}^{(n)}]
+        [A,B] &= \dot{\Psi} (\Psi)^{\dagger},
+
+    where :math:`X` is the data with :math:`n` column oriented snapshots,
+    :math:`\dagger` is the the Moore–Penrose inverse and
+    :math:`\otimes` is the Kronecker product.
+
+    Note: The derivative :math:`\dot{x}` is computed via a finite-difference
+    scheme as determined by the `diff_` parameters. As a result, some of the
+    edgepoint snapshots might not be considered since no derivative is available.
+
+    ...
+
+    Parameters
+    ----------
+    diff_scheme: Optional[str]
+        The finite difference scheme 'backward', 'center' or 'forward'. Defaul
+        Passed to `scheme` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+
+    diff_accuracy: Optional[int]
+        The accuracy (even positive integer) of the derivative scheme.
+        Passed to `accuracy` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+
+    rcond: Optional[float]
+        Cut-off ratio for small singular values
+        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
+
+    Attributes
+    -------
+    sys_matrix : np.ndarray
+        Koopman approximation of the state matrix
+
+    control_matrix : np.ndarray
+        Koopman approximation of the control matrix
+
+    References
+    ----------
+
+    :cite:`peitz2020data`
+    """
+
+    def __init__(
+        self,
+        *,  # keyword-only
+        diff_scheme: Optional[str] = "center",
+        diff_accuracy: Optional[int] = 2,
+        rcond: Optional[float] = None,
+    ):
+        self.rcond = rcond
+        self.diff_scheme = diff_scheme
+        self.diff_accuracy = diff_accuracy
+        super(gDMDAffine, self).__init__(time_invariant=True)
+
+    def _compute_koompan_matrices(
+        self,
+        state: TSCDataFrame,
+        control_inp: TSCDataFrame,
+    ):
+        Xdot_tsc = state.tsc.time_derivative(
+            scheme=self.diff_scheme, accuracy=self.diff_accuracy
+        )
+        # trim samples where derivative is unknown
+        X = state.select_time_values(Xdot_tsc.time_values()).values
+        U = control_inp.select_time_values(Xdot_tsc.time_values()).values
+        Xdot = Xdot_tsc.values
+
+        n_snapshots = X.shape[0]
+        state_cols = X.shape[1]
+        control_cols = U.shape[1]
+        if state_cols > n_snapshots:
+            warnings.warn(
+                "There are more observables than snapshots. The current implementation "
+                "favors more snapshots than obserables. This may result in a bad "
+                "computational performance."
+            )
+
+        # columnwise kronecker product
+        u_x_cwise_kron = np.einsum("ij,ik->ijk", U, X).reshape(
+            n_snapshots, control_cols * state_cols
+        )
+
+        # match naming convention from cite:`peitz2020data`
+        Psi_XU = np.vstack([X.T, u_x_cwise_kron.T])
+        Psidot_XU = Xdot.T
+
+        # Solve via normal equations
+        G = Psi_XU @ Psi_XU.T
+        np.multiply(1 / n_snapshots, G, out=G)  # improve condition?
+        V = Psidot_XU @ Psi_XU.T
+        np.multiply(1 / n_snapshots, V, out=V)  # improve condition?
+
+        # V = Mu @ G => V.T = G.T @ Mu.T
+        MuT, residual, rank, _ = np.linalg.lstsq(G.T, V.T, rcond=self.rcond)
+
+        if rank != G.shape[1]:
+            warnings.warn(
+                f"Shift matrix (shape={G.shape}) has not full rank (={rank}), falling "
+                f"back to least squares solution. The sum of residuals is: "
+                f"{np.sum(residual)}"
+            )
+
+        sys_matrix = MuT.conj().T[:, :state_cols]
+        control_matrix = MuT.conj().T[:, state_cols:]
+
+        # reshape the matrix to a tensor
+        control_tensor = control_matrix.reshape(
+            state_cols, control_cols, state_cols
+        ).swapaxes(1, 2)
+
+        return sys_matrix, control_tensor
 
 
 class PyDMDWrapper(DMDBase):

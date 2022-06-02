@@ -24,4 +24,5 @@ configurations and model accuracies in a parameter space.
   parameters from all sub-models and includes data-splitting schemes of time series data.
 """
 
-from datafold.appfold.edmd import EDMD, EDMDCV
+from datafold.appfold.edmd import EDMD, EDMDCV, EDMDControl
+from datafold.appfold.kmpc import AffineKgMPC, LinearKMPC

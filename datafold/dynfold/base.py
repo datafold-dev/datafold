@@ -342,9 +342,13 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             if isinstance(X, pd.Series):
                 # if X is a Series, then the columns of the original data are in a
                 # Series this usually happens if X.iloc[0, :] --> returns a Series
-                pdtest.assert_index_equal(right=_check_features, left=X.index)
+                pdtest.assert_index_equal(
+                    right=_check_features, left=X.index, check_names=False
+                )
             else:
-                pdtest.assert_index_equal(right=_check_features, left=X.columns)
+                pdtest.assert_index_equal(
+                    right=_check_features, left=X.columns, check_names=False
+                )
 
     def _same_type_X(
         self, X: TransformType, values: np.ndarray, feature_names: pd.Index
