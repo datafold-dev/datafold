@@ -383,39 +383,33 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
     def test_dimension_mismatch(self):
         # non-square system matrix
         with self.assertRaises(ValueError):
-            actual = ControlledLinearDynamicalSystem().setup_matrix_system(
+            ControlledLinearDynamicalSystem().setup_matrix_system(
                 np.zeros((3, 4)), np.zeros((4, 4))
             )
 
         # mismatch between system and input matrix
         with self.assertRaises(ValueError):
-            actual = ControlledLinearDynamicalSystem().setup_matrix_system(
+            ControlledLinearDynamicalSystem().setup_matrix_system(
                 np.zeros((4, 4)), np.zeros((3, 4))
             )
 
         # wrong initial condition
         with self.assertRaises(ValueError):
-            actual = (
-                ControlledLinearDynamicalSystem()
-                .setup_matrix_system(np.zeros((4, 4)), np.zeros((4, 3)))
-                .evolve_system(np.zeros(3), np.zeros((4, 3)))
-            )
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(3), np.zeros((4, 3)))
 
         # wrong control input
         with self.assertRaises(ValueError):
-            actual = (
-                ControlledLinearDynamicalSystem()
-                .setup_matrix_system(np.zeros((4, 4)), np.zeros((4, 3)))
-                .evolve_system(np.zeros(4), np.zeros((3, 4)))
-            )
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(4), np.zeros((3, 4)))
 
         # wrong time values
         with self.assertRaises(ValueError):
-            actual = (
-                ControlledLinearDynamicalSystem()
-                .setup_matrix_system(np.zeros((4, 4)), np.zeros((4, 3)))
-                .evolve_system(np.zeros(3), np.zeros((4, 3)), np.zeros(3))
-            )
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(3), np.zeros((4, 3)), np.zeros(3))
 
 
 class ControlledAffineDynamicalSystemTest(unittest.TestCase):
@@ -991,8 +985,6 @@ class gDMDAffineTest(unittest.TestCase):
         input_cols = [f"u{i+1}" for i in range(input_size)]
         dmd = gDMDAffine()
 
-        u = tsc_df[input_cols]
-        t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
         actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
@@ -1012,8 +1004,6 @@ class gDMDAffineTest(unittest.TestCase):
         input_cols = [f"u{i+1}" for i in range(input_size)]
         dmd = gDMDAffine(diff_accuracy=6)
 
-        u = tsc_df[input_cols]
-        t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
         actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
@@ -1058,8 +1048,6 @@ class gDMDAffineTest(unittest.TestCase):
         input_cols = [f"u{i+1}" for i in range(input_size)]
         dmd = gDMDAffine()
 
-        u = tsc_df[input_cols]
-        t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
         actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 

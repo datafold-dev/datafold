@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ from scipy.optimize import minimize
 
 from datafold.appfold import EDMDControl
 from datafold.dynfold.base import InitialConditionType, TransformType
-from datafold.utils.general import if1dim_colvec, if1dim_rowvec
+from datafold.utils.general import if1dim_colvec
 
 
 class LinearKMPC:
@@ -87,7 +87,7 @@ class LinearKMPC:
     References
     ----------
 
-    :cite:`korda2018linear`
+    :cite:`korda-2018`
     """
 
     def __init__(
@@ -119,7 +119,8 @@ class LinearKMPC:
             raise TypeError(
                 "The shape of the control matrix is not as expected. "
                 "This is likely due to an incompatible dmd_model type of the predictor. "
-                "The predictor.dmd_model should support linear controlled systems (e.g. DMDControl)."
+                "The predictor.dmd_model should support linear controlled systems "
+                "(e.g. DMDControl)."
             )
         self.state_size = len(predictor.state_columns)
 
@@ -189,7 +190,7 @@ class LinearKMPC:
         return Cb, output_size
 
     def _setup_optimizer(self):
-        # implements relevant parts of :cite:`korda2018linear` for setting up the optimization problem
+        # implements relevant part of :cite:`korda-2018` to set up the optimization problem
 
         Ab, Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
@@ -206,7 +207,7 @@ class LinearKMPC:
         return H, h, G, Y, L, M, c
 
     def _create_evolution_matrices(self):
-        # implemenets appendix from :cite:`korda2018linear`
+        # implemenets appendix from :cite:`korda-2018`
         # same as Sabin 2.44
         Np = self.horizon
         N = self.lifted_state_size
@@ -228,7 +229,7 @@ class LinearKMPC:
         return self.Cb @ Ab, self.Cb @ Bb
 
     def _create_constraint_matrices(self):
-        # implemenets appendix from :cite:`korda2018linear`
+        # implemenets appendix from :cite:`korda-2018`
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
         Np = self.horizon
@@ -271,7 +272,7 @@ class LinearKMPC:
             return np.ones(N) * cost
 
     def _create_cost_matrices(self):
-        # implemenets appendix from :cite:`korda2018linear`
+        # implemenets appendix from :cite:`korda-2018`
         # same as Sabin 2.44
         Np = self.horizon
         N = self.output_size
@@ -298,9 +299,10 @@ class LinearKMPC:
     def generate_control_signal(
         self, initial_conditions: InitialConditionType, reference: TransformType
     ) -> np.ndarray:
-        """
-        Method to generate a control sequence, given some initial conditions and a reference trajectory,
-        as in :cite:`korda2018linear` , Algorithm 1. This method solves thefollowing optimization problem (:cite:`korda2018linear` , Equation 24).
+        r"""
+        Method to generate a control sequence, given some initial conditions and a reference
+        trajectory, as in :cite:`korda-2018` , Algorithm 1. This method solves the following
+        optimization problem (:cite:`korda-2018` , Equation 24).
 
         .. math::
             \text{minimize : } U^{T} H U^{T} + h^{T} U + z_0^{T} GU - y_{r}^{T} U
@@ -334,7 +336,8 @@ class LinearKMPC:
             z0 = z0.reshape(self.lifted_state_size, 1)
         except ValueError as e:
             raise ValueError(
-                "The initial state should match the shape of the system state before the lifting."
+                "The initial state should match the shape of the system state "
+                "before the lifting."
             ) from e
 
         try:
@@ -343,7 +346,8 @@ class LinearKMPC:
             yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
         except:
             raise ValueError(
-                "The reference signal should be a frame or array with n (output_size) columns and  Np (prediction horizon) rows."
+                "The reference signal should be a frame or array with n (output_size) "
+                "columns and  Np (prediction horizon) rows."
             )
 
         U = solve_qp(
@@ -369,7 +373,8 @@ class LinearKMPC:
             z0 = z0.to_numpy().reshape(self.lifted_state_size, 1)
         except ValueError as e:
             raise ValueError(
-                "The initial state should match the shape of the system state before the lifting."
+                "The initial state should match the shape of "
+                "the system state before the lifting."
             ) from e
 
         try:
@@ -378,7 +383,8 @@ class LinearKMPC:
             yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
         except:
             raise ValueError(
-                "The reference signal should be a frame or array with n (output_size) columns and  Np (prediction horizon) rows."
+                "The reference signal should be a frame or array with n (output_size) "
+                "columns and  Np (prediction horizon) rows."
             )
 
         U = U.reshape(-1, 1)
@@ -448,7 +454,7 @@ class AffineKgMPC(object):
         References
         ----------
 
-        :cite:`peitz2020data`
+        :cite:`peitz-2020`
         """
         self.horizon = horizon
 
@@ -459,21 +465,24 @@ class AffineKgMPC(object):
             self.lifted_state_size, _, self.input_size = self.B.shape
         except ValueError:
             raise TypeError(
-                "The shape of the control tensor is not as expected (n_state,n_state,n_control). "
-                "This is likely due to an incompatible dmd_model type of the predictor. "
-                "The predictor.dmd_model should support affine controlled systems (e.g. gDMDAffine)."
+                "The shape of the control tensor is not as expected "
+                "(n_state,n_state,n_control). This is likely due to an incompatible "
+                "dmd_model type of the predictor. The predictor.dmd_model should "
+                "support affine controlled systems (e.g. gDMDAffine)."
             )
 
         if not self.predictor._dmd_model.is_differential_system():
             raise TypeError(
-                "The predictor.dmd_model should be a differential affine controlled system (e.g. gDMDAffine)."
+                "The predictor.dmd_model should be a differential "
+                "affine controlled system (e.g. gDMDAffine)."
             )
 
         self.state_size = len(predictor.state_columns)
 
         if input_bounds.shape != (self.input_size, 2):
             raise ValueError(
-                f"input_bounds is of shape {input_bounds.shape}, should be ({self.input_size},2)"
+                f"input_bounds is of shape {input_bounds.shape}, "
+                f"should be ({self.input_size},2)"
             )
 
         if isinstance(cost_input, np.ndarray):
@@ -481,7 +490,8 @@ class AffineKgMPC(object):
                 self.cost_input = cost_input.reshape((self.input_size, 1))
             except ValueError:
                 raise ValueError(
-                    f"cost_input is of shape {cost_input.shape}, should be ({self.input_size},1)"
+                    f"cost_input is of shape {cost_input.shape}, "
+                    f"should be ({self.input_size},1)"
                 )
         else:
             self.cost_input = cost_input * np.ones((self.input_size, 1))
@@ -491,7 +501,8 @@ class AffineKgMPC(object):
                 self.cost_state = cost_state.reshape((self.state_size, 1))
             except ValueError:
                 raise ValueError(
-                    f"cost_state is of shape {cost_state.shape}, should be ({self.state_size},1)"
+                    f"cost_state is of shape {cost_state.shape}, "
+                    f"should be ({self.state_size},1)"
                 )
         else:
             self.cost_state = cost_state * np.ones((self.state_size, 1))
@@ -536,7 +547,8 @@ class AffineKgMPC(object):
 
         if not ivp_solution.success:
             raise RuntimeError(
-                f"The system could not be envolved for the requested timespan for initial condition {x0}."
+                f"The system could not be envolved for the "
+                f"requested timespan for initial condition {x0}."
             )
 
         return ivp_solution.y
@@ -706,10 +718,10 @@ class AffineKgMPC(object):
         time_values: Optional[np.ndarray] = None,
         **minimization_kwargs,
     ) -> np.ndarray:
-        """
-        Method to generate a control sequence, given some initial conditions and a reference trajectory,
-        as in :cite:`peitz2020data` , Section 4.1. This method solves the following optimization problem
-        (:cite:`peitz2020data` , Equation K-MPC).
+        r"""
+        Method to generate a control sequence, given some initial conditions and a reference
+        trajectory, as in :cite:`peitz-2020` , Section 4.1. This method solves the following
+        optimization problem (:cite:`peitz-2020` , Equation K-MPC).
 
         .. math::
             \text{given : } x_{0}, x_r
@@ -753,7 +765,8 @@ class AffineKgMPC(object):
                 time_values = reference.time_values()
             except AttributeError:
                 raise TypeError(
-                    "If time_values is not provided, the reference needs to be of type TSCDataFrame"
+                    "If time_values is not provided, "
+                    "the reference needs to be of type TSCDataFrame"
                 )
 
         if time_values.shape != (self.horizon + 1,):
@@ -765,7 +778,8 @@ class AffineKgMPC(object):
         xref = if1dim_colvec(xref)
         if xref.shape != (self.state_size, self.horizon + 1):
             raise ValueError(
-                f"reference is of shape {reference.shape}, should be ({self.state_size},{self.horizon+1})"
+                f"reference is of shape {reference.shape}, "
+                f"should be ({self.state_size},{self.horizon+1})"
             )
 
         x0 = (
@@ -776,7 +790,8 @@ class AffineKgMPC(object):
         x0 = if1dim_colvec(x0)
         if x0.shape != (self.state_size, 1):
             raise ValueError(
-                f"initial_conditions is of shape {initial_conditions.shape}, should be ({self.state_size},1)"
+                f"initial_conditions is of shape {initial_conditions.shape}, "
+                f"should be ({self.state_size},1)"
             )
 
         try:
@@ -803,7 +818,8 @@ class AffineKgMPC(object):
 
         if not res.success:
             warnings.warn(
-                f"Could not find a minimum solution. Solver says '{res.message}'. Using closest solution."
+                f"Could not find a minimum solution. Solver says '{res.message}'. "
+                "Using closest solution."
             )
 
         return res.x.reshape(self.input_size, self.horizon + 1).T[:-1, :]

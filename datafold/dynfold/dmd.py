@@ -20,7 +20,6 @@ from datafold.utils.general import (
     is_scalar,
     mat_dot_diagmat,
     sort_eigenpairs,
-    split_control_state_columns,
 )
 
 try:
@@ -1739,7 +1738,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     ----------
 
     :cite:`kutz_dynamic_2016` (Chapter 6)
-    :cite:`korda2018linear`
+    :cite:`korda-2018`
 
     See Also
     --------
@@ -1795,7 +1794,6 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
         time_delta: Optional[float] = None,
     ) -> np.ndarray:
         next_state = initial_conditions
-        last_time = time_values[0]
         for idx, time in enumerate(time_values):
             time_series_tensor[:, idx, :] = next_state.T
             next_state = (
@@ -1864,13 +1862,13 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     ):
         r"""Evolve specified linear dynamical system according to given control input.
 
-        If time values are provided they must be positive real values :math:`t \in \mathbb{R}^+`
+        If time values are provided they must be positive real values :math:`t\in \mathbb{R}^+`
         and the system is evaluated using `matrix_fractional_power`. (Not implemented yet)
 
-            .. math::
-                x(t_{k+1}) = A^{t_{k} / \delta t} \cdot x_0 + B^{(t_{k+1}-t_{k}) / \delta t} \cdot u(t_{k})
+        .. math::
+            x(t_{k+1})=A^{t_{k}/\delta t}\cdot x_0+B^{(t_{k+1}-t_{k})/\delta t}\cdot u(t_{k})
 
-        A better performing alternative is used if :math:`t=0\delta t, 1\delta t, 2\delta t ,...`
+        A better performing alternative is used if :math:`t=0, \delta t, 2\delta t ,...`
         and evaluates the state via subsequent application of the matrix
 
         Parameters
@@ -2007,7 +2005,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
 
 
 class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin):
-    """Dynamic Mode Decomposition of time series data with control input to
+    r"""Dynamic Mode Decomposition of time series data with control input to
     approximate the Koopman operator.
 
     The model computes the system and control matrices :math:`A` and :math:`B` with
@@ -2039,7 +2037,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
     ----------
 
     :cite:`kutz_dynamic_2016` (Chapter 6)
-    :cite:`korda2018linear`
+    :cite:`korda-2018`
     """
 
     _cls_split_params = ("split_by", "control", "state")
@@ -2070,7 +2068,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             )
 
         XU = np.vstack([XT.T, UT.T])
-        # from :cite:`korda2018linear` - eq. 22
+        # from :cite:`korda-2018` - eq. 22
         G = XU @ XU.T
         np.multiply(1 / state.shape[0], G, out=G)  # improve condition?
         V = YT.T @ XU.T
@@ -2340,7 +2338,7 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
     References
     ----------
 
-    :cite:`peitz2020data`
+    :cite:`peitz-2020`
     """
 
     def __init__(self, time_invariant=True):
@@ -2361,7 +2359,8 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
             if control_matrix.shape[:2] != self.system_matrix_.shape:
                 raise ValueError(
-                    "control_matrix and system_matrix must have the same number of rows and columns"
+                    "control_matrix and system_matrix must have "
+                    "the same number of rows and columns"
                 )
             self.control_matrix_ = control_matrix
         return control_matrix
@@ -2395,7 +2394,8 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
         if control_matrix.shape[:2] != system_matrix.shape:
             raise ValueError(
-                "control_matrix and system_matrix must have the same number of rows and columns"
+                "control_matrix and system_matrix must have "
+                "the same number of rows and columns"
             )
         self.sys_matrix_ = system_matrix
         self.control_matrix_ = control_matrix
@@ -2434,7 +2434,8 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
             if not ivp_solution.success:
                 raise RuntimeError(
-                    f"The system could not be envolved for the requested timespan for initial condition {initial_conditions[i]}."
+                    f"The system could not be envolved for the requested "
+                    f"timespan for initial condition {initial_conditions[i]}."
                 )
 
             time_series_tensor[i] = ivp_solution.y.T
@@ -2443,7 +2444,7 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
 
 class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
-    """Dynamic Mode Decomposition of time series data with control input to
+    r"""Dynamic Mode Decomposition of time series data with control input to
     approximate the Koopman generator for an input affine system.
 
     The model computes the system matrix :math:`A` and control tensor :math:`B` with
@@ -2471,12 +2472,14 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
     Parameters
     ----------
     diff_scheme: Optional[str]
-        The finite difference scheme 'backward', 'center' or 'forward'. Defaul
-        Passed to `scheme` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+        The finite difference scheme 'backward', 'center' or 'forward'.
+        Default is center. Passed to `scheme` of
+        :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
 
     diff_accuracy: Optional[int]
         The accuracy (even positive integer) of the derivative scheme.
-        Passed to `accuracy` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+        Default is 2. Passed to `accuracy` of
+        :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
 
     rcond: Optional[float]
         Cut-off ratio for small singular values
@@ -2493,7 +2496,7 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
     References
     ----------
 
-    :cite:`peitz2020data`
+    :cite:`peitz-2020`
     """
 
     def __init__(
@@ -2536,7 +2539,7 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
             n_snapshots, control_cols * state_cols
         )
 
-        # match naming convention from cite:`peitz2020data`
+        # match naming convention from cite:`peitz-2020`
         Psi_XU = np.vstack([X.T, u_x_cwise_kron.T])
         Psidot_XU = Xdot.T
 

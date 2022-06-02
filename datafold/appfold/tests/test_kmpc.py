@@ -52,9 +52,10 @@ class LinearKMPCTest(unittest.TestCase):
                 num_steps=num_steps,
                 control_func=control_function,
             )
-            assert (
-                model.sol.success
-            ), f"Divergent solution for amplitude={control_amplitude}, frequency={control_frequency}"
+            assert model.sol.success, (
+                f"Divergent solution for amplitude={control_amplitude}, "
+                f"frequency={control_frequency}"
+            )
             t = model.sol.t
             dfx = pd.DataFrame(data=trajectory.T, index=t, columns=self._state_columns)
             dfx["u"] = 0.0
@@ -186,9 +187,10 @@ class AffineKMPCTest(unittest.TestCase):
                 num_steps=num_steps,
                 control_func=control_function,
             )
-            assert (
-                model.sol.success
-            ), f"Divergent solution for amplitude={control_amplitude}, frequency={control_frequency}"
+            assert model.sol.success, (
+                f"Divergent solution for amplitude={control_amplitude}, "
+                f"frequency={control_frequency}"
+            )
             t = model.sol.t
             dfx = pd.DataFrame(data=trajectory.T, index=t, columns=self._state_columns)
             dfx["u"] = 0.0

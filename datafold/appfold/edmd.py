@@ -60,7 +60,7 @@ from copy import deepcopy
 from functools import partial
 from itertools import product
 from traceback import format_exc
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -76,12 +76,7 @@ from sklearn.utils import _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
 from datafold._decorators import warn_experimental_class
-from datafold.dynfold import (
-    DMDBase,
-    DMDControl,
-    DMDFull,
-    gDMDAffine,
-)
+from datafold.dynfold import DMDBase, DMDControl, DMDFull, gDMDAffine
 from datafold.dynfold.base import (
     InitialConditionType,
     TimePredictType,
@@ -89,13 +84,7 @@ from datafold.dynfold.base import (
     TSCPredictMixin,
     TSCTransformerMixin,
 )
-from datafold.pcfold import (
-    InitialCondition,
-    TSCDataFrame,
-    TSCKfoldSeries,
-    TSCKFoldTime,
-    allocate_time_series_tensor,
-)
+from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
@@ -1983,7 +1972,7 @@ class EDMDControl(
     TSCTransformerMixin,
     TSCPredictMixin,
 ):
-    """Adapt :class:`EDMD` to controlled systems
+    r"""Adapt :class:`EDMD` to controlled systems
 
     This class provides a wrapper around :class:`EDMD` which allows usage of
     the main functionality (transform, fit, predict). It approximates Koopman
@@ -2003,8 +1992,10 @@ class EDMDControl(
 
     dmd_model: Union[DMDControl, gDMDAffine]
         The class to use for evaluating the Dynamic Mode Decomposition given the lifting.
-        :py:class:`DMDControl` is flowmap Koopman operator representation of :math:`x^+ = Ax + Bu`.
-        :py:class:`gDMDAffine` is differential Koopman generator representation of :math:\dot{x} = Ax + Bux`.
+        :py:class:`DMDControl` is flowmap Koopman operator representation of
+        :math:`x^+ = Ax + Bu`.
+        :py:class:`gDMDAffine` is differential Koopman generator representation of
+        :math:\dot{x} = Ax + Bux`.
 
     include_id_state
         If True, the original time series data are added to the EDMD-dictionary. The
@@ -2114,7 +2105,7 @@ class EDMDControl(
         self.state_columns = X.columns
         fit_params = self._edmd._check_fit_params(**fit_params or {})
         dmd_fit_params = fit_params.pop("dmd", {})
-        edmd_fit_params = fit_params.pop("edmd", None)
+        _ = fit_params.pop("edmd", None)
         Xlift = self._edmd._fit(X, **fit_params)
         self.n_samples_ic_ = self._edmd._compute_n_samples_ic(X, Xlift)
 
