@@ -1,16 +1,13 @@
 import numpy as np
 import pandas
-from pandas import DataFrame
 
-import matplotlib.axes
 import matplotlib.patches as mpatches
-import matplotlib.collections
 import matplotlib.lines as mlines
 from matplotlib.animation import FuncAnimation
 
 from datafold.utils._systems import InvertedPendulum
 
-from .model import Model, ScalingAugmenter
+from .model import Model
 
 
 class CartPole(Model):
@@ -78,39 +75,39 @@ class CartpoleArtist:
     def __init__(self, xmin=-5, xmax=5):
         self.xmin = xmin
         self.xmax = xmax
-        
+
         self.body_size = np.array([0.5, 0.25])
         self.arm_length = 0.365
         self.mass_radius = 0.1
-        
+
         self.artists = {}
-        
+
         self._init()
-        
+
     def _init(self):
         x1 = self.xmax
         x0 = self.xmin
-        
+
         a1 = 1/(x1-x0)
         b1 = -a1*x0
         b2 = 0.5
-        
+
         self.scale = a1
         self.offset = np.array([b1, b2])
-        
+
     def _project(self, xy):
         if xy.ndim > 1:
             offset = self.offset.reshape(1,-1)
         else:
             offset = self.offset
-            
+
         xy = np.array(xy)
         return self.scale * xy + offset
-    
+
     def _unproject(self, xy):
         return (xy - self.offset) / self.scale
-        
-    def draw_centerline(self, state):
+
+    def draw_centerline(self):
         name = 'centerline'
         if name not in self.artists:
             x1 = np.array([self.xmin, 0])
@@ -138,14 +135,14 @@ class CartpoleArtist:
     def draw_arm(self, state):
         th = state['theta']
         xy1 = np.array([state['x'], 0])
-        xy2 = xy1 + np.array([np.sin(th), np.cos(th)]) * self.arm_length
+        xy2 = xy1 + np.array([-np.sin(th), np.cos(th)]) * self.arm_length
         X = np.array([xy1, xy2])
         X_ = self._project(X)
-        
+
         x = X_[:,0]
         y = X_[:,1]
         r = self.mass_radius * self.scale
-        
+
         if 'arm' not in self.artists:
             line = mlines.Line2D(x, y, color='black')
             self.artists['arm'] = line
@@ -153,7 +150,7 @@ class CartpoleArtist:
             line = self.artists['arm']
             line.set_xdata(x)
             line.set_ydata(y)
-            
+
         if 'mass' not in self.artists:
             patch = mpatches.Ellipse(X_[1], r, r, color='black')
             self.artists['mass'] = patch
@@ -162,71 +159,25 @@ class CartpoleArtist:
             patch.set_center(X_[1])
             patch.set_width(r)
             patch.set_height(r)
-        
+
     def _draw(self, state):
-        self.draw_centerline(state)
-        self.draw_body(state)                  
+        self.draw_centerline()
+        self.draw_body(state)
         self.draw_arm(state)
-    
+
     def draw(self, ax, state):
         print(self.__dict__)
         self._draw(state)
         for artist in self.artists.values():
             ax.add_artist(artist)
-        
+
     def animate(self, ax, dfx):
-        def init():
-            self._draw(dfx.iloc[0].to_dict())
-            return self.artists.values()
-        
         def update(i):
             self._draw(dfx.iloc[i].to_dict())
             return self.artists.values()
-        
+
         anim = FuncAnimation(ax, update, frames=dfx.shape[0], interval=20, blit=True)
         return anim
-
-
-class CartpoleAugmenter(ScalingAugmenter):
-    @classmethod
-    def new(cls, dfx: DataFrame):
-        aug = cls(0, 1)
-        dfx_a = aug.augment(dfx)
-
-        offset, scale = cls._init_params(dfx_a)
-        return cls(offset, scale)
-
-    @classmethod
-    def _init_params(cls, dfx):
-        offset, scale = super()._init_params(dfx)
-        offset['sin_th1'] = 0
-        offset['cos_th1'] = 0
-        scale['sin_th1'] = 1
-        scale['cos_th1'] = 1
-
-        return offset, scale
-
-    def augment(self, state):
-        state = state.copy()
-        if 'theta' in state:
-            state['sin_th1'] = np.sin(state['theta'])
-            state['cos_th1'] = np.cos(state['theta'])
-        return super().augment(state)
-
-    def deaugment(self, state):
-        state = super().deaugment(state)
-
-        if 'sin_th1' in state and 'cos_th1' in state:
-            sin = state['sin_th1']
-            cos = state['cos_th1']
-
-            th1 = np.arcsin(sin).values
-            th2 = np.arccos(cos).values
-
-            th = np.mean([th1, th2], axis=0)
-            state['theta'] = th1
-
-        return state
 
 
 class SineControl:
