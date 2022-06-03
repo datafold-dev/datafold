@@ -493,6 +493,8 @@ class InvertedPendulum(ControlledDynamicalSystem):
         sin_th = np.sin(theta)
         cos_th = np.cos(theta)
 
+        alpha = M + m * sin_th*sin_th
+
         # See doc/reports/cartpole/report.pdf for derivation
 
         f2 = (
@@ -500,14 +502,14 @@ class InvertedPendulum(ControlledDynamicalSystem):
             + m * g * sin_th * cos_th
             - m * l * thetadot ** 2 * sin_th
             - 2 * self.cart_friction * xdot
-        ) / (M + m * sin_th ** 2)
+        ) / alpha
 
         f4 = (
             self.tension_force_gain * control_input * cos_th
             - m * l * thetadot ** 2 * sin_th * cos_th
             + (M + m) * g * sin_th
             - 2 * self.cart_friction * xdot * cos_th
-        ) / (l * (M + m * sin_th ** 2))
+        ) / (l * alpha)
 
         return np.array((f1, f2, f3, f4))
 
