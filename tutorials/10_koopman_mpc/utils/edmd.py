@@ -80,7 +80,6 @@ class EDMD_RBF(Predictor):
     def fit(self, X_tsc: TSCDataFrame):
         cols = self.state_cols + self.input_cols
         X_tsc = X_tsc[cols]
-        N = X_tsc.shape[0]
 
         centers = self._init_centers(X_tsc)
 

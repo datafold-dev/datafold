@@ -1,4 +1,3 @@
-from pandas import DataFrame
 from tqdm import tqdm
 
 from datafold.pcfold import TSCDataFrame
@@ -9,6 +8,11 @@ import matplotlib.pyplot as plt
 
 
 class Trajectory:
+    """
+    Container for an initial condition and a data frame describing a
+    trajectory. Also caches augmented version of initial condition and
+    trajectory.
+    """
     def __init__(self, ic, dfx):
         self.ic = ic
         self.dfx = dfx
@@ -32,7 +36,7 @@ class Trajectory:
 
         cols = [c for c in self.ic.columns if c not in ['t', 'u']]
         ic = self.ic[cols].iloc[0].to_dict()
-        ic = {k: '{:.2e}'.format(v) for k, v in ic.items()}
+        ic = {k: f'{v:.2e}' for k, v in ic.items()}
         return f'<{name} {ic} {aug}>'
 
     def plot(self, cols, axes=None):
@@ -54,6 +58,9 @@ class Trajectory:
 
 
 class DataSplits:
+    """
+    Container for train/test data splits, and to manage data augmentation
+    """
     def __init__(self, train: List[Trajectory], test: List[Trajectory],
                  state_cols, input_cols):
         self.train = self._init_trajectories(train)

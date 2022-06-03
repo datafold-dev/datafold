@@ -3,7 +3,7 @@ import pandas
 from pprint import pformat
 from tqdm import tqdm
 
-from datafold.appfold import EDMDControl, LinearKMPC
+from datafold.appfold import LinearKMPC
 from datafold.pcfold import TSCDataFrame
 
 from .model import Predictor, Model, Augmenter

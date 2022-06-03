@@ -100,10 +100,6 @@ class Predictor:
         self._predictor = self._init_predictor()
 
     def _init_predictor(self) -> EDMDControl:
-
-        @property
-        def include_id_state(self):
-            return self._edmd.include_id_state
         raise NotImplementedError
 
     def fit(self, X_tsc: TSCDataFrame):
@@ -138,35 +134,23 @@ class PredictResult:
 
     def error_v2(self, dfx):
         cols = self.state_cols
-    
+
         diff = self.pred[cols].values - dfx[cols].values
         err = diff**2
 
         err = np.hstack([err, np.mean(err, axis=1).reshape(-1,1)])
         return err
-        
-    def metric(self, dfx, thresholds=[1e-3, 1e-6]):
+
+    def metric(self, dfx, thresholds=(1e-3, 1e-6)):
         err = self.error_v2(dfx)
         err = np.concatenate((err, np.ones((1, err.shape[1]))*np.inf), axis=0)
 
         err = err.reshape(*err.shape, 1)
         thresholds = np.array(thresholds).reshape(1,1,-1)
-        # thresholds = np.array([1e-3, 1e-6]).reshape(1, 1,-1)
 
         mask = err > thresholds
         idx = np.argmax(mask, axis=0)
         return idx
-
-        # idx = np.array([np.argmax(err > t, axis=0) for t in thresholds])
-
-        # if np.any(idx == 0):
-        #     for i in range(idx.shape[0]):
-        #         for j in range(idx.shape[1]):
-        #             if idx[i,j] == 0:
-        #                 if err[-1,j] < thresholds[i]:
-        #                     idx[i,j] = err.shape[0]
-
-        # return idx
 
     def plot(self, axes=None, cols=None, ranges=None):
         if cols is None:
@@ -238,7 +222,7 @@ class Predictions:
         mean_err = err / counts.reshape(-1,1)
         return mean_err
 
-    def metric(self, trajectories, thresholds=[1e-3, 1e-6]):
+    def metric(self, trajectories, thresholds=(1e-3, 1e-6)):
         trajectories = list(trajectories)
 
         N = len(trajectories)

@@ -115,7 +115,6 @@ def plot_pred(trajectories, predictor, state_cols=None, input_cols=None,
     return fig, axes
 
 
-
 def plot_tsc(tsc, axes=None, cols=None, m=2):
     if cols is None:
         cols = set(tsc.columns)
@@ -129,13 +128,13 @@ def plot_tsc(tsc, axes=None, cols=None, m=2):
     if axes is None:
         fig = plt.figure()
         axes = fig.subplots(n, m).flatten()
+        ret = fig, axes
     else:
-        fig = None
+        ret = None
 
     for i, col in enumerate(cols):
         axes[i].plot(tsc[col].values)
         axes[i].set_title(col)
         axes[i].grid(True)
 
-    if fig is not None:
-        return fig, axes
+    return ret
