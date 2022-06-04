@@ -1074,11 +1074,11 @@ class DMDFull(DMDBase):
          robust, but the system evaluation is computationally more expensive.
 
     is_diagonalize
-        If True, also the left eigenvectors are also computed if
-        ``sys_mode='spectral'`` (the parameter is ignored for `matrix` mode). This is
-        more efficient to solve for initial conditions, because there is no least
-        squares computation required for evaluating the linear dynamical
-        system.
+        If True, also the left eigenvectors are computed to diagonalize the system matrix.
+        This afftects of how initial conditions are adapted for the spectral system
+        representation (instead of a least squares :math:`\Psi_r^\dagger x_0` with right
+        eigenvectors it performs :math:`\Psi_l x_0`). Tthe parameter is ignored if
+        ``sys_mode=matrix``.
 
     approx_generator
         If True, approximate the generator of the system
@@ -1879,17 +1879,17 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
     Attributes
     ----------
     Qx, Qy, Gx, Gy, A
-        System matrices of the model. For detailed explanations see :cite:t:`hemati-2014`.
+        System matrices. For detailed explanations see :cite:t:`hemati-2014`.
 
     References
     ----------
 
-    This implementation is an adapted and extended form of the open-soruce implementation in
+    :cite:`hemati-2014`
+
+    This implementation is adapted and extended from
     `dmdtools <https://github.com/cwrowley/dmdtools>`__ (for the compatible license see the
     `LICENSE_bundeled <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSES_bundled>`__
     in datafold).
-
-    :cite:``
     """  # noqa E501
 
     def __init__(self, max_rank=None, ngram=5, incr_basis_tol=1.0e-10):
@@ -1999,8 +1999,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         """Initial fit of the model (used within :py:meth`partial_fit`).
 
         .. note::
-            This function is not intended to be used directly. Use the :py:meth:`partial_fit`
-            method instead.
+            This function is not intended to be used directly. Use only py:meth:`partial_fit`.
         """
 
         self._validate_datafold_data(
@@ -2009,8 +2008,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
 
         if X.n_timesteps != 2:
             raise ValueError(
-                "Only a single time series with two samples is permitted for the "
-                "initial fit."
+                "Only a single time series with two samples is permitted for the initial fit."
             )
 
         self._setup_features_and_time_attrs_fit(X)
@@ -2069,7 +2067,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         Parameters
         ----------
         X
-            time series collections
+            Initial or new time series collection data.
 
         y
             ignored
@@ -2093,6 +2091,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
                 return self
         else:
             self._validate_feature_names(X)
+            self._validate_delta_time(X.delta_time)
 
         self._validate_datafold_data(X, ensure_tsc=True, ensure_min_samples=2)
 
@@ -2162,3 +2161,232 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         )
 
         return X_predict
+
+
+class OnlineDMD(DMDBase, TSCPredictMixin):
+    """Online dynamic mode decomposition on time-varying system data.
+
+    The system attributes become only available after a warm up phase with two times the
+    number (see also ``ready_`` attribute).
+
+    Parameters
+    ----------
+
+    weighting
+        Exponential weighing factor in (0, 1] for adaptive learning rates. Smaller values
+        allow for more adpative learning but can also result in instabilities as the model
+        relies only on limited recent snapshots). Defaults to 1.0.
+
+    is_diagonalize
+        If True, also the left eigenvectors are computed to diagonalize the system matrix.
+        This afftects of how initial conditions are adapted for the spectral system
+        representation (instead of a least squares :math:`\Psi_r^\dagger x_0` with right
+        eigenvectors it performs :math:`\Psi_l x_0`).
+
+    Attributes
+    ----------
+
+    ready_: bool
+        Indicates whether enough samples have been processed to perform predictions and access
+        the spectral elements.
+
+    timestep_: int
+        Counts the number of samples that have been processed.
+
+    eigenvalues_ : numpy.ndarray
+        Most recent eigenvalues of system matrix.
+
+    eigenvectors_right_ : numpy.ndarray
+        Most recent right eigenvectors of system matrix; ordered column-wise.
+
+    eigenvectors_left_ : numpy.ndarray
+        All left eigenvectors of Koopman matrix; ordered row-wise.
+        Only available if ``is_diagonalize=True``.
+
+    A: numpy.ndarray
+        Most recent system matrix.
+
+    References
+    ----------
+    :cite:`zhang-2019`
+
+    This implementation is adapted and extended from
+    `odmd <https://github.com/haozhg/odmd>`__ (for the compatible license see the
+    `LICENSE_bundeled <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSES_bundled>`__
+    in datafold).
+    """  # noqa E501
+
+    def __init__(self, weighting: float = 1.0, is_diagonalize: bool = False) -> None:
+        self.weighting = weighting
+        self.is_diagonalize = is_diagonalize
+        super(OnlineDMD, self).__init__(sys_type="flowmap", sys_mode="spectral")
+
+    def _validate_parameters(self):
+        check_scalar(
+            self.weighting,
+            name="weighing",
+            target_type=float,
+            min_val=0,
+            max_val=1,
+            include_boundaries="right",
+        )
+
+    def _compute_spectral_components(self):
+        """Compute spectral components based on the current system matrix."""
+        if not self.ready_:
+            raise ValueError(
+                f"Model has not seen enough data. Requires at least {2 * self.n_features_in_} "
+                f"samples (currently {self.timestep_})."
+            )
+        evals, right_evec = np.linalg.eig(self.A)
+
+        if self.is_diagonalize:
+            left_evec = self._compute_left_eigenvectors(
+                system_matrix=self.A,
+                eigenvalues=evals,
+                eigenvectors_right=right_evec,
+            )
+            return sort_eigenpairs(
+                evals, right_eigenvectors=right_evec, left_eigenvectors=left_evec
+            )
+        else:
+            evals, right_evec = sort_eigenpairs(evals, right_evec)
+            return evals, right_evec, None
+
+    def _basic_initialize(self, X) -> None:
+        """Initialize online DMD with epsilon small (1e-15) ghost snapshot pairs before t=0"""
+        self._validate_parameters()
+        self._setup_features_and_time_attrs_fit(X)
+        n_states = X.shape[1]
+
+        epsilon = 1e-15
+        alpha = 1.0 / epsilon
+
+        # TODO: maybe provide random_state in __init__?
+        self.A = np.random.default_rng(1).normal(size=(n_states, n_states))
+        self._P = alpha * np.identity(n_states)
+        self.timestep_ = 0
+
+    def ready_(self):
+        return self.timestep_ >= 2 * self.n_features_in_
+
+    def fit(self, X, y=None, **fit_params):
+        """Initialize the model with the first time series data in a batch.
+
+        .. note::
+            This function is not intended to be used directly. Use only py:meth:`partial_fit`.
+        """
+
+        self._setup_features_and_time_attrs_fit(X)
+        self._validate_parameters()
+        self._validate_datafold_data(X, ensure_tsc=True)
+
+        Xm, Xp = X.tsc.shift_matrices(snapshot_orientation="row")
+
+        # necessary condition for over-constrained initialization
+        p = Xp.shape[0]
+
+        if self.weighting < 1:
+            weights = np.power(np.sqrt(self.weighting), np.arange(p)[::-1])
+            Xmhat, Xphat = weights * Xm, weights * Xp
+        else:
+            Xmhat, Xphat = Xm, Xp
+
+        # TODO: cannot find a way to not use pinv (lstsq leads to more unstable solutions)
+        self.A = (np.linalg.pinv(Xmhat) @ Xphat).T
+
+        # original np.linalg.inv(Xmhat @ Xmhat.T) / self.weighting
+        self._P = (
+            np.linalg.lstsq(Xmhat.T @ Xmhat, np.identity(X.shape[1]))[0]
+            / self.weighting
+        )
+
+        self.timestep_ = p
+
+        if self.ready_:
+            (
+                self.eigenvalues_,
+                self.eigenvectors_right_,
+                self.eigenvectors_left_,
+            ) = self._compute_spectral_components()
+
+        return self
+
+    def partial_fit(self, X, y=None, **fit_params):
+        """Perform a single epoch of updates on data to update the the system matrix and its
+        spectral components.
+
+        Parameters
+        ----------
+        X
+            Initial or new time series collection data.
+
+        y
+            ignored
+
+        **fit_params
+            batch_initialize: bool
+                If True then the entire initial batch is used to initialize the system matrix.
+                Parameter is ignored if the model has been fitted once already.
+
+        Returns
+        -------
+        OnlineDMD
+            updated model
+        """
+
+        batch_initialize = self._read_fit_params(
+            attrs=[("batch_initialize", False)], fit_params=fit_params
+        )
+        is_fitted = hasattr(self, "A")
+
+        if batch_initialize and not is_fitted:
+            return self.fit(X)
+        elif not is_fitted:
+            self._basic_initialize(X)
+
+        self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            ensure_min_samples=2,
+            tsc_kwargs=dict(ensure_no_degenerate_ts=True),
+        )
+        self._validate_delta_time(X.delta_time)
+        self._validate_feature_names(X)
+
+        Xm, Xp = X.tsc.shift_matrices(validate=False)
+        n_states, n_pairs = Xm.shape
+
+        for i in range(n_pairs):
+            xm, xp = Xm[:, i], Xp[:, i]
+
+            # compute P*xm matrix vector product beforehand
+            Pxm = self._P @ xm
+
+            # compute gamma
+            gamma = np.reciprocal(1 + xm.T @ Pxm)
+
+            # update A
+            self.A += np.outer(gamma * (xp - self.A @ xm), Pxm)
+
+            # update P, group Pxm*Pxm' to ensure positive definite
+            self._P -= gamma * np.outer(Pxm, Pxm)
+            self._P /= self.weighting
+
+            # ensure P is SPD by taking its symmetric part
+            # TODO: there is a function in datafold that performs this -- can it be avoided
+            #  or only performed after the loop?
+            self._P += self._P.T
+            self._P /= 2
+
+            # time step + 1
+            self.timestep_ += 1
+
+        if self.ready_:
+            (
+                self.eigenvalues_,
+                self.eigenvectors_right_,
+                self.eigenvectors_left_,
+            ) = self._compute_spectral_components()
+
+        return self

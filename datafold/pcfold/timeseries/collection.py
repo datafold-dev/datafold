@@ -124,8 +124,7 @@ def _is_numeric_dtype(obj):
 
 
 class _LocTSCIndexer(_LocIndexer):
-    """Required for overwriting the behavior of :meth:`TSCDataFrame.loc`.
-    `iloc` is currently not supported, see #61"""
+    """Required for overwriting the behavior of :meth:`TSCDataFrame.loc`."""
 
     def __getitem__(self, item):
         sliced = super(_LocTSCIndexer, self).__getitem__(item)
@@ -135,10 +134,8 @@ class _LocTSCIndexer(_LocIndexer):
             # there is no "TSCSeries", so always use TSCDataFrame, even when
             # sliced has only 1 column and is a pd.Series.
             if isinstance(sliced, pd.Series):
-                # raises attribute error if not possible
+                # raises attribute error if this does not work
                 sliced = TSCDataFrame(sliced)
-            else:
-                sliced._validate()
 
         except AttributeError:
             # Fallback if the sliced is not a valid TSC anymore
@@ -162,13 +159,11 @@ class _iLocTSCIndexer(_iLocIndexer):
 
         try:
             # NOTE: this is different to loc -- here a pd.Series remains a pd.Series!
-            # This is because pandas internal testing requires this
+            # This is because pandas' internal testing routines require this
             if isinstance(sliced, pd.Series):
                 # TODO: see issue #61
                 #  https://gitlab.com/datafold-dev/datafold/-/issues/61
                 raise AttributeError
-            else:
-                sliced._validate()
 
         except AttributeError:
             # Fallback if the sliced is not a valid TSC anymore
@@ -322,12 +317,13 @@ class TSCDataFrame(pd.DataFrame):
             #  with this?
             self = pd.DataFrame(self)
         else:
-            self._validate()
+            if self.is_validate:
+                self._validate()
 
     def __setattr__(self, key, value):
-        if key == "index":
+        if key == "index" and self.is_validate:
             value = self._validate_index(value)
-        elif key == "columns":
+        elif key == "columns" and self.is_validate:
             value = self._validate_columns(value)
 
         # Note: validation of data is not necessary here because this is done
@@ -479,9 +475,7 @@ class TSCDataFrame(pd.DataFrame):
         time_values = np.array([0, 1] * n_timeseries)
         index = pd.MultiIndex.from_arrays([id_idx, time_values])
 
-        tsc = cls(data=zipped_values, index=index, columns=columns)
-        tsc._validate()
-        return tsc
+        return cls(data=zipped_values, index=index, columns=columns)
 
     @classmethod
     def from_same_indices_as(
@@ -972,7 +966,7 @@ class TSCDataFrame(pd.DataFrame):
             )
             dt_result_series = dt_result_series.astype("timedelta64[ns]")
         else:
-            # initialize all with nan values (which essentially is np.floag64.
+            # initialize all with nan values (which essentially is np.float64.
             # return back to same dtype than time_values if all values are finite,
             # otherwise the type stays as float.
             dt_result_series = pd.Series(
@@ -1000,7 +994,7 @@ class TSCDataFrame(pd.DataFrame):
             if not np.isnan(dt_result_series).any():
                 # TODO: here it may be interesting to check the new "Null" types of
                 #  pandas. They allow to also have nan by still keeping other dtypes
-                #  than float (--> only float has a nan representation in Numpy types)
+                #  than float (--> only float has a nan representation in Numpy dtypes)
                 dt_result_series = dt_result_series.astype(diff_times.dtype)
 
         else:
@@ -1030,17 +1024,17 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         """
-        n_time_elements = self.index.get_level_values(0).value_counts()
-        n_unique_elements = len(np.unique(n_time_elements))
 
-        if self.n_timeseries == 1 or n_unique_elements == 1:
-            return int(n_time_elements.iloc[0])
+        vals, counts = np.unique(
+            self.index.get_level_values(self.tsc_id_idx_name), return_counts=True
+        )
+
+        if self.n_timeseries == 1 or len(np.unique(counts)) == 1:
+            return int(counts[0])
         else:
-            n_time_elements.index.name = self.tsc_id_idx_name
-            # seems not to be sorted in the first place.
-            n_time_elements = n_time_elements.sort_index()
-            n_time_elements.name = "counts"
-            return n_time_elements
+            return pd.Series(
+                counts, index=pd.Index(vals, name=self.tsc_id_idx_name), name="counts"
+            )
 
     def transpose(self, *args, copy: bool = False) -> pd.DataFrame:
         """Overwrite transpose of super class.
@@ -1148,7 +1142,7 @@ class TSCDataFrame(pd.DataFrame):
         )
 
         try:
-            _slice = TSCDataFrame(_slice)
+            _slice = TSCDataFrame(_slice, validate=self.is_validate)
         except AttributeError:
             pass
 
@@ -1174,20 +1168,31 @@ class TSCDataFrame(pd.DataFrame):
         """Indicates whether 'time' index is datetime format."""
         return is_datetime64_dtype(self.index.get_level_values(self.tsc_time_idx_name))
 
-    def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
+    def itertimeseries(
+        self, valid_tsc=False
+    ) -> Generator[Tuple[int, pd.DataFrame], None, None]:
         """Generator of contained time series.
 
         Each iteration returns the time series ID and the corresponding
         time series (a :class:`pd.DataFrame` instead of a ``TSCDataFrame``).
 
+        Parameters
+        ----------
+        valid_tsc
+            If True return a valid format of ``TSCDataFrame`` (i.e. the time series ID is
+            element in the index).
+
         Yields
         ------
-        Tuple[int, pandas.DataFrame]
-            Time series ID and corresponding time series.
+        Tuple[int, pandas.DataFrame] or TSCDataFrame
+            Time series ID and corresponding time series or time series
         """
         for i, ts in self.groupby(level=self.tsc_id_idx_name):
-            # cast single time series back to DataFrame
-            yield i, pd.DataFrame(ts.loc[i, :])
+            if valid_tsc:
+                yield ts
+            else:
+                # cast single time series back to DataFrame
+                yield i, pd.DataFrame(ts.loc[i, :])
 
     def is_equal_length(self) -> bool:
         """Indicates if all time series in the collection have the same number of
@@ -1195,18 +1200,25 @@ class TSCDataFrame(pd.DataFrame):
         """
         return len(np.unique(self.n_timesteps)) == 1
 
-    def is_const_delta_time(self) -> bool:
-        """Indicates if all time series in the collection have the same time delta."""
+    def is_const_delta_time(self, delta_time=None) -> bool:
+        """Indicates if all time series in the collection have the same time delta.
 
-        # If dt is a Series it means it shows "dt per ID" (because it is not constant).
-        _dt = self.delta_time
+        Parameters
+        ----------
+        delta_time
+            Pass ``delta_time`` if it is already available.
+        """
 
-        if isinstance(_dt, pd.Series):
+        if delta_time is None:
+            # If dt is a Series it means it shows "dt per ID" (because it is not constant).
+            delta_time = self.delta_time
+
+        if isinstance(delta_time, pd.Series):
             return False
 
         # pd.isnull is better than np.finite because it also checks for
         # NaT (Not a Time[-delta])
-        return not pd.isnull(_dt)
+        return not pd.isnull(delta_time)
 
     def is_same_time_values(self) -> bool:
         """Indicates if all time series in the collection share the same time values."""

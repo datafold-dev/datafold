@@ -15,6 +15,7 @@ from datafold.dynfold.dmd import (
     DMDEco,
     DMDFull,
     LinearDynamicalSystem,
+    OnlineDMD,
     PyDMDWrapper,
     StreamingDMD,
     gDMDFull,
@@ -622,59 +623,86 @@ class StreamingDMDTest(unittest.TestCase):
         df = TSCTakensEmbedding(delays=4).fit_transform(df)
         return df
 
-    def test_sine_curve(self, plot=False):
+    def test_sine_curve(self, plot=True):
 
         df = self._generate_delayed_sine_wave()
 
         batchsize = 200
 
-        dmd = StreamingDMD(max_rank=None, ngram=5)
+        stream_dmd_classes = [
+            (StreamingDMD(max_rank=None, ngram=5), {}),
+            (OnlineDMD(weighting=1.0), dict(batch_initialize=True)),
+        ]
 
         batches = np.array_split(df, df.shape[0] // batchsize)
         predict = []
         predict_fulldmd = []
         train = []
 
-        for i in range(len(batches) - 1):
-            fit_batch = batches[i]
-            predict_batch = batches[i + 1]
+        for dmd, fit_params in stream_dmd_classes:
 
-            dmd_full = DMDFull().fit(pd.concat(batches[: i + 1], axis=0))
-            dmd_full.eigenvectors_right_ = dmd_full.eigenvectors_right_[:, 0:2]
-            dmd_full.eigenvalues_ = dmd_full.eigenvalues_[0:2]
+            for i in range(len(batches) - 1):
+                fit_batch = batches[i]
+                predict_batch = batches[i + 1]
 
-            predict_fulldmd.append(dmd_full.reconstruct(predict_batch).loc[:, "sin"])
+                dmd_full = DMDFull().fit(pd.concat(batches[: i + 1], axis=0))
+                expected_ev = dmd_full.eigenvalues_[:2]
 
-            dmd = dmd.partial_fit(fit_batch)
+                predict_fulldmd.append(
+                    dmd_full.reconstruct(predict_batch).loc[:, "sin"]
+                )
 
-            train.append(dmd.reconstruct(fit_batch).loc[:, "sin"])
-            predict.append(dmd.reconstruct(predict_batch).loc[:, "sin"])
+                dmd = dmd.partial_fit(fit_batch, **fit_params)
+                actual_ev = dmd.eigenvalues_[:2]
 
-            nptest.assert_allclose(
-                dmd_full.eigenvalues_, dmd.eigenvalues_, rtol=1e-15, atol=1e15
-            )
+                train.append(dmd.reconstruct(fit_batch).loc[:, "sin"])
+                predict.append(dmd.reconstruct(predict_batch).loc[:, "sin"])
+
+                nptest.assert_allclose(expected_ev, actual_ev, rtol=1e-15, atol=1e-12)
+
+            if plot:
+                ax = plot_eigenvalues(
+                    dmd_full.eigenvalues_,
+                    plot_unit_circle=True,
+                    plot_kwargs=dict(marker="o", alpha=0.3, label="full"),
+                )
+                plot_eigenvalues(
+                    dmd.eigenvalues_, ax=ax, plot_kwargs=dict(label="streaming")
+                )
+                plt.legend()
+
+                ax = df.loc[:, ["sin"]].plot()
+
+                for i, p in enumerate(predict_fulldmd):
+                    ax.plot(
+                        p.time_values(),
+                        p.to_numpy(),
+                        c="orange",
+                        linewidth=3,
+                        label=f"{dmd_full=}" if i == 0 else None,
+                    )
+
+                for i, p in enumerate(train):
+                    ax.plot(
+                        p.time_values(),
+                        p.to_numpy(),
+                        "-",
+                        c="green",
+                        label=f"{dmd=} train" if i == 0 else None,
+                    )
+
+                for i, p in enumerate(predict):
+                    ax.plot(
+                        p.time_values(),
+                        p.to_numpy(),
+                        "--",
+                        c="red",
+                        label=f"{dmd=} test" if i == 0 else None,
+                    )
+
+                plt.legend()
 
         if plot:
-            ax = plot_eigenvalues(
-                dmd_full.eigenvalues_,
-                plot_unit_circle=True,
-                plot_kwargs=dict(marker="o", alpha=0.3, label="full"),
-            )
-            plot_eigenvalues(
-                dmd_full.eigenvalues_, ax=ax, plot_kwargs=dict(label="streaming")
-            )
-
-            ax = df.loc[:, ["sin"]].plot()
-
-            for p in predict_fulldmd:
-                ax.plot(p.time_values(), p.to_numpy(), c="orange", linewidth=3)
-
-            for p in train:
-                ax.plot(p.time_values(), p.to_numpy(), "-", c="green")
-
-            for p in predict:
-                ax.plot(p.time_values(), p.to_numpy(), "--", c="red")
-
             plt.show()
 
     def test_pod_compression(self):
@@ -729,3 +757,29 @@ class StreamingDMDTest(unittest.TestCase):
             plt.legend()
 
             plt.show()
+
+
+class TestOnlineDMD(unittest.TestCase):
+    def test_online_dmd(self):
+
+        for n in range(2, 10):  # n -> state dimension
+            T = 100 * n  # number of measurements
+
+            # linear system matrix
+            A = np.random.default_rng(2).normal(size=(n, n))
+
+            now = np.random.default_rng(3).normal(size=(n, T))
+            next = A.dot(now)
+
+            X = TSCDataFrame.from_shift_matrices(now, next, snapshot_orientation="col")
+            X.is_validate = False  # speeds up the iteration
+
+            dmd = OnlineDMD(weighting=0.9)
+
+            for tsc in X.itertimeseries(valid_tsc=True):
+                dmd = dmd.partial_fit(tsc)
+                if dmd.ready_:
+                    self.assertLess(np.linalg.norm(dmd.A - A), 1e-6)
+
+            actual = dmd.reconstruct(X)  # calls predict within
+            pdtest.assert_frame_equal(X, actual, rtol=1e-13, atol=1e-10)
