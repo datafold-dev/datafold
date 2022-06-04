@@ -868,16 +868,18 @@ class EDMDTest(unittest.TestCase):
         tv_batches = np.array_split(data.time_values(), 10)
 
         apply_dmd = True
-        for i in range(len(tv_batches)-1):
+        for i in range(len(tv_batches) - 1):
 
             current_time_values = tv_batches[i]
-            next_time_values = tv_batches[i+1]
+            next_time_values = tv_batches[i + 1]
             X_train = data.loc[pd.IndexSlice[:, current_time_values], :]
             X_test = data.loc[pd.IndexSlice[:, next_time_values], :]
 
             if apply_dmd:
                 dmd = DMDFull().fit(_tse.fit_transform(X_train))
-                test_batches_dmd.append(dmd.reconstruct(_tse.fit_transform(X_test)).loc[:, "sin"])
+                test_batches_dmd.append(
+                    dmd.reconstruct(_tse.fit_transform(X_test)).loc[:, "sin"]
+                )
 
             edmd = edmd.partial_fit(X_train)
             test_batches.append(edmd.reconstruct(X_test))

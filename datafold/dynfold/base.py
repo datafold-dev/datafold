@@ -510,9 +510,10 @@ class TSCPredictMixin(TSCBase):
                 "Currently, all methods assume that dt_ is const."
             )
 
-        if delta_time != self.dt_:
+        if np.abs(delta_time - self.dt_) > 1e-14:
             raise TSCException(
-                f"delta_time during fit was {self.dt_}, now it is {delta_time}"
+                f"delta_time during fit was {self.dt_}, now it is {delta_time} "
+                f"({np.abs(delta_time - self.dt_)=} with set tolerance 1e-14) "
             )
 
     def _validate_feature_names(

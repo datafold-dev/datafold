@@ -170,8 +170,8 @@ class TSCAccessor(object):
     def check_const_time_delta(self) -> Union[pd.Series, float]:
         """Check if all time series have the same time-delta."""
         delta_time = self._tsc_df.delta_time
-        if not self._tsc_df.is_const_delta_time():
-            raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
+        if not self._tsc_df.is_const_delta_time(delta_time):
+            raise TSCException.not_const_delta_time(delta_time)
         return delta_time
 
     def check_equal_timevalues(self) -> None:
@@ -950,7 +950,7 @@ class TSCAccessor(object):
             return None
 
     def shift_matrices(
-        self, snapshot_orientation: str = "col"
+        self, snapshot_orientation: str = "col", validate: bool = True
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes shift matrices from time series data.
 
@@ -962,6 +962,10 @@ class TSCAccessor(object):
         snapshot_orientation
             Orientation of snapshots (system states at time) either in rows ("row") or
             column-wise ("col")
+
+        validate
+            If True, validation steps (constant sampling and that each time series has at
+            least two samples) are performed.
 
         Returns
         -------
@@ -983,12 +987,21 @@ class TSCAccessor(object):
 
         """
 
-        self.check_const_time_delta()
-
-        # can be implemented if required:
-        self.check_required_min_timesteps(required_min_timesteps=2)
+        if validate:
+            self.check_required_min_timesteps(required_min_timesteps=2)
+            self.check_const_time_delta()
 
         ts_counts = self._tsc_df.n_timesteps
+
+        if ts_counts == 2:
+            # fast return for a single snapshot pairs
+            # particularly for streaming settings this function becomes slow
+            _v = self._tsc_df.to_numpy()
+            left, right = _v[0::2, :], _v[1::2, :]
+            if snapshot_orientation == "col":
+                return left.T, right.T
+            else:  # snapshot_orientation == "row"
+                return left, right
 
         if is_integer(ts_counts):
             ts_counts = pd.Series(
