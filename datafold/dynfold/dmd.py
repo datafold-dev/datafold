@@ -2186,10 +2186,6 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
     Attributes
     ----------
 
-    ready_: bool
-        Indicates whether enough samples have been processed to perform predictions and access
-        the spectral elements.
-
     timestep_: int
         Counts the number of samples that have been processed.
 
@@ -2267,14 +2263,19 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
         self._P = alpha * np.identity(n_states)
         self.timestep_ = 0
 
-    def ready_(self):
+    @property
+    def ready_(self) -> bool:
+        """Indicates if enough samples have been processed to perform predictions and
+        access the spectral system components."""
         return self.timestep_ >= 2 * self.n_features_in_
 
     def fit(self, X, y=None, **fit_params):
         """Initialize the model with the first time series data in a batch.
 
         .. note::
-            This function is not intended to be used directly. Use only py:meth:`partial_fit`.
+
+            This function is not intended to be used directly. Use py:meth:`partial_fit` from
+            the start (also initial fit).
         """
 
         self._setup_features_and_time_attrs_fit(X)
@@ -2334,6 +2335,12 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
         OnlineDMD
             updated model
         """
+
+        # TODO: all the checks etc. cost quite a lot of computational resources, if iterating
+        #  on partial_fit sample-by-sample. Maybe this can be relaxed (disable validation with
+        #  parameter) or also allow processing NumPy data directly (the user then needs to
+        #  tell in which format the snapshots are -- i) single time series or ii) snapshot
+        #  pairs       --- this is improved when needed
 
         batch_initialize = self._read_fit_params(
             attrs=[("batch_initialize", False)], fit_params=fit_params

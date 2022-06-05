@@ -571,7 +571,7 @@ class TSCDataFrame(pd.DataFrame):
         Parameters
         ----------
         data
-            Time series data with snapshots in rows.
+            Time series data (2-dim. array) with snapshots in rows.
 
         ts_id
             ID of time series.
@@ -581,7 +581,9 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
-        df = pd.DataFrame(array, index=time_values, columns=feature_names)
+        df = pd.DataFrame(
+            np.atleast_2d(array), index=time_values, columns=feature_names
+        )
         return cls.from_single_timeseries(df, ts_id=ts_id)
 
     @classmethod
@@ -671,7 +673,10 @@ class TSCDataFrame(pd.DataFrame):
 
         tsc_list = list()
         for _id, df in zip(ts_ids, final_list):
-            # TODO: can be done without loop and would be more efficient
+            # TODO: could be done without loop and would be more efficient
+            df = df.copy(
+                deep=True
+            )  # there can be dfs in the list that are actually the same
             df.index = pd.MultiIndex.from_product([[_id], df.index.to_numpy()])
             tsc_list.append(TSCDataFrame(df))
 

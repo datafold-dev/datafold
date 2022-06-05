@@ -619,11 +619,13 @@ class StreamingDMDTest(unittest.TestCase):
             loc=data, scale=sigma_noise, size=len(data)
         )
 
-        df = TSCDataFrame.from_array(data, time_values=t_eval, feature_names=["sin"])
+        df = TSCDataFrame.from_array(
+            data[:, np.newaxis], time_values=t_eval, feature_names=["sin"]
+        )
         df = TSCTakensEmbedding(delays=4).fit_transform(df)
         return df
 
-    def test_sine_curve(self, plot=True):
+    def test_sine_curve(self, plot=False):
 
         df = self._generate_delayed_sine_wave()
 
@@ -761,6 +763,9 @@ class StreamingDMDTest(unittest.TestCase):
 
 class TestOnlineDMD(unittest.TestCase):
     def test_online_dmd(self):
+        """Test taken and adapted from
+        https://github.com/haozhg/odmd/blob/master/tests/test_online.py. For license from
+        "odmd" see LICENSE_bundeled file in datafold repository."""
 
         for n in range(2, 10):  # n -> state dimension
             T = 100 * n  # number of measurements

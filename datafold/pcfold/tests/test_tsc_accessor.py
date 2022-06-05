@@ -334,9 +334,7 @@ class TestTscAccessor(unittest.TestCase):
         self.assertTrue(0.25 in dt1.to_numpy() and 0.25 in dt2.to_numpy())
         pdtest.assert_series_equal(dt1, dt2)
 
-    def test_shift_matrices(self):
-        # TODO: potentially do more tests (esp. with uneven number of time series,
-        #  this is a quite important functionality!)
+    def test_shift_matrices01(self):
 
         tc = TSCDataFrame(self.simple_df)
         actual_left, actual_right = tc.tsc.shift_matrices()
@@ -365,13 +363,15 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_equal(actual_left, expected_left.T)
         nptest.assert_equal(actual_right, expected_right.T)
 
-    def test_shift_matrices2(self):
+    def test_shift_matrices02(self):
+        # all time series are snapshot pairs (length 2)
+
         simple_df = self.simple_df.copy()
         simple_df = simple_df.drop(labels=[45])
 
-        tc = TSCDataFrame(simple_df)
+        tsc_df = TSCDataFrame(simple_df)
 
-        actual_left, actual_right = tc.tsc.shift_matrices()
+        actual_left, actual_right = tsc_df.tsc.shift_matrices()
 
         original_values = simple_df.to_numpy()
 
@@ -387,6 +387,67 @@ class TestTscAccessor(unittest.TestCase):
 
         nptest.assert_equal(actual_left, expected_left)
         nptest.assert_equal(actual_right, expected_right)
+
+    def test_shift_matrices03(self):
+        # single time series
+
+        data = np.arange(8).reshape([4, 2])
+        tsc_df = TSCDataFrame.from_array(data)
+
+        actual_left, actual_right = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="row"
+        )
+        actual_left_T, actual_right_T = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="col"
+        )
+
+        expected_left = data[:-1, :]
+        expected_left_T = data[:-1, :].T
+        expected_right = data[1:, :]
+        expected_right_T = data[1:, :].T
+
+        nptest.assert_equal(actual_left, expected_left)
+        nptest.assert_equal(actual_left_T, expected_left_T)
+
+        nptest.assert_equal(actual_right, expected_right)
+        nptest.assert_equal(actual_right_T, expected_right_T)
+
+    def test_shift_matrices04(self):
+        # test validation
+        data = np.arange(8).reshape([4, 2])
+        # uneven time delta
+        tsc_df_okay = TSCDataFrame.from_array(data)
+        tsc_df_uneven = TSCDataFrame.from_array(data, time_values=[0, 0.1, 0.3, 0.5])
+        tsc_df_single = TSCDataFrame.from_array(data[0, :])
+
+        with self.assertRaises(ValueError):
+            tsc_df_okay.tsc.shift_matrices(snapshot_orientation="invalid")
+
+        with self.assertRaises(TSCException):
+            tsc_df_uneven.tsc.shift_matrices()
+
+        with self.assertRaises(TSCException):
+            tsc_df_single.tsc.shift_matrices()
+
+    def test_shift_matrices05(self):
+        # test validation
+        data = pd.DataFrame(np.arange(6).reshape([3, 2]))
+        tsc_df = TSCDataFrame.from_frame_list([data, data])
+
+        actual_left, actual_right = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="row"
+        )
+        actual_left_T, actual_right_T = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="col"
+        )
+
+        expected_left = tsc_df.iloc[[0, 1, 3, 4], :].to_numpy()
+        expected_right = tsc_df.iloc[[1, 2, 4, 5], :].to_numpy()
+
+        nptest.assert_equal(actual_left, expected_left)
+        nptest.assert_equal(actual_right, expected_right)
+        nptest.assert_equal(actual_left_T, expected_left.T)
+        nptest.assert_equal(actual_right_T, expected_right.T)
 
     def test_shift_time1(self):
         tsc_df = TSCDataFrame(self.simple_df).copy()

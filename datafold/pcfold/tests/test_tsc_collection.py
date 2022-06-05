@@ -314,7 +314,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         pdtest.assert_frame_equal(actual, expected)
 
-    def test_from_frame_list1(self):
+    def test_from_frame_list01(self):
         # include ts_ids
 
         frame_list = [self.simple_df.loc[i, :] for i in self.simple_df.index.levels[0]]
@@ -330,7 +330,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         pdtest.assert_frame_equal(actual, expected)
 
-    def test_from_frame_list2(self):
+    def test_from_frame_list02(self):
         df1 = self.simple_df.copy().loc[[0], :]  # pd.DataFrame but possible to transfer
         df2 = TSCDataFrame(self.simple_df.copy().loc[[1], :])
 
@@ -355,6 +355,21 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual.to_numpy(), expected_values)
 
         self.assertIsInstance(actual, TSCDataFrame)
+
+    def test_from_frame_list03(self):
+        df = pd.DataFrame(np.arange(6).reshape([3, 2]))
+
+        # use identical frame:
+        actual = TSCDataFrame.from_frame_list([df, df])
+
+        expected = pd.concat([df, df])
+        expected.index = pd.MultiIndex.from_arrays(
+            [np.array([0, 0, 0, 1, 1, 1]), expected.index]
+        )
+
+        pdtest.assert_frame_equal(
+            actual, expected, check_names=False, check_flags=False
+        )
 
     def test_feature_to_array1(self):
 

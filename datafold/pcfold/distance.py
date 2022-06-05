@@ -421,20 +421,14 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 class BruteForceDist(DistanceAlgorithm):
     """Computes all distance pairs in the distance matrix.
 
-    Chooses from either backend
+    Based on parameter `metric` and argument `exact_numeric` either backend is used:
 
-        * SciPy with `scipy.pdist <https://docs.scipy.org/doc/scipy/reference/generated/
-          scipy.spatial.distance.pdist.html>`__ and
-          `scipy.cdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.
-          spatial.distance.cdist.html>`__
-        * scikit-learn with `sklearn.pairwise_distances <https://scikit-learn.org/stable/
-          modules/generated/sklearn.metrics.pairwise_distances.html>`__
-
-    depending on the parameter `metric` and argument `exact_numeric`.
+        * SciPy with `scipy.pdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html>`__ and
+          `scipy.cdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html>`__
+        * scikit-learn with `sklearn.pairwise_distances <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html>`__
 
     For an explanation of how `exact_numeric = False` is beneficial, see the
-    `scikit-learn`
-    `documentation <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise.euclidean_distances.html>`__
+    `scikit-learn documentation <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise.euclidean_distances.html>`__
 
     Parameters
     ----------
@@ -450,10 +444,10 @@ class BruteForceDist(DistanceAlgorithm):
         distances larger than `cut_off` are set to zero
 
         .. note::
+
             Distances with larger distance are removed after a full memory
             allocation of the distance matrix. It is recommended to use
-            distance algorithms that directly integrate a cut-off sparsity.
-
+            distance algorithms that directly reduce the number of computations.
 
     **backend_options
         Keyword arguments handled to the executing backend (depending on ``exact_numeric``
