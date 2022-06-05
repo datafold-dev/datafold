@@ -567,12 +567,13 @@ class TSCPredictMixin(TSCBase):
 
         if time_values is None:
             reference = X.final_states(n_samples=1).time_values()
+            reference = np.unique(reference)
             if np.size(reference) != 1:
                 raise NotImplementedError(
                     "Currently all initial conditions must have the same time reference"
                 )
 
-            time_values = reference + self.dt_
+            time_values = np.array([reference[0], reference[0] + self.dt_])
         else:
             time_values = self._validate_time_values(time_values=time_values)
         self._validate_feature_names(X)
