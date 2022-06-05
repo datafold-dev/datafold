@@ -2164,7 +2164,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
 
 
 class OnlineDMD(DMDBase, TSCPredictMixin):
-    """Online dynamic mode decomposition on time-varying system data.
+    r"""Online dynamic mode decomposition on time-varying system data.
 
     The system attributes become only available after a warm up phase with two times the
     number (see also ``ready_`` attribute).
