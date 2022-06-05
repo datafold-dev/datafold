@@ -146,31 +146,31 @@ def get_tutorial_text_doc(filename, target):
 
 
 add_tutorial(
-    "01_basic_datastructures.ipynb",
-    "We introduce *datafold*'s basic data structures for time series collection data and "
-    "kernel-based algorithms. They are both used internally in model implementations and "
-    "for input/output.",
+    filename="01_basic_datastructures.ipynb",
+    description="We introduce *datafold*'s basic data structures for time series collection "
+    "data and kernel-based algorithms. They are both used internally in model implementations "
+    "and for input/output.",
 )
 
 add_tutorial(
-    "02_basic_pcm_subsampling.ipynb",
-    "We show how the ``PCManifold`` data structure can be used to subsample a "
+    filename="02_basic_pcm_subsampling.ipynb",
+    description="We show how the ``PCManifold`` data structure can be used to subsample a "
     "manifold point cloud uniformly.",
     warning="The tutorial generates a large dataset with 10 Mio. samples by default. "
     "This may have to be reduced, depending on the available computer memory.",
 )
 
 add_tutorial(
-    "03_basic_dmap_scurve.ipynb",
-    "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
-    "S-curved point cloud manifold. We also select the best combination of intrinsic "
+    filename="03_basic_dmap_scurve.ipynb",
+    description="We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of "
+    "an S-curved point cloud manifold. We also select the best combination of intrinsic "
     "parameters automatically with an optimization routine.",
 )
 
 add_tutorial(
-    "04_basic_dmap_digitclustering.ipynb",
-    "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
-    "perform an out-of-sample embedding. This example is taken from the scikit-learn "
+    filename="04_basic_dmap_digitclustering.ipynb",
+    description="We use the ``DiffusionMaps`` model to cluster data from handwritten digits "
+    "and perform an out-of-sample embedding. This example is taken from the scikit-learn "
     "project and can be compared against other manifold learning algorithms.",
 )
 
@@ -185,22 +185,38 @@ add_tutorial(
 )
 
 add_tutorial(
-    "06_basic_edmd_limitcycle.ipynb",
-    "We generate data from a dynamical system (Hopf system) and compare different "
+    filename="06_basic_edmd_limitcycle.ipynb",
+    description="We generate data from a dynamical system (Hopf system) and compare different "
     "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
     "out-of-sample predictions with time ranges exceeding the time horizon of the "
     "training data.",
 )
 
 add_tutorial(
-    filename="07_basic_jsf_common_eigensystem.ipynb",
+    filename="06_basic_edmd_limitcycle.ipynb",
+    description="We generate data from a dynamical system (Hopf system) and compare different "
+    "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
+    "out-of-sample predictions with time ranges exceeding the time horizon of the "
+    "training data.",
+)
+
+add_tutorial(
+    filename="07_online_dmd.ipynb",
+    description="We highlight an example of ``OnlineDMD`` where the dynamic mode "
+    "decomposition is updated once new data becomes available. This is particularly useful "
+    "for time-varying systems. The notebook is taken from the original work by Zhang and "
+    "Rowley, 2019; for reference see notebook.",
+)
+
+add_tutorial(
+    filename="08_basic_jsf_common_eigensystem.ipynb",
     description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
     "from multimodal data. We also demonstrate the out-of-sample extension.",
 )
 
 add_tutorial(
-    "08_basic_roseland_scurve_digits.ipynb",
-    "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
+    filename="09_basic_roseland_scurve_digits.ipynb",
+    description="We use a ``Roseland`` model to compute lower dimensional embeddings of an "
     "S-curved point cloud manifold and to cluster data from handwritten digit. "
     "We also select the best combination of intrinsic parameters automatically "
     "with an optimization routine and demonstrate how to do include this in an "
