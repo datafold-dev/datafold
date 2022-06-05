@@ -265,7 +265,8 @@ class DMDTest(unittest.TestCase):
         data = pd.DataFrame(data, columns=np.arange(dim))
         return TSCDataFrame.from_single_timeseries(data)
 
-    def _create_harmonic_tsc(self, n_samples, dim):
+    @classmethod
+    def _create_harmonic_tsc(cls, n_samples, dim):
         x_eval = np.linspace(0, 2, n_samples)
 
         col_stacks = []
@@ -788,3 +789,36 @@ class TestOnlineDMD(unittest.TestCase):
 
             actual = dmd.reconstruct(X)  # calls predict within
             pdtest.assert_frame_equal(X, actual, rtol=1e-13, atol=1e-10)
+
+    def test_online_init_vs_full(self):
+        X = DMDTest._create_harmonic_tsc(n_samples=500, dim=4)
+
+        expected = DMDFull().fit(X)
+        actual = OnlineDMD(weighting=1.0).partial_fit(X, batch_initialize=True)
+
+        nptest.assert_allclose(
+            expected.eigenvalues_, actual.eigenvalues_, rtol=1e-14, atol=1e-14
+        )
+        nptest.assert_allclose(
+            expected.eigenvectors_right_,
+            actual.eigenvectors_right_,
+            rtol=1e-15,
+            atol=1e-12,
+        )
+
+        # The weighing != 1.0 triggers a differen if case
+        # (but should have essentially no effect)
+        actual = OnlineDMD(weighting=1.0 - 1e-15).partial_fit(X, batch_initialize=True)
+
+        nptest.assert_allclose(
+            expected.eigenvectors_right_,
+            actual.eigenvectors_right_,
+            rtol=1e-15,
+            atol=1e-12,
+        )
+        nptest.assert_allclose(
+            expected.eigenvectors_right_,
+            actual.eigenvectors_right_,
+            rtol=1e-15,
+            atol=1e-12,
+        )

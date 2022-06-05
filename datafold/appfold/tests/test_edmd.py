@@ -18,7 +18,7 @@ from sklearn.utils import estimator_html_repr
 
 from datafold.appfold.edmd import EDMD, EDMDCV, EDMDWindowPrediction
 from datafold.dynfold import DMDFull, gDMDFull
-from datafold.dynfold.dmd import StreamingDMD
+from datafold.dynfold.dmd import OnlineDMD, StreamingDMD
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
     TSCIdentity,
@@ -466,8 +466,7 @@ class EDMDTest(unittest.TestCase):
                 print(f"kernel={kernel} failed")
                 raise e
 
-        if plot:
-            plt.show()
+        plt.show()
 
     def test_preserve_id_states(self):
 
@@ -671,8 +670,7 @@ class EDMDTest(unittest.TestCase):
         self.multi_waves.plot(ax=ax[0])
         edmd.reconstruct(self.multi_waves).plot(ax=ax[1])
 
-        if plot:
-            plt.show()
+        plt.show()
 
     def test_edmd_sine_wave(self):
 
@@ -884,8 +882,12 @@ class EDMDTest(unittest.TestCase):
             edmd = edmd.partial_fit(X_train)
             test_batches.append(edmd.reconstruct(X_test))
 
-        # TODO: test that eigenvalues are either close to zero or one
-        print(np.abs(edmd.koopman_eigenvalues))
+        # test that eigenvalues are either close to zero or one
+        # (values can be adapted if only slightly adaptations are necessary)
+        idx_close_one = np.abs(np.abs(edmd.koopman_eigenvalues) - 1) < 3.5e-4
+        idx_close_zero = np.abs(edmd.koopman_eigenvalues) < 1e-15
+
+        self.assertTrue(np.all(np.logical_or(idx_close_one, idx_close_zero)))
 
         if plot:
 
@@ -906,37 +908,37 @@ class EDMDTest(unittest.TestCase):
 
         data = self._setup_sine_wave_data(end=4 * np.pi)
 
-        edmd = EDMD(
-            dict_steps=[("delay", TSCTakensEmbedding(delays=2))],
-            dmd_model=StreamingDMD(),
-        )
+        for dmd_model in [StreamingDMD(), OnlineDMD()]:
 
-        batches = np.array_split(data, 2)
+            edmd = EDMD(
+                dict_steps=[("delay", TSCTakensEmbedding(delays=2))],
+                dmd_model=dmd_model,
+            )
 
-        predicts_train = []
-        predicts_test = []
+            batches = np.array_split(data, 2)
 
-        for i in range(len(batches) - 1):
-            fit_batch = batches[i]
-            reconstruct_batch = batches[i + 1]
+            predicts_train = []
+            predicts_test = []
 
-            edmd = edmd.partial_fit(fit_batch)
+            for i in range(len(batches) - 1):
+                fit_batch = batches[i]
+                reconstruct_batch = batches[i + 1]
 
-            predicts_train.append(edmd.reconstruct(fit_batch))
-            predicts_test.append(edmd.reconstruct(reconstruct_batch))
+                edmd = edmd.partial_fit(fit_batch)
 
-        print(np.abs(edmd.dmd_model.eigenvalues_))
+                predicts_train.append(edmd.reconstruct(fit_batch))
+                predicts_test.append(edmd.reconstruct(reconstruct_batch))
 
-        if plot:
-            ax = data.plot()
+            if plot:
+                ax = data.plot()
+                ax.set_title(f"{dmd_model=}")
+                for b in predicts_train:
+                    b.plot(ax=ax, c="green")
 
-            for b in predicts_train:
-                b.plot(ax=ax, c="green")
+                for b in predicts_test:
+                    b.plot(ax=ax, c="red")
 
-            for b in predicts_test:
-                b.plot(ax=ax, c="red")
-
-            plt.show()
+        plt.show()
 
 
 class EDMDPredictionTest(unittest.TestCase):

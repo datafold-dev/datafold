@@ -2280,7 +2280,7 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
 
         self._setup_features_and_time_attrs_fit(X)
         self._validate_parameters()
-        self._validate_datafold_data(X, ensure_tsc=True)
+        X = self._validate_datafold_data(X, ensure_tsc=True)
 
         Xm, Xp = X.tsc.shift_matrices(snapshot_orientation="row")
 
@@ -2289,6 +2289,7 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
 
         if self.weighting < 1:
             weights = np.power(np.sqrt(self.weighting), np.arange(p)[::-1])
+            weights = if1dim_colvec(weights)
             Xmhat, Xphat = weights * Xm, weights * Xp
         else:
             Xmhat, Xphat = Xm, Xp
@@ -2298,7 +2299,7 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
 
         # original np.linalg.inv(Xmhat @ Xmhat.T) / self.weighting
         self._P = (
-            np.linalg.lstsq(Xmhat.T @ Xmhat, np.identity(X.shape[1]))[0]
+            np.linalg.lstsq(Xmhat.T @ Xmhat, np.identity(X.shape[1]), rcond=0)[0]
             / self.weighting
         )
 
@@ -2341,6 +2342,10 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
         #  parameter) or also allow processing NumPy data directly (the user then needs to
         #  tell in which format the snapshots are -- i) single time series or ii) snapshot
         #  pairs       --- this is improved when needed
+        # TODO: Another performance issue is, that every partial_fit the spectral components
+        #  are computed. This may not be necessary however (they could be re-computed lazily if
+        #  predict is called or if the attributes (eigenvalues eigenvectors) are accessed).
+        #  Again, this may be integrated if needed.
 
         batch_initialize = self._read_fit_params(
             attrs=[("batch_initialize", False)], fit_params=fit_params

@@ -33,7 +33,7 @@ License: MIT
 
 Project name: dmdtools
 Source: https://github.com/cwrowley/dmdtools
-Files / Classes / Method:
+Files / Classes / Methods:
         * datafold/dynfold/dmd.py / Streaming DMD
         * datafold/dynfold/tests/test_dmd.py / test_compare_methods
 License: BSD 3-clause
@@ -97,9 +97,10 @@ License: MIT
 
 Project name: odmd
 Source: https://github.com/haozhg/odmd
-Files / Classes / Method:
+Files / Classes / Methods:
         * datafold/dynfold/dmd.py / OnlineDMD
         * datafold/dynfold/tests/test_dmd.py / test_online_dmd
+        * datafold/tutorials/07_online_dmd.ipynb
 License: MIT
 
     Copyright (c) 2021 Hao Zhang
