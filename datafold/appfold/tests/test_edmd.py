@@ -902,7 +902,7 @@ class EDMDTest(unittest.TestCase):
 
             plt.show()
 
-    def test_streaming_dmd(self, plot=True):
+    def test_streaming_dmd(self, plot=False):
 
         data = self._setup_sine_wave_data(end=4 * np.pi)
 
