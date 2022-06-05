@@ -71,7 +71,7 @@ def get_nblink(filename):
 
 
 def add_tutorial(filename, description, warning=None):
-    assert filename not in DESCRIPTIVE_TUTORIALS
+    assert filename not in DESCRIPTIVE_TUTORIALS, f"{filename=} not available"
 
     if not os.path.exists(os.path.join(PATH2TUTORIAL, filename)):
         raise FileNotFoundError(
@@ -182,14 +182,6 @@ add_tutorial(
     warning="The tutorial requires also the Python package "
     "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ "
     "which does not install with *datafold*.",
-)
-
-add_tutorial(
-    filename="06_basic_edmd_limitcycle.ipynb",
-    description="We generate data from a dynamical system (Hopf system) and compare different "
-    "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
-    "out-of-sample predictions with time ranges exceeding the time horizon of the "
-    "training data.",
 )
 
 add_tutorial(

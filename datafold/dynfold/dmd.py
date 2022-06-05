@@ -2210,7 +2210,11 @@ class OnlineDMD(DMDBase, TSCPredictMixin):
     `odmd <https://github.com/haozhg/odmd>`__ (for the compatible license see the
     `LICENSE_bundeled <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSES_bundled>`__
     in datafold).
+
     """  # noqa E501
+
+    # TODO for an implementation with control see
+    #        https://github.com/VArdulov/online_dmd/blob/master/online_dmd/control.py
 
     def __init__(self, weighting: float = 1.0, is_diagonalize: bool = False) -> None:
         self.weighting = weighting

@@ -37,7 +37,15 @@ There are three types of models in this layer:
 
 from datafold.dynfold.compose import TSCColumnTransformer
 from datafold.dynfold.dmap import DiffusionMaps, LocalRegressionSelection, Roseland
-from datafold.dynfold.dmd import DMDBase, DMDEco, DMDFull, PyDMDWrapper, gDMDFull
+from datafold.dynfold.dmd import (
+    DMDBase,
+    DMDEco,
+    DMDFull,
+    OnlineDMD,
+    PyDMDWrapper,
+    StreamingDMD,
+    gDMDFull,
+)
 from datafold.dynfold.jsf import JointlySmoothFunctions
 from datafold.dynfold.outofsample import (
     GeometricHarmonicsInterpolator,
