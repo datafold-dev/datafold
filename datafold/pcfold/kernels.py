@@ -112,16 +112,17 @@ def _symmetric_matrix_division(
         )
 
     vec = vec.astype(float)
+    zero_idx_vec = vec == 0.0
 
-    if (vec == 0.0).any():
+    if zero_idx_vec.any():
         if value_zero_division == "raise":
             raise ZeroDivisionError(
-                f"Encountered zero values in division in {(vec == 0).sum()} points."
+                f"Encountered zero values in division in {zero_idx_vec.sum()} points."
             )
         else:
             # division results into 'nan' without raising a ZeroDivisionWarning. The
             # nan values will be replaced later
-            vec[vec == 0.0] = np.nan
+            vec[zero_idx_vec] = np.nan
 
     vec_inv_left = np.reciprocal(vec)
 
@@ -129,13 +130,15 @@ def _symmetric_matrix_division(
         vec_inv_right = vec_inv_left.view()
     else:
         vec_right = vec_right.astype(float)
-        if (vec_right == 0.0).any():
+        zero_idx_vec = vec_right == 0.0
+
+        if zero_idx_vec.any():
             if value_zero_division == "raise":
                 raise ZeroDivisionError(
-                    f"Encountered zero values in division in {(vec == 0).sum()}"
+                    f"Encountered zero values in division in {zero_idx_vec.sum()}"
                 )
             else:
-                vec_right[vec_right == 0.0] = np.inf
+                vec_right[zero_idx_vec] = np.nan
 
         vec_inv_right = np.reciprocal(vec_right.astype(float))
 
@@ -152,9 +155,6 @@ def _symmetric_matrix_division(
         )
 
     if scipy.sparse.issparse(matrix):
-        # TODO: this can be replaced with diagmat_dot_mat and mat_dot_diagmat as this
-        #  supports now sparse matrices too.
-
         # The zeros are removed in the matrix multiplication, but because 'matrix' is
         # usually a distance matrix we need to preserve the "true zeros"!
         matrix.data[matrix.data == 0] = np.inf
@@ -235,8 +235,8 @@ def _conjugate_stochastic_kernel_matrix(
 
     Returns
     -------
-    Tuple[Union[np.ndarray, scipy.sparse.spmatrix], scipy.sparse.dia_matrix]
-        conjugate matrix (tpye as `kernel_matrix`) and (sparse) diagonal matrix to recover
+    Tuple[Union[np.ndarray, scipy.sparse.csr_matrix], scipy.sparse.dia_matrix]
+        conjugate matrix (type as `kernel_matrix`) and (sparse) diagonal matrix to recover
         eigenvectors
 
     References
@@ -266,16 +266,16 @@ def _conjugate_stochastic_kernel_matrix(
 
 
 def _stochastic_kernel_matrix(kernel_matrix: Union[np.ndarray, scipy.sparse.spmatrix]):
-    """Normalizes matrix rows.
+    """Normalizes a matrix to a row-stochastic matrix.
 
-    This function performs
+    Mathematically,
 
     .. math::
 
         M = D^{-1} K
 
-    where matrix :math:`M` is the row-normalized kernel from :math:`K` by the
-    matrix :math:`D` with the row sums of :math:`K` on the diagonal.
+    where matrix :math:`M` is the row-normalized (kernel) matrix from :math:`K`. The matrix
+    :math:`D` has the row sums of :math:`K` on the diagonal.
 
     .. note::
 
@@ -336,7 +336,7 @@ def _kth_nearest_neighbor_dist(
         elements per row).
 
     k
-        The distance of the `k`-th nearest neighbor.
+        The distance to the `k`-th nearest neighbor.
 
     Returns
     -------
@@ -345,15 +345,14 @@ def _kth_nearest_neighbor_dist(
     """
 
     if not is_integer(k):
-        raise ValueError(f"parameter 'k={k}' must be a positive integer")
+        raise ValueError(f"parameter {k=} must be a positive integer")
     else:
         # make sure we deal with Python built-in
         k = int(k)
 
-    if not (0 <= k <= distance_matrix.shape[1]):
+    if not (0 < k <= distance_matrix.shape[1]):
         raise ValueError(
-            "'k' must be an integer between 1 and "
-            f"distance_matrix.shape[1]={distance_matrix.shape[1]}"
+            f"{k=} must be an integer between 1 and {distance_matrix.shape[1]=}"
         )
 
     if isinstance(distance_matrix, np.ndarray):
