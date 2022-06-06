@@ -1497,7 +1497,7 @@ class TSCDataFrame(pd.DataFrame):
 
         if feature is None and self.shape[1] > 1:
             raise ValueError(
-                "parameter 'feature' must be provided if there are " "multiple features"
+                "parameter 'feature' must be provided if there are multiple features"
             )
         elif feature is None:
             feature = self.columns[0]
