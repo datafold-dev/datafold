@@ -4,6 +4,7 @@ repos:
     rev: v4.2.0
     hooks:
     -   id: end-of-file-fixer
+        exclude: .ipynb
     -   id: check-merge-conflict
     -   id: trailing-whitespace
     -   id: requirements-txt-fixer
