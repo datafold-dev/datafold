@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import abc
 import inspect
 from copy import deepcopy
@@ -10,7 +9,7 @@ import scipy.sparse
 import scipy.spatial
 from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
-from sklearn.neighbors import BallTree, NearestNeighbors
+from sklearn.neighbors import BallTree, KNeighborsTransformer, NearestNeighbors
 
 from datafold.utils.general import if1dim_colvec, if1dim_rowvec, is_integer
 
@@ -33,11 +32,11 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     * The terms "pair-wise" (pdist) and "component-wise" (cdist) are
       adapted from the scipy's distance matrix computations
       :class:`scipy.sparse.spatial.pdist` and :class:`scipy.sparse.spatial.cdist`
-    * A sparse distance matrix with a distance cut-off value does not store distance
-      values *above* the cut-off. Importantly, this means that the sparse matrix
-      **must** store real distance zeros (duplicates or self-distances in case of
-      `pdist`) and treat the zeros not stored in the sparse matrix as "distance
-      values out of range".
+    * A sparse distance matrix with a distance (either `k`-neighbors or with a radius cut-off)
+      does not store all distance pairs. Importantly, this means that the sparse matrix
+      **must** store "real distance zeros" (introduced by duplicate points or self-distances
+      in case of `pdist`). This sometimes requires a workaround in matrix operations, so that
+      stored distance-zeros are not removed.
 
     Parameters
     ----------
@@ -45,13 +44,14 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         distance metric to compute
 
     is_symmetric
-        indicate whether the distance matrix is symmetric (typically standard
+        indicate whether the distance matrix is symmetric (typically the standard
         k-nearest-neighbor is not symmetric)
 
     k
         * for k-nearest-neighbors the number of neighbors
         * for radius-based distance algorithms, there is a follow-up routine to make sure that
-          each sample has at least ``kmin`` neighbors (including ones larger than radius)
+          each sample has at least ``kmin`` neighbors (including distance pairs that are
+          larger than radius)
     """
 
     # distances cannot be negative - an easy to identify negative value
@@ -431,22 +431,22 @@ class BruteForceDist(DistanceAlgorithm):
         * scikit-learn with `sklearn.pairwise_distances <https://scikit-learn.org/stable/
           modules/generated/sklearn.metrics.pairwise_distances.html>`__
 
-    Depending on the parameter `metric` and argument `exact_numeric`.
+    depending on the parameter `metric` and argument `exact_numeric`.
 
     For an explanation of how `exact_numeric = False` is beneficial, see the
-    `scikit-learn` `documentation <https://scikit-learn.org/stable/modules/generated/
-    sklearn.metrics.pairwise.euclidean_distances.html>`_
+    `scikit-learn`
+    `documentation <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise.euclidean_distances.html>`__
 
     Parameters
     ----------
     metric
-        Metric to compute, see documentation of backend algorithms what metrics for
-        supported options.
+        Metric to compute, see documentation of backend algorithms what metrics are supported.
 
     exact_numeric
-            If False, computes Euclidean distances more efficiently
-            at the cost of introducing numerical noise. Empirically `~1e-14` for
-            "sqeuclidean" metric and `~1e-7` for "euclidean" metric.
+        If False, computes Euclidean distances more efficiently
+        t the cost of introducing numerical noise. Empirically `~1e-14` for "sqeuclidean"
+        metric and `~1e-7` for "euclidean" metric.
+
     cut_off
         distances larger than `cut_off` are set to zero
 
@@ -459,7 +459,7 @@ class BruteForceDist(DistanceAlgorithm):
     **backend_options
         Keyword arguments handled to the executing backend (depending on ``exact_numeric``
         parameter).
-    """
+    """  # noqa: E501
 
     name = "brute"
 
@@ -475,6 +475,10 @@ class BruteForceDist(DistanceAlgorithm):
         super(BruteForceDist, self).__init__(
             metric=metric, is_symmetric=True, cut_off=cut_off or np.inf
         )
+
+    @classmethod
+    def is_symmetric(cls):
+        return True
 
     def __call__(
         self,
@@ -574,6 +578,10 @@ class RDist(DistanceAlgorithm):
             metric=metric, is_symmetric=True, cut_off=cut_off, k=kmin
         )
 
+    @classmethod
+    def is_symmetric(cls):
+        return True
+
     def _adapt_radius(self):
         # Generally: the cut-off is represented like self.metric. The scipy.kdtree can
         # only compute Euclidean distances. Therefore, undo the squaring of cut-off.
@@ -640,18 +648,18 @@ class ScipyKdTreeDist(DistanceAlgorithm):
 
     Parameters
     ----------
-    cut_off
+    cut_off: float
         Distance values (always Euclidean metric) that are larger are not stored in
         distance matrix.
 
-    metric
+    metric: str
         "euclidean" or "sqeuclidean"
 
-    kmin
+    kmin: int
         store at least ``kmin`` samples per sample
 
-    backend_options  # TODO: docu
-        key word arguments handled to `cKDTree <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html>`__
+    backend_options
+        key word arguments passed to `cKDTree <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html>`__
 
     References
     ----------
@@ -667,6 +675,10 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         super(ScipyKdTreeDist, self).__init__(
             metric=metric, is_symmetric=True, cut_off=cut_off or np.inf, k=kmin
         )
+
+    @classmethod
+    def is_symmetric(cls):
+        return True
 
     def _get_max_distance(self):
         # Generally: the cut-off is represented like self.metric. The scipy.kdtree can
@@ -748,7 +760,8 @@ class SklearnBalltreeDist(DistanceAlgorithm):
     kmin
         store at least ``kmin`` samples per sample
 
-    **backend_options #TODO
+    **backend_options
+        key word arguments passed to `sklearn.NearestNeighbors <https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.NearestNeighbors.html>`__
 
     See Also
     --------
@@ -769,6 +782,10 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         super(SklearnBalltreeDist, self).__init__(
             metric=metric, is_symmetric=True, cut_off=cut_off or np.inf, k=kmin
         )
+
+    @classmethod
+    def is_symmetric(cls):
+        return True
 
     def _map_metric_and_radius(self):
         if self.metric == "sqeuclidean":
@@ -829,7 +846,7 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         return self._handle_kmin(X, Y, distance_matrix)
 
 
-class SklearnKNN:
+class SklearnKNN(DistanceAlgorithm):
 
     name = "sklearn.knn"
 
@@ -837,9 +854,11 @@ class SklearnKNN:
         self.backend_options = backend_options
         super(SklearnKNN, self).__init__(metric=metric, is_symmetric=False, k=k)
 
-    def __call__(self, X, Y=None):
+    @classmethod
+    def is_symmetric(cls):
+        return False
 
-        from sklearn.neighbors import KNeighborsTransformer
+    def __call__(self, X, Y=None):
 
         X, Y, is_pdist = self._validate_X_Y(X, Y=Y)
 
@@ -872,9 +891,19 @@ class GuessOptimalDist(DistanceAlgorithm):
     Parameters
     ----------
     metric
-        distance metric
+        distance metric to compute
+
+    is_symmetric
+        Whether it is required to compute a symmetric matrix (if True this excludes
+        sparse `k`-nearest-neighbor algorithms)
 
     cut_off
+        If a valid float, then compute a sparse (symmetric) radius-based distance matrix.
+
+    k
+        Compute `k`-nearest-neighbor if non-symmetric sparse matrix or provide at least `k`
+        neighbors in a radius-based sparse matrix.
+
     """
 
     name = "guess_optimal"
@@ -882,6 +911,7 @@ class GuessOptimalDist(DistanceAlgorithm):
     def __new__(cls, metric="euclidean", is_symmetric=True, cut_off=np.inf, kmin=None):
 
         cut_off = cut_off or np.inf
+        cls.is_symmetric = lambda: is_symmetric
 
         if np.isinf(cut_off):  # dense case
             backend_class = BruteForceDist(cut_off=cut_off, metric=metric)
@@ -898,8 +928,13 @@ class GuessOptimalDist(DistanceAlgorithm):
         return backend_class
 
 
-def _all_available_distance_algorithm():
+def _all_available_distance_algorithm(require_symmetric=False):
     """Searches for valid subclasses of :py:class:`DistanceAlgorithm`
+
+    Parameters
+    ----------
+    require_symmetric
+        Only return ``DistanceAlgorithm`` that compute a symmetric distance matrix.
 
     Returns
     -------
@@ -921,7 +956,10 @@ def _all_available_distance_algorithm():
             # If 'backend_name' is set to none, then the implementation is not
             # considered e.g. because dependencies are not met in case of rdist.
             if isinstance(b.name, str):
-                return_backends.append(b)
+                if require_symmetric and b.is_symmetric():
+                    return_backends.append(b)
+                elif not require_symmetric:
+                    return_backends.append(b)
         except AttributeError or AssertionError:
             raise NotImplementedError(
                 f"Bug: class {type(b)} has no 'name' attribute or it is not of "
@@ -931,7 +969,9 @@ def _all_available_distance_algorithm():
     return return_backends
 
 
-def get_backend_distance_algorithm(backend) -> Type[DistanceAlgorithm]:
+def get_backend_distance_algorithm(
+    backend, require_symmetric=False
+) -> Type[DistanceAlgorithm]:
     """Selects and validates the backend class for distance matrix computation.
 
     Parameters
@@ -939,6 +979,10 @@ def get_backend_distance_algorithm(backend) -> Type[DistanceAlgorithm]:
     backend
         * ``str`` - maps to the algorithms
         * ``DistanceAlgorithm`` - returns same object if valid
+
+    require_symmetric
+        If True only return ``DistanceAlgorithm`` classes that compute a symmetric distance
+        matrix.
 
     Returns
     -------
@@ -948,7 +992,7 @@ def get_backend_distance_algorithm(backend) -> Type[DistanceAlgorithm]:
     if backend is None:
         raise ValueError("backend cannot be None")
 
-    all_backends = _all_available_distance_algorithm()
+    all_backends = _all_available_distance_algorithm(require_symmetric)
 
     # This is the case if a user chooses backend by object instead of "name"
     # attribute.
@@ -974,7 +1018,7 @@ def init_distance_algorithm(
 
     Parameters
     ----------
-    backend
+    backend: str
         Backend to compute distance matrix.
 
     metric

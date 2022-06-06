@@ -133,7 +133,7 @@ class EDMD(
     sort_koopman_triplets
         Sort the Koopman triplets by the mean absolute value of the initial
         Koopman eigenfunctions of the data passed during fit. Ignored if the Koopman
-        triplet ist not available. Adapted from :cite:t:`manojlovic-2020`.
+        triplet ist not available. Sorting criteria is adapted from :cite:t:`manojlovic-2020`.
 
     use_transform_inverse
         If True, the mapping from EDMD-dictionary states to the full-state is
@@ -208,7 +208,7 @@ class EDMD(
         *,
         include_id_state: bool = True,
         use_transform_inverse: bool = False,
-        sort_koopman_triplets: bool = False,  # TODO: docu
+        sort_koopman_triplets: bool = False,
         memory: Optional[Union[str, object]] = None,
         verbose: bool = False,
     ):
@@ -487,7 +487,7 @@ class EDMD(
         Returns
         -------
         numpy.ndarray
-            The computed Koopman modes.
+            Koopman modes
         """
 
         koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
@@ -530,10 +530,6 @@ class EDMD(
         ----------
         X_dict_ic
             The initial states of the EDMD-dictionary time series.
-
-        Returns
-        -------
-
         """
 
         ic_koop_eigenfunc = self.dmd_model.compute_spectral_system_states(
@@ -1882,7 +1878,7 @@ class EDMDPostObservable(object):  # pragma: no cover
                         fit_params=fit_params,
                         verbose=self.verbose,
                     )
-                    for i, (train, test) in enumerate(cv.fit(X, y, groups=None))
+                    for i, (train, test) in enumerate(cv.split(X, y, groups=None))
                 )
 
                 if len(ret) < 1:

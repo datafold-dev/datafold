@@ -26,6 +26,7 @@ from datafold.dynfold.tests.helper import (
     make_strip,
 )
 from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
+from datafold.pcfold.distance import SklearnKNN
 from datafold.pcfold.kernels import ConeKernel
 from datafold.utils.general import random_subsample
 from datafold.utils.plot import plot_pairwise_eigenvector
@@ -590,15 +591,13 @@ class DiffusionMapsTest(unittest.TestCase):
         self.assertEqual(dmap._dmap_kernel.distance.cut_off, 4)
         self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
 
-    def test_knn_kernel_matrix(self):
+    def test_knn_kernel_matrix(self, plot=False):
         X_swiss_train, color_train = make_swiss_roll(2700, random_state=1)
         X_swiss_oos, color_oos = make_swiss_roll(1300, random_state=1)
 
-        from datafold.pcfold.distance import SklearnKNN
-
         setting = {
             "kernel": GaussianKernel(
-                epsilon=2.1, distance=SklearnKNN(metric="sqeuclidean", k=50)
+                epsilon=2.1, distance=SklearnKNN(metric="sqeuclidean", k=100)
             ),
             "n_eigenpairs": 7,
             "is_stochastic": True,
@@ -609,7 +608,7 @@ class DiffusionMapsTest(unittest.TestCase):
         dmap = DiffusionMaps(**setting).fit(X_swiss_train)
         psi_oos = dmap.transform(X_swiss_oos)
 
-        if True:
+        if plot:
             plot_pairwise_eigenvector(
                 eigenvectors=dmap.eigenvectors_,
                 n=1,

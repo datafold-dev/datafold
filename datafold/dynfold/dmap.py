@@ -187,7 +187,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
     is_stochastic
         If True, the diffusion kernel matrix is normalized (row stochastic). In the
-        standard definition this has to be True.
+        standard definition of diffusion maps the parameter has to be True.
 
     alpha
         The degree of re-normalization between `(0,1)`. Setting ``alpha=1`` corrects
@@ -210,15 +210,14 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     Attributes
     ----------
 
-    X_fit_: Untion[PCManifold, TSCDataFrame]
-        The training data during fit. The data is required for out-of-sample mappings;
-        the object is equipped with kernel :py:class:`DmapKernelFixed`;
-        ``np.asarray(X_fit_)`` casts the object to a standard numpy array.
+    X_fit_: Union[numpy.ndarray, pandas.DataFrame, TSCDataFrame]
+        The training data `X` passed during `fit`. The data is required for out-of-sample
+        mappings in the Nyström extension.
 
     eigenvalues_ : numpy.ndarray
         The eigenvalues of diffusion kernel matrix in decreasing order.
 
-    eigenvectors_: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+    eigenvectors_: Union[np.ndarray, pd.DataFrame, TSCDataFrame]
         The eigenvectors of the kernel matrix.
 
     target_coords_: numpy.ndarray
@@ -479,7 +478,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         y=None,
         **fit_params,
     ) -> "DiffusionMaps":
-        """Compute diffusion kernel matrix and its' eigenpairs.
+        """Fit the model by computing the eigenpairs of the diffusion kernel matrix.
 
         Parameters
         ----------
@@ -514,8 +513,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         # The DmapKernel is a meta-kernel that wraps another (internal) kernel to provide
         # the specific normalizations in Diffusion Maps.
-        # deepcopy to not mutate the original self.kernel attribute (according to sklearn's
-        # rules)
+        # deepcopy to performed to not mutate the original self.kernel attribute (this is
+        # according to sklearn's rules)
         internal_kernel = (
             deepcopy(self.kernel)
             if self.kernel is not None
@@ -543,7 +542,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         ):
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
             # series, then take indexes from X_fit_ -- this only works if no samples are
-            # dropped in the kernel computation.
+            # dropped in the kernel computation (such as in ConeKernel where the time
+            # derivative is computed)
             index_from = self.X_fit_
         else:
             index_from = None
@@ -613,7 +613,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             index_from: Optional[TSCDataFrame] = kernel_matrix_cdist
         elif isinstance(X, TSCDataFrame) and kernel_matrix_cdist.shape[0] == X.shape[0]:
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
-            # series, then take incides from X_fit_ -- this only works if no samples are
+            # series, then take indices from X_fit_ -- this only works if no samples are
             # dropped in the kernel computation.
             index_from = X
         else:
@@ -631,7 +631,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return self._perform_dmap_embedding(eigvec_nystroem)
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
-        """Compute diffusion map from data and apply embedding on same data.
+        """Fit model with data and apply embedding on same data.
 
         Parameters
         ----------
@@ -657,7 +657,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return self._perform_dmap_embedding(eigvec)
 
     def inverse_transform(self, X: TransformType) -> TransformType:
-        """Pre-image from embedding space back to original (ambient) space.
+        """Perform pre-image by mapping data from embedding space back to ambient space.
 
         .. note::
             Currently, this is only a linear map in a least squares sense. Overwrite
@@ -857,7 +857,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         .. note::
             The parameter is not covered in the original Roseland paper (corresponding to
             `alpha=0`). Enabling the additional normalization (`alpha>0`) should therefore
-            used with care.
+            be used with care.
 
     random_state
         Random seed for the selection of the landmark set. If provided when `Y` is also
@@ -869,8 +869,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
     landmarks_: np.ndarray
         The final landmark data used. It is required for both in-sample and
-        out-of-sample embeddings. ``np.asarray(landmarks_)`` casts the object to a
-        standard numpy array.
+        out-of-sample embeddings.
 
     svdvalues_ : numpy.ndarray
         The singular values of the diffusion kernel matrix in decreasing order.
@@ -1281,8 +1280,8 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
     """Automatic selection of functional independent geometric harmonic vectors for
     parsimonious data manifold embedding.
 
-    To measure the functional dependency a local regression regression is performed: The
-    larger the residuals between eigenvetor sets the more information they add and are
+    To measure the functional dependency a local regression is performed: The
+    larger the residuals between eigenvector sets the more information they add and are
     therefore more likely to be considered in an embedding.
 
     The kernel used for the local linear regression has a scale of

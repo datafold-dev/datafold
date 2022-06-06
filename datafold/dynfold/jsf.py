@@ -24,8 +24,8 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
     ----------
     data_splits:
         List of tuples with (name: str, kernel: `BaseManifoldKernel`, indices: slice) to
-        describe the splits on the multimodal data in `X`. For each split the specified kernel
-        is computed.
+        describe the splits on the multimodal data in `X`. For each data split a new kernel is
+        computed.
 
     n_kernel_eigenvectors
         The number of eigenvectors to compute from each kernel per split.
@@ -42,15 +42,16 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         zero implies machine precision.
 
     svd_solver_kwargs
-        Keyword arguments passed to the SciPy `SVD solver <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.svds.html>`__.
+        Keyword arguments passed to the SciPy
+        `SVD solver <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.svds.html>`__.
 
     Attributes
     ----------
     X_fit_
         The data `X` passed during `fit`. The data is required to extend the
-        ``jointly_smooth_vectors_`` with Nyström for new samples in `transform`.
+        ``jointly_smooth_vectors_`` with the Nyström extension for new samples in `transform`.
 
-    kernel_content_: Dict
+    kernel_content_: dict
         The computed kernel matrix and data required for the Nyström embedding. The key of
         the dictionary corresponds to the name given in parameter ``data_splits``. (Note that
         the kernel matrix is only stored of ``store_kernel_matrix=True`` during fit).
@@ -65,11 +66,11 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         the name given in parameter ``data_splits``. The eigenvalues are used to compute
         and extend the jointly smooth functions.
 
-    jointly_smooth_vectors_: Union[np.ndarray, TSCDataFrame]
+    jointly_smooth_vectors_: Union[numpy.ndarray, TSCDataFrame]
         The jointly smooth functions evaluated at the training data `X` during `fit`.
         Shape `(n_samples, n_jointly_smooth_functions)`.
 
-    eigenvalues_: np.ndarray
+    eigenvalues_: numpy.ndarray
         The eigenvalues of the jointly smooth functions.
 
     References

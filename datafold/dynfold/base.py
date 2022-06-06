@@ -33,7 +33,7 @@ class TSCBase(object):
 
     def get_feature_names_out(self, input_features=None):
         raise NotImplementedError(
-            "class does not provide 'get_feature_names_out' method"
+            "class has not implemented 'get_feature_names_out' method"
         )
 
     def _has_feature_names(self, _obj):
@@ -238,13 +238,13 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
     ----------
 
     n_features_in_: int
-        Number of features passed in input `X` in `fit`. The same number of features are
+        Number of features in input `X` during `fit`. The same number of features are
         required for `transform`.
 
     feature_names_in_: Optional[np.array]
         Feature names passed in input `X` in `fit`. The attribute is only set if the input is
-        a pandas object. The feature names are used for validation in `transform` and as
-        output feature names in `inverse_transform`.
+        a pandas object. The feature names are used for validation of input in `transform` and
+        as output feature names in `inverse_transform`.
 
     n_features_out_: int
         Number of features in output of `transform`.
@@ -431,7 +431,7 @@ class TSCPredictMixin(TSCBase):
 
         time_values = X.time_values()
         time_values = self._validate_time_values(time_values=time_values)
-        self.time_values_in_ = time_values
+
         self.dt_ = X.delta_time
 
         if isinstance(self.dt_, pd.Series) or np.isnan(
@@ -445,7 +445,7 @@ class TSCPredictMixin(TSCBase):
         # TODO: check this closer why are there 5 decimals required?
         assert (
             np.around(
-                (self.time_interval_[1] - self.time_interval_[0]) / self.dt_, decimals=5
+                (np.max(time_values) - np.min(time_values)) / self.dt_, decimals=5
             )
             % 1
             == 0
@@ -544,17 +544,20 @@ class TSCPredictMixin(TSCBase):
         self, X: TSCDataFrame, time_values: Optional[np.ndarray]
     ):
 
-        self._check_attributes_set_up(check_attributes=["time_values_in_"])
-
-        if time_values is None:
-            time_values = self.time_values_in_
-
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")
 
-        time_values = self._validate_time_values(time_values=time_values)
-        self._validate_feature_names(X)
+        if time_values is None:
+            reference = X.final_states(n_samples=1).time_values()
+            if np.size(reference) != 1:
+                raise NotImplementedError(
+                    "Currently all initial conditions must have the same time reference"
+                )
 
+            time_values = reference + self.dt_
+        else:
+            time_values = self._validate_time_values(time_values=time_values)
+        self._validate_feature_names(X)
         return X, time_values
 
     def predict(

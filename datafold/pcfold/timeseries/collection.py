@@ -1,3 +1,4 @@
+from functools import partial
 from numbers import Number
 from typing import Generator, List, Optional, Tuple, Union
 
@@ -94,7 +95,8 @@ class TSCException(Exception):
     @classmethod
     def not_n_timesteps(cls, required: int):
         return cls(
-            f"Invalid TSCDataFrame format. Each time series must have {required} samples."
+            f"Invalid TSCDataFrame format. Each time series in the collection must have "
+            f"exactly {required} samples."
         )
 
     @classmethod
@@ -290,7 +292,7 @@ class TSCDataFrame(pd.DataFrame):
     tsc_time_idx_name = "time"
     tsc_feature_col_name = "feature"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, validate=True, **kwargs):
 
         # NOTE: do not move this call after other setters "self.attribute = ...".
         # Otherwise, there is an infinite recursion because pandas handles the
@@ -298,6 +300,9 @@ class TSCDataFrame(pd.DataFrame):
         super(TSCDataFrame, self).__init__(*args, **kwargs)
 
         self.flags.allows_duplicate_labels = False
+
+        if not hasattr(self, "is_validate"):
+            self.is_validate = validate
 
         # This is a special case of input, where the fallback is a cast to
         # pd.DataFrame.
@@ -566,6 +571,26 @@ class TSCDataFrame(pd.DataFrame):
         return cls(df)
 
     @classmethod
+    def from_array(cls, array, time_values=None, feature_names=None, ts_id=None):
+        """Create ``TSCDataFrame`` from an array (describing a single time series).
+
+        Parameters
+        ----------
+        data
+            Time series data with snapshots in rows.
+
+        ts_id
+            ID of time series.
+
+        Returns
+        -------
+        TSCDataFrame
+            new instance
+        """
+        df = pd.DataFrame(array, index=time_values, columns=feature_names)
+        return cls.from_single_timeseries(df, ts_id=ts_id)
+
+    @classmethod
     def from_frame_list(
         cls,
         frame_list: List[pd.DataFrame],
@@ -770,7 +795,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def _constructor(self):
-        return TSCDataFrame
+        return partial(TSCDataFrame, validate=self.is_validate)
 
     @property
     def _constructor_expanddim(self):
@@ -864,7 +889,6 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError(
                 "The time values of each time series in the collection must be sorted."
             )
-
         return index
 
     def _validate_columns(self, columns: pd.Index) -> pd.Index:
@@ -900,14 +924,14 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError("All feature columns must have a numeric dtype")
 
     def _validate(self) -> bool:
+        if self.is_validate:
+            # just for security remove unused levels --
+            # disable validate to avoid infinite recursion
+            self.index: pd.Index = self._validate_index(self.index)
+            self.index = self.index.remove_unused_levels()
 
-        # just for security remove unused levels --
-        # disable validate to avoid infinite recursion
-        self.index: pd.Index = self._validate_index(self.index)
-        self.index = self.index.remove_unused_levels()
-
-        self.columns: pd.Index = self._validate_columns(self.columns)
-        self._validate_data()
+            self.columns: pd.Index = self._validate_columns(self.columns)
+            self._validate_data()
         return True
 
     @property
