@@ -348,7 +348,9 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         """Use only for radius/range based algorithms."""
         is_pdist = Y is None
 
-        distance_matrix = self._validate_final_sparse_matrix(distance_matrix=distance_matrix)
+        distance_matrix = self._validate_final_sparse_matrix(
+            distance_matrix=distance_matrix
+        )
 
         # only for the sparse case we care about kmin:
         apply_kmin_procedure = self.kmin is not None and (
@@ -921,7 +923,9 @@ class GuessOptimalDist(DistanceAlgorithm):
                 assert backend_class is not None
 
             elif metric in ["euclidean", "sqeuclidean"]:
-                backend_class = ScipyKdTreeDist(cut_off=cut_off, metric=metric, kmin=kmin)
+                backend_class = ScipyKdTreeDist(
+                    cut_off=cut_off, metric=metric, kmin=kmin
+                )
             else:
                 backend_class = BruteForceDist(cut_off=cut_off, metric=metric)
 

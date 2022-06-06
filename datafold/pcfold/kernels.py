@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import warnings
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numexpr as ne
@@ -1204,7 +1205,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         return kernel_matrix
 
 
-class MahalanobisKernel(PCManifoldKernel):
+class MahalanobisKernel(PCManifoldKernel):  # pragma: no cover
     """
     # TODO - description
     # TODO - citations
@@ -1222,6 +1223,12 @@ class MahalanobisKernel(PCManifoldKernel):
     """
 
     def __init__(self, epsilon=None, distance=None):
+
+        warnings.warn(
+            f"Class '{MahalanobisKernel}' is marked as experimental. This means "
+            f"the intended functionality may not be complete and there is no sufficient "
+            f"testing. Use class with caution!"
+        )
 
         self.epsilon = epsilon
         super(MahalanobisKernel, self).__init__(is_symmetric=True, distance=distance)
@@ -1271,16 +1278,13 @@ class MahalanobisKernel(PCManifoldKernel):
 
         # TODO: the kernel can not handle the out-of-sample case if Y is not None
         kernel_matrix = self.eval(distance_matrix, X, cov_matrices)
-        # kernel_matrix = self.eval2(X, distance_matrix, cov_matrices, None)
-
         return kernel_matrix
 
     def eval(
-        self, distance_matrix, X, cov_matrices
+        self, distance_matrix, X=None, cov_matrices=None
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-        """
-        Replace the given distance_matrix with the mahalanobis kernel matrix.
-        """
+        """Replace the given distance_matrix with the mahalanobis kernel matrix."""
+        assert X is not None and cov_matrices is not None
 
         # TODO: efficiency
         #    -- only compute upper triangle from symmetric distance matrix?
