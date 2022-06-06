@@ -1861,7 +1861,7 @@ class PyDMDWrapper(DMDBase):
 
 
 class StreamingDMD(DMDBase, TSCPredictMixin):
-    """Dynamic mode decomposition on streaming data.
+    r"""Dynamic mode decomposition on streaming data.
 
     Parameters
     ----------
@@ -1874,16 +1874,15 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
     incr_basis_tol
         Tolerance of when to expand the basis,
         :math:`\vert\vert e \vert\vert / \vert \vert x \vert \vert`, where :math:`e` is the
-        error from the Gram-Schmidt iterations.
+        error from the Gram-Schmidt iterations and :math:`x` the new sample for the update.
 
     Attributes
     ----------
-    Qx, Qy, Gx, Gy, A
-        System matrices. For detailed explanations see :cite:t:`hemati-2014`.
+    A
+        system matrix
 
     References
     ----------
-
     :cite:`hemati-2014`
 
     This implementation is adapted and extended from
@@ -1902,8 +1901,8 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         # TODO: can the Gram-Schmidt be replaced? Usually GS has numerical troubles
 
         # classical Gram-Schmidt re-orthonormalization
-        rx = self.Qx.shape[1]
-        ry = self.Qy.shape[1]
+        rx = self._Qx.shape[1]
+        ry = self._Qy.shape[1]
         xtilde = np.zeros([rx])
         ytilde = np.zeros([ry])
 
@@ -1911,13 +1910,13 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         ep = xp.copy()
 
         for i in range(self.ngram):
-            dx = self.Qx.T @ em
-            dy = self.Qy.T @ ep
+            dx = self._Qx.T @ em
+            dy = self._Qy.T @ ep
 
             xtilde += dx
             ytilde += dy
-            em -= self.Qx @ dx
-            ep -= self.Qy @ dy
+            em -= self._Qx @ dx
+            ep -= self._Qy @ dy
 
         return em, ep
 
@@ -1936,58 +1935,62 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         # ---- Algorithm step 2 ----
         # check basis for x and expand, if necessary
         if np.linalg.norm(em) / norm_m > self.incr_basis_tol:
-            rx = self.Qx.shape[1]
+            rx = self._Qx.shape[1]
             # update basis for x
-            self.Qx = np.column_stack([self.Qx, em / np.linalg.norm(em)])
+            self._Qx = np.column_stack([self._Qx, em / np.linalg.norm(em)])
             # increase size of Gx and A (by zero-padding)
-            self.Gx = np.block([[self.Gx, np.zeros([rx, 1])], [np.zeros([1, rx + 1])]])
+            self._Gx = np.block(
+                [[self._Gx, np.zeros([rx, 1])], [np.zeros([1, rx + 1])]]
+            )
             self.A = np.block([self.A, np.zeros([self.A.shape[0], 1])])
 
         # check basis for y and expand if necessary
         if np.linalg.norm(ep) / norm_p > self.incr_basis_tol:
-            ry = self.Qy.shape[1]
+            ry = self._Qy.shape[1]
             # update basis for y
-            self.Qy = np.column_stack([self.Qy, ep / np.linalg.norm(ep)])
+            self._Qy = np.column_stack([self._Qy, ep / np.linalg.norm(ep)])
             # increase size of Gy and A (by zero-padding)
-            self.Gy = np.block([[self.Gy, np.zeros([ry, 1])], [np.zeros([1, ry + 1])]])
+            self._Gy = np.block(
+                [[self._Gy, np.zeros([ry, 1])], [np.zeros([1, ry + 1])]]
+            )
             self.A = np.block([[self.A], [np.zeros([1, self.A.shape[1]])]])
 
     def _pod_compression(self):
-        n_qx = self.Qx.shape[1]
-        n_qy = self.Qy.shape[1]
+        n_qx = self._Qx.shape[1]
+        n_qy = self._Qy.shape[1]
 
         # check if compression is needed
         if self.max_rank is not None:
             if n_qx > self.max_rank:
-                evals, evecs = np.linalg.eig(self.Gx)
+                evals, evecs = np.linalg.eig(self._Gx)
                 idx = np.argsort(evals)
 
                 # indices of largest eigenvalues
                 idx = idx[: self.max_rank]
 
-                self.Qx = self.Qx @ evecs[:, idx]
+                self._Qx = self._Qx @ evecs[:, idx]
                 self.A = self.A @ evecs[:, idx]
-                self.Gx = np.diag(evals[idx])
+                self._Gx = np.diag(evals[idx])
             if n_qy > self.max_rank:
-                evals, evecs = np.linalg.eig(self.Gy)
+                evals, evecs = np.linalg.eig(self._Gy)
                 idx = np.argsort(evals)
 
                 # indices of largest eigenvalues
                 idx = idx[: self.max_rank]
 
-                self.Qy = self.Qy @ evecs[:, idx]
+                self._Qy = self._Qy @ evecs[:, idx]
                 self.A = evecs[:, idx].T @ self.A
-                self.Gy = np.diag(evals[idx])
+                self._Gy = np.diag(evals[idx])
 
     def _update_sys_matrix(self, Xm, Xp):
         # ---- Algorithm step 4 ----
-        xtilde = self.Qx.T @ Xm
-        ytilde = self.Qy.T @ Xp
+        xtilde = self._Qx.T @ Xm
+        ytilde = self._Qy.T @ Xp
 
         # update A and Gx
         self.A += np.outer(ytilde, xtilde)
-        self.Gx += np.outer(xtilde, xtilde)
-        self.Gy += np.outer(ytilde, ytilde)
+        self._Gx += np.outer(xtilde, xtilde)
+        self._Gy += np.outer(ytilde, ytilde)
 
     def _update(self, Xm, Xp, norm_m, norm_p):
         em, ep = self._gram_schmidt(Xm, Xp)
@@ -1999,7 +2002,8 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         """Initial fit of the model (used within :py:meth`partial_fit`).
 
         .. note::
-            This function is not intended to be used directly. Use only py:meth:`partial_fit`.
+            This function is not intended to be used directly. Use only py:meth:`partial_fit`
+            for the initial fit and model updates
         """
 
         self._validate_datafold_data(
@@ -2018,12 +2022,12 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         norm_s1 = np.linalg.norm(s1)
         norm_s2 = np.linalg.norm(s2)
 
-        self.Qx = if1dim_colvec(s1 / norm_s1)
-        self.Qy = if1dim_colvec(s2 / norm_s2)
+        self._Qx = if1dim_colvec(s1 / norm_s1)
+        self._Qy = if1dim_colvec(s2 / norm_s2)
 
         # copy operations included to allocate new memory
-        self.Gx = np.atleast_2d(np.square(norm_s1)).copy()
-        self.Gy = np.atleast_2d(np.square(norm_s2)).copy()
+        self._Gx = np.atleast_2d(np.square(norm_s1)).copy()
+        self._Gy = np.atleast_2d(np.square(norm_s2)).copy()
         self.A = np.atleast_2d(norm_s1 * norm_s2).copy()
 
         return self
@@ -2047,7 +2051,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         # original: self.Qx.T @ self.Qy @ self.A @ np.linalg.pinv(self.Gx)
         # here I write it specifically as a linear regression
         # return self.Qx.T @ self.Qy @ self.A @ np.linalg.pinv(self.Gx)
-        return np.linalg.lstsq(self.Gx.T, (self.Qx.T @ self.Qy @ self.A).T, rcond=0)[
+        return np.linalg.lstsq(self._Gx.T, (self._Qx.T @ self._Qy @ self.A).T, rcond=0)[
             0
         ].T
 
@@ -2057,7 +2061,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         evals, right_evec = np.linalg.eig(Ktilde)
         evals, right_evec = sort_eigenpairs(evals, right_eigenvectors=right_evec)
 
-        right_evec = self.Qx @ right_evec
+        right_evec = self._Qx @ right_evec
         return right_evec, evals
 
     def partial_fit(self, X: TSCDataFrame, y=None, **fit_params) -> "StreamingDMD":
@@ -2123,8 +2127,8 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
             Initial conditions of shape `(n_initial_condition, n_features)`.
 
         time_values
-            Time values to evaluate the model at. If not provided, then the time at the
-            initial condition plus ``dt_`` is set (i.e. predict a single step).
+            Time values to evaluate the model at. If not provided, then predict a single step
+            from initial condition plus time in ``dt_``.
 
         Returns
         -------
