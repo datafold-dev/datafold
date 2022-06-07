@@ -109,8 +109,7 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
     def _set_attrs_knn(self, k):
         if k <= 0:
-            raise ValueError("parameter 'k' must be a positive integer")
-
+            raise ValueError(f"parameter '{k=}' must be a positive integer")
         self.k = k
 
     def __repr__(self):
@@ -868,6 +867,7 @@ class SklearnKNN(DistanceAlgorithm):
             self.nn_.fit(X)
 
         if is_pdist:
+            # here, the connection to self is not computed (but inserted below)
             distance_matrix = self.nn_.kneighbors_graph(
                 n_neighbors=self.k - 1, mode="distance"
             )
@@ -1068,7 +1068,7 @@ def compute_distance_matrix(
     Y: Optional[np.ndarray] = None,
     metric: str = "euclidean",
     cut_off: Optional[float] = None,
-    k: int = 0,
+    k: Optional[int] = None,
     backend: Union[str, Type[DistanceAlgorithm]] = "guess_optimal",
     **backend_kwargs,
 ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
