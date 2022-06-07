@@ -1073,12 +1073,28 @@ class ContinuousNNKernel(PCManifoldKernel):
             # make sure to only use Python built-in
             self.k_neighbor = int(k_neighbor)
 
-        self.dist_kwargs = distance or {}
-        self.dist_kwargs.setdefault("kmin", self.k_neighbor)  # TODO: docu
-        self.dist_kwargs.setdefault("metric", "euclidean")  # TODO: docu
+        self.distance = distance or {}
+
+        if isinstance(distance, dict):
+            self.distance.setdefault("kmin", self.k_neighbor)
+            self.distance.setdefault("metric", "euclidean")
+        elif isinstance(distance, DistanceAlgorithm) and distance.dist_type == "knn":
+            if self.distance.k < self.k_neighbor:
+                raise ValueError(
+                    f"{self.distance=} must have at least {self.k_neighbor=} neighbors"
+                )
+        elif (
+            isinstance(distance, DistanceAlgorithm) and distance.dist_type == "range-nn"
+        ):
+            if self.distance.kmin < self.k_neighbor:
+                raise ValueError(
+                    f"{self.distance=} must assure that each point has at least "
+                    f"{self.k_neighbor=} neighbors (set kmin)"
+                )
+        else:
+            raise TypeError(f"{type(self.distance)=} not understood")
 
         self.reference_dist_knn_: np.ndarray
-
         super(ContinuousNNKernel, self).__init__(distance=distance)
 
     def _validate_reference_dist_knn(self, is_pdist, reference_dist_knn):

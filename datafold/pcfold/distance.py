@@ -101,7 +101,7 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     @property
     def dist_type(self):
         if hasattr(self, "cut_off"):
-            return "radius"
+            return "range-nn"
         elif hasattr(self, "k"):
             return "knn"
         else:
@@ -114,15 +114,33 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
     def __repr__(self):
         _name = self.__class__.__name__
-        return (
-            _name
-            + f"({self.metric=}, {self.is_symmetric=}, {self.is_sparse=}, {self.cut_off=}, "
-            f"{self.kmin=})".replace("self.", "")
-        )
+
+        if self.dist_type == "range-nn":
+            return (
+                _name
+                + f"({self.metric=}, {self.is_symmetric=}, {self.is_sparse=}, {self.cut_off=}, "
+                f"{self.kmin=})".replace("self.", "")
+            )
+        elif self.dist_type == "knn":
+            return (
+                _name
+                + f"({self.metric=}, {self.is_symmetric=}, {self.is_sparse=}, {self.k=})".replace(
+                    "self.", ""
+                )
+            )
+        else:
+            return _name + f"({self.metric=}, {self.is_symmetric=})".replace(
+                "self.", ""
+            )
 
     @property
     def is_sparse(self):
-        return self.cut_off is not None
+        if self.dist_type == "range-nn":
+            return self.cut_off is not None
+        elif self.dist_type == "knn":
+            return self.k < np.inf
+        else:
+            return False
 
     def _validate_cut_off(self, cut_off):
         if cut_off is None or np.isinf(cut_off):

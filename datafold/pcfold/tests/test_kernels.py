@@ -10,7 +10,7 @@ import pandas.testing as pdtest
 import scipy.sparse
 from scipy.spatial.distance import pdist, squareform
 
-from datafold.pcfold.distance import compute_distance_matrix
+from datafold.pcfold.distance import SklearnKNN, compute_distance_matrix
 from datafold.pcfold.kernels import (
     ConeKernel,
     ContinuousNNKernel,
@@ -458,6 +458,33 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         if plot:
             self.plot_data(train_data, graph_train, test_data, graph_test)
+            plt.show()
+
+    def test_knn_kernel(self, plot=False):
+
+        train_data = generate_circle_data(40, 40, 1)
+
+        k = 30
+        distance = SklearnKNN(metric="sqeuclidean", k=k)
+        cknn = ContinuousNNKernel(k_neighbor=5, delta=2.3, distance=distance)
+
+        def distance_with_additional_checks(X, Y):
+            distance_matrix = distance(X, Y)
+            self.assertFalse(is_symmetric_matrix(distance_matrix))
+            self.assertEqual(distance_matrix.nnz, k * train_data.shape[0])
+            return distance_matrix
+
+        cknn.distance = distance_with_additional_checks
+        cknn.distance.is_symmetric = False  # mock - k-nn is not symmetric in general
+
+        graph_train = cknn(train_data)
+
+        self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
+        self.assertLessEqual(graph_train.nnz, k * train_data.shape[0])
+        self.assertEqual(graph_train.dtype, np.bool)
+
+        if plot:
+            self.plot_data(train_data, graph_train)
             plt.show()
 
     def test_circle_example(self, plot=False):
