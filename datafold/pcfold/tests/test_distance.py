@@ -5,11 +5,11 @@ import warnings
 
 import numpy as np
 import numpy.testing as nptest
-import pytest
 import scipy
 import scipy.sparse
 from scipy.sparse import SparseEfficiencyWarning
 from scipy.spatial.distance import cdist, pdist, squareform
+from sklearn.neighbors import KNeighborsTransformer
 
 from datafold.pcfold.distance import (
     DistanceAlgorithm,
@@ -327,7 +327,32 @@ class TestDistAlgorithms(unittest.TestCase):
                     print(f"Failed for {quantile=} and {kmin=}")
                     raise e
 
-    @pytest.mark.skip("TODO: finish k-NN tests")
     def test_knn_pdist(self):
-        dist = SklearnKNN(metric="euclidean", k=3)
-        dist(self.data_X)
+        # the test can be extended if there are more k-nn algorithms available
+        data = np.random.default_rng(1).normal(size=(100, 2))
+        dist = SklearnKNN(metric="euclidean", k=5)
+        actual = dist(data)
+
+        knn = KNeighborsTransformer(n_neighbors=5, metric="euclidean").fit(data)
+        expected = knn.kneighbors_graph(data, n_neighbors=5, mode="distance")
+
+        nptest.assert_array_equal(actual.toarray(), expected.toarray())
+        self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+        self.assertEqual(actual.nnz, 5 * 100)
+        self.assertEqual(actual.shape, (100, 100))
+
+    def test_knn_cdist(self):
+        # the test can be extended if there are more k-nn algorithms available
+        data = np.random.default_rng(1).normal(size=(100, 2))
+        data_query = np.random.default_rng(1).normal(size=(50, 2))
+
+        dist = SklearnKNN(metric="euclidean", k=5)
+        actual = dist(data, data_query)
+
+        knn = KNeighborsTransformer(n_neighbors=5, metric="euclidean").fit(data)
+        expected = knn.kneighbors_graph(data_query, n_neighbors=5, mode="distance")
+
+        nptest.assert_array_equal(actual.toarray(), expected.toarray())
+        self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+        self.assertEqual(actual.nnz, 5 * 50)
+        self.assertEqual(actual.shape, (50, 100))
