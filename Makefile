@@ -211,6 +211,13 @@ precommit:
 	@$(ACTIVATE_VENV); \
 	python -m pre_commit run $(GITHOOK);
 
+#gitamend: @ Amend a commit to the last commit (already pushed).
+gitamend:
+	@$(ACTIVATE_VENV);\
+	git commit --amend;\
+	git push --force-with-lease
+
+
 #ci: @ Run continuous integration pipeline.
 ci: install_devdeps test precommit test_install
 

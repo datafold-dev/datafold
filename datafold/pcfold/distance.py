@@ -117,16 +117,13 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
         if self.dist_type == "range-nn":
             return (
-                _name
-                + f"({self.metric=}, {self.is_symmetric=}, {self.is_sparse=}, {self.cut_off=}, "
-                f"{self.kmin=})".replace("self.", "")
+                _name + f"({self.metric=}, {self.is_symmetric=}, {self.is_sparse=}, "
+                f"{self.cut_off=}, {self.kmin=})".replace("self.", "")
             )
         elif self.dist_type == "knn":
             return (
-                _name
-                + f"({self.metric=}, {self.is_symmetric=}, {self.is_sparse=}, {self.k=})".replace(
-                    "self.", ""
-                )
+                _name + f"({self.metric=}, {self.is_symmetric=}, {self.is_sparse=}, "
+                f"{self.k=})".replace("self.", "")
             )
         else:
             return _name + f"({self.metric=}, {self.is_symmetric=})".replace(
