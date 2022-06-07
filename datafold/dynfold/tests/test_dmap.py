@@ -3,7 +3,7 @@
 """
 import unittest
 from copy import deepcopy
-from datafold.utils.general import is_symmetric_matrix
+
 import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +28,7 @@ from datafold.dynfold.tests.helper import (
 from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
 from datafold.pcfold.distance import SklearnKNN
 from datafold.pcfold.kernels import ConeKernel
-from datafold.utils.general import random_subsample
+from datafold.utils.general import is_symmetric_matrix, random_subsample
 from datafold.utils.plot import plot_pairwise_eigenvector
 
 try:
@@ -548,9 +548,12 @@ class DiffusionMapsTest(unittest.TestCase):
         data = np.random.default_rng(1).random(size=(100, 100))
 
         for alpha, is_stochastic in zip([0, 0.5, 1], [True, False]):
-            dmap = DiffusionMaps(ContinuousNNKernel(k_neighbor=4, delta=1.11), alpha=alpha, is_stochastic=is_stochastic)
+            dmap = DiffusionMaps(
+                ContinuousNNKernel(k_neighbor=4, delta=1.11),
+                alpha=alpha,
+                is_stochastic=is_stochastic,
+            )
             dmap = dmap.fit(data, store_kernel_matrix=True)
-
 
             self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
             if is_stochastic:
@@ -615,7 +618,9 @@ class DiffusionMapsTest(unittest.TestCase):
 
         for i, symmetrize_kernel in enumerate([True, False]):
             setting["symmetrize_kernel"] = symmetrize_kernel
-            dmap_list[i] = DiffusionMaps(**setting).fit(X_swiss_train, store_kernel_matrix=True)
+            dmap_list[i] = DiffusionMaps(**setting).fit(
+                X_swiss_train, store_kernel_matrix=True
+            )
             psi_oos = dmap_list[i].transform(X_swiss_oos)
 
             self.assertFalse(is_symmetric_matrix(dmap_list[i].kernel_matrix_))
@@ -625,8 +630,12 @@ class DiffusionMapsTest(unittest.TestCase):
             # Test for linear reconstruction to identify future changes
             self.assertLessEqual(np.linalg.norm(X_swiss_oos - reconst_oos), 72.441387)
 
-        nptest.assert_array_equal(dmap_list[0].kernel_matrix_.toarray(), dmap_list[1].kernel_matrix_.toarray())
-        nptest.assert_array_equal(dmap_list[0].eigenvectors_, dmap_list[1].eigenvectors_)
+        nptest.assert_array_equal(
+            dmap_list[0].kernel_matrix_.toarray(), dmap_list[1].kernel_matrix_.toarray()
+        )
+        nptest.assert_array_equal(
+            dmap_list[0].eigenvectors_, dmap_list[1].eigenvectors_
+        )
         nptest.assert_array_equal(dmap_list[0].eigenvalues_, dmap_list[1].eigenvalues_)
 
         if plot:

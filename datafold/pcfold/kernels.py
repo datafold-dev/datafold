@@ -1058,42 +1058,38 @@ class ContinuousNNKernel(PCManifoldKernel):
             self.delta = float(delta)
 
         if self.delta <= 0.0:
-            raise ValueError(
-                f"parrameter 'delta={self.delta}' must be a positive float"
-            )
+            raise ValueError(f"parameter '{self.delta=}' must be a positive float")
 
         if k_neighbor < 1:
-            raise ValueError(
-                f"parameter 'k_neighbor={k_neighbor}' must be a positive integer"
-            )
+            raise ValueError(f"parameter '{k_neighbor=}' must be a positive integer")
 
         if not is_integer(k_neighbor):
-            raise TypeError("n_neighbors must be an integer")
+            raise TypeError(f"k_neighbor must be an integer (got {type(k_neighbor)=})")
         else:
             # make sure to only use Python built-in
             self.k_neighbor = int(k_neighbor)
 
-        self.distance = distance or {}
-
-        if isinstance(distance, dict):
-            self.distance.setdefault("kmin", self.k_neighbor)
-            self.distance.setdefault("metric", "euclidean")
+        if distance is None or isinstance(distance, dict):
+            distance = distance or {}
+            distance.setdefault("kmin", self.k_neighbor)
+            distance.setdefault("metric", "euclidean")
+            distance = init_distance_algorithm(backend="guess_optimal", **distance)
         elif isinstance(distance, DistanceAlgorithm) and distance.dist_type == "knn":
-            if self.distance.k < self.k_neighbor:
+            if distance.k < self.k_neighbor:
                 raise ValueError(
                     f"{self.distance=} must have at least {self.k_neighbor=} neighbors"
                 )
         elif (
             isinstance(distance, DistanceAlgorithm) and distance.dist_type == "range-nn"
         ):
-            if self.distance.kmin < self.k_neighbor:
+            if distance.kmin < self.k_neighbor:
                 raise ValueError(
                     f"{self.distance=} must assure that each point has at least "
                     f"{self.k_neighbor=} neighbors (set kmin)"
                 )
         else:
             raise TypeError(f"{type(self.distance)=} not understood")
-
+        self.distance = distance
         self.reference_dist_knn_: np.ndarray
         super(ContinuousNNKernel, self).__init__(distance=distance)
 
