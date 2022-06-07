@@ -547,12 +547,19 @@ class DiffusionMapsTest(unittest.TestCase):
 
         data = np.random.default_rng(1).random(size=(100, 100))
 
-        for alpha in [0, 0.5, 1]:
-            DiffusionMaps(ContinuousNNKernel(k_neighbor=4, delta=2), alpha=alpha).fit(
-                data
-            )
+        for alpha, is_stochastic in zip([0, 0.5, 1], [True, False]):
+            dmap = DiffusionMaps(ContinuousNNKernel(k_neighbor=4, delta=1.11), alpha=alpha, is_stochastic=is_stochastic)
+            dmap = dmap.fit(data, store_kernel_matrix=True)
 
-        self.assertTrue(True)
+
+            self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
+            if is_stochastic:
+                self.assertEqual(dmap.kernel_matrix_.dtype, np.floating)
+            else:
+                self.assertEqual(dmap.kernel_matrix_.dtype, np.bool)
+
+            self.assertIsInstance(dmap.eigenvectors_, np.ndarray)
+            self.assertIsInstance(dmap.eigenvalues_, np.ndarray)
 
     def test_dynamic_kernel(self):
 
