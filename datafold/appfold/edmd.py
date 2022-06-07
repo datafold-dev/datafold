@@ -367,7 +367,7 @@ class EDMD(
         """
         if self.include_id_state:
             # copy required to properly attach X later on
-            X_dict = deepcopy(X)
+            X_dict = X.copy(deep=True)
         else:
             X_dict = X
 
@@ -2070,6 +2070,10 @@ class EDMDControl(
         """
         return self._edmd.inverse_transform(X)
 
+    @property
+    def feature_names_in_(self):  # formerly state_columns
+        return self._edmd.feature_names_in_
+
     def fit(
         self,
         X: TimePredictType,
@@ -2102,7 +2106,6 @@ class EDMDControl(
             ensure_tsc=True,
             tsc_kwargs={"ensure_const_delta_time": True},
         )
-        self.state_columns = X.columns
         fit_params = self._edmd._check_fit_params(**fit_params or {})
         dmd_fit_params = fit_params.pop("dmd", {})
         _ = fit_params.pop("edmd", None)
@@ -2126,7 +2129,7 @@ class EDMDControl(
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        U: Optional[np.ndarray] = None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
         check_inputs: bool = True,
         lifted_state: bool = False,
         **predict_params,
@@ -2141,8 +2144,9 @@ class EDMDControl(
             conditions of shape `(n_features, n_initial_conditions)`.
         time_values : np.ndarray
             Time series at which to evaluate the system. Must be equally spaced
-            and use the same timestep as the training data.
-        U : np.ndarray
+            and use the same timestep as the training data. If U is
+            a TSCDataFrame time_values can be skipped and inferred from the index
+        U : np.ndarray | TSCDataFrame
             The control input at the provided time values with shape
             `(n_timesteps, n_control_dimensions)
         check_inputs : bool, optional, default True

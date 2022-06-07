@@ -2187,16 +2187,16 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             if isinstance(U, TSCDataFrame):
                 if time_values is None:
                     time_values = U.time_values()
-                U = U.values.reshape(len(U.ids), -1, len(U.columns))
+                U = U.to_numpy().reshape(len(U.ids), -1, len(U.columns))
             elif U is None:
                 if time_values is None:
                     time_values = np.array([0, 1]) * self.dt_
-                U = pd.DataFrame(index=time_values).values
+                U = pd.DataFrame(index=time_values).to_numpy()
 
             if time_values is not None:
                 time_values = self._validate_time_values(time_values)
 
-            self._validate_feature_names(X, require_all=False)
+            self._validate_feature_names(X)
 
         state_tsc = self.evolve_system(
             X.to_numpy().T,
@@ -2520,9 +2520,9 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
             scheme=self.diff_scheme, accuracy=self.diff_accuracy
         )
         # trim samples where derivative is unknown
-        X = state.select_time_values(Xdot_tsc.time_values()).values
-        U = control_inp.select_time_values(Xdot_tsc.time_values()).values
-        Xdot = Xdot_tsc.values
+        X = state.select_time_values(Xdot_tsc.time_values()).to_numpy()
+        U = control_inp.select_time_values(Xdot_tsc.time_values()).to_numpy()
+        Xdot = Xdot_tsc.to_numpy()
 
         n_snapshots = X.shape[0]
         state_cols = X.shape[1]

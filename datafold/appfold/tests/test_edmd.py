@@ -75,29 +75,30 @@ class EDMDTest(unittest.TestCase):
         sim_time_step=0.1,
         sim_num_steps=10,
         training_size=5,
+        seed=42,
     ) -> TSCDataFrame:
         from datafold.utils._systems import InvertedPendulum
 
-        np.random.seed(42)
+        gen = np.random.default_rng(seed)
 
-        invertedPendulum = InvertedPendulum()
+        inverted_pendulum = InvertedPendulum()
         Xlist, Ulist = [], []
         xycols = ["x", "xdot", "theta", "thetadot"]
 
         for i in range(training_size):
-            control_amplitude = 0.1 + 0.9 * np.random.random()
-            control_frequency = np.pi + 2 * np.pi * np.random.random()
-            control_phase = 2 * np.pi * np.random.random()
+            control_amplitude = 0.1 + 0.9 * gen.random()
+            control_frequency = np.pi + 2 * np.pi * gen.random()
+            control_phase = 2 * np.pi * gen.random()
             control_func = lambda t, y: control_amplitude * np.sin(
                 control_frequency * t + control_phase
             )
-            invertedPendulum.reset()
-            traj = invertedPendulum.predict(
+            inverted_pendulum.reset()
+            traj = inverted_pendulum.predict(
                 time_step=sim_time_step,
                 num_steps=sim_num_steps,
                 control_func=control_func,
             )
-            t = invertedPendulum.sol.t
+            t = inverted_pendulum.sol.t
             dfx = pd.DataFrame(data=traj.T, index=t, columns=xycols)
             dfx["u"] = 0.0
             Xlist.append(dfx)

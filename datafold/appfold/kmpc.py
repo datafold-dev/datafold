@@ -3,7 +3,6 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from qpsolvers import solve_qp
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
@@ -11,6 +10,12 @@ from scipy.optimize import minimize
 from datafold.appfold import EDMDControl
 from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec
+
+try:
+    import quadprog  # noqa: F401
+    from qpsolvers import solve_qp
+except ImportError:
+    solve_qp = None
 
 
 class LinearKMPC:
@@ -101,6 +106,13 @@ class LinearKMPC:
         cost_terminal: Optional[Union[float, np.ndarray]] = 100,
         cost_input: Optional[Union[float, np.ndarray]] = 0.01,
     ) -> None:
+        if solve_qp is None:
+            raise ImportError(
+                "The optional dependencies qpsolvers and quadprog are required "
+                "for LinearKMPC. They can be installed using option mpc. "
+                "E.g. `pip install datafold[mpc]`"
+            )
+
         # utilize the lifting functions from EDMD
         self.lifting_function = predictor.transform
 
@@ -122,7 +134,7 @@ class LinearKMPC:
                 "The predictor.dmd_model should support linear controlled systems "
                 "(e.g. DMDControl)."
             )
-        self.state_size = len(predictor.state_columns)
+        self.state_size = len(predictor.feature_names_in_)
 
         # setup conversion from lifted state to output quantities of interest
         self.Cb, self.output_size = self._setup_qois(qois, predictor)
@@ -173,7 +185,7 @@ class LinearKMPC:
                 ) from e
             try:
                 if qtype is str:
-                    ixs.append(list(predictor.state_columns).index(qoi))
+                    ixs.append(list(predictor.feature_names_in_).index(qoi))
                 else:
                     assert qoi < self.state_size
                     ixs.append(qoi)
@@ -477,7 +489,7 @@ class AffineKgMPC(object):
                 "affine controlled system (e.g. gDMDAffine)."
             )
 
-        self.state_size = len(predictor.state_columns)
+        self.state_size = len(predictor.feature_names_in_)
 
         if input_bounds.shape != (self.input_size, 2):
             raise ValueError(
@@ -522,9 +534,9 @@ class AffineKgMPC(object):
         # if (self._cached_input != u).any() or (self._cached_state != x0).any:
         if (self._cached_init_state != x0).any():
             lifted_x0 = self.predictor.transform(
-                pd.DataFrame(x0.T, columns=self.predictor.state_columns)
-                # InitialCondition.from_array(x0.T, self.predictor.state_columns)
-            ).values
+                pd.DataFrame(x0.T, columns=self.predictor.feature_names_in_)
+                # InitialCondition.from_array(x0.T, self.predictor.feature_names_in_)
+            ).to_numpy()
             self._cached_init_state = x0
             self._cached_lifted_state = lifted_x0
         else:
@@ -774,7 +786,9 @@ class AffineKgMPC(object):
                 f"time_values is of shape {time_values.shape}, should be ({self.horizon+1},)"
             )
 
-        xref = reference if isinstance(reference, np.ndarray) else reference.values.T
+        xref = (
+            reference if isinstance(reference, np.ndarray) else reference.to_numpy().T
+        )
         xref = if1dim_colvec(xref)
         if xref.shape != (self.state_size, self.horizon + 1):
             raise ValueError(
@@ -785,7 +799,7 @@ class AffineKgMPC(object):
         x0 = (
             initial_conditions
             if isinstance(initial_conditions, np.ndarray)
-            else initial_conditions.values.T
+            else initial_conditions.to_numpy().T
         )
         x0 = if1dim_colvec(x0)
         if x0.shape != (self.state_size, 1):

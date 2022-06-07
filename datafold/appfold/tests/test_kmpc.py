@@ -17,13 +17,12 @@ from datafold.utils._systems import InvertedPendulum
 
 
 class LinearKMPCTest(unittest.TestCase):
-    def __init__(self, *args, **kwargs) -> None:
-        super(LinearKMPCTest, self).__init__(*args, **kwargs)
+    def setUp(self) -> None:
         self._state_columns = ["x", "xdot", "theta", "thetadot"]
         self._control_columns = ["u"]
         self.X, self.t, self.u, self.dfx, self.dfu = self._generate_data()
 
-    def _generate_data(self):
+    def _generate_data(self, seed=42):
 
         # Simulation model parameters
 
@@ -31,7 +30,7 @@ class LinearKMPCTest(unittest.TestCase):
         num_steps = 1000
         size = 20
         model = InvertedPendulum()
-        np.random.seed(42)
+        gen = np.random.default_rng(seed)
 
         # Data structures
 
@@ -40,9 +39,9 @@ class LinearKMPCTest(unittest.TestCase):
 
         for _ in range(size):
             model.reset()
-            control_amplitude = 0.1 + 0.9 * np.random.random()
-            control_frequency = np.pi + 2 * np.pi * np.random.random()
-            control_phase = 2 * np.pi * np.random.random()
+            control_amplitude = 0.1 + 0.9 * gen.random()
+            control_frequency = np.pi + 2 * np.pi * gen.random()
+            control_phase = 2 * np.pi * gen.random()
             control_function = lambda t, y: control_amplitude * np.sin(
                 control_frequency * t + control_phase
             )
@@ -94,7 +93,7 @@ class LinearKMPCTest(unittest.TestCase):
         edmdmock = Mock()
         edmdmock.sys_matrix = A
         edmdmock.control_matrix = B
-        edmdmock.state_columns = [f"x{i}" for i in range(state_size)]
+        edmdmock.feature_names_in_ = [f"x{i}" for i in range(state_size)]
         edmdmock.transform = lambda x: x
 
         kmpcperfect = LinearKMPC(
@@ -152,13 +151,12 @@ class LinearKMPCTest(unittest.TestCase):
 
 
 class AffineKMPCTest(unittest.TestCase):
-    def __init__(self, *args, **kwargs) -> None:
-        super(AffineKMPCTest, self).__init__(*args, **kwargs)
+    def setUp(self) -> None:
         self._state_columns = ["x", "xdot", "theta", "thetadot"]
         self._control_columns = ["u"]
         self.X, self.t, self.u, self.dfx, self.dfu = self._generate_data()
 
-    def _generate_data(self):
+    def _generate_data(self, seed=42):
 
         # Simulation model parameters
 
@@ -166,7 +164,7 @@ class AffineKMPCTest(unittest.TestCase):
         num_steps = 1000
         size = 20
         model = InvertedPendulum()
-        np.random.seed(42)
+        gen = np.random.default_rng(seed)
 
         # Data structures
 
@@ -175,9 +173,9 @@ class AffineKMPCTest(unittest.TestCase):
 
         for _ in range(size):
             model.reset()
-            control_amplitude = 0.1 + 0.9 * np.random.random()
-            control_frequency = np.pi + 2 * np.pi * np.random.random()
-            control_phase = 2 * np.pi * np.random.random()
+            control_amplitude = 0.1 + 0.9 * gen.random()
+            control_frequency = np.pi + 2 * np.pi * gen.random()
+            control_phase = 2 * np.pi * gen.random()
             control_function = lambda t, y: control_amplitude * np.sin(
                 control_frequency * t + control_phase
             )
@@ -234,7 +232,7 @@ class AffineKMPCTest(unittest.TestCase):
         edmdmock = Mock()
         edmdmock.sys_matrix = A
         edmdmock.control_matrix = Bi
-        edmdmock.state_columns = [f"x{i}" for i in range(state_size)]
+        edmdmock.feature_names_in_ = [f"x{i}" for i in range(state_size)]
         edmdmock.transform = lambda x: x
 
         kmpcperfect = AffineMPCtype(
