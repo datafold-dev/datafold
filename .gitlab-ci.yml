@@ -32,7 +32,7 @@ setup:
   script:
     - ls /usr/bin | grep python
     - which python3
-    - make install_devdeps PYTHON=python3.7
+    - make install_devdeps PYTHON=python3.8
     - make versions
 
 unittests:
