@@ -2,6 +2,7 @@
 
 import os
 import pathlib
+import json
 
 import requests  # type: ignore
 
@@ -9,6 +10,8 @@ import requests  # type: ignore
 PATH2DOCSOURCE = pathlib.Path(__file__).parent.resolve()
 PATH2ROOT = PATH2DOCSOURCE.parent.parent
 PATH2TUTORIAL = PATH2ROOT.joinpath("tutorials")
+
+BASE_URL = "https://datafold-dev.gitlab.io/datafold"
 
 rst_text_before_tutorials_list = """This page contains tutorials and code snippets to
 showcase *datafold's* API. All tutorials can be viewed online below. If you want to
@@ -68,31 +71,61 @@ def get_nblink(filename):
     return filename_nblink
 
 
+class Tutorial:
+    def __init__(self, filename, description, **kwargs):
+        warning = kwargs.get('warning')
+        if warning is not None:
+            warning = warning.rstrip()
+
+        self.filename = filename
+        self.description = description.rstrip()
+        self.warning = warning
+
+        assert self.fullpath
+
+    @property
+    def fullpath(self):
+        return os.path.join(PATH2TUTORIAL, self.filename)
+
+    @property
+    def relpath(self):
+        return os.path.relpath(self.fullpath, '.')
+
+    @property
+    def nblink_filename(self):
+        return get_nblink(self.filename)
+
+    @property
+    def web_link(self):
+        nblink_filename = self.nblink_filename
+        return f"{BASE_URL}/{nblink_filename}.html"
+
+    @property
+    def download_link(self):
+        filename = self.filename
+        return (
+            f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
+            f"tutorials/{filename}?inline=false"
+        )
+
+    @property
+    def nblink(self):
+        return get_nblink(self.filename)
+
+
 def add_tutorial(filename, description, warning=None):
     assert filename not in DESCRIPTIVE_TUTORIALS
 
-    fullpath = os.path.join(PATH2TUTORIAL, filename)
+    tutorial = Tutorial(filename, description, warning=warning)
+    DESCRIPTIVE_TUTORIALS[filename] = tutorial
+
+    fullpath = tutorial.fullpath
     if not os.path.exists(fullpath):
         raise FileNotFoundError(
             f"The filepath {os.path.join(PATH2TUTORIAL, filename)} does not exist."
         )
 
-    download_link = (
-        f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
-        f"tutorials/{filename}?inline=false"
-    )
-
-    nblink_filename = get_nblink(filename)
-    web_link = f"https://datafold-dev.gitlab.io/datafold/{nblink_filename}.html"
-
-    DESCRIPTIVE_TUTORIALS[filename] = dict(
-        path=fullpath,
-        description=description.rstrip(),
-        download_link=download_link.rstrip(),
-        web_link=web_link.rstrip(),
-        warning=warning.rstrip() if isinstance(warning, str) else None,
-    )
-
+    download_link = tutorial.download_link
     _req_download_file = requests.head(download_link)
     if _req_download_file.status_code != 200:
         print(
@@ -100,6 +133,7 @@ def add_tutorial(filename, description, warning=None):
             f"the tutorial will be published soon and that the link is correct."
         )
 
+    web_link = tutorial.web_link
     _req_weblink_doc = requests.head(web_link)
     if _req_weblink_doc.status_code != 200:
         print(
@@ -223,23 +257,14 @@ def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
 
 
 def generate_nblink_files():
-
-    nblink_content = """
-    {
-    "path": "??INSERT??"
-    }
-    """
-
     for tutorial in DESCRIPTIVE_TUTORIALS.values():
-        filepath = tutorial['path']
+        filepath = tutorial.fullpath
         filename_nblink = get_nblink(filepath)
 
-        with open(f"{filename_nblink}.nblink", "w") as nblinkfile:
-            nblinkfile.write(
-                nblink_content.replace(
-                    "??INSERT??", os.path.normpath(filepath).replace("\\", "/")
-                )
-            )
+        data = {'path': os.path.normpath(filepath).replace('\\', '/')}
+        fname = f'{filename_nblink}.nblinkd'
+        with open(fname, 'w') as nblinkfile:
+            json.dump(data, nblinkfile)
 
 
 def generate_docs_str(target):
@@ -280,7 +305,7 @@ def generate_docs_str(target):
     files_list = "\n"  # generate string to insert in tutorial_page_content
 
     for filename, tutorial in DESCRIPTIVE_TUTORIALS.items():
-        filepath = tutorial['path']
+        filepath = tutorial.fullpath
         filename_nblink = get_nblink(filepath)
 
         files_list += f"{INDENT}{filename_nblink}\n"
