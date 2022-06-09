@@ -1,32 +1,19 @@
-""" Unit test for the roseland module.
-
-"""
-
 import unittest
+from time import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
-import pandas.testing as pdtest
+import pytest
 import scipy.sparse.linalg
-from scipy.sparse.construct import random
-from scipy.stats import norm
 from sklearn.datasets import make_swiss_roll
 
-import datafold.pcfold as pfold
 from datafold.dynfold import Roseland
-from datafold.dynfold.tests.helper import *
+from datafold.dynfold.tests.helper import assert_equal_eigenvectors
 from datafold.pcfold import GaussianKernel, TSCDataFrame
 from datafold.utils.general import random_subsample
-
-try:
-    import rdist
-except ImportError:
-    IMPORTED_RDIST = False
-else:
-    IMPORTED_RDIST = True
-
-# TODO: add tests using TSCDataFrame (have a look at test_dmap.py)
+from datafold.utils.plot import plot_pairwise_eigenvector
 
 
 class RoselandTest(unittest.TestCase):
@@ -36,12 +23,12 @@ class RoselandTest(unittest.TestCase):
         data_landmark, _ = random_subsample(data, 250)
 
         dense_case = Roseland(
-            GaussianKernel(epsilon=1.25), Y=data_landmark, n_svdpairs=11
+            GaussianKernel(epsilon=1.25), landmarks=data_landmark, n_svdtriplet=11
         ).fit(data, store_kernel_matrix=True)
         sparse_case = Roseland(
             GaussianKernel(epsilon=1.25),
-            Y=data_landmark,
-            n_svdpairs=11,
+            landmarks=data_landmark,
+            n_svdtriplet=11,
             dist_kwargs=dict(cut_off=1e100),
         ).fit(data, store_kernel_matrix=True)
 
@@ -55,20 +42,23 @@ class RoselandTest(unittest.TestCase):
             dense_case.svdvalues_, sparse_case.svdvalues_, rtol=1e-13, atol=1e-14
         )
 
-        assert_equal_eigenvectors(dense_case.svdvectors_, sparse_case.svdvectors_)
+        assert_equal_eigenvectors(dense_case.svdvec_left_, sparse_case.svdvec_left_)
 
     def test_time_exponent(self):
         data, _ = make_swiss_roll(2000, random_state=1)
         data_landmark, _ = random_subsample(data, 250)
 
         actual1 = Roseland(
-            GaussianKernel(epsilon=1.5), n_svdpairs=5, Y=data_landmark, time_exponent=0
+            GaussianKernel(epsilon=1.5),
+            n_svdtriplet=5,
+            landmarks=data_landmark,
+            time_exponent=0,
         ).fit_transform(data)
 
         actual2 = Roseland(
             GaussianKernel(epsilon=1.5),
-            n_svdpairs=5,
-            Y=data_landmark,
+            n_svdtriplet=5,
+            landmarks=data_landmark,
             time_exponent=1e-14,
         ).fit_transform(data)
 
@@ -79,12 +69,12 @@ class RoselandTest(unittest.TestCase):
         data_landmark, _ = random_subsample(X_swiss_all, 400)
 
         actual_rose = Roseland(
-            GaussianKernel(epsilon=2.0), n_svdpairs=6, Y=data_landmark
+            GaussianKernel(epsilon=2.0), n_svdtriplet=6, landmarks=data_landmark
         ).set_target_coords([1, 5])
         actual = actual_rose.fit_transform(X_swiss_all)
 
         actual_rose2 = Roseland(
-            GaussianKernel(epsilon=2.0), n_svdpairs=6, Y=data_landmark
+            GaussianKernel(epsilon=2.0), n_svdtriplet=6, landmarks=data_landmark
         )
         actual2 = (
             actual_rose2.fit(X_swiss_all)
@@ -93,7 +83,7 @@ class RoselandTest(unittest.TestCase):
         )
 
         expected = Roseland(
-            GaussianKernel(epsilon=2.0), n_svdpairs=6, Y=data_landmark
+            GaussianKernel(epsilon=2.0), n_svdtriplet=6, landmarks=data_landmark
         ).fit_transform(X_swiss_all)
 
         nptest.assert_allclose(
@@ -103,10 +93,10 @@ class RoselandTest(unittest.TestCase):
             np.abs(actual2), np.abs(expected[:, [1, 5]]), rtol=1e-10, atol=1e-14
         )
         nptest.assert_allclose(
-            np.abs(actual_rose.svdvectors_), np.abs(expected), rtol=1e-10, atol=1e-14
+            np.abs(actual_rose.svdvec_left_), np.abs(expected), rtol=1e-10, atol=1e-14
         )
         nptest.assert_allclose(
-            np.abs(actual_rose2.svdvectors_), np.abs(expected), rtol=1e-10, atol=1e-14
+            np.abs(actual_rose2.svdvec_left_), np.abs(expected), rtol=1e-10, atol=1e-14
         )
 
         self.assertEqual(actual_rose.n_features_out_, 2)
@@ -118,7 +108,7 @@ class RoselandTest(unittest.TestCase):
     def test_set_target_coords2(self):
         X_swiss_all, _ = make_swiss_roll(n_samples=500, noise=0, random_state=5)
 
-        actual_rose = Roseland(GaussianKernel(epsilon=2.0), n_svdpairs=6).fit(
+        actual_rose = Roseland(GaussianKernel(epsilon=2.0), n_svdtriplet=6).fit(
             X_swiss_all
         )
         actual_rose.set_target_coords(indices=[0, 1])
@@ -135,48 +125,46 @@ class RoselandTest(unittest.TestCase):
 
     def test_nystrom_out_of_sample_swiss_roll(self, plot=False):
 
-        X_swiss_all, color_all = make_swiss_roll(
-            n_samples=4000, noise=0, random_state=5
-        )
-        data_landmark, _ = random_subsample(X_swiss_all, 1000)
+        X_train, color_train = make_swiss_roll(n_samples=4000, noise=0, random_state=5)
+        landmarks, _ = random_subsample(X_train, 1000, random_state=1)
 
         setting = {
-            "kernel": GaussianKernel(epsilon=1.7),
-            "n_svdpairs": 7,
-            "Y": data_landmark,
+            "kernel": GaussianKernel(epsilon=2.7),
+            "n_svdtriplet": 7,
+            "landmarks": landmarks,
+            "alpha": 0,
         }
 
-        rose_embed = Roseland(**setting).fit(X_swiss_all)
+        rose_embed = Roseland(**setting).fit(X_train)
 
+        indices = [1, 5]
         if plot:
-            from datafold.utils.plot import plot_pairwise_eigenvector
-
             plot_pairwise_eigenvector(
-                eigenvectors=rose_embed.transform(X_swiss_all),
+                eigenvectors=rose_embed.svdvec_left_,
                 n=1,
                 fig_params=dict(figsize=[6, 6]),
-                scatter_params=dict(cmap=plt.cm.Spectral, c=color_all),
+                scatter_params=dict(cmap=plt.cm.Spectral, c=color_train),
             )
 
-        rose_embed_eval_expected = rose_embed.svdvectors_[:, [1, 5]]
-        rose_embed_eval_actual = rose_embed.set_target_coords(indices=[1, 5]).transform(
-            X=X_swiss_all
-        )
+        rose_embed_eval_expected = rose_embed.svdvec_left_[:, indices]
+        rose_embed_eval_actual = rose_embed.set_target_coords(
+            indices=indices
+        ).transform(X=X_train)
 
         # even though the target_coords were set, still all eigenvectors must be
         # accessible
-        self.assertEqual(rose_embed.svdvectors_.shape[1], 7)
+        self.assertEqual(rose_embed.svdvec_left_.shape[1], 7)
 
         nptest.assert_allclose(
             rose_embed_eval_actual, rose_embed_eval_expected, atol=1e-15
         )
 
         if plot:
-            X_swiss_oos, color_oos = make_swiss_roll(
-                n_samples=30000, noise=0, random_state=5
-            )
+            X_oos, color_oos = make_swiss_roll(n_samples=30000, noise=0, random_state=3)
 
             f, ax = plt.subplots(2, 3, figsize=(4, 4))
+            f.subplots_adjust(hspace=0.326)
+
             marker = "."
             markersize = 0.2
             ax[0][0].scatter(
@@ -184,7 +172,7 @@ class RoselandTest(unittest.TestCase):
                 rose_embed_eval_expected[:, 1],
                 s=markersize,
                 marker=marker,
-                c=color_all,
+                c=color_train,
             )
             ax[0][0].set_title("expected Roseland singular vectors (Fit)")
 
@@ -193,7 +181,7 @@ class RoselandTest(unittest.TestCase):
                 rose_embed_eval_actual[:, 1],
                 s=markersize,
                 marker=marker,
-                c=color_all,
+                c=color_train,
             )
             ax[0][1].set_title("actual Roseland singular vectors (fit -> transform)")
 
@@ -212,7 +200,7 @@ class RoselandTest(unittest.TestCase):
             f.colorbar(error_scatter, ax=ax[0][2])
             ax[0][2].set_title("abs. difference")
 
-            gh_embed_eval_oos = rose_embed.transform(X_swiss_oos)
+            gh_embed_eval_oos = rose_embed.transform(X_oos)
             ax[1][0].scatter(
                 gh_embed_eval_oos[:, 0],
                 gh_embed_eval_oos[:, 1],
@@ -228,7 +216,7 @@ class RoselandTest(unittest.TestCase):
             ax[1][2].text(
                 0.01,
                 0.5,
-                f"both have same setting " f"chosen_svdvectors={[1, 5]}",
+                f"both have same setting " f"chosen_svdvectors={indices}",
             )
 
             plt.show()
@@ -238,21 +226,18 @@ class RoselandTest(unittest.TestCase):
         data_landmark, _ = random_subsample(X_swiss_all, 1000)
 
         rose = Roseland(
-            kernel=GaussianKernel(), Y=data_landmark, dist_kwargs=dict(cut_off=2)
+            kernel=GaussianKernel(),
+            landmarks=data_landmark,
+            dist_kwargs=dict(cut_off=2),
         ).fit(X_swiss_all, store_kernel_matrix=True)
 
-        self.assertEqual(rose.Y_fit_.dist_kwargs["cut_off"], 2)
+        self.assertEqual(rose.landmarks_.dist_kwargs["cut_off"], 2)
         self.assertTrue(scipy.sparse.issparse(rose.kernel_matrix_))
 
+    @pytest.mark.skip("too expensive")
     def test_speed(self):
-        from time import time
 
-        num_samples = 15000
-        xmin, ymin = -2, -1
-        width, height = 4, 2
         random_state = 1
-
-        data = make_strip(xmin, ymin, width, height, num_samples)
         rng = np.random.default_rng(random_state)
 
         n_large_points = int(15000)
@@ -261,21 +246,18 @@ class RoselandTest(unittest.TestCase):
             low=(-L1 / 2, -L2 / 2), high=(L1 / 2, L2 / 2), size=(n_large_points, 2)
         )
 
-        pcm = pfold.PCManifold(data)
-
         setting = {"kernel": GaussianKernel(), "n_svdpairs": 5, "gamma": 0.25}
 
-        t0 = time()
         rose_embed = Roseland(**setting)
 
         t1 = time()
         rose_embed.fit(data, store_kernel_matrix=True)
         t2 = time()
-        kernel_output = rose_embed.Y_fit_.compute_kernel_matrix(rose_embed.X_fit_)
+        _ = rose_embed.landmarks_.compute_kernel_matrix(data)
         t22 = time()
-        svdvects, svdvals, right_svdvects = scipy.sparse.linalg.svds(
+        _, _, _ = scipy.sparse.linalg.svds(
             rose_embed.kernel_matrix_,
-            k=rose_embed.n_svdpairs,
+            k=rose_embed.n_svdtriplet,
             which="LM",
         )
         t3 = time()
@@ -289,23 +271,35 @@ class RoselandTest(unittest.TestCase):
     def test_landmark_selection(self):
         landmark_random_state = 42
         X_swiss_all, _ = make_swiss_roll(n_samples=500, noise=0, random_state=5)
+
         data_landmark, _ = random_subsample(
             X_swiss_all, 100, random_state=landmark_random_state
         )
 
-        given_Y_case = Roseland(
-            GaussianKernel(epsilon=2.0), n_svdpairs=6, Y=data_landmark
-        ).fit(X_swiss_all)
-
-        given_gamma_case = Roseland(
+        given_int_case = Roseland(
             GaussianKernel(epsilon=2.0),
-            n_svdpairs=6,
-            gamma=0.2,
+            n_svdtriplet=6,
+            landmarks=100,
             random_state=landmark_random_state,
         ).fit(X_swiss_all)
 
+        given_float_case = Roseland(
+            GaussianKernel(epsilon=2.0),
+            n_svdtriplet=6,
+            landmarks=0.2,
+            random_state=landmark_random_state,
+        ).fit(X_swiss_all)
+
+        given_array_case = Roseland(
+            GaussianKernel(epsilon=2.0), n_svdtriplet=6, landmarks=data_landmark
+        ).fit(X_swiss_all)
+
         assert_equal_eigenvectors(
-            given_Y_case.svdvectors_, given_gamma_case.svdvectors_
+            given_array_case.svdvec_left_, given_int_case.svdvec_left_
+        )
+
+        assert_equal_eigenvectors(
+            given_array_case.svdvec_left_, given_float_case.svdvec_left_
         )
 
     def test_types_tsc(self):
@@ -318,15 +312,17 @@ class RoselandTest(unittest.TestCase):
 
         tsc_data = TSCDataFrame.from_single_timeseries(df=df)
 
-        rose = Roseland(kernel=GaussianKernel(epsilon=0.4), n_svdpairs=4).fit(
+        rose = Roseland(kernel=GaussianKernel(epsilon=0.4), n_svdtriplet=4).fit(
             tsc_data, store_kernel_matrix=True
         )
 
-        self.assertIsInstance(rose.svdvectors_, TSCDataFrame)
-        # Change to sparse matrix behaviour wrt dmap:
-        # dmap returns sparse matrix only if cut-off is specified
-        # while roseland always specifies cut-off for the landmark set
-        self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
+        self.assertIsInstance(rose.svdvec_left_, TSCDataFrame)
+        # Change to sparse matrix behaviour wrt DMAP:
+        # DiffusionMaps computes only a sparse matrix if a cut-off is specified
+        # Roseland always specifies a cut-off for the landmark set
+        # TODO: IMHO this behavior goes against the Roseland algorithm. As far as I can
+        #  tell, the paper only considers a dense kernel matrix
+        # self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
 
         # insert TSCDataFrame -> output TSCDataFrame
         actual_tsc = rose.transform(tsc_data.iloc[:10, :])
@@ -347,12 +343,14 @@ class RoselandTest(unittest.TestCase):
             pd.DataFrame(pcm_data, columns=["sin", "cos"])
         )
 
-        rose = Roseland(kernel=GaussianKernel(epsilon=0.4), n_svdpairs=4).fit(
+        rose = Roseland(kernel=GaussianKernel(epsilon=0.4), n_svdtriplet=4).fit(
             pcm_data, store_kernel_matrix=True
         )
 
-        self.assertIsInstance(rose.svdvectors_, np.ndarray)
-        self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
+        self.assertIsInstance(rose.svdvec_left_, np.ndarray)
+
+        # TODO: Why MUST the kernel matrix be sparse?
+        # self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
 
         # insert np.ndarray -> output np.ndarray
         actual_nd = rose.transform(pcm_data[:10, :])
@@ -377,7 +375,7 @@ class RoselandTest(unittest.TestCase):
 
         actual_rose = Roseland(
             kernel=GaussianKernel(epsilon=1.25),
-            n_svdpairs=6,
+            n_svdtriplet=6,
             dist_kwargs=dict(cut_off=10),
             random_state=42,
         )
@@ -385,7 +383,7 @@ class RoselandTest(unittest.TestCase):
 
         expected_rose = Roseland(
             kernel=GaussianKernel(epsilon=1.25),
-            n_svdpairs=6,
+            n_svdtriplet=6,
             dist_kwargs=dict(cut_off=10),
             random_state=42,
         )
@@ -402,6 +400,12 @@ class RoselandTest(unittest.TestCase):
         nptest.assert_allclose(
             actual_result.to_numpy(), expected_result, rtol=1e-6, atol=1e-12
         )
+
+    def test_invalid_kernel(self):
+        from datafold.pcfold import ConeKernel
+
+        with self.assertRaises(NotImplementedError):
+            Roseland(kernel=ConeKernel()).fit(make_swiss_roll(100)[0])
 
 
 if __name__ == "__main__":

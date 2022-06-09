@@ -1,5 +1,5 @@
 import enum
-from typing import Optional, Union
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -72,7 +72,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
     References
     ----------
 
-    :cite:`coifman_geometric_2006`
+    :cite:`coifman-2006a`
 
     See Also
     --------
@@ -494,7 +494,7 @@ class MultiScaleGeometricHarmonicsInterpolator(
             ratio_eigenvalues = mu[0] / mu
             max_l = np.argmax(~(ratio_eigenvalues < self.condition))
 
-            coeff_l_, coeff_l_err_ = (coeff_[:max_l], coeff_[max_l:])
+            _, coeff_l_err_ = (coeff_[:max_l], coeff_[max_l:])
 
             mu_l_ = mu[:max_l]
             phi_l_ = phi[:, :max_l]
@@ -589,8 +589,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
     References
     ----------
 
-    :cite:`fernandez_auto-adaptative_2014`
-    :cite:`rabin_heterogeneous_2012`
+    :cite:`fernandez-2014,rabin-2012`
 
     """
 
@@ -636,15 +635,14 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
                 name="residual_tol",
                 target_type=(float, np.floating),
                 min_val=0,
-                max_val=np.inf,
             )
 
         check_scalar(
             self.mu,
             "mu",
             target_type=(int, np.integer, float, np.floating),
-            min_val=1 + np.finfo(float).eps,
-            max_val=np.inf,
+            min_val=1,
+            include_boundaries="right",
         )
 
         if isinstance(X, np.memmap):

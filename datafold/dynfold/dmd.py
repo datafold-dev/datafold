@@ -1,7 +1,7 @@
 import abc
 import copy
 import warnings
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -10,10 +10,8 @@ from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from sklearn.base import BaseEstimator
-from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
 from sklearn.utils.validation import check_is_fitted
 
-from datafold._decorators import warn_experimental_class
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.pcfold import InitialCondition, TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (
@@ -21,9 +19,7 @@ from datafold.utils.general import (
     if1dim_colvec,
     is_scalar,
     mat_dot_diagmat,
-    projection_matrix_from_features,
     sort_eigenpairs,
-    split_control_state_columns,
 )
 
 try:
@@ -95,7 +91,8 @@ class DynamicalSystemBase(object):
         if initial_condition.shape[0] != state_length:
             raise ValueError(
                 f"Mismatch in dimensions between initial condition and system matrix. "
-                f"ic.shape[0]={initial_condition.shape[0]} is not dynmatrix.shape[1]={state_length}."
+                f"ic.shape[0]={initial_condition.shape[0]} is not "
+                f"dynmatrix.shape[1]={state_length}."
             )
         return initial_condition
 
@@ -117,7 +114,7 @@ class DynamicalSystemBase(object):
             )
 
         if is_timedelta64_dtype(time_values) or is_datetime64_dtype(time_values):
-            time_values = time_values.astype(int)
+            time_values = time_values.astype(np.int64)
 
         return time_values
 
@@ -386,7 +383,7 @@ class LinearDynamicalSystem(DynamicalSystemBase):
             #  - how is the fractional_matrix_power implemented? It computes internally
             #    singular values, so it'd be better to avoid calling it too often, if
             #    possible
-            #    see: https://github.com/scipy/scipy/blob/c1372d8aa90a73d8a52f135529293ff4edb98fc8/scipy/linalg/_matfuncs_inv_ssq.py
+            #    see: https://github.com/scipy/scipy/blob/c1372d8aa90a73d8a52f135529293ff4edb98fc8/scipy/linalg/_matfuncs_inv_ssq.py # noqa
 
             if self.is_differential_system():
                 for idx, time in enumerate(time_values):
@@ -426,10 +423,10 @@ class LinearDynamicalSystem(DynamicalSystemBase):
         not necessarily need to be an initial state but instead can be arbitrary states.
 
         In the context of dynamic mode decomposition, the spectral state is also often
-        referred to as "amplitudes". E.g., see :cite:`kutz_dynamic_2016`, page 8. In
+        referred to as "amplitudes". E.g., see :cite:t:`kutz-2016`, page 8. In
         the context of `EDMD`, where the DMD model acts on a dictionary space, then the
         spectral states are the evaluation of the Koopman eigenfunctions. See e.g.,
-        :cite:`williams_datadriven_2015` Eq. 3 or 6.
+        :cite:t:`williams-2015` Eq. 3 or 6.
 
         There are two alternatives in how to compute the states.
 
@@ -469,7 +466,7 @@ class LinearDynamicalSystem(DynamicalSystemBase):
             self.eigenvectors_left_ is not None and self.eigenvectors_right_ is not None
         ):
             # uses both eigenvectors (left and right).
-            # this is Eq. 18 in :cite:`williams_datadriven_2015` (note that in the
+            # this is Eq. 18 in :cite:`williams-2015` (note that in the
             # paper the Koopman matrix is transposed, therefore here left and right
             # eigenvectors are exchanged.
             states = self.eigenvectors_left_ @ states
@@ -483,7 +480,7 @@ class LinearDynamicalSystem(DynamicalSystemBase):
             states = np.linalg.lstsq(self.eigenvectors_right_, states, rcond=None)[0]
         else:
             raise ValueError(
-                f"Attribute 'eigenvectors_right_ is None'. Please report bug."
+                "Attribute 'eigenvectors_right_ is None'. Please report bug."
             )
 
         return states
@@ -686,7 +683,7 @@ class DMDBase(
     A DMD model decomposes time series data linearly into spatial-temporal components.
     The decomposition defines a linear dynamical system. Due to it's strong connection to
     non-linear dynamical systems with Koopman spectral theory
-    (see e.g. introduction in :cite:`tu_dynamic_2014`), the DMD variants (subclasses)
+    (see e.g. introduction in :cite:t:`tu-2014`), the DMD variants (subclasses)
     are framed in the context of this theory.
 
     A DMD model approximates the Koopman operator with a matrix :math:`K`,
@@ -734,11 +731,11 @@ class DMDBase(
 
     References
     ----------
-    :cite:`schmid_dynamic_2010` - DMD method in the original sense
-    :cite:`rowley_spectral_2009` - connects the DMD method to Koopman operator theory
-    :cite:`tu_dynamic_2014` - generalizes the DMD to temporal snapshot pairs
-    :cite:`williams_datadriven_2015` - generalizes the approximation to a lifted space
-    :cite:`kutz_dynamic_2016` - an introductory book for DMD and its connection to Koopman
+    :cite:t:`schmid-2010` - DMD method in the original sense
+    :cite:t:`rowley-2009` - connects the DMD method to Koopman operator theory
+    :cite:t:`tu-2014` - generalizes the DMD to temporal snapshot pairs
+    :cite:t:`williams-2015` - generalizes the approximation to a lifted space
+    :cite:t:`kutz-2016` - an introductory book for DMD and its connection to Koopman
     theory
 
     See Also
@@ -782,7 +779,7 @@ class DMDBase(
         if self.is_matrix_mode() and (
             post_map is not None or user_set_modes is not None
         ):
-            raise ValueError(f"post_map can only be provided with 'sys_type=spectral'")
+            raise ValueError("post_map can only be provided with 'sys_type=spectral'")
 
         return post_map, user_set_modes, feature_columns
 
@@ -1008,7 +1005,7 @@ class DMDBase(
         X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._validate_feature_names(X)
 
@@ -1122,7 +1119,7 @@ class DMDFull(DMDBase):
 
             This operation can fail if the eigenvalues of the matrix :math:`K` are too
             close to zero or the matrix logarithm is not well-defined because because of
-            non-uniqueness. For details see :cite:`dietrich_koopman_2019` (Eq.
+            non-uniqueness. For details see :cite:t:`dietrich-2020` (Eq.
             3.2. and 3.3. and discussion). Currently, there are no counter measurements
             implemented to increase numerical robustness (work is needed). Consider
             also :py:class:`.gDMDFull`, which provides an alternative way to
@@ -1156,11 +1153,11 @@ class DMDFull(DMDBase):
     References
     ----------
 
-    :cite:`schmid_dynamic_2010` - DMD method in the original sense
-    :cite:`rowley_spectral_2009` - connects the DMD method to Koopman operator theory
-    :cite:`tu_dynamic_2014` - generalizes the DMD to temporal snapshot pairs
-    :cite:`williams_datadriven_2015` - generalizes the approximation to a lifted space
-    :cite:`kutz_dynamic_2016` - an introductory book for DMD and Koopman connection
+    * :cite:t:`schmid-2010` - DMD method in the original sense
+    * :cite:t:`rowley-2009` - connects the DMD method to Koopman operator theory
+    * :cite:t:`tu-2014` - generalizes the DMD to temporal snapshot pairs
+    * :cite:t:`williams-2015` - generalizes the approximation to a lifted space
+    * :cite:t:`kutz-2016` - an introductory book for DMD and Koopman connection
     """
 
     def __init__(
@@ -1234,7 +1231,9 @@ class DMDFull(DMDBase):
         #     shift matrices (instead of the G, G_dash)
 
         # TODO: fit_intercept option useful to integrate?
-        # #  https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.html#sklearn.linear_model.RidgeCV
+        # https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.
+        # html#sklearn.linear_model.RidgeCV
+        # from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
         # from sklearn.linear_model import RidgeCV
         #
         # ridge = RidgeCV(alphas=[0.0001, 0.001, 0.01, 0.05, 1],
@@ -1316,7 +1315,7 @@ class DMDFull(DMDBase):
         self._validate_datafold_data(
             X=X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
 
@@ -1423,7 +1422,7 @@ class gDMDFull(DMDBase):
     References
     ----------
 
-    :cite:`klus_data-driven_2020`
+    :cite:`klus-2020`
 
     """
 
@@ -1520,7 +1519,7 @@ class gDMDFull(DMDBase):
         self._validate_datafold_data(
             X=X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
 
@@ -1621,9 +1620,7 @@ class DMDEco(DMDBase):
     References
     ----------
 
-    :cite:`kutz_dynamic_2016`
-    :cite:`tu_dynamic_2014`
-
+    :cite:`kutz-2016,tu-2014`
     """
 
     def __init__(self, svd_rank=10, *, reconstruct_mode: str = "exact"):
@@ -1698,7 +1695,7 @@ class DMDEco(DMDBase):
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -1741,7 +1738,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     ----------
 
     :cite:`kutz_dynamic_2016` (Chapter 6)
-    :cite:`korda2018linear`
+    :cite:`korda-2018`
 
     See Also
     --------
@@ -1797,7 +1794,6 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
         time_delta: Optional[float] = None,
     ) -> np.ndarray:
         next_state = initial_conditions
-        last_time = time_values[0]
         for idx, time in enumerate(time_values):
             time_series_tensor[:, idx, :] = next_state.T
             next_state = (
@@ -1866,13 +1862,13 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     ):
         r"""Evolve specified linear dynamical system according to given control input.
 
-        If time values are provided they must be positive real values :math:`t \in \mathbb{R}^+`
+        If time values are provided they must be positive real values :math:`t\in \mathbb{R}^+`
         and the system is evaluated using `matrix_fractional_power`. (Not implemented yet)
 
-            .. math::
-                x(t_{k+1}) = A^{t_{k} / \delta t} \cdot x_0 + B^{(t_{k+1}-t_{k}) / \delta t} \cdot u(t_{k})
+        .. math::
+            x(t_{k+1})=A^{t_{k}/\delta t}\cdot x_0+B^{(t_{k+1}-t_{k})/\delta t}\cdot u(t_{k})
 
-        A better performing alternative is used if :math:`t=0\delta t, 1\delta t, 2\delta t ,...`
+        A better performing alternative is used if :math:`t=0, \delta t, 2\delta t ,...`
         and evaluates the state via subsequent application of the matrix
 
         Parameters
@@ -2029,12 +2025,6 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         Cut-off ratio for small singular values.
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
-    state_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the state
-
-    control_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the control input
-
     Attributes
     -------
     sys_matrix : np.ndarray
@@ -2047,7 +2037,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
     ----------
 
     :cite:`kutz_dynamic_2016` (Chapter 6)
-    :cite:`korda2018linear`
+    :cite:`korda-2018`
     """
 
     _cls_split_params = ("split_by", "control", "state")
@@ -2056,14 +2046,10 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         *,  # keyword-only
         rcond: Optional[float] = None,
-        state_columns: Optional[List[str]] = None,
-        control_columns: Optional[List[str]] = None,
         **kwargs,
     ):
         self.rcond = rcond
-        if state_columns is not None and control_columns is not None:
-            self.state_columns = state_columns
-            self.control_columns = control_columns
+
         super().__init__(time_invariant=True)
 
     def _compute_koompan_matrices(
@@ -2082,7 +2068,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             )
 
         XU = np.vstack([XT.T, UT.T])
-        # from :cite:`korda2018linear` - eq. 22
+        # from :cite:`korda-2018` - eq. 22
         G = XU @ XU.T
         np.multiply(1 / state.shape[0], G, out=G)  # improve condition?
         V = YT.T @ XU.T
@@ -2102,64 +2088,22 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
         return sys_matrix, control_matrix
 
-    def _split_X(self, X: TSCDataFrame, **params):
+    def _validate_matching_state_control(self, X: TSCDataFrame, U: TSCDataFrame):
+        if not np.all(X.index == U.index):
+            raise ValueError(
+                "X and U should be sampled at the same times and time intervals."
+            )
 
-        if params == {}:
-            try:
-                return self.state_columns, self.control_columns
-            except AttributeError:
-                warnings.warn(
-                    "No control/state split provided to DMDControl, "
-                    "all columns of the input are assumed to be state."
-                )
-        (
-            split_by,
-            control,
-            state,
-        ) = [params.pop(key, None) for key in self._cls_split_params]
-
-        if split_by is None:
-            if control is not None or state is not None:
-                raise ValueError("split_by parameter is required.")
-            else:
-                split_by = "name"
-
-        state, control = split_control_state_columns(
-            X,
-            split_by=split_by,
-            control=control,
-            state=state,
-        )
-
-        self.state_columns = state
-        self.control_columns = control
-
-        return state, control
-
-    def fit(self, X: TSCDataFrame, **fit_params):
+    def fit(self, X: TSCDataFrame, U: Optional[TSCDataFrame] = None, **fit_params):
         """Compute Koopman approximation of state and control matrices
 
         Parameters
         ----------
         X : TSCDataFrame
-            Input data with both state columns and control input columns.
-            To differentiate between state and control columns, use the
-            optional parameters as follows:
+            Input state data
 
-        split_by : str
-            Splitting mode: 'index', 'name' or 'pattern'.
-            In the index mode, the other parameters are lists of column indices.
-            In the name mode, the other parameters are list of column names.
-            In the pattern mode, the other parameters provide patterns for column names.
-        control : list | str, optional
-            If provided, the matching columns will be the control columns.
-            If not provided, but state is provided, the control columns
-            will be the leftover columns which are not state.
-        state : list | str, optional
-            If provided, the columns with given indices will be the state columns.
-            If not provided, but control is provided, the state columns
-            will be the leftover columns which are not control.
-            If neither is provided, all columns are state columns.
+        U : TSCDataFrame
+            Input control data
 
         Returns
         -------
@@ -2170,18 +2114,20 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             ensure_tsc=True,
             tsc_kwargs={"ensure_const_delta_time": True},
         )
+
         self._setup_features_and_time_attrs_fit(X=X)
 
-        split_params = {
-            key: fit_params[key]
-            for key in fit_params.keys()
-            if key in self._cls_split_params
-        }
-        state_cols, control_cols = self._split_X(X, **split_params)
+        if U is None:
+            U = X[[]]  # empty input
+        else:
+            self._validate_datafold_data(
+                X=U,
+                ensure_tsc=True,
+                tsc_kwargs={"ensure_const_delta_time": True},
+            )
+            self._validate_matching_state_control(X, U)
 
-        sys_matrix, control_matrix = self._compute_koompan_matrices(
-            X[state_cols], X[control_cols]
-        )
+        sys_matrix, control_matrix = self._compute_koompan_matrices(X, U)
         self.setup_matrix_system(sys_matrix, control_matrix)
 
         return self
@@ -2190,7 +2136,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         X: InitialConditionType,
         time_values: Optional[np.ndarray] = None,
-        control_input: Optional[Union[TSCDataFrame, np.ndarray]] = None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
         check_inputs: bool = True,
         **predict_params,
     ) -> TSCDataFrame:
@@ -2207,7 +2153,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             Time series at which to evaluate the system. Must be equally spaced
             and use the same timestep as the training data.
 
-        control_input : np.ndarray | TSCDataFrame
+        U : np.ndarray | TSCDataFrame
             The control input at the provided time values with shape
             `(n_timesteps, n_control_dimensions) or
             `(n_initial_conditions, n_timesteps, n_control_dimensions)`.
@@ -2229,7 +2175,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
             if isinstance(X, np.ndarray):
                 # work internally only with DataFrames
-                X = InitialCondition.from_array(X, columns=self.state_columns)
+                X = InitialCondition.from_array(X, columns=self.feature_names_in_)
             else:
                 # for DMD the number of samples per initial condition is always 1
                 InitialCondition.validate(X, n_samples_ic=1)
@@ -2238,21 +2184,23 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
             self.is_linear_system_setup(True)
 
-            if isinstance(control_input, TSCDataFrame):
+            if isinstance(U, TSCDataFrame):
                 if time_values is None:
-                    time_values = control_input.time_values()
-                control_input = control_input.values.reshape(
-                    len(control_input.ids), -1, len(self.control_columns)
-                )
+                    time_values = U.time_values()
+                U = U.to_numpy().reshape(len(U.ids), -1, len(U.columns))
+            elif U is None:
+                if time_values is None:
+                    time_values = np.array([0, 1]) * self.dt_
+                U = pd.DataFrame(index=time_values).to_numpy()
 
             if time_values is not None:
                 time_values = self._validate_time_values(time_values)
 
-            self._validate_feature_names(X, require_all=False)
+            self._validate_feature_names(X)
 
         state_tsc = self.evolve_system(
             X.to_numpy().T,
-            control_input,
+            U,
             time_values,
             time_delta=self.dt_,
             check_inputs=check_inputs,
@@ -2265,6 +2213,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         self,
         X: InitialConditionType,
         y=None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
         check_inputs: bool = True,
         **fit_params,
     ) -> TSCDataFrame:
@@ -2273,13 +2222,11 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         Parameters
         ----------
         X : TSCDataFrame
-            Input data with both state columns and control input columns.
-            To differentiate between state and control columns, use the
-            optional parameters in **fit_params.
+            State input
 
 
-        y : any, optional
-            ignored
+        U : TSCDataFrame | np.ndarray, optional
+            Control input
 
         check_inputs : bool, optional, default True
             Allows skipping input checks and assignemnts to improve performance.
@@ -2293,12 +2240,15 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             A reconstruction of X based on predicting each separate time series
             in the collection using the training control input
         """
-        return self.fit(X, **fit_params).reconstruct(X, check_inputs)
+        return self.fit(X, U, **fit_params).reconstruct(
+            X, U=U, check_inputs=check_inputs
+        )
 
     def reconstruct(
         self,
         X: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        U: Optional[TSCDataFrame] = None,
         check_inputs: bool = True,
         **split_params,
     ) -> TSCDataFrame:
@@ -2310,12 +2260,11 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         Parameters
         ----------
         X : TSCDataFrame
-            Input data with both state columns and control input columns.
-            To differentiate between state and control columns, use the
-            optional parameters in **split_params.
+            State input
 
-        y : any, optional
-            ignored
+
+        U : TSCDataFrame | np.ndarray, optional
+            Control input
 
         check_inputs : bool, default True
             Allows skipping input checks and assignemnts to improve performance.
@@ -2344,9 +2293,9 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             X, n_samples_ic=1
         ):
             X_ts = self.predict(
-                X=X_ic[self.state_columns],
+                X=X_ic,
                 time_values=time_values,
-                control_input=X[self.control_columns],
+                U=U,
                 check_inputs=check_inputs,
             )
             X_reconstruct_ts.append(X_ts)
@@ -2389,7 +2338,7 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
     References
     ----------
 
-    :cite:`peitz2020data`
+    :cite:`peitz-2020`
     """
 
     def __init__(self, time_invariant=True):
@@ -2410,7 +2359,8 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
             if control_matrix.shape[:2] != self.system_matrix_.shape:
                 raise ValueError(
-                    "control_matrix and system_matrix must have the same number of rows and columns"
+                    "control_matrix and system_matrix must have "
+                    "the same number of rows and columns"
                 )
             self.control_matrix_ = control_matrix
         return control_matrix
@@ -2444,7 +2394,8 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
         if control_matrix.shape[:2] != system_matrix.shape:
             raise ValueError(
-                "control_matrix and system_matrix must have the same number of rows and columns"
+                "control_matrix and system_matrix must have "
+                "the same number of rows and columns"
             )
         self.sys_matrix_ = system_matrix
         self.control_matrix_ = control_matrix
@@ -2483,7 +2434,8 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
             if not ivp_solution.success:
                 raise RuntimeError(
-                    f"The system could not be envolved for the requested timespan for initial condition {initial_conditions[i]}."
+                    f"The system could not be envolved for the requested "
+                    f"timespan for initial condition {initial_conditions[i]}."
                 )
 
             time_series_tensor[i] = ivp_solution.y.T
@@ -2520,22 +2472,18 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
     Parameters
     ----------
     diff_scheme: Optional[str]
-        The finite difference scheme 'backward', 'center' or 'forward'. Defaul
-        Passed to `scheme` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+        The finite difference scheme 'backward', 'center' or 'forward'.
+        Default is center. Passed to `scheme` of
+        :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
 
     diff_accuracy: Optional[int]
         The accuracy (even positive integer) of the derivative scheme.
-        Passed to `accuracy` of :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+        Default is 2. Passed to `accuracy` of
+        :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
 
     rcond: Optional[float]
         Cut-off ratio for small singular values
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
-
-    state_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the state
-
-    control_columns: Optional[List[str]]
-        Names of the columns of the input corresponding to the control input
 
     Attributes
     -------
@@ -2548,7 +2496,7 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
     References
     ----------
 
-    :cite:`peitz2020data`
+    :cite:`peitz-2020`
     """
 
     def __init__(
@@ -2557,15 +2505,10 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
         diff_scheme: Optional[str] = "center",
         diff_accuracy: Optional[int] = 2,
         rcond: Optional[float] = None,
-        state_columns: Optional[List[str]] = None,
-        control_columns: Optional[List[str]] = None,
     ):
         self.rcond = rcond
         self.diff_scheme = diff_scheme
         self.diff_accuracy = diff_accuracy
-        if state_columns is not None and control_columns is not None:
-            self.state_columns = state_columns
-            self.control_columns = control_columns
         super(gDMDAffine, self).__init__(time_invariant=True)
 
     def _compute_koompan_matrices(
@@ -2577,9 +2520,9 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
             scheme=self.diff_scheme, accuracy=self.diff_accuracy
         )
         # trim samples where derivative is unknown
-        X = state.select_time_values(Xdot_tsc.time_values()).values
-        U = control_inp.select_time_values(Xdot_tsc.time_values()).values
-        Xdot = Xdot_tsc.values
+        X = state.select_time_values(Xdot_tsc.time_values()).to_numpy()
+        U = control_inp.select_time_values(Xdot_tsc.time_values()).to_numpy()
+        Xdot = Xdot_tsc.to_numpy()
 
         n_snapshots = X.shape[0]
         state_cols = X.shape[1]
@@ -2596,7 +2539,7 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
             n_snapshots, control_cols * state_cols
         )
 
-        # match naming convention from cite:`peitz2020data`
+        # match naming convention from cite:`peitz-2020`
         Psi_XU = np.vstack([X.T, u_x_cwise_kron.T])
         Psidot_XU = Xdot.T
 
@@ -2672,7 +2615,7 @@ class PyDMDWrapper(DMDBase):
     References
     ----------
 
-    :cite:`demo_pydmd_2018`
+    :cite:`demo-2018`
 
     """
 
@@ -2780,7 +2723,7 @@ class PyDMDWrapper(DMDBase):
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
+            tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._setup_features_and_time_attrs_fit(X=X)
         self._read_fit_params(attrs=None, fit_params=fit_params)

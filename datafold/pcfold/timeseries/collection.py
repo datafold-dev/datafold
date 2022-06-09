@@ -27,11 +27,15 @@ class TSCException(Exception):
 
     @classmethod
     def not_finite(cls):
-        return cls(f"Numeric values are not finite (nan or inf values present).")
+        return cls("Numeric values are not finite (nan or inf values present).")
 
     @classmethod
     def not_min_samples(cls, min_samples):
         return cls(f"A minimum number of {min_samples} samples is required.")
+
+    @classmethod
+    def not_min_features(cls, min_features):
+        return cls(f"A minimum number of {min_features} features is required.")
 
     @classmethod
     def not_same_length(cls, actual_lengths):
@@ -193,7 +197,8 @@ class TSCDataFrame(pd.DataFrame):
     * The column must be a one-dimensional column index that contains the feature
       names (accounting to the spatial axis)
     * There are no duplicates in both row and column index allowed (the flag
-      `allows_duplicate_labels <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
+      `allows_duplicate_labels
+      <https://pandas.pydata.org/docs/reference/api/pandas.Flags.allows_duplicate_labels.html>`__
       is set to True). Note, that this disables inplace operations on the labels (e.g.
       :code:`tsc.set_index(new_index, inplace=True` raises an error).
     * All time series values must be of a numeric dtype (`nan` or `inf` are allowed).
@@ -304,31 +309,27 @@ class TSCDataFrame(pd.DataFrame):
         dist_kwargs.setdefault("backend", "guess_optimal")
         self.attrs["dist_kwargs"] = dist_kwargs
 
-        try:
-            # In validate an AttributeError is raised, follow-up changes to the data
-            # are dealt with the flag (introduced in pandas v. 1.2.0)
-            self.flags.allows_duplicate_labels = False
-            self._validate()
-        except AttributeError as e:
-            # This is a special case of input, where the fallback is a cast to
-            # pd.DataFrame.
-            # Internally of pandas the __init__ is called like this:
-            # df._constructor(res)
-            # --> df._constructor is TSCDataFrame
-            # --> res is a BlockManager (pandas internal type)
-            # If a BlockManager slices the index, then no AttributeError is raised,
-            # but instead self casted to DataFrame
-            # (case was necessary with changes introduced in pandas==1.2.0)
-            _is_blockmanager_input = len(args) > 0 and isinstance(
-                args[0], pd.core.internals.managers.BlockManager
-            )
+        self.flags.allows_duplicate_labels = False
 
-            if _is_blockmanager_input and self.index.nlevels != 2:
-                # TODO: this seems dangerous... maybe there are better ways to deal
-                #  with this?
-                self = pd.DataFrame(self)
-            else:
-                raise e
+        # This is a special case of input, where the fallback is a cast to
+        # pd.DataFrame.
+        # Internally of pandas the __init__ is called like this:
+        # df._constructor(res)
+        # --> df._constructor is TSCDataFrame
+        # --> res is a BlockManager (pandas internal type)
+        # If a BlockManager slices the index, then no AttributeError is raised,
+        # but instead self casted to DataFrame
+        # (case was necessary with changes introduced in pandas==1.2.0)
+        _is_blockmanager_input = len(args) > 0 and isinstance(
+            args[0], pd.core.internals.managers.BlockManager
+        )
+
+        if _is_blockmanager_input and self.index.nlevels != 2:
+            # TODO: this seems dangerous... maybe there are better ways to deal
+            #  with this?
+            self = pd.DataFrame(self)
+        else:
+            self._validate()
 
     def __setattr__(self, key, value):
         if key == "index":
@@ -741,7 +742,8 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         **kwargs
             All keyword arguments are passed to the super class. See
-            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_csv.html>`__
+            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.
+            DataFrame.to_csv.html>`__.
 
         Returns
         -------
@@ -764,7 +766,8 @@ class TSCDataFrame(pd.DataFrame):
 
         **kwargs
             keyword arguments handled to
-            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`_
+            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/
+            pandas.read_csv.html>`__
 
         Returns
         -------
@@ -783,7 +786,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def _constructor_expanddim(self):
-        raise NotImplementedError("expanddim is not supported for TSCDataFrame")
+        raise NotImplementedError("The dimension of TSCDataFrame cannot be expanded")
 
     def _validate_index(self, index: Union[pd.MultiIndex, pd.Index]) -> pd.MultiIndex:
 
@@ -859,8 +862,8 @@ class TSCDataFrame(pd.DataFrame):
         if len(np.unique(_ids)) != len(_ids):
             raise AttributeError("Time series IDs appear multiple times.")
 
-        if self.is_datetime_index():
-            _time_index_num = time_index.astype(int)
+        if is_datetime64_dtype(time_index):
+            _time_index_num = time_index.view(np.int64)
         else:
             _time_index_num = time_index
 
@@ -1022,6 +1025,27 @@ class TSCDataFrame(pd.DataFrame):
             n_time_elements.name = "counts"
             return n_time_elements
 
+    def transpose(self, *args, copy: bool = False) -> pd.DataFrame:
+        """Overwrite transpose of super class.
+
+        Because the index and column are swapped the resulting type cannot be of type
+        `TSCDataFrame` anymore. Instead, the transpose is of type `DataFrame`.
+
+        Parameters
+        ----------
+        *args
+        copy
+            Whether to copy the data after transposing, even for DataFrames with a single
+            dtype. Note that a copy is always required for mixed dtype DataFrames, or for
+            DataFrames with any extension types.
+
+        Returns
+        -------
+        pd.DataFrame
+            the transposed data structure
+        """
+        return pd.DataFrame(self).transpose(*args, copy=copy)
+
     @property
     def kernel(self):
         """The kernel to describe the proximity between samples.
@@ -1110,8 +1134,8 @@ class TSCDataFrame(pd.DataFrame):
         """Label-based indexing.
 
         Please visit
-        `pd.DataFrame.loc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.loc.html#pandas.DataFrame.loc>`_
-        for full documentation.
+        `pd.DataFrame.loc <https://pandas.pydata.org/pandas-docs/stable/reference/api/
+        pandas.DataFrame.loc.html#pandas.DataFrame.loc>`__ for full documentation.
 
         Returns
         -------
@@ -1123,9 +1147,9 @@ class TSCDataFrame(pd.DataFrame):
     def iloc(self):
         """Index-based indexing.
 
-        Visit
-        `pd.DataFrame.iloc <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.iloc.html#pandas.DataFrame.iloc>`_
-        for documentation of how to index DataFrame.
+        Visit `pd.DataFrame.iloc <https://pandas.pydata.org/pandas-docs/stable/reference/
+        api/pandas.DataFrame.iloc.html#pandas.DataFrame.iloc>`__ for documentation of how
+        to index DataFrame.
 
         .. warning::
             For single column slices (e.g. ``tsc.iloc[:, 0]``), the type
@@ -1175,7 +1199,8 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         args
             see docu
-            `DataFrame.xs <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.xs.html#pandas.DataFrame.xs>`_
+            `DataFrame.xs <https://pandas.pydata.org/pandas-docs/stable/reference/api/
+            pandas.DataFrame.xs.html#pandas.DataFrame.xs>`_
 
         Returns
         -------
@@ -1286,7 +1311,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_finite(self) -> bool:
         """Indicates if all feature values are finite (i.e. neither NaN nor inf)."""
-        return np.isfinite(self).all().all()
+        return np.isfinite(self.to_numpy()).all().all()
 
     def degenerate_ids(self) -> Optional[pd.Index]:
         """Return the degenerate time series IDs.
@@ -1691,8 +1716,9 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         **kwargs
             Key word arguments handled to each time series
-            `pandas.DataFrame.plot() <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.plot.html?highlight=plot#pandas.DataFrame.plot>`_
-            call.
+            `pandas.DataFrame.plot()
+            <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.
+            plot.html?highlight=plot#pandas.DataFrame.plot>`__ call.
 
         Returns
         -------
@@ -1909,9 +1935,6 @@ class InitialCondition(object):
                 "Cannot check the time sampling rate, when at the same "
                 "time only one sample is required per initial condition."
             )
-
-        # all the usual restrictions for TSCDataFrame apply
-        assert X_ic._validate()
 
         X_ic.tsc.check_tsc(
             ensure_const_delta_time=np.array(X_ic.n_timesteps > 1).any(),

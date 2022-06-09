@@ -4,6 +4,7 @@ import os
 import pathlib
 import json
 import shutil
+import warnings
 
 import requests  # type: ignore
 
@@ -51,7 +52,7 @@ package and dependencies install with
 
     python -m pip install jupyter
 
-For further information visit the `Jupyter homepage <https://jupyter.org/>`_. To open a
+For further information visit the `Jupyter homepage <https://jupyter.org/>`__. To open a
 Jupyter notebook in a web browser, run
 
 .. code-block:: bash
@@ -155,8 +156,8 @@ def add_tutorial(filename, description, warning=None, archive=False):
     download_link = tutorial.download_link
     _req_download_file = requests.head(download_link)
     if _req_download_file.status_code != 200:
-        print(
-            f"WARNING: The download link \n{download_link} \n does not exist. Check if "
+        warnings.warn(
+            f"The download link \n{download_link} \n does not exist. Check if "
             f"the tutorial will be published soon and that the link is correct."
         )
 
@@ -175,15 +176,22 @@ class TutorialStringBuilder:
             'download':
                 "#. :doc:`{filename_nblink}` (:download:`download <{download_path}>`)\n",
             'warning':
-                "\n\n{INDENT}.. warning::\n" \
+                "\n\n" \
+                "{INDENT}.. warning::\n" \
                 "{INDENT}{INDENT}{warning}\n",
+            'description':
+                "{INDENT}{description}"
         },
         'readme': {
+            # "filename (download_link, doc_link)" in readme
             'download':
                 "* `{filename}` (`download <{download_link}>`__ , `doc <{web_link}>`__)\n",
             'warning':
-                "\n\n{INDENT}**Warning**\n"
-                "{INDENT}{INDENT}{warning}\n"
+                "\n\n" \
+                "{INDENT}**Warning**\n" \
+                "{INDENT}{INDENT}{warning}\n",
+            'description':
+                "{INDENT}{description}"
         }
     }
 
@@ -201,10 +209,12 @@ class TutorialStringBuilder:
             'download_link': tutorial.download_link,
             'download_path': tutorial.download_path,
             'filename': tutorial.filename,
+            'description': tutorial.description,
         }
 
         s = ''
         s += templates['download']
+        s += templates['description']
         if tutorial.warning is not None:
             subs['warning'] = tutorial.warning
             s += templates['warning']
@@ -254,7 +264,7 @@ def init_tutorials():
         "models such as the ``DiffusionMaps`` model. For this we use the "
         "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
         warning="The tutorial requires also the Python package "
-        "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ "
+        "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ "
         "which does not install with *datafold*.",
     )
 
@@ -351,11 +361,13 @@ def generate_docs_str(target):
     tutorial_page_content += "\n"
     tutorial_page_content += (
         "`Download "
-        "<https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip?path=tutorials/>`__ "
+        "<https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master."
+        "zip?path=tutorials/>`__ "
         "all tutorials in a zipped file.\n\n"
     )
     tutorial_page_content += ".. toctree::\n"
     tutorial_page_content += f"{INDENT}:hidden:\n"
+
     # use easy replacement strings
     tutorial_page_content += "???INSERT_TOC_FILELIST???\n"
     tutorial_page_content += "???INSERT_TUTORIAL_LIST???\n"

@@ -3,16 +3,12 @@
 import copy
 from typing import Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.sparse
 
 from datafold.pcfold import GaussianKernel, PCManifoldKernel
-from datafold.pcfold.distance import (
-    compute_distance_matrix,
-    get_backend_distance_algorithm,
-)
+from datafold.pcfold.distance import compute_distance_matrix
 from datafold.pcfold.estimators import estimate_cutoff, estimate_scale
 
 

@@ -96,9 +96,9 @@ BibTeX:
 How to get it?
 ==============
 
-Installation requires `Python>=3.7 <https://www.python.org/>`__ with
+Installation requires `Python>=3.8 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
-`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed. Both
+`setuptools <https://setuptools.pypa.io/en/latest/>`__ installed. Both
 packages usually ship with a standard Python installation. The package dependencies
 install automatically. The main dependencies and their role in *datafold* are listed below
 in "Dependencies".
@@ -182,7 +182,7 @@ require additional dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
 *datafold* integrates with common packages from the
-`Python scientific computing stack <https://www.scipy.org/about.html>`__:
+`Python scientific computing stack <https://scipy.org/about/>`__:
 
 * `NumPy <https://numpy.org/>`__
    The data structure ``PCManifold`` subclasses from NumPy's
@@ -235,7 +235,7 @@ How does it compare to other software?
    arbitrary many output samples (a time series) for a single input
    (an initial condition).
 
-* `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`__
+* `PyDMD <https://mathlab.github.io/PyDMD/>`__
    provides many variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia.org/wiki/Dynamic_mode_decomposition>`__.
    *datafold* provides a wrapper to make models of ``PyDMD`` accessible. However, a
    limitation of ``PyDMD`` is that it only processes single coherent time series, see

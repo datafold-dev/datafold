@@ -44,7 +44,7 @@ class TSCMetric(object):
     References
     ----------
 
-    "rrmse" is taken from :cite:`le_clainche_higher_2017`
+    "rrmse" is taken from :cite:t:`leclainche-2017`
 
     """
 
@@ -96,7 +96,7 @@ class TSCMetric(object):
         # first normalize y_true, afterwards (with the same factors from y_true!) y_pred
         if self.scaling is not None:  # is None if scaling is identity
             y_true = self.scaling.fit_transform(y_true)
-            y_pred = self.scaling.transform(y_pred.to_numpy())
+            y_pred = self.scaling.transform(y_pred)
 
             y_true = TSCDataFrame(y_true, index=index, columns=columns)
             y_pred = TSCDataFrame(y_pred, index=index, columns=columns)

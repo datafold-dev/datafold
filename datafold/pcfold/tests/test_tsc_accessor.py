@@ -123,7 +123,7 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_array_equal(actual_train.time_values(), expected_train_timevalues)
         nptest.assert_array_equal(actual_test.time_values(), expected_test_timevalues)
 
-        #### new case: the index 0 is not included in train or test
+        # new case: the index 0 is not included in train or test
         train_indices = np.array([1, 2])
         test_indices = np.array([3, 4])
 

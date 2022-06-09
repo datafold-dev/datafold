@@ -383,39 +383,33 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
     def test_dimension_mismatch(self):
         # non-square system matrix
         with self.assertRaises(ValueError):
-            actual = ControlledLinearDynamicalSystem().setup_matrix_system(
+            ControlledLinearDynamicalSystem().setup_matrix_system(
                 np.zeros((3, 4)), np.zeros((4, 4))
             )
 
         # mismatch between system and input matrix
         with self.assertRaises(ValueError):
-            actual = ControlledLinearDynamicalSystem().setup_matrix_system(
+            ControlledLinearDynamicalSystem().setup_matrix_system(
                 np.zeros((4, 4)), np.zeros((3, 4))
             )
 
         # wrong initial condition
         with self.assertRaises(ValueError):
-            actual = (
-                ControlledLinearDynamicalSystem()
-                .setup_matrix_system(np.zeros((4, 4)), np.zeros((4, 3)))
-                .evolve_system(np.zeros(3), np.zeros((4, 3)))
-            )
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(3), np.zeros((4, 3)))
 
         # wrong control input
         with self.assertRaises(ValueError):
-            actual = (
-                ControlledLinearDynamicalSystem()
-                .setup_matrix_system(np.zeros((4, 4)), np.zeros((4, 3)))
-                .evolve_system(np.zeros(4), np.zeros((3, 4)))
-            )
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(4), np.zeros((3, 4)))
 
         # wrong time values
         with self.assertRaises(ValueError):
-            actual = (
-                ControlledLinearDynamicalSystem()
-                .setup_matrix_system(np.zeros((4, 4)), np.zeros((4, 3)))
-                .evolve_system(np.zeros(3), np.zeros((4, 3)), np.zeros(3))
-            )
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(3), np.zeros((4, 3)), np.zeros(3))
 
 
 class ControlledAffineDynamicalSystemTest(unittest.TestCase):
@@ -501,7 +495,8 @@ class DMDTest(unittest.TestCase):
         return TSCDataFrame.from_single_timeseries(data)
 
     def test_dmd_eigenpairs(self):
-        # From http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf
+        # From
+        # http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf # noqa
         # page 297 Example 9.5
 
         dmd_model = DMDFull(is_diagonalize=True)
@@ -568,7 +563,7 @@ class DMDTest(unittest.TestCase):
 
         flowmap_result = flowmap_system.predict(test_data.initial_states(), time_values)
 
-        pdtest.assert_frame_equal(generator_result, flowmap_result, rtol=0, atol=1e-16)
+        pdtest.assert_frame_equal(generator_result, flowmap_result, rtol=0, atol=1e-15)
 
         # check that eigenvalues are actually different
         nptest.assert_allclose(
@@ -599,7 +594,7 @@ class DMDTest(unittest.TestCase):
         ).fit_predict(tsc_df)
         second = DMDFull(sys_mode="matrix", approx_generator=True).fit_predict(tsc_df)
 
-        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
+        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-11)
 
     def test_mode_equivalence_gdmd(self):
         # test mode = matrix and mode = spectrum against
@@ -631,7 +626,7 @@ class DMDTest(unittest.TestCase):
 
         # also fails if there are changes in the implementation that includes small
         # numerical noise
-        self.assertLessEqual(np.abs(score_dmd - score_gdmd), 9.653516289414314e-11)
+        self.assertLessEqual(np.abs(score_dmd - score_gdmd), 9.81e-11)
 
         if plot:
             print(score_dmd)
@@ -659,7 +654,7 @@ class DMDTest(unittest.TestCase):
         ).fit(test_data)
 
         # datafold and PyDMD have a different way to order the eigenvalues. For
-        # the test we sort both accoring to the complex eigenvalue
+        # the test we sort both according to the complex eigenvalue
         expected_eigenvalues, expected_modes = sort_eigenpairs(
             pydmd.eigenvalues_, pydmd.dmd_modes
         )
@@ -832,14 +827,14 @@ class DMDControlTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = DMDControl(state_columns=state_cols, control_columns=input_cols).fit(
-            tsc_df.iloc[:-n_predict]
-        )
 
         u = tsc_df[input_cols].iloc[-n_predict:]
         t = tsc_df.index.get_level_values(1)[-n_predict:]
         expected = tsc_df[state_cols].iloc[-n_predict:]
-        actual = dmd.predict(expected.initial_states(), control_input=u, time_values=t)
+
+        dmd = DMDControl().fit(expected, u)
+
+        actual = dmd.predict(expected.initial_states(), U=u, time_values=t)
 
         pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
 
@@ -873,43 +868,12 @@ class DMDControlTest(unittest.TestCase):
         )
         tsc_df = TSCDataFrame.from_frame_list([df, df.copy(deep=True)])
 
-        dmd = DMDControl(state_columns=state_cols, control_columns=input_cols)
+        dmd = DMDControl()
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        u = tsc_df[input_cols]
+        actual = dmd.fit_predict(expected, U=u)
 
         pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
-
-    def test_control_split(self):
-        state_size = 4
-        input_size = 2
-        n_timesteps = 5
-
-        tsc_df = self._create_control_tsc(state_size, input_size, n_timesteps)
-
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
-
-        dmd1 = DMDControl().fit(tsc_df, split_by="name", state=state_cols)
-
-        assert dmd1.control_columns == input_cols
-        assert dmd1.state_columns == state_cols
-
-        dmd2 = DMDControl().fit(tsc_df, split_by="name", control=state_cols)
-
-        assert dmd2.control_columns == state_cols
-        assert dmd2.state_columns == input_cols
-
-        dmd3 = DMDControl().fit(tsc_df, split_by="index", state=range(state_size))
-
-        assert dmd3.control_columns == input_cols
-        assert dmd3.state_columns == state_cols
-
-        dmd4 = DMDControl().fit(
-            tsc_df, split_by="index", control=range(state_size, state_size + input_size)
-        )
-
-        assert dmd4.control_columns == input_cols
-        assert dmd4.state_columns == state_cols
 
     def test_dmd_control_reconstruct(self):
         state_size = 4
@@ -922,10 +886,8 @@ class DMDControlTest(unittest.TestCase):
         input_cols = [f"u{i+1}" for i in range(input_size)]
 
         reconstructed = DMDControl().fit_predict(
-            X=original,
-            split_by="name",
-            state=state_cols,
-            control=input_cols,
+            X=original[state_cols],
+            U=original[input_cols],
         )
 
         pdtest.assert_frame_equal(
@@ -1021,12 +983,10 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols)
+        dmd = gDMDAffine()
 
-        u = tsc_df[input_cols]
-        t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1042,14 +1002,10 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(
-            state_columns=state_cols, control_columns=input_cols, diff_accuracy=6
-        )
+        dmd = gDMDAffine(diff_accuracy=6)
 
-        u = tsc_df[input_cols]
-        t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1065,9 +1021,7 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols).fit(
-            tsc_df
-        )
+        dmd = gDMDAffine().fit(tsc_df[state_cols], U=tsc_df[input_cols])
 
         t = tsc_df.index.get_level_values(1)
         t0 = t.min()
@@ -1076,9 +1030,7 @@ class gDMDAffineTest(unittest.TestCase):
         u = np.vstack([np.sin(0.2 * np.pi * t), np.cos(0.3 * np.pi * t)]).T
         x0 = np.random.default_rng(42).uniform(-1.0, 1.0, size=state_size)
         expected = sys.evolve_system(x0, u, time_values=t, feature_names_out=state_cols)
-        actual = dmd.predict(
-            expected.initial_states()[state_cols], control_input=u, time_values=t
-        )
+        actual = dmd.predict(expected.initial_states()[state_cols], U=u, time_values=t)
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1094,11 +1046,9 @@ class gDMDAffineTest(unittest.TestCase):
 
         state_cols = [f"x{i+1}" for i in range(state_size)]
         input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine(state_columns=state_cols, control_columns=input_cols)
+        dmd = gDMDAffine()
 
-        u = tsc_df[input_cols]
-        t = tsc_df.index.get_level_values(1)
         expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df)
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
 
         pdtest.assert_frame_equal(actual, expected, rtol=0.01, atol=0.05)

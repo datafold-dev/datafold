@@ -92,7 +92,7 @@ class LimitCycle(DynamicalSystem):
 
         a_vals = 1 / self.eps * t + a0
 
-        r_vals = np.exp(t) / np.sqrt(-1 + np.exp(2 * t) + 1 / r0 ** 2)
+        r_vals = np.exp(t) / np.sqrt(-1 + np.exp(2 * t) + 1 / r0**2)
 
         # x, y = self._as_cartesian_coordinates(rad=r_vals, ang=a_vals)
         self.obs = pd.DataFrame(
@@ -103,8 +103,8 @@ class LimitCycle(DynamicalSystem):
 
 class HopfSystem(DynamicalSystem):
     """
-    Lawrence Perko. Differential equations and dynamical systems, volume 7. Springer Science & Business
-    Media, 2013. page 350
+    Lawrence Perko. Differential equations and dynamical systems, volume 7. Springer
+    Science & Business Media, 2013. page 350
 
     https://link.springer.com/book/10.1007/978-1-4613-0003-8
     """
@@ -487,7 +487,7 @@ class InvertedPendulum(ControlledDynamicalSystem):
 
         m = self.pendulum_mass
         M = self.cart_mass
-        l = self.pendulum_length
+        L = self.pendulum_length
         g = self.g
 
         sin_th = np.sin(theta)
@@ -500,16 +500,16 @@ class InvertedPendulum(ControlledDynamicalSystem):
         f2 = (
             self.tension_force_gain * control_input
             + m * g * sin_th * cos_th
-            - m * l * thetadot ** 2 * sin_th
+            - m * L * thetadot**2 * sin_th
             - 2 * self.cart_friction * xdot
         ) / alpha
 
         f4 = (
             self.tension_force_gain * control_input * cos_th
-            - m * l * thetadot ** 2 * sin_th * cos_th
+            - m * L * thetadot**2 * sin_th * cos_th
             + (M + m) * g * sin_th
             - 2 * self.cart_friction * xdot * cos_th
-        ) / (l * alpha)
+        ) / (L * alpha)
 
         return np.array((f1, f2, f3, f4))
 

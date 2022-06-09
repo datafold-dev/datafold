@@ -79,6 +79,53 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(df.empty)
         self.assertTrue(TSCDataFrame(df).empty)
 
+    def test_dropna(self):
+        tc = TSCDataFrame(self.simple_df)
+        tc_nan = tc.copy(deep=True)
+
+        tc_nan.iloc[0, :] = np.nan
+        tc_nan.iloc[-1, :] = np.nan
+        actual = tc_nan.dropna()
+
+        expect = tc.iloc[1:-1, :]
+
+        pdtest.assert_frame_equal(actual, expect)
+
+    def test_transpose(self):
+        tc = TSCDataFrame(self.simple_df)
+
+        actual = tc.transpose(copy=False)
+        self.assertIsInstance(actual, pd.DataFrame)
+        pdtest.assert_index_equal(actual.index, tc.columns)
+        pdtest.assert_index_equal(actual.columns, tc.index)
+        self.assertTrue(np.shares_memory(tc.to_numpy(), actual.to_numpy()))
+
+        actual = tc.transpose(copy=True)
+        self.assertFalse(np.shares_memory(tc.to_numpy(), actual.to_numpy()))
+
+    def test_concat(self):
+        tc1 = TSCDataFrame(self.simple_df)
+        tc2 = TSCDataFrame(self.simple_df.copy())
+        tc2.columns = pd.Index(["C", "D"])
+
+        actual = pd.concat([tc1, tc2], axis=1)
+        pdtest.assert_index_equal(
+            actual.columns, pd.Index(["A", "B", "C", "D"], name="feature")
+        )
+        pdtest.assert_index_equal(actual.index, tc1.index)
+
+        # concat with non-identical index
+        with self.assertRaises(AttributeError):
+            # raises error because the concat result not sorted and the time series broken in
+            # two parts
+            pd.concat([tc1.iloc[1:, :], tc2], axis=1)
+
+        actual = pd.concat([tc1.iloc[1:, :], tc2], axis=1, sort=True)
+        pdtest.assert_index_equal(
+            actual.columns, pd.Index(["A", "B", "C", "D"], name="feature")
+        )
+        pdtest.assert_index_equal(actual.index, tc1.index)
+
     def test_shape(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))
@@ -155,8 +202,6 @@ class TestTSCDataFrame(unittest.TestCase):
         # the two kernels matrices must be identical
         nptest.assert_array_equal(actual_distance.to_numpy(), expected_distance)
 
-        ## set new dist_kwargs
-
     def test_set_index1(self):
         tsc_df = TSCDataFrame(self.simple_df)
 
@@ -169,7 +214,9 @@ class TestTSCDataFrame(unittest.TestCase):
 
         self.assertEqual(actual.n_timeseries, 1)
         nptest.assert_array_equal(actual.time_values(), np.arange(9))
-        self.assertEqual(actual.index.get_level_values(0).dtype, int)
+        self.assertTrue(
+            np.issubdtype(actual.index.get_level_values(0).dtype, np.integer)
+        )
 
         # test inplace
         with self.assertRaises(ValueError):
@@ -213,6 +260,15 @@ class TestTSCDataFrame(unittest.TestCase):
         with self.assertRaises(AttributeError):
             # go in index checks
             tsc_df.index = pd.Index([1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+    def test_set_datetime_index(self):
+        tsc_df = TSCDataFrame(self.simple_df.copy())
+
+        _ids = tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)
+        new_idx = np.arange(np.datetime64("2021-01-01"), np.datetime64("2021-01-10"))
+        tsc_df.index = pd.MultiIndex.from_arrays([_ids, new_idx])
+
+        self.assertTrue(tsc_df.is_datetime_index())
 
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
@@ -884,7 +940,8 @@ class TestTSCDataFrame(unittest.TestCase):
 
         actual = tscdf.loc[idx[:, 17], :]
 
-        # after slicing for a single time, it is not a valid TSCDataFrame anymore, therefore fall back to pd.DataFrame
+        # after slicing for a single time, it is not a valid TSCDataFrame anymore,
+        # therefore fall back to pd.DataFrame
         self.assertIsInstance(actual, TSCDataFrame)
 
         self.assertTrue(actual.has_degenerate())
@@ -947,7 +1004,7 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc = TSCDataFrame(self.simple_df)
         actual = tsc.loc[(0, 0), "A"]
 
-        self.assertIsInstance(actual, float)
+        self.assertIsInstance(actual, pd.Series)
 
     def test_iloc_slice0(self):
         tsc = TSCDataFrame(self.simple_df)
@@ -988,9 +1045,7 @@ class TestTSCDataFrame(unittest.TestCase):
         test_two = tsc_full.iloc[[2, 4, 6, 13, 14, 18]]
         self.assertIsInstance(test_two, TSCDataFrame)
 
-        from pandas.errors import DuplicateLabelError
-
-        with self.assertRaises(DuplicateLabelError):
+        with self.assertRaises(pd.errors.DuplicateLabelError):
             tsc_full.iloc[[1, 1]]
 
     def test_slice01(self):

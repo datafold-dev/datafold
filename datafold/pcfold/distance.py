@@ -186,17 +186,20 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 class BruteForceDist(DistanceAlgorithm):
     """Computes all distance pairs in the distance matrix.
 
-    Chooses either
+    Chooses from either backand
 
-        * `scipy.pdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html>`_ \
-           and
-           `scipy.cdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html>`_
-        * `sklearn.pairwise_distances <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html>`_
+        * SciPy with `scipy.pdist <https://docs.scipy.org/doc/scipy/reference/generated/
+          scipy.spatial.distance.pdist.html>`__ and
+          `scipy.cdist <https://docs.scipy.org/doc/scipy/reference/generated/scipy.
+          spatial.distance.cdist.html>`__
+        * scikit-learn with `sklearn.pairwise_distances <https://scikit-learn.org/stable/
+          modules/generated/sklearn.metrics.pairwise_distances.html>`__
 
-        Depending on the parameter `metric` and argument `exact_numeric`.
+    Depending on the parameter `metric` and argument `exact_numeric`.
 
-        For an explanation of how `exact_numeric = False` is beneficial, see the
-        `scikit-learn` `documentation <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise.euclidean_distances.html>`_
+    For an explanation of how `exact_numeric = False` is beneficial, see the
+    `scikit-learn` `documentation <https://scikit-learn.org/stable/modules/generated/
+    sklearn.metrics.pairwise.euclidean_distances.html>`_
 
     Parameters
     ----------
@@ -1003,7 +1006,7 @@ def compute_distance_matrix(
             )
 
     if X.shape[0] <= 1:
-        raise ValueError(f"Number of samples has to be greater than 1.")
+        raise ValueError("Number of samples has to be greater than 1.")
 
     if is_sparse:
         assert isinstance(cut_off, float)
@@ -1029,7 +1032,7 @@ def compute_distance_matrix(
             # NOTE: this is a special case. Usually the cut_off is represented in the
             # respective metric. However, for the 'sqeuclidean' case we use the
             # 'euclidean' metric for the cut-off.
-            cut_off = cut_off ** 2
+            cut_off = cut_off**2
 
     backend_class = get_backend_distance_algorithm(backend)
     distance_method = backend_class(metric=metric)

@@ -39,11 +39,11 @@ class TSCBaseMixin(object):
         return_values = []
 
         if attrs is not None:
-            for attr in attrs:
-                return_values.append(fit_params.pop(attr[0], attr[1]))
+            for a in attrs:
+                return_values.append(fit_params.pop(a[0], a[1]))
 
         if fit_params != {}:
-            raise KeyError(f"fit_params.keys = {fit_params.keys()} not supported")
+            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
 
         if len(return_values) == 0:
             return None
@@ -77,7 +77,12 @@ class TSCBaseMixin(object):
     def _validate_datafold_data(
         self,
         X: Union[TSCDataFrame, np.ndarray],
+        *,
+        ensure_np: bool = False,
         ensure_tsc: bool = False,
+        force_all_finite: bool = True,
+        ensure_min_samples: int = 1,
+        ensure_min_features: int = 1,
         array_kwargs: Optional[dict] = None,
         tsc_kwargs: Optional[dict] = None,
     ):
@@ -91,7 +96,8 @@ class TSCBaseMixin(object):
         Parameters
         ----------
         X
-        ensure_feature_name_type
+        ensure_np
+        ensure_tsc
         array_kwargs
         tsc_kwargs
 
@@ -104,28 +110,38 @@ class TSCBaseMixin(object):
         array_kwargs = array_kwargs or {}
         tsc_kwargs = tsc_kwargs or {}
 
-        if ensure_tsc and not isinstance(X, TSCDataFrame):
-            raise TypeError(
-                f"Input 'X' is of type {type(X)} but a TSCDataFrame is required."
-            )
+        if ensure_np + ensure_tsc == 2:
+            raise ValueError("only 'ensure_np' or 'ensure_tsc' can be True")
 
         if type(X) != TSCDataFrame:
             # Currently, everything that is not strictly a TSCDataFrame will go the
-            # path of an usual array format. This includes:
+            # path of a usual array format. This includes:
             #  * sparse scipy matrices
             #  * numpy ndarray
             #  * memmap
-            #  * pandas.DataFrame (Note a TSCDataFrame is also a pandas.DataFrame,
-            #                      but not strictly)
+            #  * pd.DataFrame (Note that TSCDataFrame is also a pd.DataFrame,
+            #                  but not in a strict sense)
+
+            if ensure_tsc:
+                raise TypeError(
+                    f"Input 'X' is of type {type(X)} but type TSCDataFrame is required."
+                )
 
             tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
             if type(X) == pd.DataFrame:
+
+                if ensure_np:
+                    TypeError(
+                        f"Input 'X' is of type {type(X)} but a numpy format is required."
+                    )
+
                 # special handling of pandas.DataFrame (strictly, not including
                 # TSCDataFrame) --> keep the type (recover after validation).
                 assert isinstance(X, pd.DataFrame)  # mypy checking
                 revert_to_data_frame = True
                 idx, col = X.index, X.columns
+
             else:
                 revert_to_data_frame = False
                 idx, col = [None] * 2
@@ -137,24 +153,29 @@ class TSCBaseMixin(object):
                 dtype=array_kwargs.pop("dtype", "numeric"),
                 order=array_kwargs.pop("order", None),
                 copy=array_kwargs.pop("copy", False),
-                force_all_finite=array_kwargs.pop("force_all_finite", True),
+                force_all_finite=force_all_finite,
                 ensure_2d=array_kwargs.pop("ensure_2d", True),
                 allow_nd=array_kwargs.pop("allow_nd", False),
-                ensure_min_samples=array_kwargs.pop("ensure_min_samples", 1),
-                ensure_min_features=array_kwargs.pop("ensure_min_features", 1),
+                ensure_min_samples=ensure_min_samples,
+                ensure_min_features=ensure_min_features,
                 estimator=self,
             )
 
             if revert_to_data_frame:
                 X = pd.DataFrame(X, index=idx, columns=col)
 
-        else:
+        else:  # isinstance(X, TSCDataFrame)
+
+            if ensure_np:
+                raise TypeError(
+                    f"Input 'X' is of type {type(X)} but a numpy format is required."
+                )
 
             array_kwargs = {}  # no need to check -> overwrite to empty dict
 
             X = X.tsc.check_tsc(
-                ensure_all_finite=tsc_kwargs.pop("ensure_all_finite", True),
-                ensure_min_samples=tsc_kwargs.pop("ensure_min_samples", None),
+                ensure_all_finite=force_all_finite,
+                ensure_min_samples=ensure_min_samples,
                 ensure_same_length=tsc_kwargs.pop("ensure_same_length", False),
                 ensure_const_delta_time=tsc_kwargs.pop(
                     "ensure_const_delta_time", False
@@ -198,14 +219,17 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 
         The scikit-learn project heavily discusses on how to handle feature names. There
         are many proposed solutions. The solution that datafold uses is
-        `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep007/proposal.html>`__
+        `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/
+        slep007/proposal.html>`__
 
         However, this is only a proposal and may have to be changed later.
 
         Other resources:
 
-        * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep012/proposal.html>`__
-        * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/pull/18/>`__
+        * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io
+          /en/latest/slep012/proposal.html>`__
+        * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/
+          pull/18/>`__
 
     Parameters
     ----------
@@ -318,13 +342,9 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             if isinstance(X, pd.Series):
                 # if X is a Series, then the columns of the original data are in a
                 # Series this usually happens if X.iloc[0, :] --> returns a Series
-                pdtest.assert_index_equal(
-                    right=_check_features, left=X.index, check_names=False
-                )
+                pdtest.assert_index_equal(right=_check_features, left=X.index)
             else:
-                pdtest.assert_index_equal(
-                    right=_check_features, left=X.columns, check_names=False
-                )
+                pdtest.assert_index_equal(right=_check_features, left=X.columns)
 
     def _same_type_X(
         self, X: TransformType, values: np.ndarray, feature_names: pd.Index
@@ -346,8 +366,6 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         -------
 
         """
-
-        _type = type(X)
 
         if isinstance(X, TSCDataFrame):
             # NOTE: order is important here TSCDataFrame is also a DataFrame, so first
@@ -534,7 +552,7 @@ class TSCPredictMixin(TSCBaseMixin):
         if qois is not None:
             try:
                 qois = np.asarray(qois)
-            except:
+            except Exception:
                 raise TypeError("parameter 'qois' must be list-like")
 
             if qois.ndim != 1:

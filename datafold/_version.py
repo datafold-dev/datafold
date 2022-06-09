@@ -19,7 +19,6 @@ def show_versions():
     print(f"pandas:         {pd.__version__}")
     print(f"scipy:          {scipy.__version__}")
     print(f"scikit-learn:   {sklearn.__version__}")
-    print(f"datafold:       {Version.v_short}")
 
 
 class Version:
@@ -34,16 +33,16 @@ class Version:
     # TO UPDATE -- START
     major_version: int = 1  # making incompatible API changes,
     minor_version: int = 1  # adding functionality in a backwards-compatible manner
-    patch: int = 5  # for backwards-compatible bug fixes
+    patch: int = 6  # for backwards-compatible bug fixes
 
     # additional release suffixes
     post: int = 0  # for minor corrections
-    rc: int = 0  # for release candidate (e.g. for testing upload to PyPI)
+    rc: int = 0  # for release candidate (e.g. to test upload to PyPI-test)
 
     # Set date of release for longer version numbers.
     year: int = 2021
-    month: int = 7
-    day: int = 5
+    month: int = 12
+    day: int = 2
     # TO UPDATE -- END
 
     assert major_version >= 0 and isinstance(major_version, int)
@@ -72,6 +71,7 @@ class Version:
 
 
 if __name__ == "__main__":
+    print("datafold:")
     Version.print_version()
     print()
     show_versions()

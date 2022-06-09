@@ -179,8 +179,8 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
             np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
         )
         tsc_data = TSCDataFrame.from_single_timeseries(df=df)
-        dataset1 = JsfDataset(columns=slice(0, 1), kernel=GaussianKernel())
-        dataset2 = JsfDataset(columns=slice(1, 2), kernel=GaussianKernel())
+        dataset1 = JsfDataset(columns=slice(0, 1), kernel=GaussianKernel(epsilon=0.1))
+        dataset2 = JsfDataset(columns=slice(1, 2), kernel=GaussianKernel(epsilon=0.1))
 
         self._test_tsc_data(tsc_data, [dataset1, dataset2])
 
