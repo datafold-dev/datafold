@@ -1,3 +1,5 @@
+image: python3.8
+
 stages:
   - setup
   - test
