@@ -883,9 +883,7 @@ class EDMDTest(unittest.TestCase):
         control_columns = ["u"]
         ic = np.array([0, 0, np.pi, 0])
         X_tsc = self._setup_inverted_pendulum()
-        control_input = TSCDataFrame.from_single_timeseries(
-            X_tsc.loc[0][control_columns]
-        )
+        control_input = X_tsc.loc[[0], control_columns]
 
         dmdc = DMDControl()
         dmdc.fit(X_tsc[state_columns], X_tsc[control_columns])
