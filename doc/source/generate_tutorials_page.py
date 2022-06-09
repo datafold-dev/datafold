@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import glob
 import os
 import pathlib
 
@@ -72,7 +71,8 @@ def get_nblink(filename):
 def add_tutorial(filename, description, warning=None):
     assert filename not in DESCRIPTIVE_TUTORIALS
 
-    if not os.path.exists(os.path.join(PATH2TUTORIAL, filename)):
+    fullpath = os.path.join(PATH2TUTORIAL, filename)
+    if not os.path.exists(fullpath):
         raise FileNotFoundError(
             f"The filepath {os.path.join(PATH2TUTORIAL, filename)} does not exist."
         )
@@ -86,6 +86,7 @@ def add_tutorial(filename, description, warning=None):
     web_link = f"https://datafold-dev.gitlab.io/datafold/{nblink_filename}.html"
 
     DESCRIPTIVE_TUTORIALS[filename] = dict(
+        path=fullpath,
         description=description.rstrip(),
         download_link=download_link.rstrip(),
         web_link=web_link.rstrip(),
@@ -229,9 +230,8 @@ def generate_nblink_files():
     }
     """
 
-    abs_path_tutorial_files = sorted(glob.glob(os.path.join(PATH2TUTORIAL, "*.ipynb")))
-
-    for filepath in abs_path_tutorial_files:
+    for tutorial in DESCRIPTIVE_TUTORIALS.values():
+        filepath = tutorial['path']
         filename_nblink = get_nblink(filepath)
 
         with open(f"{filename_nblink}.nblink", "w") as nblinkfile:
@@ -276,13 +276,11 @@ def generate_docs_str(target):
     tutorial_page_content += "\n"
     tutorial_page_content += rst_text_after_tutorials_list
 
-    abs_path_tutorial_files = sorted(glob.glob(os.path.join(PATH2TUTORIAL, "*.ipynb")))
-
     tutorials_list = "\n"  # generate string to insert in tutorial_page_content
     files_list = "\n"  # generate string to insert in tutorial_page_content
 
-    for filepath in abs_path_tutorial_files:
-        filename = os.path.basename(filepath)
+    for filename, tutorial in DESCRIPTIVE_TUTORIALS.items():
+        filepath = tutorial['path']
         filename_nblink = get_nblink(filepath)
 
         files_list += f"{INDENT}{filename_nblink}\n"
