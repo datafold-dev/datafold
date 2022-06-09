@@ -1106,7 +1106,7 @@ class ContinuousNNKernel(PCManifoldKernel):
         if is_pdist:
             if n_samples_Y != n_samples_X:
                 raise ValueError(
-                    "If is_pdist=True, the distance matrix must be square and symmetric."
+                    f"If {is_pdist=}, the distance matrix must be square and symmetric."
                 )
 
             if isinstance(distance_matrix, np.ndarray):
@@ -1116,18 +1116,19 @@ class ContinuousNNKernel(PCManifoldKernel):
 
             if (diagonal != 0).all():
                 raise ValueError(
-                    "If is_pdist=True, distance_matrix must have zeros on diagonal."
+                    f"If {is_pdist=}, distance_matrix must have zeros on diagonal."
                 )
         else:
             if self.k_neighbor < 1 or self.k_neighbor > n_samples_X - 1:
                 raise ValueError(
-                    "'n_neighbors' must be in a range between 1 to the number of samples."
+                    f"{self.k_neighbor=}' must be in a range between 1 to the number of "
+                    f"samples ({distance_matrix.shape[1]=})"
                 )
 
             if self.reference_dist_knn_.shape[0] != n_samples_X:
                 raise ValueError(
-                    f"len(cdist_reference_k_nn)={self.reference_dist_knn_.shape[0]} "
-                    f"must be distance.shape[1]={n_samples_X}"
+                    f"{self.reference_dist_knn_.shape[0]} "
+                    f"must have {distance_matrix.shape[1]=} samples"
                 )
 
     def __call__(
