@@ -284,6 +284,14 @@ def init_tutorials():
         "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
     )
 
+    add_tutorial(
+        "10_koopman_mpc/10_koopman_mpc.ipynb",
+        "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
+        "operator. We apply MPC using an EDMD predictor to a toy model: the "
+        "inverted pendulum, sometimes referred to as a cartpole.",
+        archive=True
+    )
+
 
 def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
     for file in os.listdir(PATH2DOCSOURCE):
