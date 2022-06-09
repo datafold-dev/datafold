@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -401,7 +399,7 @@ class BaseManifoldKernel(Kernel):
         self,
         is_symmetric: bool = True,
         is_stochastic: bool = False,
-        distance: Optional[dict | DistanceAlgorithm] = None,
+        distance: Optional[Union[dict, DistanceAlgorithm]] = None,
     ):
         """Initialize new kernel.
 
@@ -702,7 +700,9 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
     """
 
     def __init__(
-        self, required_metric: str, distance: Optional[Dict | DistanceAlgorithm] = None
+        self,
+        required_metric: str,
+        distance: Optional[Union[Dict, DistanceAlgorithm]] = None,
     ):
 
         _metric_mismatch = ValueError(

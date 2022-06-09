@@ -103,10 +103,11 @@ class EDMD(
     data (:py:class:`.TSCDataFrame`) with a finite function basis, specified by the
     data transformations in the EDMD-dictionary. The model is similar to the superclass
     :class:`sklearn.pipeline.Pipeline`, in that the EDMD-dictionary corresponds to the
-    transformations in the pipeline and a :class:`.DMDBase` model, approximating the
-    Koopman operator on the EDMD-dictionary time series, is set as the final estimator. A
-    key difference is that the intrinsic EDMD-dictionary states are usually mapped
-    back to full-state time series.
+    transformations in the pipeline and a :class:`.DMDBase` model as the final final estimator
+    of the pipeline to approximate the Koopman operator (using the EDMD-dictionary time
+    series). A key difference to a Pipeline as of scikit-learn is that the the states are not
+    only mapped forward (to the EDMD-dictionary) but also reconstructed to the original
+    full-state time series (via the Koopman modes).
 
     If the internal DMD model computes the eigenpairs of the Koopman matrix, then the
     EDMD model provides the Koopman triplet (modes, eigenvalues and eigenfunctions).
@@ -206,7 +207,8 @@ class EDMD(
 
     References
     ----------
-    :cite:`williams-2015,manojlovic-2020`
+    * original EDMD description :cite:`williams-2015`
+    * for sorting the Koopman components :cite:`manojlovic-2020`
 
     """
 
