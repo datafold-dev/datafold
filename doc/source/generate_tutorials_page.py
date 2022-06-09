@@ -144,70 +144,71 @@ def get_tutorial_text_doc(filename, target):
     return _str
 
 
-add_tutorial(
-    "01_basic_datastructures.ipynb",
-    "We introduce *datafold*'s basic data structures for time series collection data and "
-    "kernel-based algorithms. They are both used internally in model implementations and "
-    "for input/output.",
-)
+def init_tutorials():
+    add_tutorial(
+        "01_basic_datastructures.ipynb",
+        "We introduce *datafold*'s basic data structures for time series collection data and "
+        "kernel-based algorithms. They are both used internally in model implementations and "
+        "for input/output.",
+    )
 
-add_tutorial(
-    "02_basic_pcm_subsampling.ipynb",
-    "We show how the ``PCManifold`` data structure can be used to subsample a "
-    "manifold point cloud uniformly.",
-    warning="The tutorial generates a large dataset with 10 Mio. samples by default. "
-    "This may have to be reduced, depending on the available computer memory.",
-)
+    add_tutorial(
+        "02_basic_pcm_subsampling.ipynb",
+        "We show how the ``PCManifold`` data structure can be used to subsample a "
+        "manifold point cloud uniformly.",
+        warning="The tutorial generates a large dataset with 10 Mio. samples by default. "
+        "This may have to be reduced, depending on the available computer memory.",
+    )
 
-add_tutorial(
-    "03_basic_dmap_scurve.ipynb",
-    "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
-    "S-curved point cloud manifold. We also select the best combination of intrinsic "
-    "parameters automatically with an optimization routine.",
-)
+    add_tutorial(
+        "03_basic_dmap_scurve.ipynb",
+        "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
+        "S-curved point cloud manifold. We also select the best combination of intrinsic "
+        "parameters automatically with an optimization routine.",
+    )
 
-add_tutorial(
-    "04_basic_dmap_digitclustering.ipynb",
-    "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
-    "perform an out-of-sample embedding. This example is taken from the scikit-learn "
-    "project and can be compared against other manifold learning algorithms.",
-)
+    add_tutorial(
+        "04_basic_dmap_digitclustering.ipynb",
+        "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
+        "perform an out-of-sample embedding. This example is taken from the scikit-learn "
+        "project and can be compared against other manifold learning algorithms.",
+    )
 
-add_tutorial(
-    filename="05_basic_gh_oos.ipynb",
-    description="We showcase the out-of-sample extension for manifold learning "
-    "models such as the ``DiffusionMaps`` model. For this we use the "
-    "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
-    warning="The tutorial requires also the Python package "
-    "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ "
-    "which does not install with *datafold*.",
-)
+    add_tutorial(
+        filename="05_basic_gh_oos.ipynb",
+        description="We showcase the out-of-sample extension for manifold learning "
+        "models such as the ``DiffusionMaps`` model. For this we use the "
+        "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
+        warning="The tutorial requires also the Python package "
+        "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`_ "
+        "which does not install with *datafold*.",
+    )
 
-add_tutorial(
-    "06_basic_edmd_limitcycle.ipynb",
-    "We generate data from a dynamical system (Hopf system) and compare different "
-    "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
-    "out-of-sample predictions with time ranges exceeding the time horizon of the "
-    "training data.",
-)
+    add_tutorial(
+        "06_basic_edmd_limitcycle.ipynb",
+        "We generate data from a dynamical system (Hopf system) and compare different "
+        "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
+        "out-of-sample predictions with time ranges exceeding the time horizon of the "
+        "training data.",
+    )
 
-add_tutorial(
-    filename="07_basic_jsf_common_eigensystem.ipynb",
-    description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
-    "from multimodal data. Also, we introduce ``JsfDataset``, which is used to make "
-    "``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer "
-    "APIs. Finally, we demonstrate the out-of-sample extension.",
-    warning="The code for jointly smooth functions inside this notebook is experimental.",
-)
+    add_tutorial(
+        filename="07_basic_jsf_common_eigensystem.ipynb",
+        description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
+        "from multimodal data. Also, we introduce ``JsfDataset``, which is used to make "
+        "``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer "
+        "APIs. Finally, we demonstrate the out-of-sample extension.",
+        warning="The code for jointly smooth functions inside this notebook is experimental.",
+    )
 
-add_tutorial(
-    "08_basic_roseland_scurve_digits.ipynb",
-    "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
-    "S-curved point cloud manifold and to cluster data from handwritten digit. "
-    "We also select the best combination of intrinsic parameters automatically "
-    "with an optimization routine and demonstrate how to do include this in an "
-    "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
-)
+    add_tutorial(
+        "08_basic_roseland_scurve_digits.ipynb",
+        "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
+        "S-curved point cloud manifold and to cluster data from handwritten digit. "
+        "We also select the best combination of intrinsic parameters automatically "
+        "with an optimization routine and demonstrate how to do include this in an "
+        "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
+    )
 
 
 def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
@@ -298,6 +299,8 @@ def generate_docs_str(target):
 
 
 def setup_tutorials():
+    # Initialize list of tutorials
+    init_tutorials()
 
     # PART 1: Online documentation
     tutorial_index_filename = "tutorial_index.rst"
