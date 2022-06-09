@@ -3,6 +3,7 @@
 import os
 import pathlib
 import json
+import shutil
 
 import requests  # type: ignore
 
@@ -80,6 +81,7 @@ class Tutorial:
         self.filename = filename
         self.description = description.rstrip()
         self.warning = warning
+        self.archive = kwargs.get('archive', False)
 
         assert self.fullpath
 
@@ -103,20 +105,45 @@ class Tutorial:
     @property
     def download_link(self):
         filename = self.filename
-        return (
-            f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
-            f"tutorials/{filename}?inline=false"
-        )
+        name = self.name
+
+        if self.archive:
+            return (
+                "https://gitlab.com/datafold-dev/datafold/-/raw/master/"
+                f"tutorial-{name}.zip?path=tutorials/{name}/"
+            )
+        else:
+            return (
+                f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
+                f"tutorials/{filename}?inline=false"
+            )
+
+    @property
+    def download_path(self):
+        if self.archive:
+            return self.archive_path
+        else:
+            return self.relpath
 
     @property
     def nblink(self):
         return get_nblink(self.filename)
 
+    @property
+    def name(self):
+        return os.path.splitext(os.path.basename(self.filename))[0]
 
-def add_tutorial(filename, description, warning=None):
+    @property
+    def archive_path(self):
+        if self.archive:
+            return f'{self.name}.zip'
+        return None
+
+
+def add_tutorial(filename, description, warning=None, archive=False):
     assert filename not in DESCRIPTIVE_TUTORIALS
 
-    tutorial = Tutorial(filename, description, warning=warning)
+    tutorial = Tutorial(filename, description, warning=warning, archive=archive)
     DESCRIPTIVE_TUTORIALS[filename] = tutorial
 
     fullpath = tutorial.fullpath
@@ -146,9 +173,7 @@ class TutorialStringBuilder:
     _templates = {
         'docs': {
             'download':
-                "#. :doc:`{filename_nblink}` (:download:`download <{relpath}>`)\n",
-            'download_v2':
-                "#. :doc:`{filename_nblink}` (:download:`download <{...}>`)\n",
+                "#. :doc:`{filename_nblink}` (:download:`download <{download_path}>`)\n",
             'warning':
                 "\n\n{INDENT}.. warning::\n" \
                 "{INDENT}{INDENT}{warning}\n",
@@ -174,7 +199,7 @@ class TutorialStringBuilder:
             'web_link': tutorial.web_link,
             'filename_nblink': tutorial.nblink,
             'download_link': tutorial.download_link,
-            'relpath': tutorial.relpath,
+            'download_path': tutorial.download_path,
             'filename': tutorial.filename,
         }
 
@@ -281,6 +306,20 @@ def generate_nblink_files():
             json.dump(data, nblinkfile)
 
 
+def generate_tutorial_archives():
+    for tutorial in DESCRIPTIVE_TUTORIALS.values():
+        if tutorial.archive is True:
+            path = os.path.dirname(tutorial.fullpath)
+            archive_path = tutorial.archive_path
+            archive_name = os.path.splitext(os.path.basename(archive_path))[0]
+
+            root_dir = os.path.dirname(path)
+            base_dir = os.path.basename(path)
+
+            archive_path_ = shutil.make_archive(archive_name, 'zip', root_dir, base_dir)
+            assert archive_path_ == os.path.abspath(archive_path)
+
+
 def generate_docs_str(target):
 
     assert target in ["docs", "readme"]
@@ -347,6 +386,9 @@ def setup_tutorials():
 
     # generate links to Jupyter files
     generate_nblink_files()
+
+    # generate archives for certain jupyter notebooks
+    generate_tutorial_archives()
 
     # generate and write content to rst file
     tutorial_page_content_docs = generate_docs_str(target="docs")
