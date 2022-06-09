@@ -142,41 +142,55 @@ def add_tutorial(filename, description, warning=None):
         )
 
 
+class TutorialStringBuilder:
+    _templates = {
+        'docs': {
+            'download':
+                "#. :doc:`{filename_nblink}` (:download:`download <{relpath}>`)\n",
+            'download_v2':
+                "#. :doc:`{filename_nblink}` (:download:`download <{...}>`)\n",
+            'warning':
+                "\n\n{INDENT}.. warning::\n" \
+                "{INDENT}{INDENT}{warning}\n",
+        },
+        'readme': {
+            'download':
+                "* `{filename}` (`download <{download_link}>`__ , `doc <{web_link}>`__)\n",
+            'warning':
+                "\n\n{INDENT}**Warning**\n"
+                "{INDENT}{INDENT}{warning}\n"
+        }
+    }
+
+    @classmethod
+    def build(cls, target, tutorial: Tutorial):
+        if target not in cls._templates:
+            raise ValueError(f"'target={target}' not known")
+
+        templates = cls._templates[target]
+
+        subs = {
+            'INDENT': INDENT,
+            'web_link': tutorial.web_link,
+            'filename_nblink': tutorial.nblink,
+            'download_link': tutorial.download_link,
+            'relpath': tutorial.relpath,
+            'filename': tutorial.filename,
+        }
+
+        s = ''
+        s += templates['download']
+        if tutorial.warning is not None:
+            subs['warning'] = tutorial.warning
+            s += templates['warning']
+        s += "\n"
+
+        return s.format(**subs)
+
+
 def get_tutorial_text_doc(filename, target):
-
-    filename_nblink = get_nblink(filename)
-    _dict = DESCRIPTIVE_TUTORIALS[filename]
-
-    # TODO: make more readable code by using string replacements
-    if target == "docs":
-        # "page_nblink (download_link)" in docs
-        _str = (
-            f"#. :doc:`{filename_nblink}` (`download <{_dict['download_link']}>`__)\n"
-        )
-        _str += f"{INDENT}{_dict['description']}"
-
-        if _dict["warning"] is not None:
-            _str += "\n\n"
-            _str += f"{INDENT}.. warning::\n"
-            _str += f"{INDENT}{INDENT}{_dict['warning']}\n"
-
-    elif target == "readme":
-        # "filename (download_link, doc_link)" in readme
-        _str = (
-            f"* `{filename}` (`download <{_dict['download_link']}>`__ , "
-            f"`doc <{_dict['web_link']}>`__)\n"
-        )
-        _str += f"{INDENT}{_dict['description']}"
-
-        if _dict["warning"] is not None:
-            _str += "\n\n"
-            _str += f"{INDENT}**Warning**\n"
-            _str += f"{INDENT}{INDENT}{_dict['warning']}\n"
-    else:
-        raise ValueError(f"'target={target}' not known")
-
-    _str += "\n"
-    return _str
+    tutorial = DESCRIPTIVE_TUTORIALS[filename]
+    return TutorialStringBuilder.build(target, tutorial)
 
 
 def init_tutorials():
