@@ -17,17 +17,14 @@ class EDMD_Identity(Predictor):
                            include_id_state=False)
 
     def fit(self, X_tsc: TSCDataFrame):
-        self._predictor.fit(
-            X_tsc[self.state_cols+self.input_cols],
-            split_by="name",
-            state=self.state_cols,
-            control=self.input_cols,
-        )
+        X = X_tsc[self.state_cols]
+        U = X_tsc[self.input_cols]
+        self._predictor.fit(X, U=U)
 
     def predict(self, initial_conds, control_input, t):
         pred = self._predictor.predict(
             initial_conds,
-            control_input=control_input,
+            U=control_input,
             time_values=t)
 
         return PredictResult(control_input, initial_conds, pred,
@@ -78,23 +75,21 @@ class EDMD_RBF(Predictor):
     #     return centers
 
     def fit(self, X_tsc: TSCDataFrame):
-        cols = self.state_cols + self.input_cols
-        X_tsc = X_tsc[cols]
+        X = X_tsc[self.state_cols]
+        U = X_tsc[self.input_cols]
 
         centers = self._init_centers(X_tsc)
 
         self._predictor.fit(
-            X_tsc,
-            split_by="name",
-            state=self.state_cols,
-            control=self.input_cols,
+            X, U=U,
             rbf__centers=centers[:, :-1],
         )
 
     def predict(self, initial_conds, control_input, t):
         pred = self._predictor.predict(
             initial_conds[self.state_cols],
-            control_input=np.atleast_2d(control_input).T,
+            U=control_input,
+            # control_input=np.atleast_2d(control_input).T,
             time_values=t)
 
         return PredictResult(control_input, initial_conds, pred,
@@ -111,13 +106,13 @@ class EDMD_RBF_v2(EDMD_RBF):
             dict_steps=[("rbf", self.rbf),], include_id_state=True)
 
     def fit(self, X_tsc: TSCDataFrame):
-        cols = self.state_cols
-        X_tsc = X_tsc[cols]
+        X = X_tsc[self.state_cols]
+        U = X_tsc[self.input_cols]
 
         centers = self._init_centers(X_tsc)
 
         self._predictor.fit(
-            X_tsc,
+            X, U=U,
             rbf__centers=centers,
         )
 
