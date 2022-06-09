@@ -309,7 +309,7 @@ def generate_nblink_files():
         filename_nblink = get_nblink(filepath)
 
         data = {'path': os.path.normpath(filepath).replace('\\', '/')}
-        fname = f'{filename_nblink}.nblinkd'
+        fname = f'{filename_nblink}.nblink'
         with open(fname, 'w') as nblinkfile:
             json.dump(data, nblinkfile)
 
