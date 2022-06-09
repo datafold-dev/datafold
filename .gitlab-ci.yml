@@ -9,11 +9,11 @@ variables:
   PRE_COMMIT_DIR: "${CI_PROJECT_DIR}/.cache/pre-commit"
   VENV_DIR: "${CI_PROJECT_DIR}/.venv"
 
-    # cache:
-    #   paths:
-    #     - ${PIP_CACHE_DIR}
-    #     - ${PRE_COMMIT_DIR}
-    #     - ${VENV_DIR}
+cache:
+  paths:
+    - ${PIP_CACHE_DIR}
+    - ${PRE_COMMIT_DIR}
+    - ${VENV_DIR}
 
 # https://gitlab.com/gitlab-org/gitlab/-/issues/33694#note_335120563
 workflow:
@@ -28,6 +28,8 @@ workflow:
 setup:
   stage: setup
   script:
+    - ls /usr/bin | grep python
+    - which python3
     - make install_devdeps PYTHON=python3.8
     - make versions
 
