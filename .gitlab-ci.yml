@@ -35,6 +35,8 @@ setup:
     - make install_devdeps PYTHON=python3.8
     - make install_docdeps IS_DOCKER=true
     - make versions
+    - ls /usr/bin | grep pandoc
+    - which pandoc
 
 unittests:
   stage: test
@@ -65,8 +67,6 @@ code_checks:
 docu_check_build:
   stage: code_analysis
   script:
-    - ls /usr/bin | grep pandoc
-    - which pandoc
     - make clean_docs
     - make docs OPEN_DOCS_BROWSER=false
   except:
