@@ -33,7 +33,7 @@ setup:
     - ls /usr/bin | grep python
     - which python3
     - make install_devdeps PYTHON=python3.8
-    - make install_docdeps
+    - make install_docdeps IS_DOCKER=true
     - make versions
 
 unittests:
