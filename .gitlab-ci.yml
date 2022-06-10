@@ -1,4 +1,4 @@
-image: ./Dockerfile
+image: registry.gitlab.com/miclaraia/datafold
 
 stages:
   - setup
