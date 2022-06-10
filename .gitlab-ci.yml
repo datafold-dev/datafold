@@ -65,6 +65,8 @@ code_checks:
 docu_check_build:
   stage: code_analysis
   script:
+    - ls /usr/bin | grep pandoc
+    - which pandoc
     - make clean_docs
     - make docs OPEN_DOCS_BROWSER=false
   except:
