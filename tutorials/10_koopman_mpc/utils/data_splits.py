@@ -1,10 +1,11 @@
+from typing import List, Optional
+
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from datafold.pcfold import TSCDataFrame
-from .model import Augmenter, ScalingAugmenter
 
-from typing import List
-import matplotlib.pyplot as plt
+from .model import Augmenter, ScalingAugmenter
 
 
 class Trajectory:
@@ -13,6 +14,7 @@ class Trajectory:
     trajectory. Also caches augmented version of initial condition and
     trajectory.
     """
+
     def __init__(self, ic, dfx):
         self.ic = ic
         self.dfx = dfx
@@ -31,18 +33,18 @@ class Trajectory:
         return self.ic_a is not None
 
     def __repr__(self):
-        aug = 'A' if self.is_augmented() else ''
+        aug = "A" if self.is_augmented() else ""
         name = self.__class__.__name__
 
-        cols = [c for c in self.ic.columns if c not in ['t', 'u']]
+        cols = [c for c in self.ic.columns if c not in ["t", "u"]]
         ic = self.ic[cols].iloc[0].to_dict()
-        ic = {k: f'{v:.2e}' for k, v in ic.items()}
-        return f'<{name} {ic} {aug}>'
+        ic = {k: f"{v:.2e}" for k, v in ic.items()}
+        return f"<{name} {ic} {aug}>"
 
     def plot(self, cols, axes=None):
         if axes is None:
             m = len(cols)
-            fig = plt.figure(figsize=(6*m, 3))
+            fig = plt.figure(figsize=(6 * m, 3))
             axes = fig.subplots(1, m).flatten()
         else:
             fig = None
@@ -61,15 +63,17 @@ class DataSplits:
     """
     Container for train/test data splits, and to manage data augmentation
     """
-    def __init__(self, train: List[Trajectory], test: List[Trajectory],
-                 state_cols, input_cols):
+
+    def __init__(
+        self, train: List[Trajectory], test: List[Trajectory], state_cols, input_cols
+    ):
         self.train = self._init_trajectories(train)
         self.test = self._init_trajectories(test)
         self.state_cols = state_cols
         self.input_cols = input_cols
 
         self._augmented = True
-        self._augmenter = None
+        self._augmenter: Optional[Augmenter] = None
 
         self._init_tsc()
 
@@ -80,7 +84,7 @@ class DataSplits:
             if isinstance(traj, Trajectory):
                 pass
             elif isinstance(traj, dict):
-                traj = Trajectory(ic=traj['ic'], dfx=traj['dfx'])
+                traj = Trajectory(ic=traj["ic"], dfx=traj["dfx"])
             elif isinstance(traj, tuple):
                 ic, dfx = traj
                 traj = Trajectory(ic=ic, dfx=dfx)
@@ -148,13 +152,13 @@ class DataSplits:
 
         if axes is None:
             n = len(cols)
-            fig = plt.figure(figsize=(6, 3*n))
+            fig = plt.figure(figsize=(6, 3 * n))
             axes = fig.subplots(n, 1).flatten()
 
         for i, col in enumerate(cols):
             ax = axes[i]
-            ax.plot(self.train_tsc[col].values, label='train')
-            ax.plot(self.test_tsc[col].values, label='test')
+            ax.plot(self.train_tsc[col].values, label="train")
+            ax.plot(self.test_tsc[col].values, label="test")
             ax.set_title(col)
             ax.grid()
 
@@ -162,7 +166,7 @@ class DataSplits:
 
         return axes
 
-    def plot(self, axes=None, cols=None, n=10, split='train', aug=False):
+    def plot(self, axes=None, cols=None, n=10, split="train", aug=False):
         data = self.get_split(split, aug)
         n = min(len(data), n)
 
@@ -171,18 +175,18 @@ class DataSplits:
 
         if axes is None:
             m = len(cols)
-            fig = plt.figure(figsize=(6*m, 3*n))
+            fig = plt.figure(figsize=(6 * m, 3 * n))
             axes = fig.subplots(n, m)
         else:
             fig = None
 
         for i in range(n):
-            data[i].plot(cols=cols, axes=axes[i,:])
+            data[i].plot(cols=cols, axes=axes[i, :])
 
         return fig, axes
 
-    def get_split(self, split='train', aug=False) -> List[Trajectory]:
-        if split == 'train':
+    def get_split(self, split="train", aug=False) -> List[Trajectory]:
+        if split == "train":
             if aug:
                 return list(self.train_augment)
             else:
@@ -193,14 +197,14 @@ class DataSplits:
             else:
                 return self.test
 
-    def get_tsc(self, split='train', aug=False) -> TSCDataFrame:
-        if split == 'train':
-            if aug:
+    def get_tsc(self, split="train", aug=False) -> TSCDataFrame:
+        if split == "train":
+            if aug and self._augmenter is not None:
                 return self._augmenter.augment(self.train_tsc)
             else:
                 return self.train_tsc
         else:
-            if aug:
+            if aug and self._augmenter is not None:
                 return self._augmenter.augment(self.test_tsc)
             else:
                 return self.test_tsc

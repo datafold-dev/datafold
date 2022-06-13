@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import pathlib
-import json
 import shutil
 import warnings
 
@@ -75,14 +75,14 @@ def get_nblink(filename):
 
 class Tutorial:
     def __init__(self, filename, description, **kwargs):
-        warning = kwargs.get('warning')
+        warning = kwargs.get("warning")
         if warning is not None:
             warning = warning.rstrip()
 
         self.filename = filename
         self.description = description.rstrip()
         self.warning = warning
-        self.archive = kwargs.get('archive', False)
+        self.archive = kwargs.get("archive", False)
 
         assert self.fullpath
 
@@ -92,7 +92,7 @@ class Tutorial:
 
     @property
     def relpath(self):
-        return os.path.relpath(self.fullpath, '.')
+        return os.path.relpath(self.fullpath, ".")
 
     @property
     def nblink_filename(self):
@@ -137,7 +137,7 @@ class Tutorial:
     @property
     def archive_path(self):
         if self.archive:
-            return f'{self.name}.zip'
+            return f"{self.name}.zip"
         return None
 
 
@@ -171,29 +171,31 @@ def add_tutorial(filename, description, warning=None, archive=False):
 
 
 class TutorialStringBuilder:
+    # fmt: off
     _templates = {
-        'docs': {
-            'download':
+        "docs": {
+            "download":
                 "#. :doc:`{filename_nblink}` (:download:`download <{download_path}>`)\n",
-            'warning':
-                "\n\n" \
-                "{INDENT}.. warning::\n" \
+            "warning":
+                "\n\n"
+                "{INDENT}.. warning::\n"
                 "{INDENT}{INDENT}{warning}\n",
-            'description':
-                "{INDENT}{description}"
+            "description":
+                "{INDENT}{description}",
         },
-        'readme': {
+        "readme": {
             # "filename (download_link, doc_link)" in readme
-            'download':
+            "download":
                 "* `{filename}` (`download <{download_link}>`__ , `doc <{web_link}>`__)\n",
-            'warning':
-                "\n\n" \
-                "{INDENT}**Warning**\n" \
+            "warning":
+                "\n\n"
+                "{INDENT}**Warning**\n"
                 "{INDENT}{INDENT}{warning}\n",
-            'description':
-                "{INDENT}{description}"
-        }
+            "description":
+                "{INDENT}{description}",
+        },
     }
+    # fmt: on
 
     @classmethod
     def build(cls, target, tutorial: Tutorial):
@@ -203,21 +205,21 @@ class TutorialStringBuilder:
         templates = cls._templates[target]
 
         subs = {
-            'INDENT': INDENT,
-            'web_link': tutorial.web_link,
-            'filename_nblink': tutorial.nblink,
-            'download_link': tutorial.download_link,
-            'download_path': tutorial.download_path,
-            'filename': tutorial.filename,
-            'description': tutorial.description,
+            "INDENT": INDENT,
+            "web_link": tutorial.web_link,
+            "filename_nblink": tutorial.nblink,
+            "download_link": tutorial.download_link,
+            "download_path": tutorial.download_path,
+            "filename": tutorial.filename,
+            "description": tutorial.description,
         }
 
-        s = ''
-        s += templates['download']
-        s += templates['description']
+        s = ""
+        s += templates["download"]
+        s += templates["description"]
         if tutorial.warning is not None:
-            subs['warning'] = tutorial.warning
-            s += templates['warning']
+            subs["warning"] = tutorial.warning
+            s += templates["warning"]
         s += "\n"
 
         return s.format(**subs)
@@ -299,7 +301,7 @@ def init_tutorials():
         "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
         "operator. We apply MPC using an EDMD predictor to a toy model: the "
         "inverted pendulum, sometimes referred to as a cartpole.",
-        archive=True
+        archive=True,
     )
 
 
@@ -318,9 +320,9 @@ def generate_nblink_files():
         filepath = tutorial.fullpath
         filename_nblink = get_nblink(filepath)
 
-        data = {'path': os.path.normpath(filepath).replace('\\', '/')}
-        fname = f'{filename_nblink}.nblink'
-        with open(fname, 'w') as nblinkfile:
+        data = {"path": os.path.normpath(filepath).replace("\\", "/")}
+        fname = f"{filename_nblink}.nblink"
+        with open(fname, "w") as nblinkfile:
             json.dump(data, nblinkfile)
 
 
@@ -334,7 +336,7 @@ def generate_tutorial_archives():
             root_dir = os.path.dirname(path)
             base_dir = os.path.basename(path)
 
-            archive_path_ = shutil.make_archive(archive_name, 'zip', root_dir, base_dir)
+            archive_path_ = shutil.make_archive(archive_name, "zip", root_dir, base_dir)
             assert archive_path_ == os.path.abspath(archive_path)
 
 

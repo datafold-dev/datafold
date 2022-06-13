@@ -1,19 +1,24 @@
-from datafold.appfold import EDMDControl, EDMD
-from datafold.dynfold.transform import TSCIdentity, TSCRadialBasis, \
-        TSCPolynomialFeatures
-from datafold.pcfold import TSCDataFrame
-from datafold.pcfold import GaussianKernel
-
 from sklearn.cluster import KMeans
+
+from datafold.appfold import EDMD, EDMDControl
+from datafold.dynfold.transform import (
+    TSCIdentity,
+    TSCPolynomialFeatures,
+    TSCRadialBasis,
+)
+from datafold.pcfold import GaussianKernel, TSCDataFrame
 
 from .model import Predictor, PredictResult
 
 
 class EDMD_Identity(Predictor):
-
     def _init_predictor(self):
-        return EDMDControl(dict_steps=[("id", TSCIdentity()),],
-                           include_id_state=False)
+        return EDMDControl(
+            dict_steps=[
+                ("id", TSCIdentity()),
+            ],
+            include_id_state=False,
+        )
 
     def fit(self, X_tsc: TSCDataFrame):
         X = X_tsc[self.state_cols]
@@ -21,13 +26,11 @@ class EDMD_Identity(Predictor):
         self._predictor.fit(X, U=U)
 
     def predict(self, initial_conds, control_input, t):
-        pred = self._predictor.predict(
-            initial_conds,
-            U=control_input,
-            time_values=t)
+        pred = self._predictor.predict(initial_conds, U=control_input, time_values=t)
 
-        return PredictResult(control_input, initial_conds, pred,
-                             self.state_cols, self.input_cols)
+        return PredictResult(
+            control_input, initial_conds, pred, self.state_cols, self.input_cols
+        )
 
 
 class EDMD_RBF(Predictor):
@@ -43,12 +46,15 @@ class EDMD_RBF(Predictor):
 
     def _init_predictor(self):
         return EDMDControl(
-            dict_steps=[("rbf", self.rbf),], include_id_state=True)
+            dict_steps=[
+                ("rbf", self.rbf),
+            ],
+            include_id_state=True,
+        )
 
     def _init_rbf(self):
         rbf = TSCRadialBasis(
-            kernel=GaussianKernel(epsilon=self.eps),
-            center_type="fit_params"
+            kernel=GaussianKernel(epsilon=self.eps), center_type="fit_params"
         )
         return rbf
 
@@ -80,7 +86,8 @@ class EDMD_RBF(Predictor):
         centers = self._init_centers(X_tsc)
 
         self._predictor.fit(
-            X, U=U,
+            X,
+            U=U,
             rbf__centers=centers[:, :-1],
         )
 
@@ -89,20 +96,26 @@ class EDMD_RBF(Predictor):
             initial_conds[self.state_cols],
             U=control_input,
             # control_input=np.atleast_2d(control_input).T,
-            time_values=t)
+            time_values=t,
+        )
 
-        return PredictResult(control_input, initial_conds, pred,
-                             self.state_cols, self.input_cols)
+        return PredictResult(
+            control_input, initial_conds, pred, self.state_cols, self.input_cols
+        )
 
 
 class EDMD_RBF_v2(EDMD_RBF):
     def __init__(self, *args, **kwargs):
-        kwargs['input_cols'] = []
+        kwargs["input_cols"] = []
         super().__init__(*args, **kwargs)
 
     def _init_predictor(self):
         return EDMD(
-            dict_steps=[("rbf", self.rbf),], include_id_state=True)
+            dict_steps=[
+                ("rbf", self.rbf),
+            ],
+            include_id_state=True,
+        )
 
     def fit(self, X_tsc: TSCDataFrame):
         X = X_tsc[self.state_cols]
@@ -111,20 +124,18 @@ class EDMD_RBF_v2(EDMD_RBF):
         centers = self._init_centers(X_tsc)
 
         self._predictor.fit(
-            X, U=U,
+            X,
+            U=U,
             rbf__centers=centers,
         )
 
     def predict(self, initial_conds, t):
-        pred = self._predictor.predict(initial_conds[self.state_cols],
-                                       time_values=t)
+        pred = self._predictor.predict(initial_conds[self.state_cols], time_values=t)
 
-        return PredictResult(None, initial_conds, pred,
-                             self.state_cols, None)
+        return PredictResult(None, initial_conds, pred, self.state_cols, None)
 
 
 class EDMD_Polynomial(EDMD_Identity):
-
     def __init__(self, n_degrees, *args, **kwargs):
         self.n_degrees = n_degrees
 
@@ -135,6 +146,6 @@ class EDMD_Polynomial(EDMD_Identity):
 
     def _init_predictor(self) -> EDMDControl:
         dict_steps = [
-            ('polynomial', self._init_polynomial()),
+            ("polynomial", self._init_polynomial()),
         ]
         return EDMDControl(dict_steps=dict_steps, include_id_state=True)

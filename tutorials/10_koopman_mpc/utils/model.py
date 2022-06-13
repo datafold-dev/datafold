@@ -1,13 +1,13 @@
-import numpy as np
-from tqdm import tqdm
+from typing import List
+
 import matplotlib.pyplot as plt
-from pandas import DataFrame
+import numpy as np
 import pandas
+from pandas import DataFrame
+from tqdm import tqdm
 
 from datafold.appfold import EDMDControl
 from datafold.pcfold import TSCDataFrame
-
-from typing import List
 
 
 class Augmenter:
@@ -69,16 +69,15 @@ class ScalingAugmenter(Augmenter):
 
         # scale = (dfx.max() - dfx.min()) / 2
 
-        offset['t'] = 0
+        offset["t"] = 0
         # offset['u'] = 0
-        scale['t'] = 1
+        scale["t"] = 1
         # scale['u'] = 1
 
         return offset, scale
 
 
 class Model:
-
     def reset(self, ic=None):
         raise NotImplementedError
 
@@ -89,6 +88,7 @@ class Model:
     def _control_func(time_values, control):
         def f(t, _):
             return np.interp(t, time_values, control)
+
         return f
 
 
@@ -138,15 +138,15 @@ class PredictResult:
         diff = self.pred[cols].values - dfx[cols].values
         err = diff**2
 
-        err = np.hstack([err, np.mean(err, axis=1).reshape(-1,1)])
+        err = np.hstack([err, np.mean(err, axis=1).reshape(-1, 1)])
         return err
 
     def metric(self, dfx, thresholds=(1e-3, 1e-6)):
         err = self.error_v2(dfx)
-        err = np.concatenate((err, np.ones((1, err.shape[1]))*np.inf), axis=0)
+        err = np.concatenate((err, np.ones((1, err.shape[1])) * np.inf), axis=0)
 
         err = err.reshape(*err.shape, 1)
-        thresholds = np.array(thresholds).reshape(1,1,-1)
+        thresholds = np.array(thresholds).reshape(1, 1, -1)
 
         mask = err > thresholds
         idx = np.argmax(mask, axis=0)
@@ -158,7 +158,7 @@ class PredictResult:
 
         if axes is None:
             m = len(cols)
-            fig = plt.figure(figsize=(6*m, 3))
+            fig = plt.figure(figsize=(6 * m, 3))
             axes = fig.subplots(1, m).flatten()
         else:
             fig = None
@@ -167,16 +167,16 @@ class PredictResult:
             ax = axes[i]
 
             if self.traj is not None and col in self.traj.dfx:
-                ax.plot(self.traj.dfx[col].values, label='traj')
+                ax.plot(self.traj.dfx[col].values, label="traj")
             else:
                 ax.plot([])
 
             if col in self.pred:
-                ax.plot(self.pred[col].values, label='pred')
+                ax.plot(self.pred[col].values, label="pred")
 
             if ranges is not None and col in ranges:
-                axes[i].axhline(ranges[col][0], color='k', linestyle='--', alpha=0.6)
-                axes[i].axhline(ranges[col][1], color='k', linestyle='--', alpha=0.6)
+                axes[i].axhline(ranges[col][0], color="k", linestyle="--", alpha=0.6)
+                axes[i].axhline(ranges[col][1], color="k", linestyle="--", alpha=0.6)
 
             ax.grid()
             ax.set_title(col)
@@ -198,7 +198,7 @@ class Predictions:
     def new(cls, f_predict, trajectories, cols):
         predictions = []
         for traj in tqdm(trajectories, leave=False):
-            pred = f_predict(traj)#.ic, traj.dfx['t'])
+            pred = f_predict(traj)  # .ic, traj.dfx['t'])
             predictions.append(pred)
 
         return cls(predictions, cols)
@@ -217,9 +217,9 @@ class Predictions:
 
             l = len(pred)
             counts[:l] += 1
-            err[:l,:] += diff**2
+            err[:l, :] += diff**2
 
-        mean_err = err / counts.reshape(-1,1)
+        mean_err = err / counts.reshape(-1, 1)
         return mean_err
 
     def metric(self, trajectories, thresholds=(1e-3, 1e-6)):
@@ -231,7 +231,7 @@ class Predictions:
         metrics = np.zeros((N, K, len(thresholds)), dtype=int)
         for i, (pred, traj) in enumerate(zip(self.predictions, trajectories)):
             metric = pred.metric(traj.dfx, thresholds=thresholds)
-            metrics[i,:,:] = metric
+            metrics[i, :, :] = metric
 
         return metrics
 
@@ -241,13 +241,13 @@ class Predictions:
 
         if axes is None:
             m = len(cols)
-            fig = plt.figure(figsize=(6*m, 2*n))
+            fig = plt.figure(figsize=(6 * m, 2 * n))
             axes = fig.subplots(n, m)
         else:
             fig = None
 
         for i in range(n):
-            self.predictions[i].plot(axes=axes[i,:], cols=cols, ranges=ranges)
+            self.predictions[i].plot(axes=axes[i, :], cols=cols, ranges=ranges)
 
         return fig, axes
 

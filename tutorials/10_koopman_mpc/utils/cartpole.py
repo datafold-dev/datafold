@@ -1,8 +1,7 @@
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
 import numpy as np
 import pandas
-
-import matplotlib.patches as mpatches
-import matplotlib.lines as mlines
 from matplotlib.animation import FuncAnimation
 
 from datafold.utils._systems import InvertedPendulum
@@ -11,7 +10,7 @@ from .model import Model
 
 
 class CartPole(Model):
-    cols = ['x', 'xdot', 'theta', 'thetadot']
+    cols = ["x", "xdot", "theta", "thetadot"]
 
     def __init__(self, ic=None):
         self._ic = ic
@@ -60,12 +59,12 @@ class CartPole(Model):
         control = control_func(t, traj)
 
         state = {
-            't': t,
-            'x': traj[0,:],
-            'xdot': traj[1,:],
-            'theta': traj[2,:],
-            'thetadot': traj[3,:],
-            'u': control,
+            "t": t,
+            "x": traj[0, :],
+            "xdot": traj[1, :],
+            "theta": traj[2, :],
+            "thetadot": traj[3, :],
+            "u": control,
         }
 
         return pandas.DataFrame(state)
@@ -88,8 +87,8 @@ class CartpoleArtist:
         x1 = self.xmax
         x0 = self.xmin
 
-        a1 = 1/(x1-x0)
-        b1 = -a1*x0
+        a1 = 1 / (x1 - x0)
+        b1 = -a1 * x0
         b2 = 0.5
 
         self.scale = a1
@@ -97,7 +96,7 @@ class CartpoleArtist:
 
     def _project(self, xy):
         if xy.ndim > 1:
-            offset = self.offset.reshape(1,-1)
+            offset = self.offset.reshape(1, -1)
         else:
             offset = self.offset
 
@@ -108,54 +107,54 @@ class CartpoleArtist:
         return (xy - self.offset) / self.scale
 
     def draw_centerline(self):
-        name = 'centerline'
+        name = "centerline"
         if name not in self.artists:
             x1 = np.array([self.xmin, 0])
             x2 = np.array([self.xmax, 0])
             X = self._project(np.array([x1, x2]))
-            line = mlines.Line2D(X[:,0], X[:,1], color='black', zorder=-1)
+            line = mlines.Line2D(X[:, 0], X[:, 1], color="black", zorder=-1)
             self.artists[name] = line
 
     def draw_body(self, state):
-        xy = self._project(np.array([state['x'], 0]))
+        xy = self._project(np.array([state["x"], 0]))
         size = self.body_size * self.scale
 
-        xy_ = xy - size/2
+        xy_ = xy - size / 2
         width, height = size
 
-        if 'body' not in self.artists:
+        if "body" not in self.artists:
             patch = mpatches.Rectangle(xy_, width, height)
-            self.artists['body'] = patch
+            self.artists["body"] = patch
         else:
-            patch = self.artists['body']
+            patch = self.artists["body"]
             patch.set_xy(xy_)
             patch.set_width(width)
             patch.set_height(height)
 
     def draw_arm(self, state):
-        th = state['theta']
-        xy1 = np.array([state['x'], 0])
+        th = state["theta"]
+        xy1 = np.array([state["x"], 0])
         xy2 = xy1 + np.array([-np.sin(th), np.cos(th)]) * self.arm_length
         X = np.array([xy1, xy2])
         X_ = self._project(X)
 
-        x = X_[:,0]
-        y = X_[:,1]
+        x = X_[:, 0]
+        y = X_[:, 1]
         r = self.mass_radius * self.scale
 
-        if 'arm' not in self.artists:
-            line = mlines.Line2D(x, y, color='black')
-            self.artists['arm'] = line
+        if "arm" not in self.artists:
+            line = mlines.Line2D(x, y, color="black")
+            self.artists["arm"] = line
         else:
-            line = self.artists['arm']
+            line = self.artists["arm"]
             line.set_xdata(x)
             line.set_ydata(y)
 
-        if 'mass' not in self.artists:
-            patch = mpatches.Ellipse(X_[1], r, r, color='black')
-            self.artists['mass'] = patch
+        if "mass" not in self.artists:
+            patch = mpatches.Ellipse(X_[1], r, r, color="black")
+            self.artists["mass"] = patch
         else:
-            patch = self.artists['mass']
+            patch = self.artists["mass"]
             patch.set_center(X_[1])
             patch.set_width(r)
             patch.set_height(r)
@@ -187,13 +186,12 @@ class SineControl:
         self.phase = phase
 
     def __call__(self, t, _):
-        return self.amplitude * \
-                np.sin(2*np.pi * (self.frequency*t + self.phase))
+        return self.amplitude * np.sin(2 * np.pi * (self.frequency * t + self.phase))
 
     @classmethod
     def new_rand(cls):
         amplitude = np.random.uniform(0.1, 5.0)
-        frequency = np.random.uniform(1/4, 5/2)
+        frequency = np.random.uniform(1 / 4, 5 / 2)
         phase = np.random.uniform(0, 1)
 
         return cls(amplitude, frequency, phase)

@@ -493,7 +493,7 @@ class InvertedPendulum(ControlledDynamicalSystem):
         sin_th = np.sin(theta)
         cos_th = np.cos(theta)
 
-        alpha = M + m * sin_th*sin_th
+        alpha = M + m * sin_th * sin_th
 
         # See doc/reports/cartpole/report.pdf for derivation
 
