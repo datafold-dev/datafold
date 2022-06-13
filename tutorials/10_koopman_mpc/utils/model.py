@@ -215,9 +215,8 @@ class Predictions:
             dfx = traj.dfx
             diff = pred.pred[cols].values - dfx[cols].values
 
-            l = len(pred)
-            counts[:l] += 1
-            err[:l, :] += diff**2
+            counts[: len(pred)] += 1
+            err[: len(pred), :] += diff**2
 
         mean_err = err / counts.reshape(-1, 1)
         return mean_err
