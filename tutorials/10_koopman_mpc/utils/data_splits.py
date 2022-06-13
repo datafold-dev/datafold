@@ -112,7 +112,7 @@ class DataSplits:
     def _make_tsc(self, trajectories: List[Trajectory]) -> TSCDataFrame:
         if trajectories:
             return TSCDataFrame.from_frame_list([t.dfx for t in trajectories])
-        return None
+        raise ValueError
 
     @property
     def train_augment(self):

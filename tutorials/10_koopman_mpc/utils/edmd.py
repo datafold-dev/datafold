@@ -1,4 +1,3 @@
-import numpy as np
 from datafold.appfold import EDMDControl, EDMD
 from datafold.dynfold.transform import TSCIdentity, TSCRadialBasis, \
         TSCPolynomialFeatures
