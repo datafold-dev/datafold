@@ -228,7 +228,7 @@ nbsphinx_execute = "never"
 
 # allows to set expensive tutorial execution with environment variable
 # the environment variable should be set if publishing the pages
-nb_execute_env = os.environ.get("DATAFOLD_TUTORIALS_EXECUTE").lower()
+nb_execute_env = os.environ.get("DATAFOLD_TUTORIALS_EXECUTE", '').lower()
 
 if nb_execute_env == "true":
     nb_execute = True
