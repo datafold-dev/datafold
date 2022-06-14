@@ -312,9 +312,10 @@ class LinearKMPC:
         self, initial_conditions: InitialConditionType, reference: TransformType
     ) -> np.ndarray:
         r"""
-        Method to generate a control sequence, given some initial conditions and a reference
-        trajectory, as in :cite:`korda-2018` , Algorithm 1. This method solves the following
-        optimization problem (:cite:`korda-2018` , Equation 24).
+        Method to generate a control sequence, given some initial conditions and
+        a reference trajectory, as in :cite:`korda-2018` , Algorithm 1. This
+        method solves the following optimization problem (:cite:`korda-2018` ,
+        Equation 24).
 
         .. math::
             \text{minimize : } U^{T} H U^{T} + h^{T} U + z_0^{T} GU - y_{r}^{T} U
