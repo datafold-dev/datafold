@@ -228,12 +228,15 @@ nbsphinx_execute = "never"
 
 # allows to set expensive tutorial execution with environment variable
 # the environment variable should be set if publishing the pages
-nb_execute_env = os.environ.get("DATAFOLD_TUTORIALS_EXECUTE")
+nb_execute_env = os.environ.get("DATAFOLD_TUTORIALS_EXECUTE").lower()
 
 if nb_execute_env == "true":
     nb_execute = True
-else:
+elif nb_execute_env == "false":
     nb_execute = False
+else:
+    raise ValueError("DATAFOLD_TUTORIALS_EXECUTE={} not a valid choice" \
+                     .format(nb_execute_env))
 
 nb_execute_arguments = [
     "--InlineBackend.figure_formats={'svg', 'pdf'}",

@@ -77,17 +77,17 @@ def get_nblink(filename):
 
 
 class Tutorial:
-    def __init__(self, filename, description, **kwargs):
-        warning = kwargs.get("warning")
+    def __init__(self, filename, description, warning=None, archive=False,
+                 nblink_args=None):
         if warning is not None:
             warning = warning.rstrip()
 
         self.filename = filename
         self.description = description.rstrip()
         self.warning = warning
-        self.archive = kwargs.get("archive", False)
+        self.archive = archive
 
-        self.nblink_args = kwargs.get("nblink_args")
+        self.nblink_args = nblink_args
 
         assert self.fullpath
 
