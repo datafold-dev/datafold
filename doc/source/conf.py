@@ -224,13 +224,13 @@ intersphinx_timeout = 30
 # https://nbsphinx.readthedocs.io/en/0.6.0/usage.html#nbsphinx-Configuration-Values
 
 nbsphinx_allow_errors = False
-nbsphinx_execute = 'never'
+nbsphinx_execute = "never"
 
 # allows to set expensive tutorial execution with environment variable
 # the environment variable should be set if publishing the pages
-nb_execute_env = os.environ.get('DATAFOLD_TUTORIALS_EXECUTE')
+nb_execute_env = os.environ.get("DATAFOLD_TUTORIALS_EXECUTE")
 
-if nb_execute_env == 'true':
+if nb_execute_env == "true":
     nb_execute = True
 else:
     nb_execute = False

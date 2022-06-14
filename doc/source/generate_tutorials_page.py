@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 
 import json
-import nbformat
 import os
 import pathlib
 import shutil
 import subprocess
 import warnings
 
-from nbconvert.preprocessors import ExecutePreprocessor
-
+import nbformat
 import requests  # type: ignore
+from nbconvert.preprocessors import ExecutePreprocessor
 
 # path to current file location
 PATH2DOCSOURCE = pathlib.Path(__file__).parent.resolve()
@@ -88,7 +87,7 @@ class Tutorial:
         self.warning = warning
         self.archive = kwargs.get("archive", False)
 
-        self.nblink_args = kwargs.get('nblink_args')
+        self.nblink_args = kwargs.get("nblink_args")
 
         assert self.fullpath
 
@@ -147,12 +146,12 @@ class Tutorial:
         return None
 
 
-def add_tutorial(filename, description, warning=None, archive=False,
-                 nblink_args=None):
+def add_tutorial(filename, description, warning=None, archive=False, nblink_args=None):
     assert filename not in DESCRIPTIVE_TUTORIALS
 
-    tutorial = Tutorial(filename, description, warning=warning,
-                        archive=archive, nblink_args=nblink_args)
+    tutorial = Tutorial(
+        filename, description, warning=warning, archive=archive, nblink_args=nblink_args
+    )
     DESCRIPTIVE_TUTORIALS[filename] = tutorial
 
     fullpath = tutorial.fullpath
@@ -310,9 +309,7 @@ def init_tutorials():
         "operator. We apply MPC using an EDMD predictor to a toy model: the "
         "inverted pendulum, sometimes referred to as a cartpole.",
         archive=True,
-        nblink_args={
-            'extra-media': [f'{PATH2TUTORIAL}/10_koopman_mpc/cartpole2.png']
-        }
+        nblink_args={"extra-media": [f"{PATH2TUTORIAL}/10_koopman_mpc/cartpole2.png"]},
     )
 
 
@@ -335,10 +332,7 @@ def generate_nblink_files():
         if tutorial.nblink_args is not None:
             extras.update(tutorial.nblink_args)
 
-        data = {
-            "path": os.path.normpath(filepath).replace("\\", "/"),
-            **extras
-        }
+        data = {"path": os.path.normpath(filepath).replace("\\", "/"), **extras}
         fname = f"{filename_nblink}.nblink"
         with open(fname, "w") as nblinkfile:
             json.dump(data, nblinkfile)
@@ -356,11 +350,18 @@ def generate_tutorial_archives():
 
             # Delete transient files like __pycache__ and .ipynb_checkpoints
             # before creating the tutorial archive
-            cmd1 = ['find', root_dir, '-name', '__pycache__',
-                    '-or', '-name', '.ipynb_checkpoints']
-            cmd2 = ['xargs', '-r', 'rm', '-R']
+            cmd1 = [
+                "find",
+                root_dir,
+                "-name",
+                "__pycache__",
+                "-or",
+                "-name",
+                ".ipynb_checkpoints",
+            ]
+            cmd2 = ["xargs", "-r", "rm", "-R"]
             p1 = subprocess.Popen(cmd1, stdout=subprocess.PIPE)
-            p2 = subprocess.run(cmd2, stdin=p1.stdout, check=True)
+            subprocess.run(cmd2, stdin=p1.stdout, check=True)
             p1.stdout.close()
 
             archive_path_ = shutil.make_archive(archive_name, "zip", root_dir, base_dir)
@@ -368,19 +369,19 @@ def generate_tutorial_archives():
 
 
 def execute_tutorials(extra_arguments):
-    print('###########################')
-    print('### Executing notebooks ###')
-    print('###########################')
+    print("###########################")
+    print("### Executing notebooks ###")
+    print("###########################")
     for tutorial in DESCRIPTIVE_TUTORIALS.values():
-        print('Executing tutorial `{}`'.format(tutorial.name))
+        print("Executing tutorial `{}`".format(tutorial.name))
         nbpath = tutorial.fullpath
         ex_path = os.path.dirname(nbpath)
-        with open(nbpath, 'r') as f:
+        with open(nbpath, "r") as f:
             nb = nbformat.read(f, as_version=4)
             ep = ExecutePreprocessor(extra_arguments=extra_arguments)
-            ep.preprocess(nb, {'metadata': {'path': ex_path}})
+            ep.preprocess(nb, {"metadata": {"path": ex_path}})
 
-        with open(nbpath, 'w', encoding='utf-8') as f:
+        with open(nbpath, "w", encoding="utf-8") as f:
             nbformat.write(nb, f)
 
 
