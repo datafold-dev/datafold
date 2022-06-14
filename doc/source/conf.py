@@ -224,32 +224,18 @@ intersphinx_timeout = 30
 # https://nbsphinx.readthedocs.io/en/0.6.0/usage.html#nbsphinx-Configuration-Values
 
 nbsphinx_allow_errors = False
+nbsphinx_execute = 'never'
 
-valid_keys = ["auto", "always", "never"]
-try:
-    # allows to set expensive tutorial execution with environment variable
-    # the environment variable should be set if publishing the pages
-    nbsphinx_execute = str(os.environ["DATAFOLD_NBSPHINX_EXECUTE"])
-    assert nbsphinx_execute in valid_keys
-    print(
-        f"INFO: found valid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
-        f"variable."
-    )
-except AssertionError:
-    # invalid key
-    print(
-        f"WARNING: Found invalid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
-        f"variable. Choose from {valid_keys}. Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
-    )
-except KeyError:
-    # default if no environment variable is set
-    print(
-        "INFO: no environment variable DATFOLD_NBSPHINX_EXECUTE. "
-        "Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
-    )
-    nbsphinx_execute = "never"
+# allows to set expensive tutorial execution with environment variable
+# the environment variable should be set if publishing the pages
+nb_execute_env = os.environ.get('DATAFOLD_TUTORIALS_EXECUTE')
 
-nbsphinx_execute_arguments = [
+if nb_execute_env == 'true':
+    nb_execute = True
+else:
+    nb_execute = False
+
+nb_execute_arguments = [
     "--InlineBackend.figure_formats={'svg', 'pdf'}",
     "--InlineBackend.rc={'figure.dpi': 96}",
 ]
@@ -265,6 +251,10 @@ tutorials_script = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tutorials_script)
 
 tutorials_script.setup_tutorials()
+
+# Execute tutorials
+if nb_execute:
+    tutorials_script.execute_tutorials(extra_arguments=nb_execute_arguments)
 
 # ----------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
