@@ -77,8 +77,9 @@ def get_nblink(filename):
 
 
 class Tutorial:
-    def __init__(self, filename, description, warning=None, archive=False,
-                 nblink_args=None):
+    def __init__(
+        self, filename, description, warning=None, archive=False, nblink_args=None
+    ):
         if warning is not None:
             warning = warning.rstrip()
 

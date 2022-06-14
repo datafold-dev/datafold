@@ -235,8 +235,9 @@ if nb_execute_env == "true":
 elif nb_execute_env == "false":
     nb_execute = False
 else:
-    raise ValueError("DATAFOLD_TUTORIALS_EXECUTE={} not a valid choice" \
-                     .format(nb_execute_env))
+    raise ValueError(
+        "DATAFOLD_TUTORIALS_EXECUTE={} not a valid choice".format(nb_execute_env)
+    )
 
 nb_execute_arguments = [
     "--InlineBackend.figure_formats={'svg', 'pdf'}",
