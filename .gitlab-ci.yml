@@ -90,7 +90,10 @@ pages:
   stage: deploy
   script:
     - make clean_docs
-    - make docs OPEN_DOCS_BROWSER=false EXECUTE_TUTORIAL=always OUTPUT_DOCS=./public
+    - make docs \
+      OPEN_DOCS_BROWSER=false \
+      DATAFOLD_TUTORIALS_EXECUTE=always \
+      OUTPUT_DOCS=./public
   artifacts:
     paths:
     - public
