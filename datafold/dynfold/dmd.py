@@ -302,7 +302,7 @@ class LinearDynamicalSystem(DynamicalSystemBase):
     References
     ----------
 
-    :cite:`kutz_dynamic_2016` (pages 3 ff.)
+    :cite:`kutz-2016` (pages 3 ff.)
 
     """
 
