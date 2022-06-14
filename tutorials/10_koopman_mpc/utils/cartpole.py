@@ -1,7 +1,7 @@
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import numpy as np
-import pandas
+import pandas as pd
 from matplotlib.animation import FuncAnimation
 
 from datafold.utils._systems import InvertedPendulum
@@ -67,7 +67,7 @@ class CartPole(Model):
             "u": control,
         }
 
-        return pandas.DataFrame(state)
+        return pd.DataFrame(state)
 
 
 class CartpoleArtist:
