@@ -732,7 +732,7 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
             name=name,
             target_type=(float, np.floating, int, np.integer),
             min_val=0,
-            include_boundaries="right",
+            include_boundaries="neither",
         )
         return float(parameter)
 
@@ -2076,8 +2076,6 @@ class ConeKernel(TSCManifoldKernel):
             name="epsilon",
             target_type=(float, np.floating, int, np.integer),
             min_val=0,
-            max_val=None,
-            include_boundaries="right",
         )
 
         check_scalar(
@@ -2085,7 +2083,6 @@ class ConeKernel(TSCManifoldKernel):
             "fd_accuracy",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         # make sure to only deal with Python built-in types

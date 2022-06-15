@@ -1287,8 +1287,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             "spacing",
             target_type=(int, np.integer, float, np.floating),
             min_val=0,
-            max_val=None,
-            include_boundaries="right",
+            include_boundaries="neither",
         )
         self.spacing_ = float(self.spacing_)
 

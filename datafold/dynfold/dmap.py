@@ -1368,7 +1368,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             name="eps_med_scale",
             target_type=(float, np.floating, int, np.integer),
             min_val=0,
-            include_boundaries="right",
         )
 
         if not np.isinf(self.n_subsample):

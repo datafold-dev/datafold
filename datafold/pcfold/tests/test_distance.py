@@ -282,7 +282,7 @@ class TestDistAlgorithms(unittest.TestCase):
                         distance_matrix.toarray(),
                     )
                 except AssertionError as e:
-                    print(f"Failed for quantile={quantile} and kmin={kmin}")
+                    print(f"Failed for {quantile=} and {kmin=}")
                     raise e
 
     def test_ensure_kmin_nearest_neighbours_cdist(self):
@@ -324,7 +324,7 @@ class TestDistAlgorithms(unittest.TestCase):
                     )
                     self.assertTrue((distance_matrix.getnnz(axis=1) >= kmin).all())
                 except AssertionError as e:
-                    print(f"Failed for quantile={quantile} and kmin={kmin}")
+                    print(f"Failed for {quantile=} and {kmin=}")
                     raise e
 
     @pytest.mark.skip("TODO: finish k-NN tests")

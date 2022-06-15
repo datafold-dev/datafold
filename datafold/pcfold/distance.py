@@ -10,6 +10,7 @@ import scipy.spatial
 from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import BallTree, KNeighborsTransformer, NearestNeighbors
+from sklearn.utils.validation import check_scalar
 
 from datafold.utils.general import if1dim_colvec, if1dim_rowvec, is_integer
 
@@ -73,21 +74,20 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
             self._set_attrs_knn(k)
 
     def _set_attrs_range(self, cut_off, kmin):
+
         if kmin is not None and not is_integer(kmin):
             raise TypeError(
                 f"parameter 'kmin' must be an integer type or None. Got: {type(kmin)}"
             )
 
-        try:
-            cut_off = float(cut_off)  # make sure to only deal with Python built-in
-        except ValueError:
-            raise TypeError(f"type(cut_off)={type(cut_off)} must be of type float")
+        check_scalar(
+            cut_off,
+            "cut_off",
+            target_type=(float, int),
+            min_val=0,
+            include_boundaries="neither",
+        )
 
-        if cut_off <= 0:
-            raise ValueError(
-                f"cut_off={cut_off} must be a positive number number of "
-                f"type 'float'"
-            )
         if self.metric == "sqeuclidean":
             if cut_off is not None:
                 # NOTE: this is a special case. Usually the cut_off is represented in the
