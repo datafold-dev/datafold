@@ -1508,10 +1508,6 @@ class DmapKernelFixed(BaseManifoldKernel):
     def is_conjugate(self) -> bool:
         """Indicates whether a symmetric matrix is computed that is conjugate to a
         (non-symmetric) stochastic kernel matrix.
-
-        Returns
-        -------
-
         """
         # If the kernel is made stochastic, it looses the symmetry, if symmetric_kernel
         # is set to True, then apply a symmetry transformation

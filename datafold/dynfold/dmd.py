@@ -1891,6 +1891,9 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
     in datafold).
     """  # noqa E501
 
+    # TODO: there is also an adaptation for total least squares (only Matlab):
+    #   https://github.com/cwrowley/dmdtools/blob/master/matlab/StreamingTDMD.m
+
     def __init__(self, max_rank=None, ngram=5, incr_basis_tol=1.0e-10):
         self.max_rank = max_rank
         self.ngram = ngram
