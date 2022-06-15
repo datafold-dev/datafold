@@ -557,9 +557,9 @@ class DiffusionMapsTest(unittest.TestCase):
 
             self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
             if is_stochastic:
-                self.assertEqual(dmap.kernel_matrix_.dtype, np.floating)
+                self.assertEqual(dmap.kernel_matrix_.dtype, float)
             else:
-                self.assertEqual(dmap.kernel_matrix_.dtype, np.bool)
+                self.assertEqual(dmap.kernel_matrix_.dtype, bool)
 
             self.assertIsInstance(dmap.eigenvectors_, np.ndarray)
             self.assertIsInstance(dmap.eigenvalues_, np.ndarray)

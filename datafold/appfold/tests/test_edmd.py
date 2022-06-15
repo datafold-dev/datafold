@@ -13,11 +13,12 @@ import pandas as pd
 import pandas.testing as pdtest
 import pytest
 import scipy.sparse
+from sklearn.compose import make_column_selector
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
 from datafold.appfold.edmd import EDMD, EDMDCV, EDMDWindowPrediction
-from datafold.dynfold import DMDFull, gDMDFull
+from datafold.dynfold import DMDFull, TSCColumnTransformer, gDMDFull
 from datafold.dynfold.dmd import OnlineDMD, StreamingDMD
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
@@ -447,9 +448,10 @@ class EDMDTest(unittest.TestCase):
             InverseMultiquadricKernel(epsilon=0.5),
         ]
 
-        f, ax = plt.subplots(nrows=len(kernels) + 1, ncols=1, sharex=True)
-        X.plot(ax=ax[0])
-        ax[0].set_title("original data")
+        if plot:
+            f, ax = plt.subplots(nrows=len(kernels) + 1, ncols=1, sharex=True)
+            X.plot(ax=ax[0])
+            ax[0].set_title("original data")
 
         for i, kernel in enumerate(kernels):
             try:
@@ -459,8 +461,10 @@ class EDMDTest(unittest.TestCase):
                         ("dmap", DiffusionMaps(kernel, n_eigenpairs=100)),
                     ]
                 ).fit_predict(X)
-                X_predict.plot(ax=ax[i + 1])
-                ax[i + 1].set_title(f"kernel={kernel}")
+
+                if plot:
+                    X_predict.plot(ax=ax[i + 1])
+                    ax[i + 1].set_title(f"kernel={kernel}")
 
             except Exception as e:
                 print(f"kernel={kernel} failed")
@@ -549,8 +553,6 @@ class EDMDTest(unittest.TestCase):
             ax = self.sine_wave_tsc.plot()
             inverse_dict.plot(ax=ax)
 
-            from datafold.utils.plot import plot_eigenvalues
-
             f, ax = plt.subplots()
             plot_eigenvalues(eigenvalues=_edmd.dmd_model.eigenvalues_, ax=ax)
 
@@ -637,10 +639,6 @@ class EDMDTest(unittest.TestCase):
         # Ignore warning, because none of the other configurations results in a
         # satisfying reconstruction result.
 
-        from sklearn.compose import make_column_selector
-
-        from datafold.dynfold import TSCColumnTransformer
-
         selector_sin = make_column_selector(pattern="sin")
         selector_cos = make_column_selector(pattern="cos")
 
@@ -666,11 +664,12 @@ class EDMDTest(unittest.TestCase):
                 webbrowser.open_new_tab(fp.name)
                 input("Press Enter to continue...")
 
-        f, ax = plt.subplots(nrows=2, sharex=True)
-        self.multi_waves.plot(ax=ax[0])
-        edmd.reconstruct(self.multi_waves).plot(ax=ax[1])
+        if plot:
+            f, ax = plt.subplots(nrows=2, sharex=True)
+            self.multi_waves.plot(ax=ax[0])
+            edmd.reconstruct(self.multi_waves).plot(ax=ax[1])
 
-        plt.show()
+            plt.show()
 
     def test_edmd_sine_wave(self):
 
