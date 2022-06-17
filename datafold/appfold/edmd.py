@@ -1972,7 +1972,7 @@ class EDMDControl(
     TSCTransformerMixin,
     TSCPredictMixin,
 ):
-    r"""Adapt :class:`EDMD` to controlled systems
+    r"""Adapt :class:`EDMD` to controlled systems.
 
     This class provides a wrapper around :class:`EDMD` which allows usage of
     the main functionality (transform, fit, predict). It approximates Koopman
@@ -2142,15 +2142,18 @@ class EDMDControl(
         X : InitialConditionType
             Single initial condition of shape `(n_features,)` or multiple initial
             conditions of shape `(n_features, n_initial_conditions)`.
+
         time_values : np.ndarray
             Time series at which to evaluate the system. Must be equally spaced
             and use the same timestep as the training data. If U is
             a TSCDataFrame time_values can be skipped and inferred from the index
+
         U : np.ndarray | TSCDataFrame
             The control input at the provided time values with shape
-            `(n_timesteps, n_control_dimensions)
+            `(n_timesteps, n_control_dimensions)`
+
         check_inputs : bool, optional, default True
-            Allows skipping input checks and assignemnts to improve performance.
+            Allows skipping input checks and assignments to improve performance.
 
             .. warning::
                 Use with caution - May result in silent errors.
@@ -2197,8 +2200,10 @@ class EDMDControl(
         ----------
         X
             The time series states to reconstruct.
+
         U
             The time series control input to reconstruct.
+
         qois
             ignored
 
@@ -2250,7 +2255,6 @@ class EDMDControl(
             Time series control input data for both training and prediction. Must fulfill
             input requirements of first `dict_step` in the EDMD-dictionary pipeline.
 
-
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
             each parameter name is prefixed such that parameter ``p`` for step
@@ -2260,8 +2264,6 @@ class EDMDControl(
         -------
         TSCDataFrame
             Reconstructed time series collection.
-
-
         """
         return self.fit(X=X, U=U, y=y, **fit_params).reconstruct(X=X, U=U)
 
@@ -2289,6 +2291,5 @@ class EDMDControl(
         -------
         TSCDataFrame
              EDMD-dictionary time series data.
-
         """
         return self.fit(X=X, U=U, y=y, **fit_params).transform(X)

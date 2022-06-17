@@ -301,9 +301,7 @@ class LinearDynamicalSystem(DynamicalSystemBase):
 
     References
     ----------
-
-    :cite:`kutz_dynamic_2016` (pages 3 ff.)
-
+    :cite:`kutz-2016` (pages 3 ff.)
     """
 
     def __init__(self, *args, **kwargs):
@@ -1737,7 +1735,7 @@ class ControlledLinearDynamicalSystem(DynamicalSystemBase):
     References
     ----------
 
-    :cite:`kutz_dynamic_2016` (Chapter 6)
+    :cite:`kutz-2016` (Chapter 6)
     :cite:`korda-2018`
 
     See Also
@@ -2036,7 +2034,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
     References
     ----------
 
-    :cite:`kutz_dynamic_2016` (Chapter 6)
+    :cite:`kutz-2016` (Chapter 6)
     :cite:`korda-2018`
     """
 
@@ -2224,20 +2222,19 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         X : TSCDataFrame
             State input
 
-
         U : TSCDataFrame | np.ndarray, optional
             Control input
 
-        check_inputs : bool, optional, default True
-            Allows skipping input checks and assignemnts to improve performance.
+        check_inputs: bool, optional, default True
+            Allows skipping input checks and assignments to improve performance.
 
-        **fit_params
-            Passed to :py:meth:`.fit(X,**fit_params)`
+        fit_params
+            Passed to :py:meth:`fit(X,**fit_params)`.
 
         Returns
         -------
         TSCDataFrame
-            A reconstruction of X based on predicting each separate time series
+            A reconstruction of `X` based on predicting each separate time series
             in the collection using the training control input
         """
         return self.fit(X, U, **fit_params).reconstruct(
@@ -2262,20 +2259,19 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         X : TSCDataFrame
             State input
 
-
         U : TSCDataFrame | np.ndarray, optional
             Control input
 
         check_inputs : bool, default True
-            Allows skipping input checks and assignemnts to improve performance.
+            Allows skipping input checks and assignments to improve performance.
 
-        **split_params
-            Passed to :py:meth:`.fit(X,**split_params)`
+        split_params
+            Passed to :py:meth:`fit(X,**split_params)`
 
         Returns
         -------
         TSCDataFrame
-            A reconstruction of X based on predicting each separate time series
+            A reconstruction of `X` based on predicting each separate time series
             in the collection using the given control input
         """
 
@@ -2328,7 +2324,6 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
         This is irrespective of the time given in the time values. If the initial
         time is larger than zero, the internal times are corrected to the requested time.
 
-
     See Also
     --------
 
@@ -2337,7 +2332,6 @@ class ControlledAffineDynamicalSystem(ControlledLinearDynamicalSystem):
 
     References
     ----------
-
     :cite:`peitz-2020`
     """
 
@@ -2450,13 +2444,13 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
     The model computes the system matrix :math:`A` and control tensor :math:`B` with
 
     .. math::
-        X &= [x^{(1)} ... x^{(n)}]
-        B &= [B_{e_1} ... B_{e_q}] \\
+        X &= [x^{(1)} \ldots x^{(n)}] \\
+        B &= [B_{e_1} \ldots B_{e_q}] \\
         \Psi &= \begin{bmatrix}
-                x^{(1)}                      & ... & x^{(n)} \\
-                u^{(1)} \otimes x^{(1)}& ... & u^{(n)} \otimes x^{(n)}\\
-                \end{bmatrix}\\
-        \Psi_dot &= [\dot{x}^{(1)} ... \dot{x}^{(n)}]
+                x^{(1)}                & \ldots & x^{(n)} \\
+                u^{(1)} \otimes x^{(1)}& \ldots & u^{(n)} \otimes x^{(n)} \\
+                \end{bmatrix} \\
+        \Psi_dot &= [\dot{x}^{(1)} \ldots \dot{x}^{(n)}] \\
         [A,B] &= \dot{\Psi} (\Psi)^{\dagger},
 
     where :math:`X` is the data with :math:`n` column oriented snapshots,
@@ -2474,12 +2468,12 @@ class gDMDAffine(ControlledAffineDynamicalSystem, DMDControl):
     diff_scheme: Optional[str]
         The finite difference scheme 'backward', 'center' or 'forward'.
         Default is center. Passed to `scheme` of
-        :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+        :py:meth:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
 
     diff_accuracy: Optional[int]
         The accuracy (even positive integer) of the derivative scheme.
         Default is 2. Passed to `accuracy` of
-        :py:method:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+        :py:meth:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
 
     rcond: Optional[float]
         Cut-off ratio for small singular values
