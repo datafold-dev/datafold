@@ -190,7 +190,7 @@ docs_linkcheck:
 unittest:
 	@$(ACTIVATE_VENV); \
 	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
-	# use return exit code from the tests (and not from the last coverage statement)
+	@ # use EXIT_CODE from the actual tests (and not return exit code from the last coverage statement) \
 	EXIT_CODE=$$?; \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report; \

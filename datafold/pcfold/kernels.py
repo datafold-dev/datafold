@@ -50,7 +50,7 @@ def _apply_kernel_function_numexpr(distance_matrix, expr, expr_dict=None):
         distance_matrix = distance_matrix.copy()
         expr_dict["D"] = distance_matrix.data
         ne.evaluate(expr, expr_dict, out=distance_matrix.data)
-        return distance_matrix  # returns actually the kernel
+        return distance_matrix  # returns actually the kernel matrix
     else:
         expr_dict["D"] = distance_matrix
         return ne.evaluate(expr, expr_dict)
@@ -963,7 +963,7 @@ class InverseQuadraticKernel(RadialBasisKernel):
 
     def __init__(self, epsilon: float = 1.0):
         self.epsilon = epsilon
-        super(InverseQuadraticKernel, self).__init__(distance_metric="sqeuclidean")
+        super(InverseQuadraticKernel, self).__init__(required_metric="sqeuclidean")
 
     def eval(
         self,
