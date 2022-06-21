@@ -1,8 +1,9 @@
+from time import time
+
+import numpy as np
 import pandas as pd
 
 from datafold import TSCDataFrame
-import numpy as np
-from time import time
 
 data = np.random.default_rng(1).uniform(size=(1000000, 100))
 df = TSCDataFrame.from_array(data)
@@ -27,7 +28,7 @@ df.is_validate = False
 
 start = time()
 df.is_validate = False
-for i in np.split(df, df.shape[0]//2):
+for i in np.split(df, df.shape[0] // 2):
     i
 print(f"iloc:range took time = {time() - start:.5f} seconds")
 

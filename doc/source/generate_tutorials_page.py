@@ -263,18 +263,18 @@ def init_tutorials():
     add_tutorial(
         "05_roseland_scurve_digits.ipynb",
         "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
-        "S-curved point cloud manifold and to cluster data from handwritten digit. We also select "
-        "the best combination of intrinsic parameters automatically with an optimization routine "
-        "and demonstrate how to do include this in an scikit-learn pipeline. Based on the "
-        "Diffusion Maps tutorials.",
+        "S-curved point cloud manifold and to cluster data from handwritten digit. We also "
+        "select the best combination of intrinsic parameters automatically with an "
+        "optimization routine and demonstrate how to do include this in an scikit-learn "
+        "pipeline. Based on the Diffusion Maps tutorials.",
     )
 
     add_tutorial(
         "06_dmap_mahalanobis_kernel.ipynb",
         "We highlight how to use the Mahalanobis kernel within Diffusion Maps. With "
         "this we can obtain embeddings that are invariant to the observation function.",
-        warning="The implementation of the Mahalanobis kernel is still experimental and should be "
-                "used with care. Contributions are welcome!",
+        warning="The implementation of the Mahalanobis kernel is still experimental and "
+        "should be used with care. Contributions are welcome!",
     )
 
     add_tutorial(
@@ -313,8 +313,8 @@ def init_tutorials():
         "11_online_dmd.ipynb",
         "We highlight ``OnlineDMD`` at the example of a simple system. The dynamic "
         "mode decomposition is updated once new data becomes available. This is particularly "
-        "useful for time-varying systems. The notebook is taken from the original work by Zhang "
-        "and Rowley, 2019; for reference see notebook.",
+        "useful for time-varying systems. The notebook is taken from the original work by "
+        "Zhang and Rowley, 2019; for reference see notebook.",
     )
 
 

@@ -18,14 +18,14 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
 from datafold.appfold.edmd import EDMD, EDMDCV, EDMDControl, EDMDWindowPrediction
-from datafold.dynfold import DMDFull, DMDControl, TSCColumnTransformer, gDMDFull
+from datafold.dynfold import DMDControl, DMDFull, TSCColumnTransformer, gDMDFull
 from datafold.dynfold.dmd import OnlineDMD, StreamingDMD
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
     TSCIdentity,
+    TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCTakensEmbedding,
-    TSCPolynomialFeatures
 )
 from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
