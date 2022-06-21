@@ -963,7 +963,7 @@ class InverseQuadraticKernel(RadialBasisKernel):
 
     def __init__(self, epsilon: float = 1.0):
         self.epsilon = epsilon
-        super(InverseQuadraticKernel, self).__init__(distance_metric="sqeuclidean")
+        super(InverseQuadraticKernel, self).__init__(required_metric="sqeuclidean")
 
     def eval(
         self,
