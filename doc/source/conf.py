@@ -91,9 +91,9 @@ extensions = [
     # Include notebook files from outside the sphinx source root (required for the tutorials)
     # https://github.com/vidartf/nbsphinx-link
     "nbsphinx_link",
-    # Include panels in a grid layout or as drop-downs
-    # https://sphinx-panels.readthedocs.io/en/latest/
-    "sphinx_panels",
+    # Include design elements, such as a panel grid layout or drop-down menus
+    # https://sphinx-design.readthedocs.io/en/furo-theme/
+    "sphinx_design",
     # Include copy buttons in code blocks
     # https://sphinx-copybutton.readthedocs.io/en/latest/
     "sphinx_copybutton",

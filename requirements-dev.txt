@@ -18,6 +18,7 @@ sphinx~=4.5.0
 sphinx-autodoc-typehints==1.18.3
 sphinx-automodapi==0.14.1
 sphinx-copybutton==0.5.0
-sphinx-panels==0.6.0
+#sphinx-panels==0.6.0
+sphinx_design==0.2.0
 sphinxcontrib-bibtex==2.4.2
 tqdm>=4.64.0

@@ -40,41 +40,44 @@ Install the package with ``Python>=3.8``:
 
     python -m pip install datafold
 
-.. panels::
+.. grid:: 2 2 2 2
+    :gutter: 2
 
-    .. raw:: html
+    .. grid-item-card::
 
-        <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++++++++++++++++++++++++
-    :ref:`gettingstarted` | :ref:`tutorialnb`
+            <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
 
-    ---
+        +++++++++++++++++++++++++++++++++++++++++
+        :ref:`gettingstarted` | :ref:`tutorialnb`
 
-    .. raw:: html
+    .. grid-item-card::
 
-        <div class="documentation"><i class="fas fa-book fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++++
-    :ref:`documentation`
+            <div class="documentation"><i class="fas fa-book fa-7x"></i></i></div>
 
-    ---
+        +++++++++++++++++++++
+        :ref:`documentation`
 
-    .. raw:: html
+    .. grid-item-card::
 
-        <div class="contribution"><i class="fas fa-laptop-code fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++
-    :ref:`contribution`
+            <div class="contribution"><i class="fas fa-laptop-code fa-7x"></i></i></div>
 
-    ---
+        +++++++++++++++++++
+        :ref:`contribution`
 
-    .. raw:: html
+    .. grid-item-card::
 
-        <div class="references"><i class="fas fa-graduation-cap fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++
-    :ref:`references`
+            <div class="references"><i class="fas fa-graduation-cap fa-7x"></i></i></div>
+
+        +++++++++++++++++
+        :ref:`references`
 
 
 Software management
@@ -149,29 +152,21 @@ https://doi.org/10.21105/joss.02283
 Software maintainer and affiliation
 ===================================
 
-* **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
-  grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
-  Applied Sciences HM and the center of doctoral studies in informatics (CeDoSIA) of the
-  Technical University of Munich for their support.
+* **Daniel Lehmberg** (`link <https://www.cs.cit.tum.de/sccs/personen/personen/daniel-lehmberg/>`__)
 
-* **Felix Dietrich** (`link <https://fd-research.com/>`__) (2) FD thanks the Technical
-  University of Munich for their support.
+  - from 2022 (1): Postdoctoral researcher
+  - from 2018-2022 (1,2): PhD candidate with funding from the German Research Foundation
+    (`DFG <https://www.dfg.de/en/index.jsp>`__), grant no. KO 5257/3-1 and support by the
+    research office (FORWIN) at (2) and the Center of Doctoral Studies in Informatics
+    (`CeDoSIA <https://www.gs.tum.de/en/cedosia/home/>`__) at (1).
+
+* **Felix Dietrich** (`link <https://fd-research.com/>`__) (1)
 
 All source code contributors are listed
 `here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-1. Munich University of Applied Sciences HM
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Faculty of Computer Science and Mathematics in
-Pedestrian Dynamics Research Group  (`link <http://www.vadere.org/>`__)
-
-.. image:: _static/img/hm_logo.png
-   :height: 81px
-   :width: 300px
-   :target: https://www.hm.edu/en/index.en.html
-
-2. Technical University of Munich
+1. Technical University of Munich
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Chair of Scientific Computing in Computer Science
@@ -181,3 +176,14 @@ Chair of Scientific Computing in Computer Science
    :height: 75px
    :width: 150px
    :target: https://www.tum.de/en/
+
+2. Munich University of Applied Sciences HM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Faculty of Computer Science and Mathematics in
+Pedestrian Dynamics Research Group  (`link <http://www.vadere.org/>`__)
+
+.. image:: _static/img/hm_logo.png
+   :height: 81px
+   :width: 300px
+   :target: https://www.hm.edu/en/index.en.html
