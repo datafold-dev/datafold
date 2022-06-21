@@ -190,8 +190,11 @@ docs_linkcheck:
 unittest:
 	@$(ACTIVATE_VENV); \
 	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
+	# use return exit code from the tests (and not from the last coverage statement)
+	EXIT_CODE=$$?; \
 	python -m coverage html -d ./coverage/; \
-	python -m coverage report;
+	python -m coverage report; \
+	@exit EXIT_CODE
 
 #tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
@@ -230,7 +233,7 @@ build:
 #install: @ Install datafold in virtual environment.
 install:
 	@$(ACTIVATE_VENV); \
-	python setup.py install
+	python -m pip install .
 
 #test_install: @ Install and subsequently uninstall datafold (for testing purposes all created files are removed).
 test_install: install clean_install
