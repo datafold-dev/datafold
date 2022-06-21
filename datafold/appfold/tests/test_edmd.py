@@ -17,14 +17,15 @@ from sklearn.compose import make_column_selector
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
-from datafold.appfold.edmd import EDMD, EDMDCV, EDMDWindowPrediction
-from datafold.dynfold import DMDFull, TSCColumnTransformer, gDMDFull
+from datafold.appfold.edmd import EDMD, EDMDCV, EDMDControl, EDMDWindowPrediction
+from datafold.dynfold import DMDFull, DMDControl, TSCColumnTransformer, gDMDFull
 from datafold.dynfold.dmd import OnlineDMD, StreamingDMD
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
     TSCIdentity,
     TSCPrincipalComponent,
     TSCTakensEmbedding,
+    TSCPolynomialFeatures
 )
 from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
@@ -72,6 +73,49 @@ class EDMDTest(unittest.TestCase):
         self.assertTrue(tsc.is_same_time_values())
 
         return tsc
+
+    def _setup_inverted_pendulum(
+        self,
+        sim_time_step=0.1,
+        sim_num_steps=10,
+        training_size=5,
+        seed=42,
+    ) -> TSCDataFrame:
+        from datafold.utils._systems import InvertedPendulum
+
+        gen = np.random.default_rng(seed)
+
+        inverted_pendulum = InvertedPendulum()
+        Xlist, Ulist = [], []
+        xycols = ["x", "xdot", "theta", "thetadot"]
+
+        for i in range(training_size):
+            control_amplitude = 0.1 + 0.9 * gen.random()
+            control_frequency = np.pi + 2 * np.pi * gen.random()
+            control_phase = 2 * np.pi * gen.random()
+            control_func = lambda t, y: control_amplitude * np.sin(
+                control_frequency * t + control_phase
+            )
+            inverted_pendulum.reset()
+            traj = inverted_pendulum.predict(
+                time_step=sim_time_step,
+                num_steps=sim_num_steps,
+                control_func=control_func,
+            )
+            t = inverted_pendulum.sol.t
+            dfx = pd.DataFrame(data=traj.T, index=t, columns=xycols)
+            dfx["u"] = 0.0
+            Xlist.append(dfx)
+            control_input = control_func(t, traj)
+            dfu = pd.DataFrame(data=control_input, index=t, columns=("u",))
+            for col in xycols:
+                dfu[col] = 0.0
+            dfu = dfu[xycols + ["u"]]
+            Ulist.append(dfu)
+
+        X_tsc = TSCDataFrame.from_frame_list(Xlist)[["x", "xdot", "theta", "thetadot"]]
+        X_tsc["u"] = TSCDataFrame.from_frame_list(Ulist)[["u"]]
+        return X_tsc
 
     def setUp(self) -> None:
         self.sine_wave_tsc = self._setup_sine_wave_data()
@@ -938,6 +982,74 @@ class EDMDTest(unittest.TestCase):
                     b.plot(ax=ax, c="red")
 
         plt.show()
+
+    def test_edmdcontrol_pipe(self):
+        n_delays = 2
+        n_degrees = 2
+        sim_num_steps = 10
+        lag = 5
+        state_columns = ["x", "xdot", "theta", "thetadot"]
+        control_columns = ["u"]
+        X_tsc = self._setup_inverted_pendulum(sim_num_steps=sim_num_steps)
+
+        from scipy.special import comb
+
+        dict_steps = [
+            ("takens", TSCTakensEmbedding(delays=n_delays, lag=lag)),
+            ("poly", TSCPolynomialFeatures(degree=n_degrees, include_first_order=True)),
+        ]
+
+        actual = EDMDControl(
+            dict_steps=dict_steps, include_id_state=False
+        ).fit_transform(X_tsc[state_columns], U=X_tsc[control_columns])
+        n_intermediate = len(state_columns) * (n_delays + 1)
+        n_final = comb(n_intermediate, n_degrees) + 2 * n_intermediate
+
+        self.assertEqual(len(actual.columns), n_final)
+        self.assertEqual(len(actual.time_values()), sim_num_steps + 1 - lag - n_delays)
+
+    def test_edmdcontrol_id(self):
+        state_columns = ["x", "xdot", "theta", "thetadot"]
+        control_columns = ["u"]
+        ic = np.array([0, 0, np.pi, 0])
+        X_tsc = self._setup_inverted_pendulum()
+        control_input = X_tsc.loc[[0], control_columns]
+
+        dmdc = DMDControl()
+        dmdc.fit(X_tsc[state_columns], X_tsc[control_columns])
+
+        edmdid = EDMDControl(
+            dict_steps=[
+                ("id", TSCIdentity()),
+            ],
+            include_id_state=False,
+        )
+        edmdid.fit(X_tsc[state_columns], X_tsc[control_columns])
+
+        expected = dmdc.predict(X=ic, U=control_input)
+        actual = edmdid.predict(X=ic, U=control_input)
+
+        pdtest.assert_frame_equal(expected, actual)
+
+    def test_edmdcontrol_reconstruct(self):
+        state_columns = ["x", "xdot", "theta", "thetadot"]
+        control_columns = ["u"]
+        X_tsc = self._setup_inverted_pendulum()
+
+        dmdc = DMDControl()
+
+        edmdid = EDMDControl(
+            dict_steps=[
+                ("id", TSCIdentity()),
+            ],
+            include_id_state=False,
+        )
+
+        expected = dmdc.fit_predict(X_tsc[state_columns], U=X_tsc[control_columns])
+
+        actual = edmdid.fit_predict(X_tsc[state_columns], U=X_tsc[control_columns])
+
+        pdtest.assert_frame_equal(expected, actual)
 
 
 class EDMDPredictionTest(unittest.TestCase):

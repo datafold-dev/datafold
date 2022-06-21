@@ -76,7 +76,7 @@ from sklearn.utils import _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
 from datafold._decorators import warn_experimental_class
-from datafold.dynfold import DMDBase, DMDFull
+from datafold.dynfold import DMDBase, DMDControl, DMDFull, gDMDAffine
 from datafold.dynfold.base import (
     InitialConditionType,
     TimePredictType,
@@ -88,6 +88,7 @@ from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCK
 from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
+    if1dim_rowvec,
     projection_matrix_from_features,
 )
 
@@ -365,6 +366,12 @@ class EDMD(
         # Note: this returns the number of features by the dictionary transformation,
         # NOT from a EDMD prediction
         return self._dmd_model.n_features_in_
+
+    @property
+    def feature_names_out_(self):
+        # Note: this returns the feature names of the dictionary
+        # transformation NOT from a EDMD prediction (see feature_names_pred_)
+        return self._dmd_model.feature_names_in_
 
     @property
     def feature_names_pred_(self):
@@ -2058,3 +2065,330 @@ class EDMDPostObservable(object):  # pragma: no cover
         )
 
         return self.final_estimator_
+
+
+class EDMDControl(
+    TSCTransformerMixin,
+    TSCPredictMixin,
+):
+    r"""Adapt :class:`EDMD` to controlled systems.
+
+    This class provides a wrapper around :class:`EDMD` which allows usage of
+    the main functionality (transform, fit, predict). It approximates Koopman
+    operator for a controlled system from time series collection data
+    (:py:class:`.TSCDataFrame`), using a finite function basis to represent the
+    state. The underlying DMD model is restricted to :class:`DMDControl`.
+
+    ...
+
+    Parameters
+    ----------
+    dict_steps : List[Tuple[str, object]]
+        List with `(string_identifier, model)` of models to transform the data. The
+        list defines the transformation pipeline and order of execution. All models in
+        the list must be able to accept :class:`.TSCDataFrame` as input in `fit` and
+        output in `transform`.
+
+    dmd_model: Union[DMDControl, gDMDAffine]
+        The class to use for evaluating the Dynamic Mode Decomposition given the lifting.
+        :py:class:`DMDControl` is flowmap Koopman operator representation of
+        :math:`x^+ = Ax + Bu`.
+        :py:class:`gDMDAffine` is differential Koopman generator representation of
+        :math:\dot{x} = Ax + Bux`.
+
+    include_id_state
+        If True, the original time series data are added to the EDMD-dictionary. The
+        mapping from the EDMD-dictionary states back to the full-state is then only a
+        projection and the cost of an increased EDMD-dictionary dimension.
+
+    **kwargs
+        passed to :py:class:`EDMD`
+
+
+    Attributes
+    ----------
+    sys_matrix : np.ndarray
+        Koopman approximation of the lifted state matrix
+
+    control_matrix : np.ndarray
+        Koopman approximation of the lifted control matrix
+
+    See Also
+    --------
+
+    :py:class:`EDMD`
+    :py:class:`DMDControl`
+
+    """
+
+    def __init__(
+        self,
+        dict_steps: List[Tuple[str, object]],
+        dmd_model: Optional[Union[DMDControl, gDMDAffine]] = None,
+        include_id_state: bool = True,
+        **kwargs,
+    ):
+        self.dict_steps = dict_steps
+        self._dmd_model = dmd_model if dmd_model is not None else DMDControl()
+        self.include_id_state = include_id_state
+        self._edmd = EDMD(
+            self.dict_steps,
+            include_id_state=include_id_state,
+            use_transform_inverse=False,
+            **kwargs,
+        )
+
+    def transform(self, X: TSCDataFrame) -> TSCDataFrame:
+        """Perform dictionary transformations on time series.
+
+        Parameters
+        ----------
+        X : TSCDataFrame, pandas.DataFrame
+           Time series to transform. Must fulfill the input requirements of
+           first step of the pipeline.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame
+            The transformed time series.
+        """
+        return self._edmd.transform(X)
+
+    def inverse_transform(self, X: TransformType) -> TransformType:
+        """Perform inverse dictionary transformations on dictionary time series.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame
+            Time series to map back to the full-state time series.
+
+        Returns
+        -------
+        TSCDataFrame
+            full-state time series
+        """
+        return self._edmd.inverse_transform(X)
+
+    @property
+    def feature_names_in_(self):  # formerly state_columns
+        return self._edmd.feature_names_in_
+
+    def fit(
+        self,
+        X: TimePredictType,
+        U: Optional[TimePredictType] = None,
+        y=None,
+        **fit_params,
+    ) -> "EDMDControl":
+        """Compute Koopman approximation of lifted state and control matrices
+
+        Parameters
+        ----------
+        X : TSCDataFrame
+            State input data
+
+        U : TSCDataFrame
+            Control input data
+
+        **fit_params: Dict[str, object]
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``. To add parameters for the set DMD model use
+            ``s=dmd``, e.g. ``dmd__param``.
+
+        Returns
+        -------
+        self
+        """
+        self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            tsc_kwargs={"ensure_const_delta_time": True},
+        )
+        fit_params = self._edmd._check_fit_params(**fit_params or {})
+        dmd_fit_params = fit_params.pop("dmd", {})
+        _ = fit_params.pop("edmd", None)
+        Xlift = self._edmd._fit(X, **fit_params)
+        self.n_samples_ic_ = self._edmd._compute_n_samples_ic(X, Xlift)
+
+        if self._edmd.include_id_state:
+            Xlift = self._edmd._attach_id_state(X=X, X_dict=Xlift)
+        self._edmd._inverse_map = self._edmd._compute_inverse_map(X=X, X_dict=Xlift)
+
+        Ulift = TSCDataFrame(index=Xlift.index)
+        if not (U is None):
+            cols = U.columns if isinstance(U, pd.DataFrame) else range(U.shape[1])
+            Ulift[cols] = U  # do not apply dictionary, only trim for delay transforms
+        self._dmd_model.fit(Xlift, Ulift, **dmd_fit_params)
+        self.sys_matrix = self._dmd_model.sys_matrix_
+        self.control_matrix = self._dmd_model.control_matrix_
+        return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        time_values: Optional[np.ndarray] = None,
+        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
+        check_inputs: bool = True,
+        lifted_state: bool = False,
+        **predict_params,
+    ) -> TSCDataFrame:
+        """Predict time series data for each initial condition at
+        specified time values given the specified control input.
+
+        Parameters
+        ----------
+        X : InitialConditionType
+            Single initial condition of shape `(n_features,)` or multiple initial
+            conditions of shape `(n_features, n_initial_conditions)`.
+
+        time_values : np.ndarray
+            Time series at which to evaluate the system. Must be equally spaced
+            and use the same timestep as the training data. If U is
+            a TSCDataFrame time_values can be skipped and inferred from the index
+
+        U : np.ndarray | TSCDataFrame
+            The control input at the provided time values with shape
+            `(n_timesteps, n_control_dimensions)`
+
+        check_inputs : bool, optional, default True
+            Allows skipping input checks and assignments to improve performance.
+
+            .. warning::
+                Use with caution - May result in silent errors.
+
+        lifted_state : bool, optional, default False
+            If true, the output includes the predictions for the lifting dimension
+
+        Returns
+        -------
+        TSCDataFrame
+        """
+        check_is_fitted(self, ["sys_matrix", "control_matrix"])
+        if isinstance(X, np.ndarray):
+            X = if1dim_rowvec(X)
+            X = InitialCondition.from_array(
+                X, columns=self._dmd_model.feature_names_in_
+            )
+
+        X0lift = self._edmd.transform(X)
+        Xlift_tsc = self._dmd_model.predict(
+            X0lift,
+            time_values=time_values,
+            U=U,
+            check_inputs=check_inputs,
+            **predict_params,
+        )
+        if lifted_state:
+            return Xlift_tsc
+        X_tsc = self.inverse_transform(Xlift_tsc)
+        return X_tsc
+
+    def reconstruct(
+        self, X: TSCDataFrame, qois=None, U: Optional[TSCDataFrame] = None, *kwargs
+    ) -> TSCDataFrame:
+        """Reconstruct existing time series collection.
+
+        Internal steps to reconstruct a time series collection:
+
+        1. Extract the initial conditions from each time series in the collection.
+        2. Predict the remaining states of each time series with the built EDMD model
+           at the same time values.
+
+        Parameters
+        ----------
+        X
+            The time series states to reconstruct.
+
+        U
+            The time series control input to reconstruct.
+
+        qois
+            ignored
+
+        Returns
+        -------
+        TSCDataFrame
+            Reconstructed time series collection.
+        """
+        check_is_fitted(self, ["sys_matrix", "control_matrix"])
+        self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            tsc_kwargs={"ensure_const_delta_time": True},
+        )
+        X_reconstruct = []
+        for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
+            X, n_samples_ic=self.n_samples_ic_
+        ):
+            X_est_ts = self.predict(
+                X_ic,
+                time_values=time_values,
+                U=U
+                if U is None
+                else U[X.index.get_level_values("time") >= time_values[0]],
+            )
+            X_reconstruct.append(X_est_ts)
+
+        X_reconstruct = pd.concat(X_reconstruct, axis=0)
+        assert isinstance(X_reconstruct, TSCDataFrame)
+
+        return X_reconstruct
+
+    def fit_predict(
+        self,
+        X: TSCDataFrame,
+        y=None,
+        U: Optional[TSCDataFrame] = None,
+        **fit_params,
+    ):
+        """Fit the model and reconstruct the training data.
+
+        Parameters
+        ----------
+        X
+            Training time series state data. Must fulfill input requirements of first
+            `dict_step` in the EDMD-dictionary pipeline.
+
+        U
+            Time series control input data for both training and prediction. Must fulfill
+            input requirements of first `dict_step` in the EDMD-dictionary pipeline.
+
+        **fit_params: Dict[str, object]
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``.
+
+        Returns
+        -------
+        TSCDataFrame
+            Reconstructed time series collection.
+        """
+        return self.fit(X=X, U=U, y=y, **fit_params).reconstruct(X=X, U=U)
+
+    def fit_transform(
+        self, X: TSCDataFrame, y=None, U: Optional[TSCDataFrame] = None, **fit_params
+    ):
+        """Fit the model and return the EDMD-dictionary time series.
+
+        Parameters
+        ----------
+        X
+            The time series states to reconstruct.
+        U
+            The time series control input to reconstruct.
+
+        y: None
+            ignored
+
+        **fit_params: Dict[str, object]
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``.
+
+        Returns
+        -------
+        TSCDataFrame
+             EDMD-dictionary time series data.
+        """
+        return self.fit(X=X, U=U, y=y, **fit_params).transform(X)

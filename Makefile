@@ -149,6 +149,7 @@ ifeq ($(OS),Linux)
 ifeq ($(IS_DOCKER),) # no docker
 	sudo apt install $(_DOCDEPS)
 else # in docker "sudo" is not available and everything is executed with root
+	apt-get update && \
 	apt-get -y install $(_DOCDEPS)
 endif
 else # OS = Windows

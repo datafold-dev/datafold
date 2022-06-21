@@ -63,7 +63,7 @@ Modules
     :skip: List,NotFittedError,TSCDataFrame,TSCMetric,TSCScoring,TimePredictType,TransformerMixin,Tuple,TSCException,InitialCondition,BaseEstimator
 
 .. automodapi:: datafold.pcfold.distance
-    :skip: NearestNeighbors,cdist,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec,is_integer,deepcopy,KNeighborsTransformer
+    :skip: NearestNeighbors,cdist,check_scalar,if1dim_colvec,pairwise_distances,pdist,squareform,Sequence,Type,BallTree,if1dim_rowvec,is_integer,deepcopy,KNeighborsTransformer
 
 .. automodapi:: datafold.pcfold.eigsolver
     :skip: sort_eigenpairs,is_symmetric_matrix,Tuple,Dict,is_matrix
