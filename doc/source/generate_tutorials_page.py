@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-import glob
+import json
 import os
 import pathlib
+import shutil
 import warnings
 
 import requests  # type: ignore
@@ -11,6 +12,8 @@ import requests  # type: ignore
 PATH2DOCSOURCE = pathlib.Path(__file__).parent.resolve()
 PATH2ROOT = PATH2DOCSOURCE.parent.parent
 PATH2TUTORIAL = PATH2ROOT.joinpath("tutorials")
+
+BASE_URL = "https://datafold-dev.gitlab.io/datafold"
 
 rst_text_before_tutorials_list = """This page contains tutorials and code snippets to
 showcase *datafold's* API. All tutorials can be viewed online below. If you want to
@@ -70,29 +73,87 @@ def get_nblink(filename):
     return filename_nblink
 
 
-def add_tutorial(filename, description, warning=None):
+class Tutorial:
+    def __init__(self, filename, description, **kwargs):
+        warning = kwargs.get("warning")
+        if warning is not None:
+            warning = warning.rstrip()
+
+        self.filename = filename
+        self.description = description.rstrip()
+        self.warning = warning
+        self.archive = kwargs.get("archive", False)
+
+        assert self.fullpath
+
+    @property
+    def fullpath(self):
+        return os.path.join(PATH2TUTORIAL, self.filename)
+
+    @property
+    def relpath(self):
+        return os.path.relpath(self.fullpath, ".")
+
+    @property
+    def nblink_filename(self):
+        return get_nblink(self.filename)
+
+    @property
+    def web_link(self):
+        nblink_filename = self.nblink_filename
+        return f"{BASE_URL}/{nblink_filename}.html"
+
+    @property
+    def download_link(self):
+        filename = self.filename
+        name = self.name
+
+        if self.archive:
+            return (
+                "https://gitlab.com/datafold-dev/datafold/-/raw/master/"
+                f"tutorial-{name}.zip?path=tutorials/{name}/"
+            )
+        else:
+            return (
+                f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
+                f"tutorials/{filename}?inline=false"
+            )
+
+    @property
+    def download_path(self):
+        if self.archive:
+            return self.archive_path
+        else:
+            return self.relpath
+
+    @property
+    def nblink(self):
+        return get_nblink(self.filename)
+
+    @property
+    def name(self):
+        return os.path.splitext(os.path.basename(self.filename))[0]
+
+    @property
+    def archive_path(self):
+        if self.archive:
+            return f"{self.name}.zip"
+        return None
+
+
+def add_tutorial(filename, description, warning=None, archive=False):
     assert filename not in DESCRIPTIVE_TUTORIALS
 
-    if not os.path.exists(os.path.join(PATH2TUTORIAL, filename)):
+    tutorial = Tutorial(filename, description, warning=warning, archive=archive)
+    DESCRIPTIVE_TUTORIALS[filename] = tutorial
+
+    fullpath = tutorial.fullpath
+    if not os.path.exists(fullpath):
         raise FileNotFoundError(
             f"The filepath {os.path.join(PATH2TUTORIAL, filename)} does not exist."
         )
 
-    download_link = (
-        f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
-        f"tutorials/{filename}?inline=false"
-    )
-
-    nblink_filename = get_nblink(filename)
-    web_link = f"https://datafold-dev.gitlab.io/datafold/{nblink_filename}.html"
-
-    DESCRIPTIVE_TUTORIALS[filename] = dict(
-        description=description.rstrip(),
-        download_link=download_link.rstrip(),
-        web_link=web_link.rstrip(),
-        warning=warning.rstrip() if isinstance(warning, str) else None,
-    )
-
+    download_link = tutorial.download_link
     _req_download_file = requests.head(download_link)
     if _req_download_file.status_code != 200:
         warnings.warn(
@@ -100,6 +161,7 @@ def add_tutorial(filename, description, warning=None):
             f"the tutorial will be published soon and that the link is correct."
         )
 
+    web_link = tutorial.web_link
     _req_weblink_doc = requests.head(web_link)
     if _req_weblink_doc.status_code != 200:
         print(
@@ -108,107 +170,139 @@ def add_tutorial(filename, description, warning=None):
         )
 
 
+class TutorialStringBuilder:
+    # fmt: off
+    _templates = {
+        "docs": {
+            "download":
+                "#. :doc:`{filename_nblink}` (:download:`download <{download_path}>`)\n",
+            "warning":
+                "\n\n"
+                "{INDENT}.. warning::\n"
+                "{INDENT}{INDENT}{warning}\n",
+            "description":
+                "{INDENT}{description}",
+        },
+        "readme": {
+            # "filename (download_link, doc_link)" in readme
+            "download":
+                "* `{filename}` (`download <{download_link}>`__ , `doc <{web_link}>`__)\n",
+            "warning":
+                "\n\n"
+                "{INDENT}**Warning**\n"
+                "{INDENT}{INDENT}{warning}\n",
+            "description":
+                "{INDENT}{description}",
+        },
+    }
+    # fmt: on
+
+    @classmethod
+    def build(cls, target, tutorial: Tutorial):
+        if target not in cls._templates:
+            raise ValueError(f"'target={target}' not known")
+
+        templates = cls._templates[target]
+
+        subs = {
+            "INDENT": INDENT,
+            "web_link": tutorial.web_link,
+            "filename_nblink": tutorial.nblink,
+            "download_link": tutorial.download_link,
+            "download_path": tutorial.download_path,
+            "filename": tutorial.filename,
+            "description": tutorial.description,
+        }
+
+        s = ""
+        s += templates["download"]
+        s += templates["description"]
+        if tutorial.warning is not None:
+            subs["warning"] = tutorial.warning
+            s += templates["warning"]
+        s += "\n"
+
+        return s.format(**subs)
+
+
 def get_tutorial_text_doc(filename, target):
-
-    filename_nblink = get_nblink(filename)
-    _dict = DESCRIPTIVE_TUTORIALS[filename]
-
-    # TODO: make more readable code by using string replacements
-    if target == "docs":
-        # "page_nblink (download_link)" in docs
-        _str = (
-            f"#. :doc:`{filename_nblink}` (`download <{_dict['download_link']}>`__)\n"
-        )
-        _str += f"{INDENT}{_dict['description']}"
-
-        if _dict["warning"] is not None:
-            _str += "\n\n"
-            _str += f"{INDENT}.. warning::\n"
-            _str += f"{INDENT}{INDENT}{_dict['warning']}\n"
-
-    elif target == "readme":
-        # "filename (download_link, doc_link)" in readme
-        _str = (
-            f"* `{filename}` (`download <{_dict['download_link']}>`__, "
-            f"`web <{_dict['web_link']}>`__)\n"
-        )
-        _str += f"{INDENT}{_dict['description']}"
-
-        if _dict["warning"] is not None:
-            _str += "\n\n"
-            _str += f"{INDENT}**Warning**\n"
-            _str += f"{INDENT}{INDENT}{_dict['warning']}\n"
-    else:
-        raise ValueError(f"'target={target}' not known")
-
-    _str += "\n"
-    return _str
+    tutorial = DESCRIPTIVE_TUTORIALS[filename]
+    return TutorialStringBuilder.build(target, tutorial)
 
 
-add_tutorial(
-    "01_basic_datastructures.ipynb",
-    "We introduce *datafold*'s basic data structures for time series collection data and "
-    "kernel-based algorithms. They are both used internally in model implementations and "
-    "for input/output.",
-)
+def init_tutorials():
+    add_tutorial(
+        "01_basic_datastructures.ipynb",
+        "We introduce *datafold*'s basic data structures for time series collection data and "
+        "kernel-based algorithms. They are both used internally in model implementations and "
+        "for input/output.",
+    )
 
-add_tutorial(
-    "02_basic_pcm_subsampling.ipynb",
-    "We show how the ``PCManifold`` data structure can be used to subsample a "
-    "manifold point cloud uniformly.",
-    warning="The tutorial generates a large dataset with 10 Mio. samples by default. "
-    "This may have to be reduced, depending on the available computer memory.",
-)
+    add_tutorial(
+        "02_basic_pcm_subsampling.ipynb",
+        "We show how the ``PCManifold`` data structure can be used to subsample a "
+        "manifold point cloud uniformly.",
+        warning="The tutorial generates a large dataset with 10 Mio. samples by default. "
+        "This may have to be reduced, depending on the available computer memory.",
+    )
 
-add_tutorial(
-    "03_basic_dmap_scurve.ipynb",
-    "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
-    "S-curved point cloud manifold. We also select the best combination of intrinsic "
-    "parameters automatically with an optimization routine.",
-)
+    add_tutorial(
+        "03_basic_dmap_scurve.ipynb",
+        "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
+        "S-curved point cloud manifold. We also select the best combination of intrinsic "
+        "parameters automatically with an optimization routine.",
+    )
 
-add_tutorial(
-    "04_basic_dmap_digitclustering.ipynb",
-    "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
-    "perform an out-of-sample embedding. This example is taken from the scikit-learn "
-    "project and can be compared against other manifold learning algorithms.",
-)
+    add_tutorial(
+        "04_basic_dmap_digitclustering.ipynb",
+        "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
+        "perform an out-of-sample embedding. This example is taken from the scikit-learn "
+        "project and can be compared against other manifold learning algorithms.",
+    )
 
-add_tutorial(
-    filename="05_basic_gh_oos.ipynb",
-    description="We showcase the out-of-sample extension for manifold learning "
-    "models such as the ``DiffusionMaps`` model. For this we use the "
-    "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
-    warning="The tutorial requires also the Python package "
-    "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ "
-    "which does not install with *datafold*.",
-)
+    add_tutorial(
+        filename="05_basic_gh_oos.ipynb",
+        description="We showcase the out-of-sample extension for manifold learning "
+        "models such as the ``DiffusionMaps`` model. For this we use the "
+        "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
+        warning="The tutorial requires also the Python package "
+        "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ "
+        "which does not install with *datafold*.",
+    )
 
-add_tutorial(
-    "06_basic_edmd_limitcycle.ipynb",
-    "We generate data from a dynamical system (Hopf system) and compare different "
-    "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
-    "out-of-sample predictions with time ranges exceeding the time horizon of the "
-    "training data.",
-)
+    add_tutorial(
+        "06_basic_edmd_limitcycle.ipynb",
+        "We generate data from a dynamical system (Hopf system) and compare different "
+        "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
+        "out-of-sample predictions with time ranges exceeding the time horizon of the "
+        "training data.",
+    )
 
-add_tutorial(
-    filename="07_basic_jsf_common_eigensystem.ipynb",
-    description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
-    "from multimodal data. Also, we introduce ``JsfDataset``, which is used to make "
-    "``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer "
-    "APIs. Finally, we demonstrate the out-of-sample extension.",
-    warning="The code for jointly smooth functions inside this notebook is experimental.",
-)
+    add_tutorial(
+        filename="07_basic_jsf_common_eigensystem.ipynb",
+        description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
+        "from multimodal data. Also, we introduce ``JsfDataset``, which is used to make "
+        "``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer "
+        "APIs. Finally, we demonstrate the out-of-sample extension.",
+        warning="The code for jointly smooth functions inside this notebook is experimental.",
+    )
 
-add_tutorial(
-    "08_basic_roseland_scurve_digits.ipynb",
-    "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
-    "S-curved point cloud manifold and to cluster data from handwritten digit. "
-    "We also select the best combination of intrinsic parameters automatically "
-    "with an optimization routine and demonstrate how to do include this in an "
-    "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
-)
+    add_tutorial(
+        "08_basic_roseland_scurve_digits.ipynb",
+        "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
+        "S-curved point cloud manifold and to cluster data from handwritten digit. "
+        "We also select the best combination of intrinsic parameters automatically "
+        "with an optimization routine and demonstrate how to do include this in an "
+        "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
+    )
+
+    add_tutorial(
+        "10_koopman_mpc/10_koopman_mpc.ipynb",
+        "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
+        "operator. We apply MPC using an EDMD predictor to a toy model: the "
+        "inverted pendulum, sometimes referred to as a cartpole.",
+        archive=True,
+    )
 
 
 def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
@@ -222,24 +316,28 @@ def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
 
 
 def generate_nblink_files():
-
-    nblink_content = """
-    {
-    "path": "??INSERT??"
-    }
-    """
-
-    abs_path_tutorial_files = sorted(glob.glob(os.path.join(PATH2TUTORIAL, "*.ipynb")))
-
-    for filepath in abs_path_tutorial_files:
+    for tutorial in DESCRIPTIVE_TUTORIALS.values():
+        filepath = tutorial.fullpath
         filename_nblink = get_nblink(filepath)
 
-        with open(f"{filename_nblink}.nblink", "w") as nblinkfile:
-            nblinkfile.write(
-                nblink_content.replace(
-                    "??INSERT??", os.path.normpath(filepath).replace("\\", "/")
-                )
-            )
+        data = {"path": os.path.normpath(filepath).replace("\\", "/")}
+        fname = f"{filename_nblink}.nblink"
+        with open(fname, "w") as nblinkfile:
+            json.dump(data, nblinkfile)
+
+
+def generate_tutorial_archives():
+    for tutorial in DESCRIPTIVE_TUTORIALS.values():
+        if tutorial.archive is True:
+            path = os.path.dirname(tutorial.fullpath)
+            archive_path = tutorial.archive_path
+            archive_name = os.path.splitext(os.path.basename(archive_path))[0]
+
+            root_dir = os.path.dirname(path)
+            base_dir = os.path.basename(path)
+
+            archive_path_ = shutil.make_archive(archive_name, "zip", root_dir, base_dir)
+            assert archive_path_ == os.path.abspath(archive_path)
 
 
 def generate_docs_str(target):
@@ -278,13 +376,11 @@ def generate_docs_str(target):
     tutorial_page_content += "\n"
     tutorial_page_content += rst_text_after_tutorials_list
 
-    abs_path_tutorial_files = sorted(glob.glob(os.path.join(PATH2TUTORIAL, "*.ipynb")))
-
     tutorials_list = "\n"  # generate string to insert in tutorial_page_content
     files_list = "\n"  # generate string to insert in tutorial_page_content
 
-    for filepath in abs_path_tutorial_files:
-        filename = os.path.basename(filepath)
+    for filename, tutorial in DESCRIPTIVE_TUTORIALS.items():
+        filepath = tutorial.fullpath
         filename_nblink = get_nblink(filepath)
 
         files_list += f"{INDENT}{filename_nblink}\n"
@@ -301,6 +397,8 @@ def generate_docs_str(target):
 
 
 def setup_tutorials():
+    # Initialize list of tutorials
+    init_tutorials()
 
     # PART 1: Online documentation
     tutorial_index_filename = "tutorial_index.rst"
@@ -310,6 +408,9 @@ def setup_tutorials():
 
     # generate links to Jupyter files
     generate_nblink_files()
+
+    # generate archives for certain jupyter notebooks
+    generate_tutorial_archives()
 
     # generate and write content to rst file
     tutorial_page_content_docs = generate_docs_str(target="docs")

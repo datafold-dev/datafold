@@ -9,13 +9,19 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 import scipy.linalg
+from scipy.integrate import solve_ivp
+from scipy.interpolate import interp1d
 
 from datafold.dynfold import TSCTakensEmbedding
 from datafold.dynfold.dmd import (
+    ControlledAffineDynamicalSystem,
+    ControlledLinearDynamicalSystem,
+    DMDControl,
     DMDEco,
     DMDFull,
     LinearDynamicalSystem,
     PyDMDWrapper,
+    gDMDAffine,
     gDMDFull,
 )
 from datafold.pcfold import TSCDataFrame
@@ -254,6 +260,216 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         # is a TSCDataFrame, because more than two time values are a time series
         self.assertIsInstance(actual, TSCDataFrame)
+
+
+class ControlledLinearDynamicalSystemTest(unittest.TestCase):
+    def setUp(self) -> None:
+        gen = np.random.default_rng(42)
+        self.state_size = 4
+        self.input_size = 2
+        self.n_timesteps = 6
+        self.A = gen.uniform(size=(self.state_size, self.state_size))
+        self.x0 = gen.uniform(size=self.state_size)
+        self.B = gen.uniform(size=(self.state_size, self.input_size))
+        self.u = gen.uniform(size=(self.n_timesteps, self.input_size))
+        self.t = np.linspace(0, self.n_timesteps - 1, self.n_timesteps)
+        self.names = ["x" + str(i + 1) for i in range(self.state_size)]
+
+        self.expected = np.zeros((self.n_timesteps, self.state_size))
+        x = self.x0
+        for idx, time in enumerate(self.t):
+            self.expected[idx, :] = x
+            x = self.A @ x + self.B @ self.u[idx, :]
+        # do not write state past last since t starts at 0
+
+    def test_controlled_system(self):
+        actual = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(self.A, self.B)
+            .evolve_system(self.x0, self.u)
+        )
+
+        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)
+
+    def test_controlled_vs_linear(self):
+        controlled = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(self.A, self.B)
+            .evolve_system(self.x0, np.zeros(self.u.shape))
+        )
+        linear = (
+            LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+            .setup_matrix_system(self.A)
+            .evolve_system(self.x0, self.t, time_delta=self.t[1])
+        )
+
+        nptest.assert_allclose(
+            controlled.to_numpy(), linear.to_numpy(), atol=1e-8, rtol=1e-13
+        )
+
+    @unittest.skip(reason="Fractional timestep not implemented yet")
+    def test_integer_vs_fractional(self):
+        pass
+
+    def test_time_delta(self):
+        t = np.linspace(0, (self.n_timesteps - 1) / 2, self.n_timesteps)
+        dt = 0.5
+
+        actual = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(self.A, self.B)
+            .evolve_system(self.x0, self.u, t, time_delta=dt)
+        )
+
+        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)
+
+    def test_multi_initial_conditions(self):
+        x0 = np.array([self.x0, self.x0]).T
+        expected = np.vstack([self.expected, self.expected])
+        ts_ids = np.array((10, 20))
+
+        with self.assertRaises(ValueError):
+            actual = ControlledLinearDynamicalSystem().evolve_system(
+                x0, self.u, self.t, self.A, self.B, 1, ts_ids, self.names, True
+            )
+        u = np.stack([self.u, self.u])
+        actual = ControlledLinearDynamicalSystem().evolve_system(
+            x0, u, self.t, self.A, self.B, 1, ts_ids, self.names, False
+        )
+
+        nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-8, rtol=1e-13)
+        self.assertEqual(actual.n_timesteps, len(self.t))
+        self.assertEqual(actual.n_timeseries, 2)
+        self.assertEqual(actual.columns.tolist(), self.names)
+        nptest.assert_array_equal(actual.time_values(), self.t)
+
+    def test_feature_columns(self):
+
+        actual = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(self.A, self.B)
+            .evolve_system(self.x0, self.u, feature_names_out=self.names)
+        )
+
+        self.assertEqual(actual.columns.tolist(), self.names)
+
+        with self.assertRaises(ValueError):
+            (
+                ControlledLinearDynamicalSystem()
+                .setup_matrix_system(self.A, self.B)
+                .evolve_system(self.x0, self.u, feature_names_out=[1, 2, 3])
+            )
+
+    def test_return_types(self):
+        actual = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(self.A, self.B)
+            .evolve_system(self.x0, self.u[:1], time_delta=1)
+        )
+
+        # Is a TSCDataFrame, also for single time steps
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertTrue(actual.has_degenerate())
+
+        actual = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(self.A, self.B)
+            .evolve_system(self.x0, self.u[:2])
+        )
+
+        # is a TSCDataFrame, because more than two time values are a time series
+        self.assertIsInstance(actual, TSCDataFrame)
+
+    def test_dimension_mismatch(self):
+        # non-square system matrix
+        with self.assertRaises(ValueError):
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((3, 4)), np.zeros((4, 4))
+            )
+
+        # mismatch between system and input matrix
+        with self.assertRaises(ValueError):
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((3, 4))
+            )
+
+        # wrong initial condition
+        with self.assertRaises(ValueError):
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(3), np.zeros((4, 3)))
+
+        # wrong control input
+        with self.assertRaises(ValueError):
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(4), np.zeros((3, 4)))
+
+        # wrong time values
+        with self.assertRaises(ValueError):
+            ControlledLinearDynamicalSystem().setup_matrix_system(
+                np.zeros((4, 4)), np.zeros((4, 3))
+            ).evolve_system(np.zeros(3), np.zeros((4, 3)), np.zeros(3))
+
+
+class ControlledAffineDynamicalSystemTest(unittest.TestCase):
+    def setUp(self) -> None:
+        gen = np.random.default_rng(42)
+        self.state_size = 4
+        self.input_size = 2
+        self.n_timesteps = 6
+        self.A = gen.uniform(-0.5, 0.5, size=(self.state_size, self.state_size))
+        np.fill_diagonal(self.A, gen.uniform(-1.0, -0.5, size=self.state_size))
+        self.x0 = gen.uniform(-1.0, 1.0, size=self.state_size)
+        Bi = [
+            gen.uniform(-0.5, 0.5, size=(self.state_size, self.state_size))
+            for i in range(self.input_size)
+        ]
+        self.u = gen.uniform(-1.0, 1.0, size=(self.n_timesteps, self.input_size))
+        self.t = np.linspace(0, self.n_timesteps - 1, self.n_timesteps)
+        self.names = ["x" + str(i + 1) for i in range(self.state_size)]
+        u_interp = interp1d(self.t, self.u, axis=0)
+
+        def affine_sys_func(t, x):
+            u = u_interp(t)
+            B = np.zeros((self.state_size, self.state_size))
+            for i in range(self.input_size):
+                B += Bi[i] * u[i]
+            x = self.A @ x + B @ x
+            return x
+
+        ivp_solution = solve_ivp(
+            affine_sys_func, t_span=(self.t[0], self.t[-1]), y0=self.x0, t_eval=self.t
+        )
+        self.expected = ivp_solution.y.T
+        self.Bi = np.stack(Bi, 2)
+
+    def test_affine_system(self):
+        actual = (
+            ControlledAffineDynamicalSystem()
+            .setup_matrix_system(self.A, self.Bi)
+            .evolve_system(self.x0, self.u)
+        )
+
+        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=0.1, rtol=0.1)
+
+    def test_affine_vs_linear(self):
+
+        controlled = (
+            ControlledAffineDynamicalSystem()
+            .setup_matrix_system(self.A, self.Bi)
+            .evolve_system(self.x0, np.zeros(self.u.shape))
+        )
+        linear = (
+            LinearDynamicalSystem(sys_type="differential", sys_mode="matrix")
+            .setup_matrix_system(self.A)
+            .evolve_system(self.x0, self.t, time_delta=self.t[1])
+        )
+
+        # use high tolerance since RK numerical integration compared to matrix exponent
+        nptest.assert_allclose(
+            controlled.to_numpy(), linear.to_numpy(), rtol=1e-3, atol=1e-3
+        )
 
 
 class DMDTest(unittest.TestCase):
@@ -562,3 +778,277 @@ class DMDTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _values = time_values.copy()[np.newaxis, :]
             dmd.predict(predict_ic, _values)
+
+
+class DMDControlTest(unittest.TestCase):
+    def _create_harmonic_tsc(self, n_samples, dim):
+        x_eval = np.linspace(0, 2, n_samples)
+
+        col_stacks = []
+
+        counter = 1
+        for i in range(dim):
+            if np.mod(i, 2) == 0:
+                col_stacks.append(np.cos(x_eval * 2 * np.pi / counter))
+            else:
+                col_stacks.append(np.sin(x_eval * 2 * np.pi / counter))
+            counter += 1
+
+        data = pd.DataFrame(np.column_stack(col_stacks))
+        return TSCDataFrame.from_single_timeseries(data)
+
+    def _create_control_tsc(self, state_size, input_size, n_timesteps) -> None:
+        gen = np.random.default_rng(42)
+
+        A = gen.uniform(-1.0, 1.0, size=(state_size, state_size))
+        x0 = gen.uniform(size=state_size)
+        B = gen.uniform(-1.0, 1.0, size=(state_size, input_size))
+        u = gen.uniform(size=(n_timesteps, input_size))
+        names = ["x" + str(i + 1) for i in range(state_size)]
+
+        tsc_df = (
+            ControlledLinearDynamicalSystem()
+            .setup_matrix_system(A, B)
+            .evolve_system(x0, u, feature_names_out=names)
+        )
+
+        for i in range(input_size):
+            tsc_df["u" + str(i + 1)] = u[:, i]
+
+        return tsc_df
+
+    def test_dmd_control(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        n_predict = 5
+
+        tsc_df = self._create_control_tsc(state_size, input_size, n_timesteps)
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+
+        u = tsc_df[input_cols].iloc[-n_predict:]
+        t = tsc_df.index.get_level_values(1)[-n_predict:]
+        expected = tsc_df[state_cols].iloc[-n_predict:]
+
+        dmd = DMDControl().fit(expected, u)
+
+        actual = dmd.predict(expected.initial_states(), U=u, time_values=t)
+
+        pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
+
+    def test_dmd_control_free(self):
+        tsc_df = self._create_harmonic_tsc(100, 2)
+        tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
+        tsc_ic = tsc_df.initial_states()
+        dmd1 = DMDControl().fit(tsc_df)
+        dmd2 = DMDFull(sys_mode="matrix", approx_generator=False).fit(tsc_df)
+
+        first = dmd1.predict(
+            tsc_ic, time_values=np.arange(10), control_input=np.zeros((10, 0))
+        )
+
+        second = dmd2.predict(tsc_ic, time_values=np.arange(10))
+
+        pdtest.assert_frame_equal(first, second, rtol=1e-8, atol=1e-8)
+
+    def test_dmd_control_multiple(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+
+        tsc_df_single = self._create_control_tsc(state_size, input_size, n_timesteps)
+        df = pd.DataFrame(
+            tsc_df_single.values,
+            index=np.arange(n_timesteps) * 0.1,
+            columns=state_cols + input_cols,
+        )
+        tsc_df = TSCDataFrame.from_frame_list([df, df.copy(deep=True)])
+
+        dmd = DMDControl()
+        expected = tsc_df[state_cols]
+        u = tsc_df[input_cols]
+        actual = dmd.fit_predict(expected, U=u)
+
+        pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
+
+    def test_dmd_control_reconstruct(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+
+        original = self._create_control_tsc(state_size, input_size, n_timesteps)
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+
+        reconstructed = DMDControl().fit_predict(
+            X=original[state_cols],
+            U=original[input_cols],
+        )
+
+        pdtest.assert_frame_equal(
+            original[state_cols], reconstructed, check_exact=False
+        )
+
+
+class gDMDAffineTest(unittest.TestCase):
+    def _generate_system(self, state_size, input_size):
+        gen = np.random.default_rng(42)
+
+        A = gen.uniform(-0.5, 0.5, size=(state_size, state_size))
+        np.fill_diagonal(A, gen.uniform(-1.0, -0.5, size=state_size))
+        Bi = np.stack(
+            [
+                gen.uniform(-0.5, 0.5, size=(state_size, state_size))
+                for i in range(input_size)
+            ],
+            2,
+        )
+
+        return A, Bi
+
+    def _create_control_tsc(
+        self, state_size, n_timesteps, n_ic, input_size=2, random=False
+    ):
+        gen = np.random.default_rng(42)
+        dt = 0.1
+
+        A, Bi = self._generate_system(state_size, input_size)
+
+        x0 = gen.uniform(-1.0, 1.0, size=(state_size, n_ic))
+        x0 = np.hstack([x0, x0, x0, x0])
+        if random:
+            u = gen.uniform(-1.0, 1.0, size=(n_ic, n_timesteps, input_size))
+        else:
+            if input_size == 1:
+                u = np.concatenate(
+                    [
+                        np.ones((n_ic, n_timesteps, input_size)),
+                        -np.ones((n_ic, n_timesteps, input_size)),
+                    ],
+                    0,
+                )
+            elif input_size == 2:
+                u = np.concatenate(
+                    [
+                        np.ones((n_ic, n_timesteps, input_size)),
+                        -np.ones((n_ic, n_timesteps, input_size)),
+                        np.stack(
+                            [
+                                np.ones((n_ic, n_timesteps)),
+                                -np.ones((n_ic, n_timesteps)),
+                            ],
+                            2,
+                        ),
+                        np.stack(
+                            [
+                                -np.ones((n_ic, n_timesteps)),
+                                np.ones((n_ic, n_timesteps)),
+                            ],
+                            2,
+                        ),
+                    ],
+                    0,
+                )
+            else:
+                raise NotImplementedError("Only available for input size 1 and 2")
+
+        t = np.linspace(0, n_timesteps - 1, n_timesteps) * dt
+        names = ["x" + str(i + 1) for i in range(state_size)]
+
+        sys = ControlledAffineDynamicalSystem().setup_matrix_system(A, Bi)
+        tsc_df = sys.evolve_system(
+            x0, u, time_values=t, time_delta=0.1, feature_names_out=names
+        )
+
+        ureshaped = u.reshape((-1, input_size))
+        for i in range(input_size):
+            tsc_df["u" + str(i + 1)] = ureshaped[:, i]
+
+        return tsc_df, sys
+
+    def test_dmda_control_insample(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        n_ic = 5
+
+        tsc_df, sys = self._create_control_tsc(
+            state_size, n_timesteps, n_ic, input_size
+        )
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+        dmd = gDMDAffine()
+
+        expected = tsc_df[state_cols]
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
+
+        pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
+
+    def test_dmda_control_highorder(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        n_ic = 5
+
+        tsc_df, sys = self._create_control_tsc(
+            state_size, n_timesteps, n_ic, input_size
+        )
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+        dmd = gDMDAffine(diff_accuracy=6)
+
+        expected = tsc_df[state_cols]
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
+
+        pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
+
+    def test_dmda_control_outsample(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        n_ic = 5
+
+        tsc_df, sys = self._create_control_tsc(
+            state_size, n_timesteps, n_ic, input_size
+        )
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+        dmd = gDMDAffine().fit(tsc_df[state_cols], U=tsc_df[input_cols])
+
+        t = tsc_df.index.get_level_values(1)
+        t0 = t.min()
+        tf = t.max()
+        t = np.linspace(t0, tf * 1.1, 2 * n_timesteps)
+        u = np.vstack([np.sin(0.2 * np.pi * t), np.cos(0.3 * np.pi * t)]).T
+        x0 = np.random.default_rng(42).uniform(-1.0, 1.0, size=state_size)
+        expected = sys.evolve_system(x0, u, time_values=t, feature_names_out=state_cols)
+        actual = dmd.predict(expected.initial_states()[state_cols], U=u, time_values=t)
+
+        pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
+
+    def test_dmda_control_random(self):
+        state_size = 4
+        input_size = 2
+        n_timesteps = 50
+        n_ic = 20
+
+        tsc_df, sys = self._create_control_tsc(
+            state_size, n_timesteps, n_ic, input_size
+        )
+
+        state_cols = [f"x{i+1}" for i in range(state_size)]
+        input_cols = [f"u{i+1}" for i in range(input_size)]
+        dmd = gDMDAffine()
+
+        expected = tsc_df[state_cols]
+        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
+
+        pdtest.assert_frame_equal(actual, expected, rtol=0.01, atol=0.05)

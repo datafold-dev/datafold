@@ -35,3 +35,9 @@ public/
 *.mat
 *.pdf
 *.zip
+
+tags
+pyrightconfig.json
+
+venv
+.git
