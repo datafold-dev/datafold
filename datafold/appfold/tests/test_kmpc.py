@@ -1,14 +1,16 @@
 import unittest
+from unittest.mock import Mock
 
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 
-from datafold.appfold.edmd import EDMDControl
+from datafold.appfold.edmd import EDMD
 from datafold.appfold.kmpc import AffineKgMPC, LinearKMPC
 from datafold.dynfold.dmd import (
     ControlledAffineDynamicalSystem,
     ControlledLinearDynamicalSystem,
+    DMDControl,
     gDMDAffine,
 )
 from datafold.dynfold.transform import TSCIdentity
@@ -88,11 +90,10 @@ class LinearKMPCTest(unittest.TestCase):
             .setup_matrix_system(A, B)
             .evolve_system(x0, u)
         )
-        from unittest.mock import Mock
 
         edmdmock = Mock()
-        edmdmock.sys_matrix = A
-        edmdmock.control_matrix = B
+        edmdmock.dmd_model.sys_matrix_ = A
+        edmdmock.dmd_model.control_matrix_ = B
         edmdmock.feature_names_in_ = [f"x{i}" for i in range(state_size)]
         edmdmock.transform = lambda x: x
 
@@ -117,11 +118,12 @@ class LinearKMPCTest(unittest.TestCase):
     def test_kmpc_generate_control_signal(self):
         horizon = 100
 
-        edmdcontrol = EDMDControl(
+        edmdcontrol = EDMD(
             dict_steps=[
                 ("id", TSCIdentity()),
             ],
             include_id_state=False,
+            dmd_model=DMDControl(),
         ).fit(
             self.X[self._state_columns],
             self.X[self._control_columns],
@@ -167,7 +169,6 @@ class AffineKMPCTest(unittest.TestCase):
         gen = np.random.default_rng(seed)
 
         # Data structures
-
         Xlist = []
         Ulist = []
 
@@ -185,10 +186,16 @@ class AffineKMPCTest(unittest.TestCase):
                 num_steps=num_steps,
                 control_func=control_function,
             )
-            assert model.sol.success, (
-                f"Divergent solution for amplitude={control_amplitude}, "
-                f"frequency={control_frequency}"
-            )
+
+            try:
+                self.assertTrue(model.sol.success)
+            except AssertionError as e:
+                print(
+                    f"Divergent solution for amplitude={control_amplitude}, "
+                    f"frequency={control_frequency}"
+                )
+                raise e
+
             t = model.sol.t
             dfx = pd.DataFrame(data=trajectory.T, index=t, columns=self._state_columns)
             dfx["u"] = 0.0
@@ -196,16 +203,10 @@ class AffineKMPCTest(unittest.TestCase):
 
             control_input = control_function(t, trajectory)
             dfu = pd.DataFrame(data=control_input, index=t, columns=("u",))
-            for col in self._state_columns:
-                dfu[col] = 0.0
-            dfu = dfu[self._state_columns + self._control_columns]
             Ulist.append(dfu)
 
-            X_tsc = TSCDataFrame.from_frame_list(Xlist)[self._state_columns]
-            X_tsc[self._control_columns] = TSCDataFrame.from_frame_list(Ulist)[
-                self._control_columns
-            ]
-            X_tsc
+            X_tsc = TSCDataFrame.from_frame_list(Xlist)
+            X_tsc[self._control_columns] = TSCDataFrame.from_frame_list(Ulist)
 
             return X_tsc, t, control_input, dfx, dfu
 
@@ -217,7 +218,7 @@ class AffineKMPCTest(unittest.TestCase):
         A = gen.uniform(-0.4, 0.5, size=(state_size, state_size))
         np.fill_diagonal(A, gen.uniform(-0.6, -0.5, size=state_size))
         Bi = np.stack(
-            [gen.uniform(size=(state_size, state_size)) for i in range(input_size)],
+            [gen.uniform(size=(state_size, state_size)) for _ in range(input_size)],
             2,
         )
 
@@ -225,13 +226,11 @@ class AffineKMPCTest(unittest.TestCase):
         u = 0.5 + gen.uniform(-0.1, 0.1, size=(1, input_size))
         u = (u.T + np.sin(u.T + u.T * np.atleast_2d(t))).T
         sys = ControlledAffineDynamicalSystem().setup_matrix_system(A, Bi)
-        df = sys.evolve_system(x0, u, t)
-
-        from unittest.mock import Mock
+        expected = sys.evolve_system(x0, u, t)
 
         edmdmock = Mock()
-        edmdmock.sys_matrix = A
-        edmdmock.control_matrix = Bi
+        edmdmock.dmd_model.sys_matrix_ = A
+        edmdmock.dmd_model.control_matrix_ = Bi
         edmdmock.feature_names_in_ = [f"x{i}" for i in range(state_size)]
         edmdmock.transform = lambda x: x
 
@@ -242,9 +241,11 @@ class AffineKMPCTest(unittest.TestCase):
             cost_state=np.array([1] * state_size),
             cost_input=0,
         )
-        pred = kmpcperfect.generate_control_signal(x0, df)
-        dfpred = sys.evolve_system(x0, np.pad(pred, ((0, 1), (0, 0))), t)
-        nptest.assert_allclose(dfpred.values, df.values, rtol=0.1, atol=0.1)
+        pred = kmpcperfect.generate_control_signal(x0, expected)
+        actual = sys.evolve_system(x0, np.pad(pred, ((0, 1), (0, 0))), t)
+        nptest.assert_allclose(
+            actual.to_numpy(), expected.to_numpy(), rtol=0.1, atol=0.1
+        )
 
     def test_kgmpc_mock_edmd_1d(self):
         self._execute_mock_test(2, 1, 10, AffineKgMPC)
@@ -255,11 +256,11 @@ class AffineKMPCTest(unittest.TestCase):
     def test_kmpc_generate_control_signal(self):
         horizon = 100
 
-        edmdcontrol = EDMDControl(
-            dmd_model=gDMDAffine(),
+        edmdcontrol = EDMD(
             dict_steps=[
                 ("id", TSCIdentity()),
             ],
+            dmd_model=gDMDAffine(),
             include_id_state=False,
         ).fit(
             self.X[self._state_columns],
@@ -274,7 +275,9 @@ class AffineKMPCTest(unittest.TestCase):
             cost_input=1,
         )
 
-        reference = TSCDataFrame(self.dfx[self._state_columns].iloc[: horizon + 1])
+        reference = TSCDataFrame.from_frame_list(
+            [self.dfx[self._state_columns].iloc[: horizon + 1]]
+        )
         initial_conditions = InitialCondition.from_array(
             np.array([0, 0, np.pi, 0]), columns=["x", "xdot", "theta", "thetadot"]
         )
@@ -282,5 +285,5 @@ class AffineKMPCTest(unittest.TestCase):
             initial_conditions=initial_conditions, reference=reference
         )
 
-        assert U.any() is not None
-        assert U.shape == (horizon, len(self._control_columns))
+        self.assertTrue(U is not None)
+        self.assertEqual(U.shape, (horizon, len(self._control_columns)))

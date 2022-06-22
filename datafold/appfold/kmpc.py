@@ -7,7 +7,7 @@ from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
 
-from datafold.appfold import EDMDControl
+from datafold.appfold import EDMD
 from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec
 
@@ -97,7 +97,7 @@ class LinearKMPC:
 
     def __init__(
         self,
-        predictor: EDMDControl,
+        predictor: EDMD,
         horizon: int,
         state_bounds: np.ndarray,
         input_bounds: np.ndarray,
@@ -123,8 +123,8 @@ class LinearKMPC:
         self.cost_terminal = cost_terminal
         self.cost_input = cost_input
 
-        self.A = predictor.sys_matrix
-        self.B = predictor.control_matrix
+        self.A = predictor.dmd_model.sys_matrix_
+        self.B = predictor.dmd_model.control_matrix_
         try:
             self.lifted_state_size, self.input_size = self.B.shape
         except ValueError:
@@ -412,9 +412,9 @@ class LinearKMPC:
 class AffineKgMPC(object):
     def __init__(
         self,
-        predictor: EDMDControl,
+        predictor: EDMD,
         horizon: int,
-        input_bounds: np.array,
+        input_bounds: np.ndarray,
         cost_state: Optional[Union[float, np.ndarray]] = 1,
         cost_input: Optional[Union[float, np.ndarray]] = 1,
         interpolation="cubic",
@@ -472,8 +472,8 @@ class AffineKgMPC(object):
         self.horizon = horizon
 
         self.predictor = predictor
-        self.L = predictor.sys_matrix
-        self.B = predictor.control_matrix
+        self.L = predictor.dmd_model.sys_matrix_
+        self.B = predictor.dmd_model.control_matrix_
         try:
             self.lifted_state_size, _, self.input_size = self.B.shape
         except ValueError:

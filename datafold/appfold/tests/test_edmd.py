@@ -17,7 +17,7 @@ from sklearn.compose import make_column_selector
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
-from datafold.appfold.edmd import EDMD, EDMDCV, EDMDControl, EDMDWindowPrediction
+from datafold.appfold.edmd import EDMD, EDMDCV, EDMDWindowPrediction
 from datafold.dynfold import DMDControl, DMDFull, TSCColumnTransformer, gDMDFull
 from datafold.dynfold.dmd import OnlineDMD, StreamingDMD
 from datafold.dynfold.transform import (
@@ -999,8 +999,8 @@ class EDMDTest(unittest.TestCase):
             ("poly", TSCPolynomialFeatures(degree=n_degrees, include_first_order=True)),
         ]
 
-        actual = EDMDControl(
-            dict_steps=dict_steps, include_id_state=False
+        actual = EDMD(
+            dict_steps=dict_steps, include_id_state=False, dmd_model=DMDControl()
         ).fit_transform(X_tsc[state_columns], U=X_tsc[control_columns])
         n_intermediate = len(state_columns) * (n_delays + 1)
         n_final = comb(n_intermediate, n_degrees) + 2 * n_intermediate
@@ -1018,11 +1018,12 @@ class EDMDTest(unittest.TestCase):
         dmdc = DMDControl()
         dmdc.fit(X_tsc[state_columns], X_tsc[control_columns])
 
-        edmdid = EDMDControl(
+        edmdid = EDMD(
             dict_steps=[
                 ("id", TSCIdentity()),
             ],
             include_id_state=False,
+            dmd_model=DMDControl(),
         )
         edmdid.fit(X_tsc[state_columns], X_tsc[control_columns])
 
@@ -1038,17 +1039,16 @@ class EDMDTest(unittest.TestCase):
 
         dmdc = DMDControl()
 
-        edmdid = EDMDControl(
+        edmdid = EDMD(
             dict_steps=[
                 ("id", TSCIdentity()),
             ],
             include_id_state=False,
+            dmd_model=DMDControl(),
         )
 
         expected = dmdc.fit_predict(X_tsc[state_columns], U=X_tsc[control_columns])
-
         actual = edmdid.fit_predict(X_tsc[state_columns], U=X_tsc[control_columns])
-
         pdtest.assert_frame_equal(expected, actual)
 
 

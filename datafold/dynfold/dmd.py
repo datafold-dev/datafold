@@ -914,6 +914,7 @@ class DMDBase(
     def predict(
         self,
         X: InitialConditionType,
+        U=None,  # TODO: docu as ignored
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:
@@ -965,8 +966,8 @@ class DMDBase(
 
         self._validate_datafold_data(X)
 
-        X, time_values = self._validate_features_and_time_values(
-            X=X, time_values=time_values
+        X, _, time_values = self._validate_features_and_time_values(
+            X=X, U=None, time_values=time_values
         )
 
         post_map, user_set_modes, feature_columns = self._read_predict_params(
@@ -987,6 +988,7 @@ class DMDBase(
     def reconstruct(
         self,
         X: TSCDataFrame,
+        U=None,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct time series collection.
@@ -1031,7 +1033,9 @@ class DMDBase(
 
         return pd.concat(X_reconstruct_ts, axis=0)
 
-    def fit_predict(self, X: TSCDataFrame, y=None, **fit_params) -> TSCDataFrame:
+    def fit_predict(
+        self, X: TSCDataFrame, U=None, y=None, **fit_params
+    ) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
 
         Parameters
@@ -1046,6 +1050,8 @@ class DMDBase(
         TSCDataFrame
             same shape as input `X`
         """
+        # TODO: docu of U
+
         return self.fit(X, **fit_params).reconstruct(X)
 
     def score(self, X: TSCDataFrame, y=None, sample_weight=None) -> float:
@@ -2103,7 +2109,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
                 "X and U should be sampled at the same times and time intervals."
             )
 
-    def fit(self, X: TSCDataFrame, U: Optional[TSCDataFrame] = None, **fit_params):
+    def fit(self, X: TSCDataFrame, U: TSCDataFrame, y=None, **fit_params):
         """Compute Koopman approximation of state and control matrices
 
         Parameters
@@ -2113,6 +2119,8 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
         U : TSCDataFrame
             Input control data
+
+        # TODO: doc y=None
 
         Returns
         -------
@@ -2124,17 +2132,12 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             tsc_kwargs={"ensure_const_delta_time": True},
         )
 
-        self._setup_features_and_time_attrs_fit(X=X)
-
-        if U is None:
-            U = X[[]]  # empty input
-        else:
-            self._validate_datafold_data(
-                X=U,
-                ensure_tsc=True,
-                tsc_kwargs={"ensure_const_delta_time": True},
-            )
-            self._validate_matching_state_control(X, U)
+        self._validate_datafold_data(
+            X=U,
+            ensure_tsc=True,
+        )
+        self._setup_features_and_time_attrs_fit(X=X, U=U)
+        self._read_fit_params(None, fit_params=fit_params)
 
         sys_matrix, control_matrix = self._compute_koompan_matrices(X, U)
         self.setup_matrix_system(sys_matrix, control_matrix)
@@ -2144,9 +2147,8 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
     def predict(
         self,
         X: InitialConditionType,
-        time_values: Optional[np.ndarray] = None,
-        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
-        check_inputs: bool = True,
+        U: Optional[TSCDataFrame] = None,
+        time_values=None,
         **predict_params,
     ) -> TSCDataFrame:
         """Predict time series data for each initial condition at
@@ -2170,7 +2172,7 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             needs to be the same to infer the time_values.
 
         check_inputs : bool, optional, default True
-            Allows skipping input checks and assignemnts to improve performance.
+            Allows skipping input checks and assignments to improve performance.
 
             .. warning::
                 Use with caution - May result in silent errors.
@@ -2179,6 +2181,14 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         -------
         TSCDataFrame
         """
+        # TODO: parameter should be check_input to match scikit-learn
+        # TODO: check_inputs as in predict_params
+
+        # Can generalize to predict_params?
+        check_inputs = self._read_fit_params(
+            [("check_inputs", True)], fit_params=predict_params
+        )
+
         if check_inputs:
             check_is_fitted(self)
 
@@ -2190,22 +2200,21 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
                 InitialCondition.validate(X, n_samples_ic=1)
 
             self._validate_datafold_data(X)
-
+            self._validate_datafold_data(
+                U, tsc_kwargs=dict(ensure_same_time_values=True)
+            )
+            assert U is not None
+            X, U, time_values = self._validate_features_and_time_values(
+                X=X, U=U, time_values=U.time_values()
+            )
             self.is_linear_system_setup(True)
+        else:
+            assert U is not None
+            time_values = self._validate_time_values(U.time_values())
 
-            if isinstance(U, TSCDataFrame):
-                if time_values is None:
-                    time_values = U.time_values()
-                U = U.to_numpy().reshape(len(U.ids), -1, len(U.columns))
-            elif U is None:
-                if time_values is None:
-                    time_values = np.array([0, 1]) * self.dt_
-                U = pd.DataFrame(index=time_values).to_numpy()
-
-            if time_values is not None:
-                time_values = self._validate_time_values(time_values)
-
-            self._validate_feature_names(X)
+        # TODO: what happens here? -- should use the TSCDataFrame.data_array functionality!
+        assert U is not None
+        U = U.to_numpy().reshape(len(U.ids), -1, len(U.columns))
 
         state_tsc = self.evolve_system(
             X.to_numpy().T,
@@ -2218,12 +2227,11 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
 
         return state_tsc
 
-    def fit_predict(
+    def fit_predict(  # type: ignore[override]
         self,
         X: InitialConditionType,
+        U: TSCDataFrame,
         y=None,
-        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
-        check_inputs: bool = True,
         **fit_params,
     ) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
@@ -2248,15 +2256,18 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
             A reconstruction of `X` based on predicting each separate time series
             in the collection using the training control input
         """
+        if U is None:
+            raise ValueError("U has to be set")
+        check_inputs: bool = True  # TODO: rename to check_input to conform scikit-learn
         return self.fit(X, U, **fit_params).reconstruct(
-            X, U=U, check_inputs=check_inputs
+            X, U=U, **dict(check_inputs=check_inputs)
         )
 
     def reconstruct(
         self,
         X: TSCDataFrame,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
         U: Optional[TSCDataFrame] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
         check_inputs: bool = True,
         **split_params,
     ) -> TSCDataFrame:
@@ -2301,8 +2312,8 @@ class DMDControl(BaseEstimator, ControlledLinearDynamicalSystem, TSCPredictMixin
         ):
             X_ts = self.predict(
                 X=X_ic,
-                time_values=time_values,
                 U=U,
+                time_values=time_values,
                 check_inputs=check_inputs,
             )
             X_reconstruct_ts.append(X_ts)
@@ -3012,7 +3023,7 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
 
         return self
 
-    def predict(self, X: TimePredictType, time_values=None, **predict_params):
+    def predict(self, X: TimePredictType, U=None, time_values=None, **predict_params):
         """Predict time series data for each initial condition and time values.
 
         Parameters
@@ -3032,8 +3043,8 @@ class StreamingDMD(DMDBase, TSCPredictMixin):
         """
 
         check_is_fitted(self)
-        X, time_values = self._validate_features_and_time_values(
-            X, time_values=time_values
+        X, _, time_values = self._validate_features_and_time_values(
+            X, U=None, time_values=time_values
         )
 
         post_map, user_set_modes, feature_columns = self._read_predict_params(

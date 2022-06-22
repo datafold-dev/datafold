@@ -12,7 +12,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCMetric, TSCScoring
 from datafold.pcfold.timeseries.collection import TSCException
-from datafold.utils.general import if1dim_rowvec
+from datafold.utils.general import if1dim_rowvec, is_df_same_index
 
 # types allowed for transformation
 TransformType = Union[TSCDataFrame, np.ndarray]
@@ -48,7 +48,7 @@ class TSCBase(object):
                 return_values.append(fit_params.pop(a[0], a[1]))
 
         if fit_params != {}:
-            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
+            raise KeyError(f"{fit_params.keys()=} are not supported")
 
         if len(return_values) == 0:
             return None
@@ -437,26 +437,47 @@ class TSCPredictMixin(TSCBase):
         self._score_eval = TSCScoring(self.metric_eval)
 
     def _setup_features_and_time_attrs_fit(
-        self: Union[BaseEstimator, "TSCPredictMixin"], X: TSCDataFrame
+        self: Union[BaseEstimator, "TSCPredictMixin"],
+        X: TSCDataFrame,
+        U: Optional[TSCDataFrame] = None,
     ):
 
         if not isinstance(X, TSCDataFrame):
-            raise TypeError("Only TSCDataFrame can be used for 'X'.")
+            raise TypeError(
+                f"Only TSCDataFrame can be used for system data (got {type(U)=})."
+            )
+
+        is_controlled = U is not None
+
+        if is_controlled and not isinstance(X, TSCDataFrame):
+            raise TypeError(
+                f"Only TSCDataFrame can be used for control data (got {type(U)=})."
+            )
 
         self.n_features_in_ = X.shape[1]
         self.feature_names_in_ = X.columns
 
+        if is_controlled:
+            self.n_control_in_ = U.shape[1]  # type: ignore
+            self.control_names_in_ = U.columns  # type: ignore
+
         time_values = X.time_values()
         time_values = self._validate_time_values(time_values=time_values)
 
+        if is_controlled and not is_df_same_index(
+            X, U, check_column=False, check_names=False, handle=None
+        ):
+            raise ValueError(
+                "System data ('X') and control data ('U') must have the same index."
+            )
+
         self.dt_ = X.delta_time
 
-        if isinstance(self.dt_, pd.Series) or np.isnan(
-            self.dt_
-        ):  # Series if dt_ is not the same across multiple time series.
+        if isinstance(self.dt_, pd.Series) or np.isnan(self.dt_):
+            # Series if dt_ is not the same for all time series in the data.
             raise NotImplementedError(
                 "Currently, all algorithms assume a constant time "
-                f"delta. Got X.time_delta={X.time_delta}"
+                f"delta. Got {X.time_delta=}."
             )
 
         # TODO: check this closer why are there 5 decimals required?
@@ -523,7 +544,7 @@ class TSCPredictMixin(TSCBase):
         self._check_n_features(X, reset=False)  # type: ignore
 
         try:
-            # alternative check in datafold comared to sklearn
+            # alternative check in datafold to sklearn
             # self._check_feature_names(reset=False)
             # Reason: in datafold there are also non-string feature names allowed
             nptest.assert_array_equal(
@@ -533,6 +554,27 @@ class TSCPredictMixin(TSCBase):
             raise ValueError(
                 f"model was fit with feature names\n{self.feature_names_in_.tolist()}\n"
                 f"but got\n{X.columns.tolist()}"
+            )
+
+    def _validate_control_names(self, U):
+
+        try:
+            # alternative check in datafold to sklearn
+            # self._check_feature_names(reset=False)
+            # Reason: in datafold there are also non-string feature names allowed
+            nptest.assert_array_equal(
+                np.asarray(U.columns), np.asarray(self.control_names_in_)
+            )
+        except AssertionError:
+            raise ValueError(
+                f"model was fit with feature names\n{self.control_names_in_.tolist()}\n"
+                f"but got\n{U.columns.tolist()}"
+            )
+
+        if self.n_control_in_ != U.shape[1]:
+            raise ValueError(
+                f"The number of set control states ({self.n_control_in_=}) does not fit the "
+                f"current number in the control input {U.shape[1]=}."
             )
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
@@ -559,8 +601,12 @@ class TSCPredictMixin(TSCBase):
         return qois
 
     def _validate_features_and_time_values(
-        self, X: TSCDataFrame, time_values: Optional[np.ndarray]
+        self,
+        X: TSCDataFrame,
+        U: Optional[TSCDataFrame],
+        time_values: Optional[np.ndarray],
     ):
+        is_controlled = U is not None
 
         if not self._has_feature_names(X):
             raise TypeError("only types that support feature names are supported")
@@ -577,38 +623,48 @@ class TSCPredictMixin(TSCBase):
         else:
             time_values = self._validate_time_values(time_values=time_values)
         self._validate_feature_names(X)
-        return X, time_values
+
+        if is_controlled:
+            self._validate_control_names(U)
+
+        return X, U, time_values
 
     def predict(
         self,
         X: InitialConditionType,
+        U: Optional[TSCDataFrame],
         time_values: Optional[np.ndarray] = None,
         **predict_params,
-    ):
+    ) -> TSCDataFrame:
         # intended for duck-typing, but provides method layout
         raise NotImplementedError("method not implemented")
 
     def fit_predict(
         self,
         X: InitialConditionType,
+        U: Optional[TSCDataFrame],
         y=None,
         **fit_params,
     ) -> TSCDataFrame:
         # overwrite if necessary
         self.fit: Callable
-        return self.fit(X, **fit_params).predict(X.initial_states())
+        return self.fit(X, U=U, **fit_params).predict(X.initial_states())
 
     def reconstruct(
         self,
         X: TSCDataFrame,
+        U: Optional[TSCDataFrame] = None,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
     ):
         X_reconstruct_ts = []
 
+        if U is not None:
+            raise NotImplementedError("The control part is not implemented here yet.")
+
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=1
         ):
-            X_ts = self.predict(X=X_ic, time_values=time_values)
+            X_ts = self.predict(X=X_ic, U=U, time_values=time_values)
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)

@@ -752,36 +752,36 @@ class DMDTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _values = time_values.copy()
             _values[0] = np.nan
-            dmd.predict(predict_ic, _values)
+            dmd.predict(predict_ic, time_values=_values)
 
         with self.assertRaises(ValueError):
             _values = time_values.copy()
             _values[-1] = np.inf
-            dmd.predict(predict_ic, _values)
+            dmd.predict(predict_ic, time_values=_values)
 
         with self.assertRaises(ValueError):
             _values = time_values.copy()
             _values[0] = -1
-            dmd.predict(predict_ic, _values)
+            dmd.predict(predict_ic, time_values=_values)
 
         with self.assertRaises(ValueError):
             _values = time_values.copy()
             _values = _values[::-1]
-            dmd.predict(predict_ic, _values)
+            dmd.predict(predict_ic, time_values=_values)
 
         with self.assertRaises(TypeError):
             _values = time_values.copy().astype(complex)
             _values[-1] = _values[-1] + 1j
-            dmd.predict(predict_ic, _values)
+            dmd.predict(predict_ic, time_values=_values)
 
         with self.assertRaises(ValueError):
             _values = time_values.copy()
             _values[0] = _values[1]
-            dmd.predict(predict_ic, _values)
+            dmd.predict(predict_ic, time_values=_values)
 
         with self.assertRaises(ValueError):
             _values = time_values.copy()[np.newaxis, :]
-            dmd.predict(predict_ic, _values)
+            dmd.predict(predict_ic, time_values=_values)
 
     def test_invalid_feature_names(self):
         tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
@@ -1057,7 +1057,7 @@ class DMDControlTest(unittest.TestCase):
         data = pd.DataFrame(np.column_stack(col_stacks))
         return TSCDataFrame.from_single_timeseries(data)
 
-    def _create_control_tsc(self, state_size, input_size, n_timesteps) -> None:
+    def _create_control_tsc(self, state_size, input_size, n_timesteps) -> TSCDataFrame:
         gen = np.random.default_rng(42)
 
         A = gen.uniform(-1.0, 1.0, size=(state_size, state_size))
@@ -1102,16 +1102,22 @@ class DMDControlTest(unittest.TestCase):
         tsc_df = self._create_harmonic_tsc(100, 2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
         tsc_ic = tsc_df.initial_states()
-        dmd1 = DMDControl().fit(tsc_df)
-        dmd2 = DMDFull(sys_mode="matrix", approx_generator=False).fit(tsc_df)
 
-        first = dmd1.predict(
-            tsc_ic, time_values=np.arange(10), control_input=np.zeros((10, 0))
+        U = TSCDataFrame.from_same_indices_as(
+            tsc_df, np.zeros([tsc_df.shape[0], 1]), except_columns=["u"]
         )
 
-        second = dmd2.predict(tsc_ic, time_values=np.arange(10))
+        dmd1 = DMDControl().fit(tsc_df, U=U)
+        dmd2 = DMDFull(sys_mode="matrix", approx_generator=False).fit(tsc_df)
 
-        pdtest.assert_frame_equal(first, second, rtol=1e-8, atol=1e-8)
+        U_pred = TSCDataFrame.from_array(
+            np.zeros([10, 1]), time_values=np.arange(10), feature_names=["u"]
+        )
+
+        actual = dmd1.predict(tsc_ic, U=U_pred)  # control_input=np.zeros((10, 0)
+        expected = dmd2.predict(tsc_ic, time_values=np.arange(10))
+
+        pdtest.assert_frame_equal(actual, expected, rtol=1e-15, atol=1e-14)
 
     def test_dmd_control_multiple(self):
         state_size = 4
@@ -1122,7 +1128,7 @@ class DMDControlTest(unittest.TestCase):
 
         tsc_df_single = self._create_control_tsc(state_size, input_size, n_timesteps)
         df = pd.DataFrame(
-            tsc_df_single.values,
+            tsc_df_single.to_numpy(),
             index=np.arange(n_timesteps) * 0.1,
             columns=state_cols + input_cols,
         )
@@ -1284,15 +1290,19 @@ class gDMDAffineTest(unittest.TestCase):
         dmd = gDMDAffine().fit(tsc_df[state_cols], U=tsc_df[input_cols])
 
         t = tsc_df.index.get_level_values(1)
-        t0 = t.min()
-        tf = t.max()
-        t = np.linspace(t0, tf * 1.1, 2 * n_timesteps)
-        u = np.vstack([np.sin(0.2 * np.pi * t), np.cos(0.3 * np.pi * t)]).T
+        t = np.linspace(t.min(), t.max() * 1.1, 2 * n_timesteps)
+        U = TSCDataFrame.from_array(
+            np.vstack([np.sin(0.2 * np.pi * t), np.cos(0.3 * np.pi * t)]).T,
+            time_values=t,
+            feature_names=["u1", "u2"],
+        )
         x0 = np.random.default_rng(42).uniform(-1.0, 1.0, size=state_size)
-        expected = sys.evolve_system(x0, u, time_values=t, feature_names_out=state_cols)
-        actual = dmd.predict(expected.initial_states()[state_cols], U=u, time_values=t)
+        expected = sys.evolve_system(
+            x0, U.to_numpy(), time_values=t, feature_names_out=state_cols
+        )
+        actual = dmd.predict(expected.initial_states()[state_cols], U=U)
 
-        pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
+        pdtest.assert_frame_equal(actual, expected, rtol=0, atol=1e-3)
 
     def test_dmda_control_random(self):
         state_size = 4

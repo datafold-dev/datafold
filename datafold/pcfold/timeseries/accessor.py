@@ -987,6 +987,8 @@ class TSCAccessor(object):
 
         """
 
+        # TODO: option to obtain only left or right matrix
+
         if validate:
             self.check_required_min_timesteps(required_min_timesteps=2)
             self.check_const_time_delta()
