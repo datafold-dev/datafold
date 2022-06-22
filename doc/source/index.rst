@@ -20,9 +20,9 @@ Welcome to datafold
 
 **What is datafold?**
 
-*datafold* is a `Python <https://www.python.org/>`__ package containing operator-theoretic
-models to identify dynamical systems from time series data and infer geometrical
-structures from point clouds. |MIT-license|
+*datafold* is a :octicon:`link-external` `Python <https://www.python.org/>`__ package
+containing operator-theoretic models to identify dynamical systems from time series data and
+infer geometrical structures from point clouds. |MIT-license|
 
 .. inline usage of a badge
 .. |MIT-license| image:: https://img.shields.io/badge/license-MIT-blue
@@ -157,37 +157,61 @@ https://doi.org/10.21105/joss.02283
 Software maintainer and affiliation
 ===================================
 
-* **Daniel Lehmberg** (`link <https://www.cs.cit.tum.de/sccs/personen/personen/daniel-lehmberg/>`__)
-
+* **Daniel Lehmberg** (:octicon:`link-external` |dl-link|)
   - from 5/2022 (1): Postdoctoral researcher
   - from 3/2018-5/2022 (1,2): PhD candidate with funding from the German Research Foundation
-    (`DFG <https://www.dfg.de/en/index.jsp>`__), grant no. KO 5257/3-1.
-
-* **Felix Dietrich** (`link <https://fd-research.com/>`__) (1)
+(:octicon:`link-external` |dfg|), grant no. KO 5257/3-1.
+* **Felix Dietrich** (:octicon:`link-external` |fd-link|) (1)
 
 All source code contributors are listed
 `here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-
 1. Technical University of Munich
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Chair of Scientific Computing in Computer Science
-(`link <https://www.in.tum.de/en/i05/home/>`__)
+Chair of Scientific Computing in Computer Science (:octicon:`link-external` |sccs|)
 
 .. image:: _static/img/tum_logo.png
    :height: 75px
    :width: 150px
    :target: https://www.tum.de/en/
 
+
 2. Munich University of Applied Sciences HM
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Faculty of Computer Science and Mathematics
-(`link <https://www.cs.hm.edu/en/home/index.en.html>`__) in Pedestrian Dynamics Research Group
-(`link <http://www.vadere.org/>`__)
+(:octicon:`link-external` |cs-hm|) in Pedestrian Dynamics Research Group
+(:octicon:`link-external` |vadere|)
 
 .. image:: _static/img/hm_logo.png
    :height: 81px
    :width: 300px
    :target: https://www.hm.edu/en/index.en.html
+
+.. Links used above -- the external links (outside datafold) open a new tab; scheme used from
+https://stackoverflow.com/a/11718325
+
+.. |cs-hm| raw:: html
+
+   <a href="https://www.cs.hm.edu/en/home/index.en.html" target="_blank"> link</a>
+
+.. |sccs| raw:: html
+
+   <a href="https://www.in.tum.de/en/i05/home/" target="_blank"> link</a>
+
+.. |dfg| raw:: html
+
+   <a href="https://www.dfg.de/en/index.jsp" target="_blank"> DFG</a>
+
+.. |vadere| raw:: html
+
+   <a href="http://www.vadere.org/" target="_blank"> link</a>
+
+.. |dl-link| raw:: html
+
+   <a href="https://www.cs.cit.tum.de/sccs/personen/personen/daniel-lehmberg/" target="_blank"> link</a>
+
+.. |fd-link| raw:: html
+
+   <a href="https://fd-research.com/" target="_blank"> link</a>

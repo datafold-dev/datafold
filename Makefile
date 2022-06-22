@@ -194,7 +194,7 @@ unittest:
 	EXIT_CODE=$$?; \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report; \
-	@exit EXIT_CODE
+	exit $(EXIT_CODE)
 
 #tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
