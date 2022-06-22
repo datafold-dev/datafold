@@ -91,9 +91,9 @@ extensions = [
     # Include notebook files from outside the sphinx source root (required for the tutorials)
     # https://github.com/vidartf/nbsphinx-link
     "nbsphinx_link",
-    # Include panels in a grid layout or as drop-downs
-    # https://sphinx-panels.readthedocs.io/en/latest/
-    "sphinx_panels",
+    # Include design elements, such as a panel grid layout or drop-down menus
+    # https://sphinx-design.readthedocs.io/en/furo-theme/
+    "sphinx_design",
     # Include copy buttons in code blocks
     # https://sphinx-copybutton.readthedocs.io/en/latest/
     "sphinx_copybutton",
@@ -277,17 +277,21 @@ html_theme = (
 )
 html_logo = "_static/img/datafold_logo_pre.svg"
 
+html_context = {"default_mode": "auto"}  # dark, light
+
 html_theme_options = {
     "icon_links": [
         {
             "name": "GitLab",
             "url": "https://gitlab.com/datafold-dev/datafold/",
             "icon": "fab fa-gitlab",
+            "type": "fontawesome",
         },
         {
             "name": "PyPI",
             "url": "https://pypi.org/project/datafold/",
             "icon": "fab fa-python",
+            "type": "fontawesome",
         },
     ],
     "icon_links_label": "Quick Links",

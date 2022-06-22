@@ -4,7 +4,8 @@ Welcome to datafold
 
 **Version**: |version| **Date**: |today|
 
-.. this toctree defines the order and pages that are set at the top of the page
+.. the toctree below defines the order and pages that are placed at the top of the page of the
+   pydata Sphinx theme
 
 .. toctree::
    :maxdepth: 1
@@ -16,8 +17,6 @@ Welcome to datafold
    contributing
    references
 
-.. see docu for panels: https://sphinx-panels.readthedocs.io/en/latest/
-.. see and select (free) fontawesome icons https://fontawesome.com/
 
 **What is datafold?**
 
@@ -25,7 +24,7 @@ Welcome to datafold
 models to identify dynamical systems from time series data and infer geometrical
 structures from point clouds. |MIT-license|
 
-.. inline useage of the badge
+.. inline usage of a badge
 .. |MIT-license| image:: https://img.shields.io/badge/license-MIT-blue
    :target: https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE
    :alt: license
@@ -36,45 +35,52 @@ See also the `Introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`
 
 Install the package with ``Python>=3.8``:
 
+.. docu for grid: https://sphinx-design.readthedocs.io/en/furo-theme/grids.html#grid-options
+.. free icons from https://fontawesome.com/
+
 .. code-block::
 
     python -m pip install datafold
 
-.. panels::
+.. grid:: 2 2 2 2
+    :gutter: 5
+    :margin: 1 2 2 5
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++++++++++++++++++++++++
-    :ref:`gettingstarted` | :ref:`tutorialnb`
+            <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
 
-    ---
+        :ref:`gettingstarted` | :ref:`tutorialnb`
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="documentation"><i class="fas fa-book fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++++
-    :ref:`documentation`
+            <div class="documentation"><i class="fas fa-book fa-7x"></i></i></div>
 
-    ---
+        :ref:`documentation`
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="contribution"><i class="fas fa-laptop-code fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++
-    :ref:`contribution`
+            <div class="contribution"><i class="fas fa-laptop-code fa-7x"></i></i></div>
 
-    ---
+        :ref:`contribution`
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="references"><i class="fas fa-graduation-cap fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++
-    :ref:`references`
+            <div class="references"><i class="fas fa-graduation-cap fa-7x"></i></i></div>
+
+        :ref:`references`
 
 
 Software management
@@ -104,16 +110,18 @@ Software management
      - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/coverage.svg
           :target: https://gitlab.com/datafold-dev/datafold/-/jobs/artifacts/master/file/coverage/index.html?job=unittests
           :alt: coverage report
-   * - Code-related
+   * - Source code formatting and style
      - .. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
           :target: https://pre-commit.com/
           :alt: pre-commit
-       .. image:: https://img.shields.io/badge/code%20style-flake8-black
+       .. image:: https://img.shields.io/badge/code%20style-flake8-black.svg
           :target: https://flake8.pycqa.org/en/latest/
           :alt: python-flake8
        .. image:: https://img.shields.io/badge/code%20format-black-000000.svg
           :target: https://black.readthedocs.io/en/stable/
           :alt: python-black
+       .. image:: https://img.shields.io/badge/code%20format-isort-blue.svg
+          :target: https://pycqa.github.io/isort/
 
 
 Cite
@@ -149,29 +157,19 @@ https://doi.org/10.21105/joss.02283
 Software maintainer and affiliation
 ===================================
 
-* **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
-  grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
-  Applied Sciences HM and the center of doctoral studies in informatics (CeDoSIA) of the
-  Technical University of Munich for their support.
+* **Daniel Lehmberg** (`link <https://www.cs.cit.tum.de/sccs/personen/personen/daniel-lehmberg/>`__)
 
-* **Felix Dietrich** (`link <https://fd-research.com/>`__) (2) FD thanks the Technical
-  University of Munich for their support.
+  - from 5/2022 (1): Postdoctoral researcher
+  - from 3/2018-5/2022 (1,2): PhD candidate with funding from the German Research Foundation
+    (`DFG <https://www.dfg.de/en/index.jsp>`__), grant no. KO 5257/3-1.
+
+* **Felix Dietrich** (`link <https://fd-research.com/>`__) (1)
 
 All source code contributors are listed
 `here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-1. Munich University of Applied Sciences HM
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Faculty of Computer Science and Mathematics in
-Pedestrian Dynamics Research Group  (`link <http://www.vadere.org/>`__)
-
-.. image:: _static/img/hm_logo.png
-   :height: 81px
-   :width: 300px
-   :target: https://www.hm.edu/en/index.en.html
-
-2. Technical University of Munich
+1. Technical University of Munich
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Chair of Scientific Computing in Computer Science
@@ -181,3 +179,15 @@ Chair of Scientific Computing in Computer Science
    :height: 75px
    :width: 150px
    :target: https://www.tum.de/en/
+
+2. Munich University of Applied Sciences HM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Faculty of Computer Science and Mathematics
+(`link <https://www.cs.hm.edu/en/home/index.en.html>`__) in Pedestrian Dynamics Research Group
+(`link <http://www.vadere.org/>`__)
+
+.. image:: _static/img/hm_logo.png
+   :height: 81px
+   :width: 300px
+   :target: https://www.hm.edu/en/index.en.html
