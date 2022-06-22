@@ -277,17 +277,21 @@ html_theme = (
 )
 html_logo = "_static/img/datafold_logo_pre.svg"
 
+html_context = {"default_mode": "auto"}  # dark, light
+
 html_theme_options = {
     "icon_links": [
         {
             "name": "GitLab",
             "url": "https://gitlab.com/datafold-dev/datafold/",
             "icon": "fab fa-gitlab",
+            "type": "fontawesome",
         },
         {
             "name": "PyPI",
             "url": "https://pypi.org/project/datafold/",
             "icon": "fab fa-python",
+            "type": "fontawesome",
         },
     ],
     "icon_links_label": "Quick Links",
