@@ -210,10 +210,10 @@ tutorial:
 	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
 	python -m notebook $(CURRENT_PATH)/tutorials/
 
-#precommit: @ Run git hooks managed by precommit to check and analyze the code.
+#precommit: @ Run git hooks managed by "precommit" to analyze and automatically format the source code.
 precommit:
 	@$(ACTIVATE_VENV); \
-	python -m pre_commit run $(GITHOOK);
+	python -m pre_commit run --all $(GITHOOK);
 
 #gitamend: @ Amend a commit to the last commit (already pushed).
 gitamend:

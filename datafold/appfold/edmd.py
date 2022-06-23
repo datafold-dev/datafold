@@ -812,8 +812,9 @@ class EDMD(
     def predict(
         self,
         X: InitialConditionType,
-        U: Optional[Union[TSCDataFrame, np.ndarray]] = None,
-        time_values: Optional[np.ndarray] = None,  # TODO: need lifted state?
+        *,
+        U: Optional[InitialConditionType] = None,
+        time_values: Optional[np.ndarray] = None,
         qois: Optional[Union[pd.Index, List[str]]] = None,
         **predict_params,
     ):
@@ -1115,6 +1116,7 @@ class EDMD(
     def reconstruct(
         self,
         X: TSCDataFrame,
+        *,
         U=None,
         qois: Optional[Union[pd.Index, List[str]]] = None,
     ) -> TSCDataFrame:

@@ -188,16 +188,26 @@ class TestMathUtils(unittest.TestCase):
         self.assertTrue(is_matrix(rect_sparse, "m", allow_sparse=True))
 
         with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(rect_dense, "m", square=True))
+            is_matrix(rect_dense, "m", square=True)
+
+        self.assertFalse(is_matrix(rect_dense, "m", square=True, handle=None))
+
+        with self.assertRaises(TypeError):
+            is_matrix(square_sparse, "m", allow_sparse=False)
+
+        self.assertFalse(is_matrix(square_sparse, "m", allow_sparse=False, handle=None))
+
+        with self.assertRaises(TypeError):
+            is_matrix(rect_sparse, "m", allow_sparse=False)
+
+        self.assertFalse(is_matrix(rect_sparse, "m", allow_sparse=False, handle=None))
 
         with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(square_sparse, "m", allow_sparse=False))
+            is_matrix(rect_sparse, "m", square=True, allow_sparse=True)
 
-        with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(rect_sparse, "m", allow_sparse=False))
-
-        with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(rect_sparse, "m", square=True, allow_sparse=True))
+        self.assertFalse(
+            is_matrix(rect_sparse, "m", square=True, allow_sparse=True, handle=None)
+        )
 
 
 if __name__ == "__main__":

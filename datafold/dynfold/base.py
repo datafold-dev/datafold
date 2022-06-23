@@ -632,7 +632,8 @@ class TSCPredictMixin(TSCBase):
     def predict(
         self,
         X: InitialConditionType,
-        U: Optional[TSCDataFrame],
+        *,
+        U: TSCDataFrame,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:
@@ -642,29 +643,32 @@ class TSCPredictMixin(TSCBase):
     def fit_predict(
         self,
         X: InitialConditionType,
-        U: Optional[TSCDataFrame],
+        *,
+        U: TSCDataFrame,
         y=None,
         **fit_params,
     ) -> TSCDataFrame:
         # overwrite if necessary
         self.fit: Callable
-        return self.fit(X, U=U, **fit_params).predict(X.initial_states())
+        return self.fit(X, U=U, y=y, **fit_params).predict(X.initial_states())
 
     def reconstruct(
         self,
         X: TSCDataFrame,
-        U: Optional[TSCDataFrame] = None,
+        *,
+        U: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
     ):
         X_reconstruct_ts = []
 
-        if U is not None:
-            raise NotImplementedError("The control part is not implemented here yet.")
-
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=1
         ):
-            X_ts = self.predict(X=X_ic, U=U, time_values=time_values)
+            X_ts = self.predict(
+                X=X_ic,
+                U=U.loc[pd.IndexSlice[:, X_ic.ids[0]], :] if U is not None else None,
+                time_values=time_values,
+            )
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)

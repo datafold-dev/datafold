@@ -137,22 +137,39 @@ def is_scalar(n: object):
     return is_float(n) or is_integer(n)
 
 
-def is_matrix(matrix, name, square=False, allow_sparse=False):
-
+def is_matrix(
+    matrix,
+    name="matrix",
+    square=False,
+    allow_sparse=False,
+    handle: Optional[str] = "raise",
+):
+    # TODO: also include allowed dtype kind?
     if isinstance(matrix, np.ndarray):
         if matrix.ndim != 2:
-            raise ValueError(
-                f"the matrix in parameter '{name}' must have two dimensions"
-            )
+            if handle == "raise":
+                raise ValueError(
+                    f"The matrix '{name}' must have two dimensions. Got {matrix.ndim=}."
+                )
+            else:
+                return False
     elif allow_sparse and scipy.sparse.issparse(matrix):
         pass
     else:
-        raise ValueError(
-            f"The matrix in parameter '{name}' does not meet the required format"
-        )
+        if handle == "raise":
+            raise TypeError(
+                f"The parameter '{name}' is not a valid matrix format. Got {type(matrix)=}."
+            )
+        else:
+            return False
 
     if square and matrix.shape[0] != matrix.shape[1]:
-        raise ValueError(f"parameter '{name}' must be a square matrix")
+        if handle == "raise":
+            raise ValueError(
+                f"The parameter '{name}' must be a square matrix. Got {matrix.shape=}"
+            )
+        else:
+            return False
 
     return True
 

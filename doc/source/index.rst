@@ -20,7 +20,7 @@ Welcome to datafold
 
 **What is datafold?**
 
-*datafold* is a :octicon:`link-external` `Python <https://www.python.org/>`__ package
+*datafold* is a :octicon:`link-external` |python| package
 containing operator-theoretic models to identify dynamical systems from time series data and
 infer geometrical structures from point clouds. |MIT-license|
 
@@ -128,7 +128,7 @@ Cite
 ====
 
 If you use *datafold* in your research, please cite our paper |joss-paper| that we
-published in the *Journal of Open Source Software* (`JOSS <https://joss.theoj.org/>`__).
+published in the *Journal of Open Source Software* (:octicon:`link-external` |joss|).
 
 .. |joss-paper| image:: https://joss.theoj.org/papers/10.21105/joss.02283/status.svg
    :target: https://doi.org/10.21105/joss.02283
@@ -158,16 +158,17 @@ Software maintainer and affiliation
 ===================================
 
 * **Daniel Lehmberg** (:octicon:`link-external` |dl-link|)
+
   - from 5/2022 (1): Postdoctoral researcher
-  - from 3/2018-5/2022 (1,2): PhD candidate with funding from the German Research Foundation
-(:octicon:`link-external` |dfg|), grant no. KO 5257/3-1.
-* **Felix Dietrich** (:octicon:`link-external` |fd-link|) (1)
+  - from 3/2018-5/2022 (1,2): PhD candidate with funding from the German Research Foundation (:octicon:`link-external` |dfg|), grant no. KO 5257/3-1.
+
+* **Felix Dietrich** (1, :octicon:`link-external` |fd-link|)
 
 All source code contributors are listed
 `here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-1. Technical University of Munich
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(1) Technical University of Munich
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Chair of Scientific Computing in Computer Science (:octicon:`link-external` |sccs|)
 
@@ -177,8 +178,8 @@ Chair of Scientific Computing in Computer Science (:octicon:`link-external` |scc
    :target: https://www.tum.de/en/
 
 
-2. Munich University of Applied Sciences HM
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(2) Munich University of Applied Sciences HM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Faculty of Computer Science and Mathematics
 (:octicon:`link-external` |cs-hm|) in Pedestrian Dynamics Research Group
@@ -190,28 +191,36 @@ Faculty of Computer Science and Mathematics
    :target: https://www.hm.edu/en/index.en.html
 
 .. Links used above -- the external links (outside datafold) open a new tab; scheme used from
-https://stackoverflow.com/a/11718325
+.. https://stackoverflow.com/a/11718325
+
+.. |python| raw:: html
+
+   <a href="https://www.python.org/" target="_blank">Python</a>
+
+.. |joss| raw:: html
+
+   <a href="https://joss.theoj.org/" target="_blank">JOSS</a>
 
 .. |cs-hm| raw:: html
 
-   <a href="https://www.cs.hm.edu/en/home/index.en.html" target="_blank"> link</a>
+   <a href="https://www.cs.hm.edu/en/home/index.en.html" target="_blank">link</a>
 
 .. |sccs| raw:: html
 
-   <a href="https://www.in.tum.de/en/i05/home/" target="_blank"> link</a>
+   <a href="https://www.in.tum.de/en/i05/home/" target="_blank">link</a>
 
 .. |dfg| raw:: html
 
-   <a href="https://www.dfg.de/en/index.jsp" target="_blank"> DFG</a>
+   <a href="https://www.dfg.de/en/index.jsp" target="_blank">DFG</a>
 
 .. |vadere| raw:: html
 
-   <a href="http://www.vadere.org/" target="_blank"> link</a>
+   <a href="http://www.vadere.org/" target="_blank">link</a>
 
 .. |dl-link| raw:: html
 
-   <a href="https://www.cs.cit.tum.de/sccs/personen/personen/daniel-lehmberg/" target="_blank"> link</a>
+   <a href="https://www.cs.cit.tum.de/sccs/personen/personen/daniel-lehmberg/" target="_blank">link</a>
 
 .. |fd-link| raw:: html
 
-   <a href="https://fd-research.com/" target="_blank"> link</a>
+   <a href="https://fd-research.com/" target="_blank">link</a>

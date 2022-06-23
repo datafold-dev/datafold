@@ -62,3 +62,16 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
+
+# Style checker for sphinx (or other) rst documentation.
+#-   repo: https://github.com/pycqa/doc8
+#    rev: 0.11.1
+#    hooks:
+#    -   id: doc8
+
+# TODO: install
+# The tool for checking and helping with compliance with the REUSE recommendations
+#-   repo: https://github.com/fsfe/reuse-tool
+#    rev: v1.0.0
+#    hooks:
+#      - id: reuse
