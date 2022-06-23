@@ -1016,7 +1016,7 @@ class EDMDTest(unittest.TestCase):
         control_input = X_tsc.loc[[0], control_columns]
 
         dmdc = DMDControl()
-        dmdc.fit(X_tsc[state_columns], X_tsc[control_columns])
+        dmdc.fit(X_tsc[state_columns], U=X_tsc[control_columns])
 
         edmdid = EDMD(
             dict_steps=[

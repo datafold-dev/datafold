@@ -1041,27 +1041,6 @@ class TSCDataFrame(pd.DataFrame):
                 counts, index=pd.Index(vals, name=self.tsc_id_idx_name), name="counts"
             )
 
-    def transpose(self, *args, copy: bool = False) -> pd.DataFrame:
-        """Overwrite transpose of super class.
-
-        Because the index and column are swapped the resulting type cannot be of type
-        `TSCDataFrame` anymore. Instead, the transpose is of type `DataFrame`.
-
-        Parameters
-        ----------
-        *args
-        copy
-            Whether to copy the data after transposing, even for DataFrames with a single
-            dtype. Note that a copy is always required for mixed dtype DataFrames, or for
-            DataFrames with any extension types.
-
-        Returns
-        -------
-        pd.DataFrame
-            the transposed data structure
-        """
-        return pd.DataFrame(self).transpose(*args, copy=copy)
-
     @property
     def loc(self):
         """Label-based indexing.
@@ -1094,6 +1073,27 @@ class TSCDataFrame(pd.DataFrame):
 
         """
         return _iLocTSCIndexer("iloc", self)
+
+    def transpose(self, *args, copy: bool = False) -> pd.DataFrame:
+        """Overwrite transpose of super class.
+
+        Because the index and column are swapped the resulting type cannot be of type
+        `TSCDataFrame` anymore. Instead, the transpose is of type `DataFrame`.
+
+        Parameters
+        ----------
+        *args
+        copy
+            Whether to copy the data after transposing, even for DataFrames with a single
+            dtype. Note that a copy is always required for mixed dtype DataFrames, or for
+            DataFrames with any extension types.
+
+        Returns
+        -------
+        pd.DataFrame
+            the transposed data structure
+        """
+        return pd.DataFrame(self).transpose(*args, copy=copy)
 
     def set_index(
         self,

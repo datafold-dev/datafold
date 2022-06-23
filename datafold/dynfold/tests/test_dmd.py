@@ -14,8 +14,6 @@ from scipy.interpolate import interp1d
 
 from datafold.dynfold import TSCTakensEmbedding
 from datafold.dynfold.dmd import (
-    ControlledAffineDynamicalSystem,
-    ControlledLinearDynamicalSystem,
     DMDControl,
     DMDEco,
     DMDFull,
@@ -287,41 +285,53 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
 
     def test_controlled_system(self):
         actual = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(self.A, self.B)
-            .evolve_system(self.x0, self.u)
+            LinearDynamicalSystem("flowmap", "matrix", is_controlled=True)
+            .setup_matrix_system(self.A, control_matrix=self.B)
+            .evolve_system(
+                self.x0,
+                time_values=np.arange(self.u.shape[0]),
+                control_input=self.u,
+                time_delta=1,
+            )
         )
 
         nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)
 
     def test_controlled_vs_linear(self):
         controlled = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(self.A, self.B)
-            .evolve_system(self.x0, np.zeros(self.u.shape))
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
+            .setup_matrix_system(self.A, control_matrix=self.B)
+            .evolve_system(
+                self.x0,
+                time_values=self.t,
+                control_input=np.zeros(self.u.shape),
+                time_delta=self.t[1] - self.t[0],
+            )
         )
         linear = (
             LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
             .setup_matrix_system(self.A)
-            .evolve_system(self.x0, self.t, time_delta=self.t[1])
+            .evolve_system(
+                self.x0, time_values=self.t, time_delta=self.t[1] - self.t[0]
+            )
         )
 
         nptest.assert_allclose(
             controlled.to_numpy(), linear.to_numpy(), atol=1e-8, rtol=1e-13
         )
 
-    @unittest.skip(reason="Fractional timestep not implemented yet")
-    def test_integer_vs_fractional(self):
-        pass
-
     def test_time_delta(self):
         t = np.linspace(0, (self.n_timesteps - 1) / 2, self.n_timesteps)
         dt = 0.5
 
         actual = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(self.A, self.B)
-            .evolve_system(self.x0, self.u, t, time_delta=dt)
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
+            .setup_matrix_system(self.A, control_matrix=self.B)
+            .evolve_system(self.x0, control_input=self.u, time_values=t, time_delta=dt)
         )
 
         nptest.assert_allclose(actual.to_numpy(), self.expected, atol=1e-8, rtol=1e-13)
@@ -331,16 +341,21 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
         expected = np.vstack([self.expected, self.expected])
         ts_ids = np.array((10, 20))
 
-        with self.assertRaises(ValueError):
-            actual = ControlledLinearDynamicalSystem().evolve_system(
-                x0, self.u, self.t, self.A, self.B, 1, ts_ids, self.names, True
-            )
         u = np.stack([self.u, self.u])
-        actual = ControlledLinearDynamicalSystem().evolve_system(
-            x0, u, self.t, self.A, self.B, 1, ts_ids, self.names, False
+
+        system = LinearDynamicalSystem(
+            sys_type="flowmap", sys_mode="matrix", is_controlled=True
+        ).setup_matrix_system(system_matrix=self.A, control_matrix=self.B)
+        actual = system.evolve_system(
+            x0,
+            control_input=u,
+            time_values=self.t,
+            time_delta=1,
+            time_series_ids=ts_ids,
+            feature_names_out=self.names,
         )
 
-        nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-8, rtol=1e-13)
+        nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-15, rtol=1e-15)
         self.assertEqual(actual.n_timesteps, len(self.t))
         self.assertEqual(actual.n_timeseries, 2)
         self.assertEqual(actual.columns.tolist(), self.names)
@@ -349,25 +364,48 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
     def test_feature_columns(self):
 
         actual = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(self.A, self.B)
-            .evolve_system(self.x0, self.u, feature_names_out=self.names)
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
+            .setup_matrix_system(self.A, control_matrix=self.B)
+            .evolve_system(
+                self.x0,
+                control_input=self.u,
+                time_values=np.arange(self.u.shape[0]),
+                feature_names_out=self.names,
+                time_delta=1,
+            )
         )
 
+        self.assertIsInstance(actual, TSCDataFrame)
         self.assertEqual(actual.columns.tolist(), self.names)
+        nptest.assert_array_equal(actual.time_values(), np.arange(self.u.shape[0]))
 
+        # invalid feature_names_out
         with self.assertRaises(ValueError):
             (
-                ControlledLinearDynamicalSystem()
-                .setup_matrix_system(self.A, self.B)
-                .evolve_system(self.x0, self.u, feature_names_out=[1, 2, 3])
+                LinearDynamicalSystem(
+                    sys_type="flowmap", sys_mode="matrix", is_controlled=True
+                )
+                .setup_matrix_system(self.A, control_matrix=self.B)
+                .evolve_system(
+                    self.x0,
+                    control_input=self.u,
+                    time_values=np.arange(self.u.shape[0]),
+                    time_delta=1,
+                    feature_names_out=[1, 2, 3],
+                )
             )
 
     def test_return_types(self):
         actual = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(self.A, self.B)
-            .evolve_system(self.x0, self.u[:1], time_delta=1)
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
+            .setup_matrix_system(self.A, control_matrix=self.B)
+            .evolve_system(
+                self.x0, control_input=self.u[:1], time_values=0, time_delta=1
+            )
         )
 
         # Is a TSCDataFrame, also for single time steps
@@ -375,44 +413,64 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
         self.assertTrue(actual.has_degenerate())
 
         actual = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(self.A, self.B)
-            .evolve_system(self.x0, self.u[:2])
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
+            .setup_matrix_system(self.A, control_matrix=self.B)
+            .evolve_system(
+                self.x0, control_input=self.u[:2, :], time_values=[0, 1], time_delta=1
+            )
         )
 
         # is a TSCDataFrame, because more than two time values are a time series
         self.assertIsInstance(actual, TSCDataFrame)
 
     def test_dimension_mismatch(self):
+        setting = dict(sys_type="flowmap", sys_mode="matrix", is_controlled=True)
+
         # non-square system matrix
         with self.assertRaises(ValueError):
-            ControlledLinearDynamicalSystem().setup_matrix_system(
-                np.zeros((3, 4)), np.zeros((4, 4))
+            LinearDynamicalSystem(**setting).setup_matrix_system(
+                np.zeros([3, 4]), control_matrix=np.zeros([4, 4])
             )
 
         # mismatch between system and input matrix
         with self.assertRaises(ValueError):
-            ControlledLinearDynamicalSystem().setup_matrix_system(
-                np.zeros((4, 4)), np.zeros((3, 4))
+            LinearDynamicalSystem(**setting).setup_matrix_system(
+                np.zeros([4, 4]), control_matrix=np.zeros([3, 4])
             )
 
         # wrong initial condition
         with self.assertRaises(ValueError):
-            ControlledLinearDynamicalSystem().setup_matrix_system(
-                np.zeros((4, 4)), np.zeros((4, 3))
-            ).evolve_system(np.zeros(3), np.zeros((4, 3)))
+            LinearDynamicalSystem(**setting).setup_matrix_system(
+                np.zeros((4, 4)), control_matrix=np.zeros([4, 3])
+            ).evolve_system(
+                np.zeros(3), control_input=np.zeros([4, 3]), time_values=np.arange(4)
+            )
 
         # wrong control input
         with self.assertRaises(ValueError):
-            ControlledLinearDynamicalSystem().setup_matrix_system(
-                np.zeros((4, 4)), np.zeros((4, 3))
-            ).evolve_system(np.zeros(4), np.zeros((3, 4)))
+            LinearDynamicalSystem(**setting).setup_matrix_system(
+                np.zeros((4, 4)), control_matrix=np.zeros((4, 3))
+            ).evolve_system(
+                np.zeros(4), control_input=np.zeros([3, 4]), time_values=np.arange(3)
+            )
 
-        # wrong time values
+        # wrong time values -> only zeros
         with self.assertRaises(ValueError):
-            ControlledLinearDynamicalSystem().setup_matrix_system(
-                np.zeros((4, 4)), np.zeros((4, 3))
-            ).evolve_system(np.zeros(3), np.zeros((4, 3)), np.zeros(3))
+            LinearDynamicalSystem(**setting).setup_matrix_system(
+                np.zeros((4, 4)), control_matrix=np.zeros([4, 3])
+            ).evolve_system(
+                np.zeros(3), control_input=np.zeros([4, 3]), time_values=np.zeros(3)
+            )
+
+        # wrong time values -> control input vs. time values mismatch
+        with self.assertRaises(ValueError):
+            LinearDynamicalSystem(**setting).setup_matrix_system(
+                np.zeros((4, 4)), control_matrix=np.zeros([4, 3])
+            ).evolve_system(
+                np.zeros(3), control_input=np.zeros([4, 3]), time_values=np.arange(999)
+            )
 
 
 class ControlledAffineDynamicalSystemTest(unittest.TestCase):
@@ -426,7 +484,7 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
         self.x0 = gen.uniform(-1.0, 1.0, size=self.state_size)
         Bi = [
             gen.uniform(-0.5, 0.5, size=(self.state_size, self.state_size))
-            for i in range(self.input_size)
+            for _ in range(self.input_size)
         ]
         self.u = gen.uniform(-1.0, 1.0, size=(self.n_timesteps, self.input_size))
         self.t = np.linspace(0, self.n_timesteps - 1, self.n_timesteps)
@@ -449,9 +507,19 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
 
     def test_affine_system(self):
         actual = (
-            ControlledAffineDynamicalSystem()
-            .setup_matrix_system(self.A, self.Bi)
-            .evolve_system(self.x0, self.u)
+            LinearDynamicalSystem(
+                sys_type="differential",
+                sys_mode="matrix",
+                is_controlled=True,
+                is_affine_control=True,
+            )
+            .setup_matrix_system(self.A, control_matrix=self.Bi)
+            .evolve_system(
+                self.x0,
+                control_input=self.u,
+                time_values=np.arange(self.u.shape[0]),
+                time_delta=1,
+            )
         )
 
         nptest.assert_allclose(actual.to_numpy(), self.expected, atol=0.1, rtol=0.1)
@@ -459,19 +527,31 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
     def test_affine_vs_linear(self):
 
         controlled = (
-            ControlledAffineDynamicalSystem()
-            .setup_matrix_system(self.A, self.Bi)
-            .evolve_system(self.x0, np.zeros(self.u.shape))
+            LinearDynamicalSystem(
+                sys_type="differential",
+                sys_mode="matrix",
+                is_controlled=True,
+                is_affine_control=True,
+            )
+            .setup_matrix_system(self.A, control_matrix=self.Bi)
+            .evolve_system(
+                self.x0,
+                control_input=np.zeros(self.u.shape),
+                time_values=self.t,
+                time_delta=self.t[1] - self.t[0],
+            )
         )
         linear = (
             LinearDynamicalSystem(sys_type="differential", sys_mode="matrix")
             .setup_matrix_system(self.A)
-            .evolve_system(self.x0, self.t, time_delta=self.t[1])
+            .evolve_system(
+                self.x0, time_values=self.t, time_delta=self.t[1] - self.t[0]
+            )
         )
 
         # use high tolerance since RK numerical integration compared to matrix exponent
         nptest.assert_allclose(
-            controlled.to_numpy(), linear.to_numpy(), rtol=1e-3, atol=1e-3
+            controlled.to_numpy(), linear.to_numpy(), rtol=0, atol=1e-3
         )
 
 
@@ -1070,9 +1150,17 @@ class DMDControlTest(unittest.TestCase):
         names = ["x" + str(i + 1) for i in range(state_size)]
 
         tsc_df = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(A, B)
-            .evolve_system(x0, u, feature_names_out=names)
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
+            .setup_matrix_system(A, control_matrix=B)
+            .evolve_system(
+                x0,
+                control_input=u,
+                time_values=np.arange(u.shape[0]),
+                time_delta=1,
+                feature_names_out=names,
+            )
         )
 
         for i in range(input_size):
@@ -1095,17 +1183,21 @@ class DMDControlTest(unittest.TestCase):
         t = tsc_df.index.get_level_values(1)[-n_predict:]
         expected = tsc_df[state_cols].iloc[-n_predict:]
 
-        dmd = DMDControl().fit(expected, u)
+        dmd = DMDControl().fit(expected, U=u)
 
-        actual = dmd.predict(expected.initial_states(), U=u, time_values=t)
+        actual1 = dmd.predict(expected.initial_states(), U=u)
+        actual2 = dmd.predict(expected.initial_states(), U=u, time_values=t)
 
-        pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
+        pdtest.assert_frame_equal(actual1, actual2, rtol=0, atol=0)
+
+        pdtest.assert_frame_equal(actual1, expected, rtol=1e-11, atol=1e-15)
 
     def test_dmd_control_free(self):
         tsc_df = self._create_harmonic_tsc(100, 2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
         tsc_ic = tsc_df.initial_states()
 
+        # mock control free by setting "U" to zero
         U = TSCDataFrame.from_same_indices_as(
             tsc_df, np.zeros([tsc_df.shape[0], 1]), except_columns=["u"]
         )
@@ -1229,9 +1321,15 @@ class gDMDAffineTest(unittest.TestCase):
         t = np.linspace(0, n_timesteps - 1, n_timesteps) * dt
         names = ["x" + str(i + 1) for i in range(state_size)]
 
-        sys = ControlledAffineDynamicalSystem().setup_matrix_system(A, Bi)
+        sys = LinearDynamicalSystem(
+            sys_type="differential",
+            sys_mode="matrix",
+            is_controlled=True,
+            is_affine_control=True,
+        )
+        sys.setup_matrix_system(A, control_matrix=Bi)
         tsc_df = sys.evolve_system(
-            x0, u, time_values=t, time_delta=0.1, feature_names_out=names
+            x0, control_input=u, time_values=t, time_delta=0.1, feature_names_out=names
         )
 
         ureshaped = u.reshape((-1, input_size))
@@ -1301,7 +1399,7 @@ class gDMDAffineTest(unittest.TestCase):
         )
         x0 = np.random.default_rng(42).uniform(-1.0, 1.0, size=state_size)
         expected = sys.evolve_system(
-            x0, U.to_numpy(), time_values=t, feature_names_out=state_cols
+            x0, control_input=U.to_numpy(), time_values=t, feature_names_out=state_cols
         )
         actual = dmd.predict(expected.initial_states()[state_cols], U=U)
 

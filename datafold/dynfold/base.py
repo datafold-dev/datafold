@@ -612,16 +612,26 @@ class TSCPredictMixin(TSCBase):
             raise TypeError("only types that support feature names are supported")
 
         if time_values is None:
-            reference = X.final_states(n_samples=1).time_values()
-            reference = np.unique(reference)
-            if np.size(reference) != 1:
-                raise NotImplementedError(
-                    "Currently all initial conditions must have the same time reference"
-                )
+            if is_controlled:
+                time_values = U.time_values()  # type: ignore
+            else:
+                reference = X.final_states(n_samples=1).time_values()
+                reference = np.unique(reference)
+                if np.size(reference) != 1:
+                    raise NotImplementedError(
+                        "Currently all initial conditions must have the same time reference"
+                    )
 
-            time_values = np.array([reference[0], reference[0] + self.dt_])
+                time_values = np.array([reference[0], reference[0] + self.dt_])
         else:
+            if is_controlled:
+                if (time_values != U.time_values()).all():  # type: ignore
+                    raise ValueError(
+                        "Both control states in 'U' and 'time_values' are "
+                        "provided with non-matching time information. "
+                    )
             time_values = self._validate_time_values(time_values=time_values)
+
         self._validate_feature_names(X)
 
         if is_controlled:
@@ -633,11 +643,11 @@ class TSCPredictMixin(TSCBase):
         self,
         X: InitialConditionType,
         *,
-        U: TSCDataFrame,
+        U: Optional[TSCDataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:
-        # intended for duck-typing, but provides method layout
+        # intended for duck-typing, but provides argument layout
         raise NotImplementedError("method not implemented")
 
     def fit_predict(
@@ -648,7 +658,7 @@ class TSCPredictMixin(TSCBase):
         y=None,
         **fit_params,
     ) -> TSCDataFrame:
-        # overwrite if necessary
+        """Standard fit_predict method. Overwrite if necessary."""
         self.fit: Callable
         return self.fit(X, U=U, y=y, **fit_params).predict(X.initial_states())
 
@@ -659,6 +669,7 @@ class TSCPredictMixin(TSCBase):
         U: TSCDataFrame,
         qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
     ):
+        """Standard reconstruct method. Overwrite if necessary."""
         X_reconstruct_ts = []
 
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
@@ -666,7 +677,7 @@ class TSCPredictMixin(TSCBase):
         ):
             X_ts = self.predict(
                 X=X_ic,
-                U=U.loc[pd.IndexSlice[:, X_ic.ids[0]], :] if U is not None else None,
+                U=U.loc[pd.IndexSlice[X_ic.ids, :], :] if U is not None else None,
                 time_values=time_values,
             )
             X_reconstruct_ts.append(X_ts)

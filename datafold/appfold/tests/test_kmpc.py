@@ -7,12 +7,8 @@ import pandas as pd
 
 from datafold.appfold.edmd import EDMD
 from datafold.appfold.kmpc import AffineKgMPC, LinearKMPC
-from datafold.dynfold.dmd import (
-    ControlledAffineDynamicalSystem,
-    ControlledLinearDynamicalSystem,
-    DMDControl,
-    gDMDAffine,
-)
+from datafold.dynfold.dmd import DMDControl, gDMDAffine
+from datafold.dynfold.dynsystem import LinearDynamicalSystem
 from datafold.dynfold.transform import TSCIdentity
 from datafold.pcfold import InitialCondition, TSCDataFrame
 from datafold.utils._systems import InvertedPendulum
@@ -86,9 +82,13 @@ class LinearKMPCTest(unittest.TestCase):
         u = gen.uniform(size=(1, input_size))
         u = (u.T + np.sin(u.T + u.T * np.atleast_2d(t))).T
         df = (
-            ControlledLinearDynamicalSystem()
-            .setup_matrix_system(A, B)
-            .evolve_system(x0, u)
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
+            .setup_matrix_system(A, control_matrix=B)
+            .evolve_system(
+                x0, control_input=u, time_values=np.arange(u.shape[0]), time_delta=1
+            )
         )
 
         edmdmock = Mock()
@@ -210,9 +210,7 @@ class AffineKMPCTest(unittest.TestCase):
 
             return X_tsc, t, control_input, dfx, dfu
 
-    def _execute_mock_test(
-        self, state_size, input_size, n_timesteps, AffineMPCtype, seed=42
-    ):
+    def _execute_mock_test(self, state_size, input_size, n_timesteps, seed=42):
         gen = np.random.default_rng(seed)
         x0 = gen.uniform(size=state_size)
         A = gen.uniform(-0.4, 0.5, size=(state_size, state_size))
@@ -225,8 +223,15 @@ class AffineKMPCTest(unittest.TestCase):
         t = np.linspace(0, n_timesteps - 1, n_timesteps) * 0.1
         u = 0.5 + gen.uniform(-0.1, 0.1, size=(1, input_size))
         u = (u.T + np.sin(u.T + u.T * np.atleast_2d(t))).T
-        sys = ControlledAffineDynamicalSystem().setup_matrix_system(A, Bi)
-        expected = sys.evolve_system(x0, u, t)
+        sys = LinearDynamicalSystem(
+            sys_type="differential",
+            sys_mode="matrix",
+            is_controlled=True,
+            is_affine_control=True,
+        ).setup_matrix_system(A, control_matrix=Bi)
+        expected = sys.evolve_system(
+            x0, control_input=u, time_values=t, time_delta=t[1] - t[0]
+        )
 
         edmdmock = Mock()
         edmdmock.dmd_model.sys_matrix_ = A
@@ -234,7 +239,7 @@ class AffineKMPCTest(unittest.TestCase):
         edmdmock.feature_names_in_ = [f"x{i}" for i in range(state_size)]
         edmdmock.transform = lambda x: x
 
-        kmpcperfect = AffineMPCtype(
+        kmpcperfect = AffineKgMPC(
             predictor=edmdmock,
             horizon=n_timesteps - 1,
             input_bounds=np.array([[5, -5]] * input_size),
@@ -242,16 +247,21 @@ class AffineKMPCTest(unittest.TestCase):
             cost_input=0,
         )
         pred = kmpcperfect.generate_control_signal(x0, expected)
-        actual = sys.evolve_system(x0, np.pad(pred, ((0, 1), (0, 0))), t)
+        actual = sys.evolve_system(
+            x0,
+            control_input=np.pad(pred, ((0, 1), (0, 0))),
+            time_values=t,
+            time_delta=t[1] - t[0],
+        )
         nptest.assert_allclose(
             actual.to_numpy(), expected.to_numpy(), rtol=0.1, atol=0.1
         )
 
     def test_kgmpc_mock_edmd_1d(self):
-        self._execute_mock_test(2, 1, 10, AffineKgMPC)
+        self._execute_mock_test(state_size=2, input_size=1, n_timesteps=10)
 
     def test_kgmpc_mock_edmd_2d(self):
-        self._execute_mock_test(2, 2, 10, AffineKgMPC)
+        self._execute_mock_test(state_size=2, input_size=2, n_timesteps=10)
 
     def test_kmpc_generate_control_signal(self):
         horizon = 100

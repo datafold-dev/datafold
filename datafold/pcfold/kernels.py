@@ -2003,7 +2003,7 @@ class ConeKernel(TSCManifoldKernel):
         K(x, y) = \exp
         \left(
         -\frac{\vert\vert \omega_{ij}\vert\vert^2}
-        {\varepsilon \delta t^2 \vert\vert \xi_i \vert\vert \vert\vert \xi_j \vert\vert }
+        {\varepsilon \Delta t^2 \vert\vert \xi_i \vert\vert \vert\vert \xi_j \vert\vert }
         \left[ (1-\zeta \cos^2 \theta_i)(1-\zeta \cos^2 \theta_j) \right]^{0.5}
         \right)
 
@@ -2022,7 +2022,7 @@ class ConeKernel(TSCManifoldKernel):
     is a difference vector between the point pairs,
 
     .. math::
-        \delta t
+        \Delta t
 
     is the (constant) time sampling in the time series,
 
@@ -2037,11 +2037,11 @@ class ConeKernel(TSCManifoldKernel):
     is the parameter to control the angular influence, and
 
     .. math::
-        \xi_i = \delta_p x_i = \sum_{j=-p/2}^{p/2} w_j x_{i+j}
+        \xi_i = \Delta_p x_i = \sum_{j=-p/2}^{p/2} w_j x_{i+j}
 
     is the approximation of the dynamical vector field. The approximation is carried
-    out with :math:`\delta_p`, a :math:`p`-th order accurate central finite difference
-    (in a sense that :math:`\frac{\xi}{\delta t} + \mathcal{O}(\delta t^p)`) with
+    out with :math:`\Delta_p`, a :math:`p`-th order accurate central finite difference
+    (in a sense that :math:`\frac{\xi}{\Delta t} + \mathcal{O}(\Delta t^p)`) with
     associated weights :math:`w`.
 
     .. note::
