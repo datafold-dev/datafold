@@ -100,7 +100,7 @@ class DMDBase(
 
     @property
     def dmd_modes(self):
-        if not self.is_spectral_mode():
+        if not self.is_spectral_mode:
             raise AttributeError(
                 "The DMD modes are not available because the system is "
                 "not set up in spectral mode."
@@ -129,9 +129,7 @@ class DMDBase(
                     "to set 'feature_columns' in **kwargs"
                 )
 
-        if self.is_matrix_mode() and (
-            post_map is not None or user_set_modes is not None
-        ):
+        if self.is_matrix_mode and (post_map is not None or user_set_modes is not None):
             raise ValueError("post_map can only be provided with 'sys_type=spectral'")
 
         return post_map, user_set_modes, feature_columns
@@ -162,6 +160,15 @@ class DMDBase(
         ----------
         X
             Training data
+
+        U
+            Control data (set to None as a default if the subclass does not support control
+            input)
+
+        y
+            ignored (Hint for future dev.: This parameter is reserved to specify an extra map,
+            e.g. to specific features in `X` or a separate system feature)
+
         """
         raise NotImplementedError("base class")
 
@@ -195,6 +202,7 @@ class DMDBase(
         initial_states_origspace = X_ic.to_numpy().T
 
         if control_input is not None:
+            # 3-dim tensor for the control input over the predicted time horizon
             control_input = control_input.to_numpy().reshape(
                 len(control_input.ids), -1, len(control_input.columns)
             )
@@ -207,7 +215,7 @@ class DMDBase(
             # check if duplicate ids are present
             raise ValueError("time series ids have to be unique")
 
-        if self.is_matrix_mode():
+        if self.is_matrix_mode:
             # no adaptation required
             initial_states_dmd = initial_states_origspace
         else:  # self.is_spectral_mode()
@@ -431,7 +439,14 @@ class DMDBase(
         """
         return self.fit(X, U=U, **fit_params).reconstruct(X, U=U)
 
-    def score(self, X: TSCDataFrame, y=None, sample_weight=None) -> float:
+    def score(
+        self,
+        X: TSCDataFrame,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        y=None,
+        sample_weight=None,
+    ) -> float:
         """Score model by reconstructing time series data.
 
         The default metric (see :class:`.TSCMetric` used is mode="feature", "metric=rmse"
@@ -441,6 +456,10 @@ class DMDBase(
         ----------
         X
             Time series data to reconstruct with `(n_samples, n_features)`.
+
+        U
+            Time series with control states (only necessary if the model was fit with control
+            input).
 
         y: None
             ignored
@@ -455,9 +474,7 @@ class DMDBase(
         """
         self._check_attributes_set_up(check_attributes=["_score_eval"])
 
-        # does checks:
-        X_est_ts = self.reconstruct(X)
-
+        X_est_ts = self.reconstruct(X, U=U)  # does all the validation checks
         return self._score_eval(X, X_est_ts, sample_weight)
 
 
@@ -494,7 +511,7 @@ class DMDFull(DMDBase):
         If True, also the left eigenvectors are computed to diagonalize the system matrix.
         This afftects of how initial conditions are adapted for the spectral system
         representation (instead of a least squares :math:`\Psi_r^\dagger x_0` with right
-        eigenvectors it performs :math:`\Psi_l x_0`). Tthe parameter is ignored if
+        eigenvectors it performs :math:`\Psi_l x_0`). The parameter is ignored if
         ``sys_mode=matrix``.
 
     approx_generator
@@ -505,12 +522,12 @@ class DMDFull(DMDBase):
           of the Koopman matrix. Note, that the left and right eigenvectors remain the
           same.
         * `mode=matrix` compute generator matrix with
-          :math:`logm(K) / \Delta t` (where :math:`logm` is the matrix logarithm.
+          :math:`logm(K) / \Delta t`, where :math:`logm` is the matrix logarithm.
 
         .. warning::
 
             This operation can fail if the eigenvalues of the matrix :math:`K` are too
-            close to zero or the matrix logarithm is not well-defined because because of
+            close to zero or the matrix logarithm is ill-defined because of
             non-uniqueness. For details see :cite:t:`dietrich-2020` (Eq.
             3.2. and 3.3. and discussion). Currently, there are no counter measurements
             implemented to increase numerical robustness (work is needed). Consider
@@ -689,6 +706,9 @@ class DMDFull(DMDBase):
         y: None
             ignored
 
+        U: None
+            ignored (the method does not support control input)
+
         **fit_params
 
          - store_system_matrix
@@ -717,7 +737,7 @@ class DMDFull(DMDBase):
 
         koopman_matrix_ = self._compute_koopman_matrix(X)
 
-        if self.is_spectral_mode():
+        if self.is_spectral_mode:
             (
                 eigenvectors_right_,
                 eigenvalues_,
@@ -892,6 +912,9 @@ class gDMDFull(DMDBase):
         X
             Training time series data.
 
+        U: None
+            ignored (the method does not support control input)
+
         y: None
             ignored
 
@@ -926,7 +949,7 @@ class gDMDFull(DMDBase):
 
         generator_matrix_ = self._compute_koopman_generator(X, X_grad)
 
-        if self.is_spectral_mode():
+        if self.is_spectral_mode:
             (
                 eigenvectors_right_,
                 eigenvalues_,
@@ -1073,6 +1096,10 @@ class DMDEco(DMDBase):
         ----------
         X
             Training time series data.
+
+        U: None
+            ignored (the method does not support control input)
+
         y
             ignored
 
@@ -1162,7 +1189,7 @@ class DMDControl(DMDBase):
         if XT.shape[1] > XT.shape[0]:
             warnings.warn(
                 "There are more observables than snapshots. The current implementation "
-                "favors more snapshots than obserables. This may result in a bad "
+                "favors more snapshots than observables. This may result in a bad "
                 "computational performance."
             )
 
@@ -1193,22 +1220,24 @@ class DMDControl(DMDBase):
                 "X and U should be sampled at the same times and time intervals."
             )
 
-    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params):  # type: ignore[override] # noqa
-        """Compute Koopman matrix under control input.
+    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params) -> "DMDControl":  # type: ignore[override] # noqa
+        """Fit model to approximate Koopman and control matrix.
 
         Parameters
         ----------
         X : TSCDataFrame
             Input state data
 
-        U : TSCDataFrame
-            Input control data
+        U: None
+            ignored (the method does not support control input)
 
-        # TODO: doc y=None
+        y: None
+            ignored
 
         Returns
         -------
-        self
+        DMDControl
+            fitted model
         """
         self._validate_datafold_data(
             X=X,
@@ -1230,7 +1259,7 @@ class DMDControl(DMDBase):
 
 
 class gDMDAffine(DMDBase):
-    r"""Dynamic Mode Decomposition of time series data with control input to
+    r"""Dynamic mode decomposition of time series data with control input to
     approximate the Koopman generator for an input affine system.
 
     The model computes the system matrix :math:`A` and control tensor :math:`B` with
@@ -1242,42 +1271,42 @@ class gDMDAffine(DMDBase):
                 x^{(1)}                & \ldots & x^{(n)} \\
                 u^{(1)} \otimes x^{(1)}& \ldots & u^{(n)} \otimes x^{(n)} \\
                 \end{bmatrix} \\
-        \Psi_dot &= [\dot{x}^{(1)} \ldots \dot{x}^{(n)}] \\
+        \Psi &= [\dot{x}^{(1)} \ldots \dot{x}^{(n)}] \\
         [A,B] &= \dot{\Psi} (\Psi)^{\dagger},
 
     where :math:`X` is the data with :math:`n` column oriented snapshots,
     :math:`\dagger` is the Moore–Penrose inverse and
     :math:`\otimes` is the Kronecker product.
 
-    Note: The derivative :math:`\dot{x}` is computed via a finite-difference
-    scheme as determined by the model arguments. As a result, samples for which no derivative
-    is available are dropped.
+    The derivative :math:`\dot{x}` is computed via a finite-difference scheme as determined by
+    the model arguments and passed to
+    :py:meth:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`. Samples are
+    dropped for which no derivative are available.
 
     ...
 
     Parameters
     ----------
-    diff_scheme: Optional[str]
+    diff_scheme
         The finite difference scheme 'backward', 'center' or 'forward'.
-        Default is center. Passed to `scheme` of
-        :py:meth:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
+        Default is center.
 
-    diff_accuracy: Optional[int]
+    diff_accuracy
         The accuracy (even positive integer) of the derivative scheme.
         Default is 2. Passed to `accuracy` of
         :py:meth:`datafold.pcfold.timeseries.accessor.TSCAccessor.time_derivative`
 
-    rcond: Optional[float]
+    rcond
         Cut-off ratio for small singular values
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
     Attributes
     -------
     sys_matrix_ : np.ndarray
-        Koopman approximation of the state matrix
+        Approximation of the Koopman operator as the state matrix.
 
     control_matrix_ : np.ndarray
-        Computed control matrix
+        Computed control matrix (as a tensor)
 
     References
     ----------
@@ -1299,10 +1328,10 @@ class gDMDAffine(DMDBase):
             sys_type="differential",
             sys_mode="matrix",
             is_controlled=True,
-            is_affine_control=True,
+            is_control_affine=True,
         )
 
-    def _compute_koompan_matrices(
+    def _compute_koopman_and_control_matrix(
         self,
         state: TSCDataFrame,
         control_inp: TSCDataFrame,
@@ -1361,40 +1390,8 @@ class gDMDAffine(DMDBase):
 
         return sys_matrix, control_tensor
 
-    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params):  # type: ignore[override] # noqa
-        """Compute Koopman matrix under control input.
-
-        Parameters
-        ----------
-        X : TSCDataFrame
-            Input state data
-
-        U : TSCDataFrame
-            Input control data
-
-        # TODO: doc y=None
-
-        Returns
-        -------
-        self
-        """
-        self._validate_datafold_data(
-            X=X,
-            ensure_tsc=True,
-            tsc_kwargs={"ensure_const_delta_time": True},
-        )
-
-        self._validate_datafold_data(
-            X=U,
-            ensure_tsc=True,
-        )
-        self._setup_features_and_time_attrs_fit(X=X, U=U)
-        self._read_fit_params(None, fit_params=fit_params)
-
-        sys_matrix, control_matrix = self._compute_koompan_matrices(X, U)
-        self.setup_matrix_system(sys_matrix, control_matrix=control_matrix)
-
-        return self
+    # re-use function from DMDControl (but there is no inheritance relation)
+    fit = DMDControl.fit  # type: ignore
 
 
 class PyDMDWrapper(DMDBase):
@@ -1406,7 +1403,13 @@ class PyDMDWrapper(DMDBase):
     .. warning::
 
         The models provided by *PyDMD* can only deal with single time series. See also
-        `github issue #86 <https://github.com/mathLab/PyDMD/issues/86>`__.
+        `github issue #86 <https://github.com/mathLab/PyDMD/issues/86>`__. This means that the
+        input `X` in `fit` can only consist of one time series.
+
+    .. warning::
+
+        A main purpose of this wrapper is to use it for cross testing. The wrapper itself is
+        not properly tested.
 
     Parameters
     ----------
@@ -1419,6 +1422,7 @@ class PyDMDWrapper(DMDBase):
         - "fbdmd" - forwards backwards DMD
         - "mrdmd" - multi resolution DMD
         - "cdmd" - compressed DMD
+        - "dmdc" - DMD with control
 
     svd_rank
         The rank of the singular value decomposition.
@@ -1480,6 +1484,8 @@ class PyDMDWrapper(DMDBase):
 
     def _setup_pydmd_model(self):
 
+        # TODO: support HankelDMD, SpDMD, ParametricDMD ?
+
         if self.method == "dmd":
             self.dmd_ = pydmd.DMD(
                 svd_rank=self.svd_rank,
@@ -1504,13 +1510,7 @@ class PyDMDWrapper(DMDBase):
                 opt=self.opt,
             )
         elif self.method == "mrdmd":
-            self.dmd_ = pydmd.MrDMD(
-                svd_rank=self.svd_rank,
-                tlsq_rank=self.tlsq_rank,
-                exact=self.exact,
-                opt=self.opt,
-                **self.init_params,
-            )
+            self.dmd_ = pydmd.MrDMD(**self.init_params)
         elif self.method == "cdmd":
             self.dmd_ = pydmd.CDMD(
                 svd_rank=self.svd_rank,
@@ -1520,20 +1520,32 @@ class PyDMDWrapper(DMDBase):
             )
 
         elif self.method == "dmdc":
-            raise NotImplementedError(
-                "Currently not implemented because DMD with control requires "
-                "additional input."
+            self.dmd_ = pydmd.DMDc(
+                svd_rank=self.svd_rank,
+                tlsq_rank=self.tlsq_rank,
+                opt=self.opt,
+                **self.init_params,
             )
         else:
             raise ValueError(f"method={self.method} not known")
 
-    def fit(self, X: TimePredictType, y=None, **fit_params) -> "PyDMDWrapper":
+    def fit(
+        self,
+        X: TimePredictType,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        y=None,
+        **fit_params,
+    ) -> "PyDMDWrapper":
         """Compute Dynamic Mode Decomposition from data.
 
         Parameters
         ----------
         X
             Training time series data.
+
+        U
+            Control input time series. Only available for models that support control.
 
         y: None
             ignored
@@ -1564,11 +1576,18 @@ class PyDMDWrapper(DMDBase):
             )
 
         # data is column major
-        self.dmd_.fit(X=X.to_numpy().T)
+        if self.method == "dmdc":
+            assert isinstance(self.dmd_, pydmd.dmdc.DMDc)
+            assert U is not None
+            self.dmd_.fit(X=X.to_numpy().T, I=U.to_numpy()[1:, :].T)
+            # Pydmd does not support a .predict() method for controlled systems
 
-        self.setup_spectral_system(
-            eigenvectors_right=self.dmd_.modes, eigenvalues=self.dmd_.eigs
-        )
+        else:
+            self.dmd_.fit(X=X.to_numpy().T)
+            self.setup_spectral_system(
+                eigenvectors_right=self.dmd_.modes,
+                eigenvalues=self.dmd_.eigs,
+            )
 
         return self
 
@@ -1828,9 +1847,13 @@ class StreamingDMD(DMDBase):
 
         # required to perform predictions:
         (
-            self.eigenvectors_right_,
-            self.eigenvalues_,
+            eigenvectors_right,
+            eigenvalues,
         ) = self._compute_spectral_components()
+
+        self.setup_spectral_system(
+            eigenvectors_right=eigenvectors_right, eigenvalues=eigenvalues
+        )
 
         return self
 
@@ -1838,7 +1861,7 @@ class StreamingDMD(DMDBase):
         self,
         X: TimePredictType,
         *,
-        U: Optional[TSCDataFrame] = None,
+        U=None,
         time_values=None,
         **predict_params,
     ):
@@ -2127,9 +2150,15 @@ class OnlineDMD(DMDBase):
 
         if self.ready_:
             (
-                self.eigenvalues_,
-                self.eigenvectors_right_,
-                self.eigenvectors_left_,
+                eigenvalues,
+                eigenvectors_right,
+                eigenvectors_left,
             ) = self._compute_spectral_components()
+
+            self.setup_spectral_system(
+                eigenvectors_right=eigenvectors_right,
+                eigenvalues=eigenvalues,
+                eigenvectors_left=eigenvectors_left,
+            )
 
         return self

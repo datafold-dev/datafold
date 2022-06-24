@@ -371,6 +371,22 @@ class TestTSCDataFrame(unittest.TestCase):
             actual, expected, check_names=False, check_flags=False
         )
 
+    def test_from_frame_list04(self):
+        df = pd.DataFrame(np.arange(6).reshape([3, 2]))
+        tsc = TSCDataFrame.from_single_timeseries(df.copy())
+
+        # use identical TSCDataFrane:
+        actual = TSCDataFrame.from_frame_list([tsc, tsc])
+
+        expected = pd.concat(
+            [
+                TSCDataFrame.from_single_timeseries(df.copy(), ts_id=0),
+                TSCDataFrame.from_single_timeseries(df.copy(), ts_id=1),
+            ],
+            axis=0,
+        )
+        pdtest.assert_frame_equal(actual, expected, check_names=True, check_flags=True)
+
     def test_feature_to_array1(self):
 
         with self.assertRaises(TSCException):

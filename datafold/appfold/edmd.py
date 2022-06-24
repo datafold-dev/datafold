@@ -186,6 +186,10 @@ class EDMD(
         the dictionary validation and uses the "tsc_contains_orig_states" tag in
         :py:class:`TSCTransformerMixin`).
 
+    is_partial_fit_: bool
+        Boolean flag to indicate whether the model is fit with `partial_fit`. If True, then
+        only the `partial_fit` method can be used and `fit` raises an error and vice versa.
+
     koopman_modes: Optional[pandas.DataFrame]
         A ``DataFrame`` of shape `(n_features_original_space, n_features_dict_space)`
         with the modes to map Koopman eigenfunctions to the full-state. The attribute is
@@ -235,12 +239,17 @@ class EDMD(
         # TODO: if necessary provide option for user defined metric
         self._setup_default_tsc_metric_and_score()
 
+        # type information for some attr set during model construction
+        self.dict_preserves_id_states_: bool
+        self.n_samples_ic_: int
+        self.is_partial_fit_: bool
+
         all_steps = self.dict_steps + [("dmd", self.dmd_model)]
         super(EDMD, self).__init__(steps=all_steps, memory=memory, verbose=verbose)
 
     @property
     def _dmd_model(self) -> DMDBase:
-        # Improves (internal) code readability when using  attribute
+        # Improves (internal) code readability when using attribute
         # '_dmd_model' instead of general '_final_estimator'
         return self._final_estimator
 
@@ -263,9 +272,9 @@ class EDMD(
     @property
     def koopman_eigenvalues(self):
         check_is_fitted(self)
-        if not self._dmd_model.is_spectral_mode():
+        if not self._dmd_model.is_spectral_mode:
             raise AttributeError(
-                "The DMD model was not configured to provide spectral "
+                "The underlying DMD model was not configured to provide spectral "
                 "components for the Koopman matrix."
             )
 
@@ -293,7 +302,7 @@ class EDMD(
         ----------
 
         X : TSCDataFrame, pandas.DataFrame
-            The points of the original space at which to evaluate the Koopman
+            The samples of the original space at which to evaluate the Koopman
             eigenfunctions. If `n_samples_ic_ > 1`, then the input must be a
             :py:class:`.TSCDataFrame` where each time series must have at least
             ``n_samples_ic_`` samples, with the same time delta as during fit. The input
@@ -306,7 +315,7 @@ class EDMD(
             accordingly if :code:`n_samples_ic_ > 1`.
         """
         check_is_fitted(self)
-        if not self._dmd_model.is_spectral_mode():
+        if not self._dmd_model.is_spectral_mode:
             raise AttributeError(
                 "The DMD model was not configured to provide spectral "
                 "components for the Koopman matrix."
@@ -337,9 +346,11 @@ class EDMD(
         Returns
         -------
         bool
-            flag if dictionary preserves the original states
+            boolean flag if dictionary preserves the original states
         """
 
+        # set to False as soon as one transformer in the pipeline is detected to not preserve
+        # the original time series states
         dict_preserves_orig_states = True
 
         for (_, trans_str, transformer) in self._iter(with_final=False):
@@ -349,14 +360,12 @@ class EDMD(
             ]
 
             if dict_preserves_orig_states and not transformer_preserves_orig_states:
-                # as soon as one transformer in the pipeline does not preserve the original
-                # states, the overall dictionary does not preserve it
                 dict_preserves_orig_states = False
 
             if not isinstance(transformer, TSCTransformerMixin):
                 raise TypeError(
-                    "The EDMD-dictionary only supports transformers that can handle "
-                    "indexed data structures (pd.DataFrame and TSCDataFrame)"
+                    "The EDMD dictionary only supports datafold transformers that handle the "
+                    "data structure 'TSCDataFrame'."
                 )
 
         return dict_preserves_orig_states
@@ -399,8 +408,7 @@ class EDMD(
 
         if isinstance(diff, pd.Series):
             # time series can have different number of time values (in which case it is
-            # a Series), however, the the difference has to be the same for all time
-            # series
+            # a Series), however, the difference has to be the same for all time series
             assert (diff.iloc[0] == diff).all()
             diff = diff.iloc[0]
 
@@ -577,8 +585,8 @@ class EDMD(
         self.steps = list(self.steps)
         self._validate_steps()
 
-        # TODO: raise error of memory is set as this is present in _fit
-        #  (and not supported for _partial_fit)
+        if self.memory is None:
+            raise ValueError(f"{self.memory=} is not supported for partial fit")
 
         for (step_idx, name, transformer) in self._iter(
             with_final=False, filter_passthrough=False
@@ -612,20 +620,21 @@ class EDMD(
         X_reconstruct = pd.concat(X_reconstruct, axis=0)
         assert isinstance(X_reconstruct, TSCDataFrame)
 
-        # NOTE: time series contained in X_reconstruct can be shorter in length than
+        # NOTE: time series contained in X_reconstruct can be shorter than
         # the original time series (i.e. no full reconstruction), because some transform
         # models drop samples (e.g. time delay embeddings or finite differences)
         return X_reconstruct
 
-    def _predict_ic(
-        self, X_dict: TSCDataFrame, U, time_values, qois, **predict_params
-    ) -> TSCDataFrame:
+    def _predict_ic(self, X_dict: TSCDataFrame, U, time_values, qois) -> TSCDataFrame:
         """Prediction with initial condition.
 
         Parameters
         ----------
         X_dict
             The initial condition in EDMD dictionary space.
+
+        U
+            The control time series (None if not needed)
 
         time_values
             The future time values to evaluate the system at.
@@ -705,9 +714,10 @@ class EDMD(
     ) -> "EDMD":
         r"""Fit the model.
 
-        Internally calls `fit_transform` of all models contained in the EDMD-dictionary (in
-        given order) and then approximates Koopman operator in the DMD model (final
-        estimator).
+        Internally the method calls `fit_transform` of all models contained in the
+        EDMD dictionary (in given order) and then approximates the Koopman operator in the
+        DMD model as the final estimator of the pipeline. Finally, the inverse map from
+        dictionary states to the original states is set up.
 
         Parameters
         ----------
@@ -715,7 +725,9 @@ class EDMD(
             Training time series data. Must fulfill input requirements of first
             `dict_step` in the EDMD-dictionary pipeline.
 
-        # TODO: doc of U
+        U
+            Time series with control states acting on the system. The states are passed to the
+            DMD model, at which point the time indices must be identical to the states in `X`.
 
         y : None
             ignored
@@ -743,7 +755,13 @@ class EDMD(
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
 
-        # TODO: need to document this attribute in EDMD class
+        if hasattr(self, "is_partial_fit_") and self.is_partial_fit_:
+            raise ValueError(
+                f"Fit cannot be called if the model was set up with {self.is_partial_fit_}"
+            )
+        else:
+            self.is_partial_fit_ = False
+
         self.is_controlled_ = False if U is None else True
 
         if self.is_controlled_:
@@ -779,8 +797,6 @@ class EDMD(
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         if self.is_controlled_ and self.n_samples_ic_ > 1:
-            # TODO: maybe also just drop first samples of each time series is more efficient,
-            #  given it is validated properly before
             U = U.loc[X_dict.index, :]  # type: ignore
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
@@ -792,7 +808,7 @@ class EDMD(
         if not self.use_transform_inverse:
             self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
 
-            if self.dmd_model.is_spectral_mode():
+            if self.dmd_model.is_spectral_mode:
                 self._koopman_modes = self._compute_koopman_modes(
                     inverse_map=self._inverse_map,
                 )
@@ -836,13 +852,22 @@ class EDMD(
             ``n_samples_ic_`` samples (mapped to a single EDMD-dictionary state). The
             preferred input type is :py:class:`TSCDataFrame`. If only a single state
             is required (``n_samples_ic_ = 1``), then a :class:`numpy.ndarray` is also
-            accepted, where each row corresponds to an initial condition. Must fulfill
-            the input requirements of first step of the pipeline.
+            accepted, where each row corresponds to an initial condition.
+
+        U
+            If the model was fit with control input, then this argument is required.
+            For each initial condition in `X` there must be a corresponding time series with
+            the control states over the prediction horizon in `U`. Each time series in `U`
+            must have the same time values. The time horizon is taken from `U` (i.e.
+            ``time_values`` has to be either identical or ``None``).
 
         time_values
-            The time values to evaluate the model for each initial condition.
-            Defaults to time values contained in the data available during ``fit``. The
-            values should be ascending, non-negative numeric values.
+            The time values to evaluate the model at for each initial condition. The values
+            should be ascending and non-negative numeric values. Default parameter
+
+            * uncontrolled system: time series of lengths two, where the first state is the
+              initial condition and the second state the evaluation after `self.dt_`
+            * controlled system: the time values are taken from the parameter ``U``.
 
         qois
             A list of feature names of interest to be included in the returned
@@ -912,6 +937,10 @@ class EDMD(
             Training time series data. Must fulfill input requirements of first
             `dict_step` in the EDMD-dictionary pipeline.
 
+        U
+            Control time series passed to the DMD model. At this point the index of `U` must
+            be identical to `X_dict`.
+
         y: None
             ignored
 
@@ -940,18 +969,33 @@ class EDMD(
         return self.fit(X=X, U=U, y=y, **fit_params).reconstruct(X=X, U=U, qois=qois)
 
     def partial_fit(self, X: TimePredictType, U=None, y=None, **fit_params) -> "EDMD":
-        """# TODO: docu
+        """Incremental fit of the model.
+
+        The partial fit call is forwarded to all transformers in the dictionary and the set
+        DMD model. The update fails if one model does not support incremental updates.
 
         Parameters
         ----------
         X
+            The new batch of training time series.
+
         U
+            Currently, there is no implementation that supports both an online/streaming
+            setting with control.
+
         y
+            ignored
+
         fit_params
+            Parameters passed to the ``fit`` method of each step, where
+            each parameter name is prefixed such that parameter ``p`` for step
+            ``s`` has key ``s__p``. To add parameters for the set DMD model use
+            ``s=dmd``, e.g. ``dmd__param``.
 
         Returns
         -------
-
+        self
+            updated model
         """
         self._validate_datafold_data(
             X,
@@ -961,15 +1005,24 @@ class EDMD(
 
         if U is not None:
             raise NotImplementedError(
-                "Currently there are no DMD models implemented that support both "
-                "streaming and control"
+                "Currently there are no DMD models that that support both streaming "
+                "and control."
             )
 
         try:
             check_is_fitted(self)
             initial_fit = False
+            assert self.is_partial_fit_
         except NotFittedError:
             initial_fit = True
+
+            if hasattr(self, "is_partial_fit_") and not self.is_partial_fit_:
+                raise ValueError(
+                    "The model is already build with the 'fit' method. "
+                    "Please use `partial_fit` also for the initial fit."
+                )
+            else:
+                self.is_partial_fit_ = True
             self.dt_ = X.delta_time
             self._feature_names_pred = X.columns
             self.dict_preserves_id_states_ = self._validate_dictionary()
@@ -999,7 +1052,7 @@ class EDMD(
         if not self.use_transform_inverse:
             self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
 
-            if self.dmd_model.is_spectral_mode():
+            if self.dmd_model.is_spectral_mode:
                 self._koopman_modes = self._compute_koopman_modes(
                     inverse_map=self._inverse_map,
                 )
@@ -1017,7 +1070,7 @@ class EDMD(
         return self
 
     def transform(self, X: TransformType) -> TransformType:
-        """Perform dictionary transformations on time series.
+        """Map the original states to the dictionary representation.
 
         Parameters
         ----------
@@ -1029,8 +1082,8 @@ class EDMD(
         Returns
         -------
         TSCDataFrame, pandas.DataFrame
-            The transformed time series. The number of samples are reduced if
-            `n_samples_ic_ > 1`.
+            The transformed time series. The number of samples of each time series are reduced
+            if `n_samples_ic_ > 1`.
         """
         if self.include_id_state:
             # copy required to properly attach X later on
@@ -1047,13 +1100,18 @@ class EDMD(
 
         return X_dict
 
-    def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
-        """Fit the model and return the EDMD-dictionary time series.
+    def fit_transform(  # type: ignore[override]
+        self, X: TSCDataFrame, *, U: Optional[TSCDataFrame] = None, y=None, **fit_params
+    ):
+        """Fit the model and return the EDMD dictionary time series.
 
         Parameters
         ----------
         X
             Time series collection data to fit the model.
+
+        U
+            Control time series passed to :py:meth:`.fit`.
 
         y: None
             ignored
@@ -1074,8 +1132,7 @@ class EDMD(
             Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all values must be finite (no `NaN` or `inf`)
         """
-        # NOTE: could be improved, but this function is probably not required very often.
-        return self.fit(X=X, y=y, **fit_params).transform(X)
+        return self.fit(X=X, U=U, y=y, **fit_params).transform(X)
 
     def inverse_transform(self, X: TransformType) -> TransformType:
         """Perform inverse dictionary transformations on dictionary time series.
@@ -1117,7 +1174,7 @@ class EDMD(
         self,
         X: TSCDataFrame,
         *,
-        U=None,
+        U: Optional[TSCDataFrame] = None,
         qois: Optional[Union[pd.Index, List[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct existing time series collection.
@@ -1134,6 +1191,9 @@ class EDMD(
         X
             The time series collection to reconstruct. The first ``n_samples_ic_`` of
             each time series must fulfill the requirements of an initial condition.
+
+        U
+            Control time series for the data. Only required if model was fit with control.
 
         qois
             A list of feature names of interest to be include in the returned

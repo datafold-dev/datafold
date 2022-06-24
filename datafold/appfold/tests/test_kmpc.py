@@ -227,7 +227,7 @@ class AffineKMPCTest(unittest.TestCase):
             sys_type="differential",
             sys_mode="matrix",
             is_controlled=True,
-            is_affine_control=True,
+            is_control_affine=True,
         ).setup_matrix_system(A, control_matrix=Bi)
         expected = sys.evolve_system(
             x0, control_input=u, time_values=t, time_delta=t[1] - t[0]

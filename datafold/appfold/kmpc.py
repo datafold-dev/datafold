@@ -484,7 +484,7 @@ class AffineKgMPC(object):
                 "support affine controlled systems (e.g. gDMDAffine)."
             )
 
-        if not self.predictor._dmd_model.is_differential_system():
+        if not self.predictor._dmd_model.is_differential_system:
             raise TypeError(
                 "The predictor.dmd_model should be a differential "
                 "affine controlled system (e.g. gDMDAffine)."
