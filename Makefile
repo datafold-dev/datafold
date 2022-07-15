@@ -82,13 +82,13 @@ VPYTHON_MIN_MINOR = 8
 
 define PYTHON_CHECK_SCRIPT
 import sys
-errmsg = "Used Python version (={}) invalid.\nMinimum Python version required: {}.{}\n".format(sys.version, sys.argv[1], sys.argv[2])
+errmsg = "Python version (={}) invalid.\nMinimum Python version required: {}.{}\n".format(sys.version, sys.argv[1], sys.argv[2])
 if sys.version_info.major < int(sys.argv[1]):
 	raise RuntimeError(errmsg)
 elif sys.version_info.minor < int(sys.argv[2]):
 	raise RuntimeError(errmsg)
 else:
-	print("Python version {}.{} valid".format(sys.version_info.major, sys.version_info.minor))
+	print("Valid Python version {}.{} detected (minimum version {}.{}).".format(sys.version_info.major, sys.version_info.minor, sys.argv[1], sys.argv[2]))
 endef
 export PYTHON_CHECK_SCRIPT
 
@@ -153,8 +153,8 @@ else # in docker "sudo" is not available and everything is executed with root
 	apt-get -y install $(_DOCDEPS)
 endif
 else # OS = Windows
-	@echo "INFO: Make sure that chocolatery is installed ()"
-	@echo "INFO: Make sure to execute with sudo / administrator rights."
+	@echo "INFO: Make sure that chocolatery is installed (https://community.chocolatey.org/)."
+	@echo "INFO: Make sure to execute with administrator rights."
 	choco install $(_DOCDEPS)
 endif
 
@@ -196,7 +196,7 @@ unittest:
 	@$(ACTIVATE_VENV); \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report; \
-	exit $(EXIT_CODE)
+	exit $(EXIT_CODE);
 
 #tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
@@ -222,7 +222,6 @@ gitamend:
 	@$(ACTIVATE_VENV);\
 	git commit --amend;\
 	git push --force-with-lease
-
 
 #ci: @ Run continuous integration pipeline.
 ci: install_devdeps test precommit test_install
