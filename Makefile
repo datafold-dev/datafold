@@ -186,12 +186,14 @@ docs_linkcheck:
 	cd doc/; \
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
-#unittest: @ Run all unittests with pytest.
+#unittest: @ Run unittests with "pytest" and "coverage". A html coverage report is saved to folder "./coverage/".
 unittest:
+	# run unittests with coverage first and then store and use exit code at end
+    # (to not succeed with coverage report
 	@$(ACTIVATE_VENV); \
-	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
-	@ # use EXIT_CODE from the actual tests (and not return exit code from the last coverage statement) \
-	EXIT_CODE=$$?; \
+	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/;
+	EXIT_CODE=$$?
+	@$(ACTIVATE_VENV); \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report; \
 	exit $(EXIT_CODE)
