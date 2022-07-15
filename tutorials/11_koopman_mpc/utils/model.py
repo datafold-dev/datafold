@@ -6,7 +6,7 @@ import pandas
 from pandas import DataFrame
 from tqdm import tqdm
 
-from datafold.appfold import EDMDControl
+from datafold.appfold import EDMD
 from datafold.pcfold import TSCDataFrame
 
 
@@ -99,7 +99,7 @@ class Predictor:
 
         self._predictor = self._init_predictor()
 
-    def _init_predictor(self) -> EDMDControl:
+    def _init_predictor(self) -> EDMD:
         raise NotImplementedError
 
     def fit(self, X_tsc: TSCDataFrame):

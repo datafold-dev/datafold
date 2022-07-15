@@ -1405,7 +1405,9 @@ class TestInitialCondition(unittest.TestCase):
 
     def test_from_array01(self):
         # single_sample (1D)
-        actual = InitialCondition.from_array(np.array([1, 2, 3]), ["A", "B", "C"])
+        actual = InitialCondition.from_array(
+            np.array([1, 2, 3]), feature_names=["A", "B", "C"]
+        )
 
         expected = TSCDataFrame(
             np.array([[1, 2, 3]]),  # note it is 2D
@@ -1421,7 +1423,7 @@ class TestInitialCondition(unittest.TestCase):
 
     def test_from_array02(self):
         actual = InitialCondition.from_array(
-            np.array([[1, 2, 3], [4, 5, 6]]), ["A", "B", "C"]
+            np.array([[1, 2, 3], [4, 5, 6]]), feature_names=["A", "B", "C"]
         )
 
         expected = TSCDataFrame(

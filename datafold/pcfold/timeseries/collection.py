@@ -1,3 +1,4 @@
+import warnings
 from functools import partial
 from numbers import Number
 from typing import Generator, List, Optional, Tuple, Union
@@ -12,6 +13,7 @@ from pandas.core.indexing import _iLocIndexer, _LocIndexer
 from datafold.pcfold.distance import compute_distance_matrix
 from datafold.utils.general import (
     df_type_and_indices_from,
+    if1dim_colvec,
     is_df_same_index,
     is_integer,
 )
@@ -1662,7 +1664,7 @@ class InitialCondition(object):
 
     @classmethod
     def from_array(
-        cls, X: np.ndarray, columns: Union[pd.Index, List[str]]
+        cls, X: np.ndarray, feature_names: Union[pd.Index, List[str]]
     ) -> TSCDataFrame:
         """Build initial conditions object from a NumPy array.
 
@@ -1674,7 +1676,7 @@ class InitialCondition(object):
         X
             Initial condition of shape `(n_ic, n_features)`.
 
-        columns
+        feature_names
             Feature names in model during fit (they can be accessed with
             :code:`model_obj.features_in_[1]`.
 
@@ -1684,9 +1686,11 @@ class InitialCondition(object):
             initial condition
         """
 
-        if isinstance(columns, list):
+        if isinstance(feature_names, list):
             # feature name is not enforced for initial conditions
-            columns = pd.Index(columns, name=TSCDataFrame.tsc_feature_col_name)
+            feature_names = pd.Index(
+                feature_names, name=TSCDataFrame.tsc_feature_col_name
+            )
 
         if X.ndim == 1:
             # make a "row-matrix"
@@ -1694,16 +1698,44 @@ class InitialCondition(object):
 
         if X.ndim > 2:
             raise ValueError(
-                "Cannot convert arrays with dimension larger than 2. Got "
-                f"X.ndim={X.ndim}"
+                f"Cannot convert arrays with dimension larger than 2. Got {X.ndim=}"
             )
 
         n_ic = X.shape[0]
         index = pd.MultiIndex.from_arrays([np.arange(n_ic), np.zeros(n_ic)])
 
-        ic_df = TSCDataFrame(X, index=index, columns=columns)
+        ic_df = TSCDataFrame(X, index=index, columns=feature_names)
         InitialCondition.validate(ic_df, n_samples_ic=1, dt=None)
         return ic_df
+
+    @classmethod
+    def from_array_control(
+        cls,
+        U,
+        *,
+        control_names,
+        dt: Optional[Union[float, int]] = None,
+        time_values: Optional[np.ndarray] = None,
+    ) -> TSCDataFrame:
+
+        if not isinstance(U, np.ndarray):
+            raise TypeError("")
+
+        U = if1dim_colvec(U)
+
+        if (dt is None) + (time_values is None) == 2:
+            raise ValueError("")
+
+        if time_values is None:
+            time_values = np.arange(0, U.shape[0] * dt, dt)
+
+        U = TSCDataFrame.from_array(
+            U,
+            time_values=time_values,
+            feature_names=control_names,
+        )
+
+        return U
 
     @classmethod
     def from_tsc(cls, X: TSCDataFrame, n_samples_ic: int = 1) -> pd.DataFrame:
@@ -1833,6 +1865,14 @@ class InitialCondition(object):
         )
 
         return True
+
+    @classmethod
+    def validate_control(cls):
+        warnings.warn("not implemented control validation")
+        # TODO: compare with information in X
+
+        # if (X.ids != U.ids).all():  # type: ignore
+        #    raise ValueError("The time series ids between X and U have to match!")
 
 
 def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):

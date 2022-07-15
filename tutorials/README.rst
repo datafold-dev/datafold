@@ -29,6 +29,7 @@ List
     tutorial_08_gh_oos
     tutorial_09_edmd_limitcycle
     tutorial_10_koopman_mpc
+    tutorial_11_koopman_mpc
     tutorial_11_online_dmd
 
 
@@ -62,7 +63,9 @@ List
 
 * `09_edmd_limitcycle.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/09_edmd_limitcycle.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_09_edmd_limitcycle.html>`__)
     We generate data from a dynamical system (Hopf system) and compare different dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate out-of-sample predictions with time ranges exceeding the time horizon of the training data.
-* `10_koopman_mpc/10_koopman_mpc.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorial-10_koopman_mpc.zip?path=tutorials/10_koopman_mpc/>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_10_koopman_mpc.html>`__)
+* `10_koopman_mpc.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/10_koopman_mpc.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_10_koopman_mpc.html>`__)
+    In this tutorial we introduce the usage of Koopman operators and the Dynamic Mode Decomposition method with controlled systems, as well as demonstrate how Koopman-based models can be applied to model predictive control.
+* `11_koopman_mpc/11_koopman_mpc.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorial-11_koopman_mpc.zip?path=tutorials/11_koopman_mpc/>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_11_koopman_mpc.html>`__)
     Walkthrough for doing Model Predictive Control (MPC) based on the Koopman operator. We apply MPC using an EDMD predictor to a toy model: the inverted pendulum, sometimes referred to as a cartpole.
 * `11_online_dmd.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/11_online_dmd.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_11_online_dmd.html>`__)
     We highlight ``OnlineDMD`` at the example of a simple system. The dynamic mode decomposition is updated once new data becomes available. This is particularly useful for time-varying systems. The notebook is taken from the original work by Zhang and Rowley, 2019; for reference see notebook.
