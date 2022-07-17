@@ -18,7 +18,7 @@ help:
 	@echo 'PYTHON - Python interpreter to use to set up the virtual environment. Defaults to "python3".'
 	@echo ''
 	@echo 'Arguments associated to the target "docs".'
-	@echo 'EXECUTE_TUTORIAL - Select whether to run tutorials (Jupter notebooks) in target "docs". {never [default], auto, always}'
+	@echo 'DATAFOLD_TUTORIALS_EXECUTE - Select whether to run tutorials (Jupter notebooks) in target "docs". {false [default], true}'
 	@echo 'OUTPUT_DOCS - Path to write the html output to. Defaults to "doc/build".'
 	@echo 'SPHINXOPTS - Options passed to "sphinx-build".'
 	@echo 'OPEN_BROWSER - Whether to open the browser (with file specified in "URL_DOC_OPEN") in target "docs".'
@@ -55,7 +55,7 @@ endif
 SPHINXOPTS    ?=
 PYTESTOPTS    ?=
 
-DATAFOLD_NBSPHINX_EXECUTE ?= never
+DATAFOLD_TUTORIALS_EXECUTE ?= false
 OUTPUT_DOCS ?= doc/build/
 
 ifeq ($(OS),Linux)
@@ -103,7 +103,7 @@ print_variables:
 	@echo ACTIVATE_VENV = "$(ACTIVATE_VENV)"
 	@echo SPHINXOPTS = $(SPHINXOPTS)
 	@echo PYTESTOPTS = $(PYTESTOPTS)
-	@echo EXECUTE_TUTORIAL = $(EXECUTE_TUTORIAL)
+	@echo DATAFOLD_TUTORIALS_EXECUTE = $(DATAFOLD_TUTORIALS_EXECUTE)
 	@echo OUTPUT_DOCS = $(OUTPUT_DOCS)
 	@echo OPEN_BROWSER = $(OPEN_BROWSER)
 	@echo HTML_FILE_OPEN = $(HTML_FILE_OPEN)
@@ -166,10 +166,10 @@ versions:
 	@$(ACTIVATE_VENV); \
 	python datafold/_version.py
 
-#docs: @ Build datafold documentation with Sphinx.
+#docs: @ Build datafold documentation with Sphinx. The documentation is the located at "/doc/source/".
 docs:
 	@$(ACTIVATE_VENV); \
-	echo Execute tutorials environment variable: DATAFOLD_NBSPHINX_EXECUTE=$(DATAFOLD_NBSPHINX_EXECUTE); \
+	echo Execute tutorials environment variable: DATAFOLD_TUTORIALS_EXECUTE=$(DATAFOLD_TUTORIALS_EXECUTE); \
 	python -m sphinx -M html doc/source/ $(OUTPUT_DOCS) $(SPHINXOPTS) $(O);
 	@# Open the default browser at the page specified in URL_DOC_OPEN
 ifeq ($(OPEN_BROWSER),true)
