@@ -352,7 +352,7 @@ class DMDBase(
                 U, ensure_tsc=True, tsc_kwargs=dict(ensure_same_time_values=True)
             )
 
-            InitialCondition.validate_control()
+            InitialCondition.validate_control(X_ic=X, U=U)
 
         X, U, time_values = self._validate_features_and_time_values(
             X=X, U=U, time_values=time_values

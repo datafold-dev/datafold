@@ -325,7 +325,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "11_online_dmd.ipynb",
+        "12_online_dmd.ipynb",
         "We highlight ``OnlineDMD`` at the example of a simple system. The dynamic "
         "mode decomposition is updated once new data becomes available. This is particularly "
         "useful for time-varying systems. The notebook is taken from the original work by "

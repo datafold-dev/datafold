@@ -585,7 +585,7 @@ class EDMD(
         self.steps = list(self.steps)
         self._validate_steps()
 
-        if self.memory is None:
+        if self.memory is not None:
             raise ValueError(f"{self.memory=} is not supported for partial fit")
 
         for (step_idx, name, transformer) in self._iter(
@@ -912,7 +912,7 @@ class EDMD(
                     time_values=time_values,
                 )
             else:
-                InitialCondition.validate_control()
+                InitialCondition.validate_control(X_ic=X, U=U)
 
         X, U, time_values = self._validate_features_and_time_values(
             X=X, U=U, time_values=time_values

@@ -1867,12 +1867,13 @@ class InitialCondition(object):
         return True
 
     @classmethod
-    def validate_control(cls):
-        warnings.warn("not implemented control validation")
+    def validate_control(cls, X_ic: TSCDataFrame, U: TSCDataFrame):
         # TODO: compare with information in X
+        if (X_ic.ids != U.ids).all():
+            raise ValueError("The time series ids between X and U have to match!")
 
-        # if (X.ids != U.ids).all():  # type: ignore
-        #    raise ValueError("The time series ids between X and U have to match!")
+        # TODO: each time series in U should have the same time information
+        # TODO:
 
 
 def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
