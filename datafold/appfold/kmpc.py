@@ -41,10 +41,10 @@ class LinearKMPC:
 
     Parameters
     ----------
-    predictor : EDMDControl(dmd_model=DMDControl)
+    predictor : EDMD(dmd_model=DMDControl())
         Prediction model to use, must be already fitted.
         The underlying DMDModel should be based on a LinearControlledDynamicalSystem
-        See also: :py:class:`.EDMDControl`, :py:class:`.DMDControl`
+        See also: :py:class:`.EDMD`, :py:class:`.DMDControl`
     horizon : int
         prediction horizon, number of timesteps to predict, :math:`N_p`
     state_bounds : np.ndarray(shape=(n,2))
@@ -443,10 +443,10 @@ class AffineKgMPC(object):
 
         Parameters
         ----------
-        predictor : EDMDControl(dmd_model=gDMDAffine)
+        predictor : EDMD(dmd_model=gDMDAffine)
             Prediction model to use, must be already fitted.
-            The underlying DMDModel should be based on a AffineControlledDynamicalSystem
-            See also: :py:class:`.EDMDControl`, :py:class:`.gDMDAffine`
+            The underlying DMDModel should be based on a linear system with affine control
+            See also: :py:class:`.EDMD`, :py:class:`.gDMDAffine`
         horizon : int
             prediction horizon, number of timesteps to predict, :math:`N_p`
         input_bounds : np.ndarray(shape=(m,2))

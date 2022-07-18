@@ -1,22 +1,25 @@
 from sklearn.cluster import KMeans
 
-from datafold.appfold import EDMD, EDMDControl
-from datafold.dynfold.transform import (
+from datafold import (
+    EDMD,
+    DMDControl,
+    GaussianKernel,
+    TSCDataFrame,
     TSCIdentity,
     TSCPolynomialFeatures,
     TSCRadialBasis,
 )
-from datafold.pcfold import GaussianKernel, TSCDataFrame
 
 from .model import Predictor, PredictResult
 
 
 class EDMD_Identity(Predictor):
     def _init_predictor(self):
-        return EDMDControl(
+        return EDMD(
             dict_steps=[
                 ("id", TSCIdentity()),
             ],
+            dmd_model=DMDControl(),
             include_id_state=False,
         )
 
@@ -45,10 +48,11 @@ class EDMD_RBF(Predictor):
         super().__init__(*args, **kwargs)
 
     def _init_predictor(self):
-        return EDMDControl(
+        return EDMD(
             dict_steps=[
                 ("rbf", self.rbf),
             ],
+            dmd_model=DMDControl(),
             include_id_state=True,
         )
 
@@ -59,7 +63,7 @@ class EDMD_RBF(Predictor):
         return rbf
 
     def _init_centers(self, X_tsc):
-        X = X_tsc[self.state_cols + self.input_cols].values
+        X = X_tsc[self.state_cols + self.input_cols].to_numpy()
         km = KMeans(n_clusters=self.num_rbfs)
         km.fit(X)
 
@@ -114,6 +118,7 @@ class EDMD_RBF_v2(EDMD_RBF):
             dict_steps=[
                 ("rbf", self.rbf),
             ],
+            dmd_model=DMDControl(),
             include_id_state=True,
         )
 
@@ -144,8 +149,8 @@ class EDMD_Polynomial(EDMD_Identity):
     def _init_polynomial(self):
         return TSCPolynomialFeatures(degree=self.n_degrees)
 
-    def _init_predictor(self) -> EDMDControl:
+    def _init_predictor(self) -> EDMD:
         dict_steps = [
             ("polynomial", self._init_polynomial()),
         ]
-        return EDMDControl(dict_steps=dict_steps, include_id_state=True)
+        return EDMD(dict_steps=dict_steps, include_id_state=True)

@@ -332,7 +332,7 @@ class DMDBase(
 
         if isinstance(X, np.ndarray):
             # work internally only with DataFrames
-            X = InitialCondition.from_array(X, columns=self.feature_names_in_)
+            X = InitialCondition.from_array(X, feature_names=self.feature_names_in_)
         else:
             # for DMD the number of samples per initial condition is always 1
             InitialCondition.validate(X, n_samples_ic=1)
@@ -340,12 +340,19 @@ class DMDBase(
         self._validate_datafold_data(X)
 
         if U is not None:
+            if isinstance(U, np.ndarray):
+                U = InitialCondition.from_array_control(
+                    U,
+                    control_names=self.control_names_in_,
+                    dt=self.dt_,
+                    time_values=time_values,
+                )
+
             self._validate_datafold_data(
                 U, ensure_tsc=True, tsc_kwargs=dict(ensure_same_time_values=True)
             )
 
-            if (X.ids != U.ids).all():
-                raise ValueError("The time series ids between X and U have to match!")
+            InitialCondition.validate_control()
 
         X, U, time_values = self._validate_features_and_time_values(
             X=X, U=U, time_values=time_values

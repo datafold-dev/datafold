@@ -28,6 +28,9 @@ doc/source/_apidoc/
 doc/source/api/
 doc/build/
 public/
+# ignore "extra-media" files which are contained in tutorials and copied to "/doc/source/"
+# with nblink to build the docs
+/doc/source/cartpole2.png
 
 # General files
 *.csv

@@ -3,15 +3,15 @@
 import json
 import os
 import pathlib
-import shutil
 import warnings
 
+import nbformat
 import requests  # type: ignore
+from nbconvert.preprocessors import ExecutePreprocessor
 
 # path to current file location
 PATH2DOCSOURCE = pathlib.Path(__file__).parent.resolve()
 PATH2ROOT = PATH2DOCSOURCE.parent.parent
-PATH2TUTORIAL = PATH2ROOT.joinpath("tutorials")
 
 BASE_URL = "https://datafold-dev.gitlab.io/datafold"
 
@@ -29,18 +29,26 @@ Run notebooks with Jupyter
 Download files
 ^^^^^^^^^^^^^^
 
-* **If datafold was installed via PyPI, ...**
+* **If datafold was installed from PyPI, ...**
 
-  ... the tutorials are *not* included in the package. Download them separately from the
-  above list.
+  ... the tutorials are *not* included in the package. Download the tutorials separately from
+  the above list.
 
 * **If the datafold repository was downloaded, ...**
 
-  ... navigate to the folder ``/path/to/datafold/tutorials/``. Before executing the
-  tutorials, please make sure that the package is either installed
-  (:code:`python setup.py install`) or that ``path/to/datafold/`` is
-  included in the `PYTHONPATH` environment variable
-  (:code:`export PYTHONPATH=$PYTHONPATH:/path/to/datafold/`).
+  ... then the tutorials are located at `path/to/repo/tutorials/`. Before executing the
+  tutorials, please make sure that *datafold* is either installed
+
+  .. code-block:: bash
+
+    python -m pip install .
+
+  **or** that ``path/to/datafold/`` is included in the ``PYTHONPATH`` environment variable
+
+  .. code-block:: bash
+
+    export PYTHONPATH=$PYTHONPATH:/path/to/repo/
+
 
 Start Jupyter
 ^^^^^^^^^^^^^
@@ -57,13 +65,20 @@ Jupyter notebook in a web browser, run
 
 .. code-block:: bash
 
-    jupyter notebook path/to/datafold/tutorials
+    jupyter notebook path/to/datafold/tutorial_folder
+
+or simply use the target in the Makefile:
+
+.. code-block:: bash
+
+    make tutorial
+
 """
 
-DESCRIPTIVE_TUTORIALS = dict()
+ALL_TUTORIALS = dict()
 # prefix required as a file pattern in .gitignore (change also there!)
 PREFIX_DOC_FILES = "tutorial_"
-# Indentation to easier format the .rst file
+# Indentation to easier format .rst files
 INDENT = "    "
 
 
@@ -74,21 +89,33 @@ def get_nblink(filename):
 
 
 class Tutorial:
-    def __init__(self, filename, description, **kwargs):
-        warning = kwargs.get("warning")
-        if warning is not None:
-            warning = warning.rstrip()
 
-        self.filename = filename
+    FOLDER = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
+
+    def __init__(
+        self, filename, description, warning=None, is_archive=False, nblink_kwargs=None
+    ):
+
+        self.tutorial_path = filename
         self.description = description.rstrip()
-        self.warning = warning
-        self.archive = kwargs.get("archive", False)
-
+        self.warning = warning.rstrip() if warning is not None else None
+        self.is_archive = is_archive
+        self.nblink_kwargs = nblink_kwargs
         assert self.fullpath
 
     @property
     def fullpath(self):
-        return os.path.join(PATH2TUTORIAL, self.filename)
+        fullpath = os.path.join(Tutorial.FOLDER, self.tutorial_path)
+        if not os.path.exists(fullpath):
+            raise FileNotFoundError(f"Tutorial '{fullpath=}' does not exist")
+
+        if (
+            not os.path.isfile(fullpath)
+            and not os.path.splitext(fullpath)[1] != ".ipynb"
+        ):
+            raise ValueError(f"The path must point to a '.ipynb' file. Got {fullpath=}")
+
+        return fullpath
 
     @property
     def relpath(self):
@@ -96,7 +123,7 @@ class Tutorial:
 
     @property
     def nblink_filename(self):
-        return get_nblink(self.filename)
+        return get_nblink(self.tutorial_path)
 
     @property
     def web_link(self):
@@ -105,59 +132,45 @@ class Tutorial:
 
     @property
     def download_link(self):
-        filename = self.filename
-        name = self.name
-
-        if self.archive:
+        if self.is_archive:
             return (
-                "https://gitlab.com/datafold-dev/datafold/-/raw/master/"
-                f"tutorial-{name}.zip?path=tutorials/{name}/"
+                "https://gitlab.com/datafold-dev/datafold/-/archive/master/"
+                f"datafold-master.zip?path=tutorials/{self.name}"
             )
+
         else:
             return (
                 f"https://gitlab.com/datafold-dev/datafold/-/raw/master/"
-                f"tutorials/{filename}?inline=false"
+                f"tutorials/{self.tutorial_path}?inline=false"
             )
 
     @property
-    def download_path(self):
-        if self.archive:
-            return self.archive_path
-        else:
-            return self.relpath
-
-    @property
     def nblink(self):
-        return get_nblink(self.filename)
+        return get_nblink(self.tutorial_path)
 
     @property
     def name(self):
-        return os.path.splitext(os.path.basename(self.filename))[0]
-
-    @property
-    def archive_path(self):
-        if self.archive:
-            return f"{self.name}.zip"
-        return None
+        return os.path.splitext(os.path.basename(self.tutorial_path))[0]
 
 
-def add_tutorial(filename, description, warning=None, archive=False):
-    assert filename not in DESCRIPTIVE_TUTORIALS
+def add_tutorial(
+    filename, description, warning=None, archive=False, nblink_kwargs=None
+):
+    assert filename not in ALL_TUTORIALS
 
-    tutorial = Tutorial(filename, description, warning=warning, archive=archive)
-    DESCRIPTIVE_TUTORIALS[filename] = tutorial
+    tutorial = Tutorial(
+        filename,
+        description,
+        warning=warning,
+        is_archive=archive,
+        nblink_kwargs=nblink_kwargs,
+    )
+    ALL_TUTORIALS[filename] = tutorial
 
-    fullpath = tutorial.fullpath
-    if not os.path.exists(fullpath):
-        raise FileNotFoundError(
-            f"The filepath {os.path.join(PATH2TUTORIAL, filename)} does not exist."
-        )
-
-    download_link = tutorial.download_link
-    _req_download_file = requests.head(download_link)
+    _req_download_file = requests.head(tutorial.download_link)
     if _req_download_file.status_code != 200:
         warnings.warn(
-            f"The download link \n{download_link} \n does not exist. Check if "
+            f"The download link \n{tutorial.download_link} \n does not exist. Check if "
             f"the tutorial will be published soon and that the link is correct."
         )
 
@@ -175,7 +188,7 @@ class TutorialStringBuilder:
     _templates = {
         "docs": {
             "download":
-                "#. :doc:`{filename_nblink}` (:download:`download <{download_path}>`)\n",
+                "#. :doc:`{filename_nblink}` (:download:`download <{download_link}>`)\n",
             "warning":
                 "\n\n"
                 "{INDENT}.. warning::\n"
@@ -209,8 +222,7 @@ class TutorialStringBuilder:
             "web_link": tutorial.web_link,
             "filename_nblink": tutorial.nblink,
             "download_link": tutorial.download_link,
-            "download_path": tutorial.download_path,
-            "filename": tutorial.filename,
+            "filename": tutorial.tutorial_path,
             "description": tutorial.description,
         }
 
@@ -226,7 +238,7 @@ class TutorialStringBuilder:
 
 
 def get_tutorial_text_doc(filename, target):
-    tutorial = DESCRIPTIVE_TUTORIALS[filename]
+    tutorial = ALL_TUTORIALS[filename]
     return TutorialStringBuilder.build(target, tutorial)
 
 
@@ -302,11 +314,14 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "10_koopman_mpc/10_koopman_mpc.ipynb",
+        "11_koopman_mpc/11_koopman_mpc.ipynb",
         "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
         "operator. We apply MPC using an EDMD predictor to a toy model: the "
         "inverted pendulum, sometimes referred to as a cartpole.",
         archive=True,
+        nblink_kwargs={
+            "extra-media": [f"{Tutorial.FOLDER}/11_koopman_mpc/cartpole2.png"]
+        },
     )
 
     add_tutorial(
@@ -329,28 +344,17 @@ def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
 
 
 def generate_nblink_files():
-    for tutorial in DESCRIPTIVE_TUTORIALS.values():
-        filepath = tutorial.fullpath
-        filename_nblink = get_nblink(filepath)
+    for tutorial in ALL_TUTORIALS.values():
+        filename_nblink = get_nblink(tutorial.fullpath)
 
-        data = {"path": os.path.normpath(filepath).replace("\\", "/")}
+        data = {
+            "path": os.path.normpath(tutorial.fullpath).replace("\\", "/"),
+            **(tutorial.nblink_kwargs or {}),
+        }
+
         fname = f"{filename_nblink}.nblink"
         with open(fname, "w") as nblinkfile:
             json.dump(data, nblinkfile)
-
-
-def generate_tutorial_archives():
-    for tutorial in DESCRIPTIVE_TUTORIALS.values():
-        if tutorial.archive is True:
-            path = os.path.dirname(tutorial.fullpath)
-            archive_path = tutorial.archive_path
-            archive_name = os.path.splitext(os.path.basename(archive_path))[0]
-
-            root_dir = os.path.dirname(path)
-            base_dir = os.path.basename(path)
-
-            archive_path_ = shutil.make_archive(archive_name, "zip", root_dir, base_dir)
-            assert archive_path_ == os.path.abspath(archive_path)
 
 
 def generate_docs_str(target):
@@ -392,7 +396,7 @@ def generate_docs_str(target):
     tutorials_list = "\n"  # generate string to insert in tutorial_page_content
     files_list = "\n"  # generate string to insert in tutorial_page_content
 
-    for filename, tutorial in DESCRIPTIVE_TUTORIALS.items():
+    for filename, tutorial in ALL_TUTORIALS.items():
         filepath = tutorial.fullpath
         filename_nblink = get_nblink(filepath)
 
@@ -422,9 +426,6 @@ def setup_tutorials():
     # generate links to Jupyter files
     generate_nblink_files()
 
-    # generate archives for certain jupyter notebooks
-    generate_tutorial_archives()
-
     # generate and write content to rst file
     tutorial_page_content_docs = generate_docs_str(target="docs")
     with open(tutorial_index_filename, "w") as indexfile:
@@ -433,7 +434,7 @@ def setup_tutorials():
     # PART 2: README.rst file in tutorials
 
     # clean
-    tutorial_readme_filename = os.path.join(PATH2TUTORIAL, "README.rst")
+    tutorial_readme_filename = os.path.join(Tutorial.FOLDER, "README.rst")
     try:
         os.remove(tutorial_readme_filename)
     except FileNotFoundError:
@@ -444,3 +445,24 @@ def setup_tutorials():
     # write content to rst file
     with open(tutorial_readme_filename, "w") as indexfile:
         indexfile.write(tutorial_page_content_readme)
+
+
+def execute_tutorials(extra_arguments):
+    print("###########################")
+    print("### Executing notebooks ###")
+    print("###########################")
+    for tutorial in ALL_TUTORIALS.values():
+        print(f"Executing tutorial `{tutorial.name}`")
+        nbpath = tutorial.fullpath
+        ex_path = os.path.dirname(nbpath)
+        with open(nbpath, "r") as f:
+            nb = nbformat.read(f, as_version=nbformat.NO_CONVERT)
+            ep = ExecutePreprocessor(extra_arguments=extra_arguments)
+            ep.preprocess(nb, {"metadata": {"path": ex_path}})
+
+        with open(nbpath, "w", encoding="utf-8") as f:
+            nbformat.write(nb, f)
+
+
+if __name__ == "__main__":
+    setup_tutorials()

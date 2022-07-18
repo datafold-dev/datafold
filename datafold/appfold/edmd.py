@@ -894,7 +894,7 @@ class EDMD(
         if isinstance(X, np.ndarray):
             # work only with TSCDataFrame internally
             X = InitialCondition.from_array(
-                if1dim_rowvec(X), columns=self.feature_names_in_
+                if1dim_rowvec(X), feature_names=self.feature_names_in_
             )
         else:
             InitialCondition.validate(
@@ -902,6 +902,17 @@ class EDMD(
                 n_samples_ic=self.n_samples_ic_,
                 dt=self.dt_ if self.n_samples_ic_ > 1 else None,
             )
+
+        if self.is_controlled_:
+            if isinstance(U, np.ndarray):
+                U = InitialCondition.from_array_control(
+                    U,
+                    control_names=self.control_names_in_,
+                    dt=self.dt_,
+                    time_values=time_values,
+                )
+            else:
+                InitialCondition.validate_control()
 
         X, U, time_values = self._validate_features_and_time_values(
             X=X, U=U, time_values=time_values

@@ -18,7 +18,7 @@ help:
 	@echo 'PYTHON - Python interpreter to use to set up the virtual environment. Defaults to "python3".'
 	@echo ''
 	@echo 'Arguments associated to the target "docs".'
-	@echo 'EXECUTE_TUTORIAL - Select whether to run tutorials (Jupter notebooks) in target "docs". {never [default], auto, always}'
+	@echo 'DATAFOLD_TUTORIALS_EXECUTE - Select whether to run tutorials (Jupter notebooks) in target "docs". {false [default], true}'
 	@echo 'OUTPUT_DOCS - Path to write the html output to. Defaults to "doc/build".'
 	@echo 'SPHINXOPTS - Options passed to "sphinx-build".'
 	@echo 'OPEN_BROWSER - Whether to open the browser (with file specified in "URL_DOC_OPEN") in target "docs".'
@@ -55,7 +55,7 @@ endif
 SPHINXOPTS    ?=
 PYTESTOPTS    ?=
 
-DATAFOLD_NBSPHINX_EXECUTE ?= never
+DATAFOLD_TUTORIALS_EXECUTE ?= false
 OUTPUT_DOCS ?= doc/build/
 
 ifeq ($(OS),Linux)
@@ -82,13 +82,13 @@ VPYTHON_MIN_MINOR = 8
 
 define PYTHON_CHECK_SCRIPT
 import sys
-errmsg = "Used Python version (={}) invalid.\nMinimum Python version required: {}.{}\n".format(sys.version, sys.argv[1], sys.argv[2])
+errmsg = "Python version (={}) invalid.\nMinimum Python version required: {}.{}\n".format(sys.version, sys.argv[1], sys.argv[2])
 if sys.version_info.major < int(sys.argv[1]):
 	raise RuntimeError(errmsg)
 elif sys.version_info.minor < int(sys.argv[2]):
 	raise RuntimeError(errmsg)
 else:
-	print("Python version {}.{} valid".format(sys.version_info.major, sys.version_info.minor))
+	print("Valid Python version {}.{} detected (minimum version {}.{}).".format(sys.version_info.major, sys.version_info.minor, sys.argv[1], sys.argv[2]))
 endef
 export PYTHON_CHECK_SCRIPT
 
@@ -103,7 +103,7 @@ print_variables:
 	@echo ACTIVATE_VENV = "$(ACTIVATE_VENV)"
 	@echo SPHINXOPTS = $(SPHINXOPTS)
 	@echo PYTESTOPTS = $(PYTESTOPTS)
-	@echo EXECUTE_TUTORIAL = $(EXECUTE_TUTORIAL)
+	@echo DATAFOLD_TUTORIALS_EXECUTE = $(DATAFOLD_TUTORIALS_EXECUTE)
 	@echo OUTPUT_DOCS = $(OUTPUT_DOCS)
 	@echo OPEN_BROWSER = $(OPEN_BROWSER)
 	@echo HTML_FILE_OPEN = $(HTML_FILE_OPEN)
@@ -153,8 +153,8 @@ else # in docker "sudo" is not available and everything is executed with root
 	apt-get -y install $(_DOCDEPS)
 endif
 else # OS = Windows
-	@echo "INFO: Make sure that chocolatery is installed ()"
-	@echo "INFO: Make sure to execute with sudo / administrator rights."
+	@echo "INFO: Make sure that chocolatery is installed (https://community.chocolatey.org/)."
+	@echo "INFO: Make sure to execute with administrator rights."
 	choco install $(_DOCDEPS)
 endif
 
@@ -166,10 +166,10 @@ versions:
 	@$(ACTIVATE_VENV); \
 	python datafold/_version.py
 
-#docs: @ Build datafold documentation with Sphinx.
+#docs: @ Build datafold documentation with Sphinx. The documentation is the located at "/doc/source/".
 docs:
 	@$(ACTIVATE_VENV); \
-	echo Execute tutorials environment variable: DATAFOLD_NBSPHINX_EXECUTE=$(DATAFOLD_NBSPHINX_EXECUTE); \
+	echo Execute tutorials environment variable: DATAFOLD_TUTORIALS_EXECUTE=$(DATAFOLD_TUTORIALS_EXECUTE); \
 	python -m sphinx -M html doc/source/ $(OUTPUT_DOCS) $(SPHINXOPTS) $(O);
 	@# Open the default browser at the page specified in URL_DOC_OPEN
 ifeq ($(OPEN_BROWSER),true)
@@ -186,15 +186,17 @@ docs_linkcheck:
 	cd doc/; \
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
-#unittest: @ Run all unittests with pytest.
+#unittest: @ Run unittests with "pytest" and "coverage". A html coverage report is saved to folder "./coverage/".
 unittest:
+	# run unittests with coverage first and then store and use exit code at end
+    # (to not succeed with coverage report
 	@$(ACTIVATE_VENV); \
-	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
-	@ # use EXIT_CODE from the actual tests (and not return exit code from the last coverage statement) \
-	EXIT_CODE=$$?; \
+	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/;
+	EXIT_CODE=$$?
+	@$(ACTIVATE_VENV); \
 	python -m coverage html -d ./coverage/; \
 	python -m coverage report; \
-	exit $(EXIT_CODE)
+	exit $(EXIT_CODE);
 
 #tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
@@ -220,7 +222,6 @@ gitamend:
 	@$(ACTIVATE_VENV);\
 	git commit --amend;\
 	git push --force-with-lease
-
 
 #ci: @ Run continuous integration pipeline.
 ci: install_devdeps test precommit test_install

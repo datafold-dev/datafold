@@ -27,7 +27,7 @@ try:
     from datafold import __version__
 except ImportError:
     raise ImportError(
-        f"The datafold path is incorrect. Check variable " f"in conf.py:\n{PATH2ROOT=}"
+        f"The path to the datafold root folder ({PATH2ROOT=}) is incorrect. Check in conf.py"
     )
 
 # For a details on Sphinx configuration see documentation:
@@ -212,36 +212,18 @@ intersphinx_timeout = 30
 # https://nbsphinx.readthedocs.io/en/0.6.0/usage.html#nbsphinx-Configuration-Values
 
 nbsphinx_allow_errors = False
+nbsphinx_execute = "never"  # do not use nbsphinx to execute the tutorials (see MR !106)
 
-valid_keys = ["auto", "always", "never"]
-try:
-    # allows setting expensive tutorial execution with environment variable
-    # the environment variable should be set if publishing the pages
-    nbsphinx_execute = str(os.environ["DATAFOLD_NBSPHINX_EXECUTE"])
-    assert nbsphinx_execute in valid_keys
-    print(
-        f"INFO: found valid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
-        f"variable."
-    )
-except AssertionError:
-    # invalid key
-    print(
-        f"WARNING: Found invalid DATAFOLD_NBSPHINX_EXECUTE={nbsphinx_execute} environment "
-        f"variable. Choose from {valid_keys}. Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
-    )
-    nbsphinx_execute = "never"
-except KeyError:
-    # default if no environment variable is set
-    print(
-        "INFO: no environment variable DATAFOLD_NBSPHINX_EXECUTE. "
-        "Defaulting to 'DATAFOLD_NBSPHINX_EXECUTE=never'."
-    )
-    nbsphinx_execute = "never"
+# allows setting expensive tutorial execution with environment variable
+# the environment variable should be set if publishing the pages
+nb_execute_env = os.environ.get("DATAFOLD_TUTORIALS_EXECUTE", "").lower()
 
-nbsphinx_execute_arguments = [
-    "--InlineBackend.figure_formats={'svg', 'pdf'}",
-    "--InlineBackend.rc={'figure.dpi': 96}",
-]
+if nb_execute_env == "true":
+    nb_execute = True
+elif nb_execute_env in ("false", "", None):
+    nb_execute = False
+else:
+    raise ValueError(f"DATAFOLD_TUTORIALS_EXECUTE={nb_execute_env} not a valid choice")
 
 # add datafold and tutorials folder to PYTHONPATH to run jupyter notebooks
 os.environ["PYTHONPATH"] = f"{PATH2ROOT}:{os.path.join(PATH2ROOT, 'tutorials')}"
@@ -254,6 +236,15 @@ tutorials_script = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tutorials_script)
 
 tutorials_script.setup_tutorials()
+
+nb_execute_arguments = [
+    "--InlineBackend.figure_formats={'svg', 'pdf'}",
+    "--InlineBackend.rc={'figure.dpi': 96}",
+]
+
+# execute tutorials
+if nb_execute:
+    tutorials_script.execute_tutorials(extra_arguments=nb_execute_arguments)
 
 # ----------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
