@@ -511,7 +511,7 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
                 sys_type="differential",
                 sys_mode="matrix",
                 is_controlled=True,
-                is_affine_control=True,
+                is_control_affine=True,
             )
             .setup_matrix_system(self.A, control_matrix=self.Bi)
             .evolve_system(
@@ -531,7 +531,7 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
                 sys_type="differential",
                 sys_mode="matrix",
                 is_controlled=True,
-                is_affine_control=True,
+                is_control_affine=True,
             )
             .setup_matrix_system(self.A, control_matrix=self.Bi)
             .evolve_system(
@@ -1105,7 +1105,7 @@ class TestOnlineDMD(unittest.TestCase):
             atol=1e-12,
         )
 
-        # The weighing != 1.0 triggers a differen if case
+        # The weighing != 1.0 triggers a different if-case
         # (but should have essentially no effect)
         actual = OnlineDMD(weighting=1.0 - 1e-15).partial_fit(X, batch_initialize=True)
 
@@ -1140,14 +1140,16 @@ class DMDControlTest(unittest.TestCase):
         data = pd.DataFrame(np.column_stack(col_stacks))
         return TSCDataFrame.from_single_timeseries(data)
 
-    def _create_control_tsc(self, state_size, input_size, n_timesteps) -> TSCDataFrame:
+    def _create_control_tsc(
+        self, state_size, input_size, n_timesteps, time_delta=1
+    ) -> TSCDataFrame:
         gen = np.random.default_rng(42)
 
         A = gen.uniform(-1.0, 1.0, size=(state_size, state_size))
         x0 = gen.uniform(size=state_size)
         B = gen.uniform(-1.0, 1.0, size=(state_size, input_size))
         u = gen.uniform(size=(n_timesteps, input_size))
-        names = ["x" + str(i + 1) for i in range(state_size)]
+        names = [f"x {i + 1}" for i in range(state_size)]
 
         tsc_df = (
             LinearDynamicalSystem(
@@ -1157,8 +1159,8 @@ class DMDControlTest(unittest.TestCase):
             .evolve_system(
                 x0,
                 control_input=u,
-                time_values=np.arange(u.shape[0]),
-                time_delta=1,
+                time_values=np.arange(0, time_delta * n_timesteps, time_delta),
+                time_delta=time_delta,
                 feature_names_out=names,
             )
         )
@@ -1176,20 +1178,24 @@ class DMDControlTest(unittest.TestCase):
 
         tsc_df = self._create_control_tsc(state_size, input_size, n_timesteps)
 
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
+        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
+        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
 
-        u = tsc_df[input_cols].iloc[-n_predict:]
-        t = tsc_df.index.get_level_values(1)[-n_predict:]
-        expected = tsc_df[state_cols].iloc[-n_predict:]
+        U_pred = U.iloc[-n_predict:]
+        t_eval = tsc_df.index.get_level_values(1)[-n_predict:]
+        expected = X.iloc[-n_predict:]
 
-        dmd = DMDControl().fit(expected, U=u)
+        dmd = DMDControl().fit(expected, U=U_pred)
 
-        actual1 = dmd.predict(expected.initial_states(), U=u)
-        actual2 = dmd.predict(expected.initial_states(), U=u, time_values=t)
+        actual1 = dmd.predict(expected.initial_states(), U=U_pred)
+
+        # it's discouraged to provide U and t_eval, but check that it works if it is identical
+        actual2 = dmd.predict(expected.initial_states(), U=U_pred, time_values=t_eval)
+
+        with self.assertRaises(ValueError):
+            dmd.predict(expected.initial_states(), U=U_pred, time_values=t_eval[:-1])
 
         pdtest.assert_frame_equal(actual1, actual2, rtol=0, atol=0)
-
         pdtest.assert_frame_equal(actual1, expected, rtol=1e-11, atol=1e-15)
 
     def test_dmd_control_free(self):
@@ -1218,41 +1224,36 @@ class DMDControlTest(unittest.TestCase):
         state_size = 4
         input_size = 2
         n_timesteps = 50
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
 
-        tsc_df_single = self._create_control_tsc(state_size, input_size, n_timesteps)
-        df = pd.DataFrame(
-            tsc_df_single.to_numpy(),
-            index=np.arange(n_timesteps) * 0.1,
-            columns=state_cols + input_cols,
+        tsc_df_single = self._create_control_tsc(
+            state_size, input_size, n_timesteps, 0.1
         )
-        tsc_df = TSCDataFrame.from_frame_list([df, df.copy(deep=True)])
+        tsc_multi = TSCDataFrame.from_frame_list([tsc_df_single, tsc_df_single])
+
+        X_expected = tsc_multi.loc[:, tsc_multi.columns.str.startswith("x")]
+        U = tsc_multi.loc[:, tsc_multi.columns.str.startswith("u")]
 
         dmd = DMDControl()
-        expected = tsc_df[state_cols]
-        u = tsc_df[input_cols]
-        actual = dmd.fit_predict(expected, U=u)
-
-        pdtest.assert_frame_equal(actual, expected, rtol=1e-8, atol=1e-8)
+        actual = dmd.fit_predict(X_expected, U=U)
+        pdtest.assert_frame_equal(actual, X_expected, rtol=1e-8, atol=1e-8)
 
     def test_dmd_control_reconstruct(self):
         state_size = 4
         input_size = 2
         n_timesteps = 50
 
-        original = self._create_control_tsc(state_size, input_size, n_timesteps)
+        tscdf = self._create_control_tsc(state_size, input_size, n_timesteps)
 
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
+        X = tscdf.loc[:, tscdf.columns.str.startswith("x")]
+        U = tscdf.loc[:, tscdf.columns.str.startswith("u")]
 
         reconstructed = DMDControl().fit_predict(
-            X=original[state_cols],
-            U=original[input_cols],
+            X=X,
+            U=U,
         )
 
         pdtest.assert_frame_equal(
-            original[state_cols], reconstructed, check_exact=False
+            X, reconstructed, check_exact=False, rtol=1e-11, atol=1e-10
         )
 
 
@@ -1325,7 +1326,7 @@ class gDMDAffineTest(unittest.TestCase):
             sys_type="differential",
             sys_mode="matrix",
             is_controlled=True,
-            is_affine_control=True,
+            is_control_affine=True,
         )
         sys.setup_matrix_system(A, control_matrix=Bi)
         tsc_df = sys.evolve_system(
@@ -1348,12 +1349,12 @@ class gDMDAffineTest(unittest.TestCase):
             state_size, n_timesteps, n_ic, input_size
         )
 
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
+        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
+        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
         dmd = gDMDAffine()
 
-        expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
+        expected = X
+        actual = dmd.fit_predict(X, U=U)
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1367,12 +1368,13 @@ class gDMDAffineTest(unittest.TestCase):
             state_size, n_timesteps, n_ic, input_size
         )
 
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
+        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
+        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
+
         dmd = gDMDAffine(diff_accuracy=6)
 
-        expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
+        expected = X
+        actual = dmd.fit_predict(X, U=U)
 
         pdtest.assert_frame_equal(actual, expected, rtol=5e-3, atol=0.01)
 
@@ -1386,23 +1388,28 @@ class gDMDAffineTest(unittest.TestCase):
             state_size, n_timesteps, n_ic, input_size
         )
 
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
-        dmd = gDMDAffine().fit(tsc_df[state_cols], U=tsc_df[input_cols])
+        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
+        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
 
-        t = tsc_df.index.get_level_values(1)
-        t = np.linspace(t.min(), t.max() * 1.1, 2 * n_timesteps)
+        dmd = gDMDAffine().fit(X=X, U=U)
+
+        t_orig = tsc_df.index.get_level_values(1)
+        t_oos = np.linspace(t_orig.min(), t_orig.max() * 1.1, 2 * n_timesteps)
         U = TSCDataFrame.from_array(
-            np.vstack([np.sin(0.2 * np.pi * t), np.cos(0.3 * np.pi * t)]).T,
-            time_values=t,
+            np.column_stack([np.sin(0.2 * np.pi * t_oos), np.cos(0.3 * np.pi * t_oos)]),
+            time_values=t_oos,
             feature_names=["u1", "u2"],
         )
+
         x0 = np.random.default_rng(42).uniform(-1.0, 1.0, size=state_size)
         expected = sys.evolve_system(
-            x0, control_input=U.to_numpy(), time_values=t, feature_names_out=state_cols
+            x0,
+            control_input=U.to_numpy(),
+            time_values=t_oos,
+            feature_names_out=X.columns,
         )
-        actual = dmd.predict(expected.initial_states()[state_cols], U=U)
 
+        actual = dmd.predict(expected.initial_states(), U=U)
         pdtest.assert_frame_equal(actual, expected, rtol=0, atol=1e-3)
 
     def test_dmda_control_random(self):
@@ -1415,11 +1422,12 @@ class gDMDAffineTest(unittest.TestCase):
             state_size, n_timesteps, n_ic, input_size
         )
 
-        state_cols = [f"x{i+1}" for i in range(state_size)]
-        input_cols = [f"u{i+1}" for i in range(input_size)]
+        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
+        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
+
         dmd = gDMDAffine()
 
-        expected = tsc_df[state_cols]
-        actual = dmd.fit_predict(tsc_df[state_cols], U=tsc_df[input_cols])
+        expected = X
+        actual = dmd.fit_predict(X, U=U)
 
         pdtest.assert_frame_equal(actual, expected, rtol=0.01, atol=0.05)

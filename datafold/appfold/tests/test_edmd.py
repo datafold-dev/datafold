@@ -668,10 +668,10 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_frame_equal(actual_spectral, actual_matrix)
 
         self.assertTrue(_edmd_spectral.koopman_modes is not None)
-        self.assertTrue(_edmd_spectral.dmd_model.is_spectral_mode())
+        self.assertTrue(_edmd_spectral.dmd_model.is_spectral_mode)
 
         self.assertTrue(_edmd_matrix.koopman_modes is None)
-        self.assertTrue(_edmd_matrix.dmd_model.is_matrix_mode())
+        self.assertTrue(_edmd_matrix.dmd_model.is_matrix_mode)
 
         # use qois argument
         actual_spectral = _edmd_spectral.reconstruct(X=self.sine_wave_tsc, qois=["sin"])

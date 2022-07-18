@@ -646,7 +646,9 @@ class TSCDataFrame(pd.DataFrame):
                 if len(df.ids) > 1:
                     df = [e[1] for e in list(df.itertimeseries())]
                 else:
-                    df = pd.DataFrame(df)
+                    # copy in case there are multiple df with the same reference in the list
+                    # see test "test_from_frame_list04"
+                    df = pd.DataFrame(df).copy()
                     df.index = df.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
 
             if isinstance(df, list):

@@ -174,6 +174,32 @@ def is_matrix(
     return True
 
 
+def is_vector(
+    vector,
+    name="vector",
+    handle: Optional[str] = "raise",
+):
+
+    if isinstance(vector, np.ndarray):
+        if vector.ndim != 1 or vector.shape[0] < 1:
+            if handle == "raise":
+                raise ValueError(
+                    f"The vector '{name}' must be one dimensional and have at least one "
+                    f"element. Got {vector.ndim=} and {vector.shape=}."
+                )
+            else:
+                return False
+    else:
+        if handle == "raise":
+            raise TypeError(
+                f"The parameter '{name}' is not a valid matrix format. Got {type(vector)=}."
+            )
+        else:
+            return False
+
+    return True
+
+
 def if1dim_colvec(vec: np.ndarray) -> np.ndarray:
     if vec.ndim == 1:
         return vec[:, np.newaxis]
