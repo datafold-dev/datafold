@@ -331,11 +331,14 @@ class DMDBase(
         check_is_fitted(self)
 
         time_values = self._set_and_validate_time_values_predict(
-            time_values=time_values, X=X, U=U)
+            time_values=time_values, X=X, U=U
+        )
 
         if isinstance(X, np.ndarray):
             # work internally only with DataFrames
-            X = InitialCondition.from_array(X, time_value=time_values[0], feature_names=self.feature_names_in_)
+            X = InitialCondition.from_array(
+                X, time_value=time_values[0], feature_names=self.feature_names_in_
+            )
         else:
             # for DMD the number of samples per initial condition is always 1
             InitialCondition.validate(X, n_samples_ic=1)

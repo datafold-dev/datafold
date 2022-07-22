@@ -1668,7 +1668,10 @@ class InitialCondition(object):
 
     @classmethod
     def from_array(
-        cls, X: np.ndarray, time_value: Union[float, int], feature_names: Union[pd.Index, List[str]]
+        cls,
+        X: np.ndarray,
+        time_value: Union[float, int],
+        feature_names: Union[pd.Index, List[str]],
     ) -> TSCDataFrame:
         """Build initial conditions object from a NumPy array.
 
@@ -1710,7 +1713,9 @@ class InitialCondition(object):
             )
 
         n_ic = X.shape[0]
-        index = pd.MultiIndex.from_arrays([np.arange(n_ic), np.repeat(time_value, n_ic)])
+        index = pd.MultiIndex.from_arrays(
+            [np.arange(n_ic), np.repeat(time_value, n_ic)]
+        )
 
         ic_df = TSCDataFrame(X, index=index, columns=feature_names)
         InitialCondition.validate(ic_df, n_samples_ic=1, dt=None)

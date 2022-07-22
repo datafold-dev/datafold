@@ -896,12 +896,16 @@ class EDMD(
         """
         check_is_fitted(self)
 
-        time_values = self._set_and_validate_time_values_predict(time_values=time_values, X=X, U=U)
+        time_values = self._set_and_validate_time_values_predict(
+            time_values=time_values, X=X, U=U
+        )
 
         if isinstance(X, np.ndarray):
             # work only with TSCDataFrame internally
             X = InitialCondition.from_array(
-                if1dim_rowvec(X), time_value=time_values[0], feature_names=self.feature_names_in_
+                if1dim_rowvec(X),
+                time_value=time_values[0],
+                feature_names=self.feature_names_in_,
             )
         else:
             InitialCondition.validate(
@@ -922,7 +926,6 @@ class EDMD(
                 InitialCondition.validate_control(X_ic=X, U=U)
 
         self._validate_feature_names(X, U)
-
 
         qois = self._validate_qois(
             qois=qois, valid_feature_names=self._feature_names_pred

@@ -533,7 +533,8 @@ class TSCPredictMixin(TSCBase):
                     raise ValueError(
                         "The time values must not contain any value that is smaller than the "
                         f"time reference of the initial condition reference value "
-                        f"({reference=})")
+                        f"({reference=})"
+                    )
 
                 if reference != time_values[0]:
                     time_values = np.append(reference, time_values)
@@ -589,11 +590,15 @@ class TSCPredictMixin(TSCBase):
             )
 
     def _validate_feature_names(
-        self: Union[BaseEstimator, "TSCPredictMixin"], X: TSCDataFrame, U: Optional[TSCDataFrame] = None
+        self: Union[BaseEstimator, "TSCPredictMixin"],
+        X: TSCDataFrame,
+        U: Optional[TSCDataFrame] = None,
     ):
 
         if not self._has_feature_names(X):
-            raise TypeError("only types that are indexed with time and states are supported")
+            raise TypeError(
+                "only types that are indexed with time and states are supported"
+            )
 
         self._check_n_features(X, reset=False)  # type: ignore
 
@@ -659,9 +664,7 @@ class TSCPredictMixin(TSCBase):
         U: Optional[TSCDataFrame],
         time_values: Optional[np.ndarray],
     ):
-        self._validate_feature_names(X=X )
-
-
+        self._validate_feature_names(X=X)
 
         return X, U, time_values
 
