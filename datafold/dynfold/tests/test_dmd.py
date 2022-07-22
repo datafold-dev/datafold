@@ -1212,11 +1212,11 @@ class DMDControlTest(unittest.TestCase):
         dmd2 = DMDFull(sys_mode="matrix", approx_generator=False).fit(tsc_df)
 
         U_pred = TSCDataFrame.from_array(
-            np.zeros([10, 1]), time_values=np.arange(10), feature_names=["u"]
+            np.zeros([10, 1]), time_values=np.arange(1, 11), feature_names=["u"]
         )
 
         actual = dmd1.predict(tsc_ic, U=U_pred)  # control_input=np.zeros((10, 0)
-        expected = dmd2.predict(tsc_ic, time_values=np.arange(10))
+        expected = dmd2.predict(tsc_ic, time_values=np.arange(1, 11))
 
         pdtest.assert_frame_equal(actual, expected, rtol=1e-15, atol=1e-14)
 

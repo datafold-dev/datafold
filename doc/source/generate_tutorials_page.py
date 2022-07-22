@@ -73,7 +73,7 @@ or simply use the target in the Makefile:
 
     make tutorial
 
-"""
+"""  # NOTE: make sure to include a single new line at the end
 
 ALL_TUTORIALS = dict()
 # prefix required as a file pattern in .gitignore (change also there!)

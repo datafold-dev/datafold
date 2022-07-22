@@ -1406,13 +1406,13 @@ class TestInitialCondition(unittest.TestCase):
     def test_from_array01(self):
         # single_sample (1D)
         actual = InitialCondition.from_array(
-            np.array([1, 2, 3]), feature_names=["A", "B", "C"]
+            np.array([1, 2, 3]), time_value=0, feature_names=["A", "B", "C"]
         )
 
         expected = TSCDataFrame(
             np.array([[1, 2, 3]]),  # note it is 2D
             index=pd.MultiIndex.from_arrays(
-                [[0], [0.0]],
+                [[0], [0]],
                 names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
             ),
             columns=pd.Index(["A", "B", "C"], name=TSCDataFrame.tsc_feature_col_name),
@@ -1423,7 +1423,7 @@ class TestInitialCondition(unittest.TestCase):
 
     def test_from_array02(self):
         actual = InitialCondition.from_array(
-            np.array([[1, 2, 3], [4, 5, 6]]), feature_names=["A", "B", "C"]
+            np.array([[1, 2, 3], [4, 5, 6]]), time_value=0.0, feature_names=["A", "B", "C"]
         )
 
         expected = TSCDataFrame(
@@ -1442,7 +1442,7 @@ class TestInitialCondition(unittest.TestCase):
         actual = InitialCondition.from_tsc(self.test_tsc01, n_samples_ic=1)
         expected = TSCDataFrame(self.test_tsc01).head(1)
 
-        self.assertTrue(InitialCondition.validate(actual))
+        self.assertTrue(InitialCondition.validate(actual, n_samples_ic=1))
         pdtest.assert_frame_equal(actual, expected)
 
     def test_from_tsc02(self):

@@ -583,6 +583,10 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
+
+        if time_values is not None:
+            time_values = np.atleast_1d(time_values)
+
         df = pd.DataFrame(
             np.atleast_2d(array), index=time_values, columns=feature_names
         )
@@ -1664,7 +1668,7 @@ class InitialCondition(object):
 
     @classmethod
     def from_array(
-        cls, X: np.ndarray, feature_names: Union[pd.Index, List[str]]
+        cls, X: np.ndarray, time_value: Union[float, int], feature_names: Union[pd.Index, List[str]]
     ) -> TSCDataFrame:
         """Build initial conditions object from a NumPy array.
 
@@ -1676,6 +1680,9 @@ class InitialCondition(object):
         X
             Initial condition of shape `(n_ic, n_features)`.
 
+        time_value
+            Time value associated to the initial condition.
+
         feature_names
             Feature names in model during fit (they can be accessed with
             :code:`model_obj.features_in_[1]`.
@@ -1685,7 +1692,8 @@ class InitialCondition(object):
         TSCDataFrame
             initial condition
         """
-
+        # TODO: generalize array also for tensors (where an IC is a time series with a fixed
+        #  number of time steps)
         if isinstance(feature_names, list):
             # feature name is not enforced for initial conditions
             feature_names = pd.Index(
@@ -1702,7 +1710,7 @@ class InitialCondition(object):
             )
 
         n_ic = X.shape[0]
-        index = pd.MultiIndex.from_arrays([np.arange(n_ic), np.zeros(n_ic)])
+        index = pd.MultiIndex.from_arrays([np.arange(n_ic), np.repeat(time_value, n_ic)])
 
         ic_df = TSCDataFrame(X, index=index, columns=feature_names)
         InitialCondition.validate(ic_df, n_samples_ic=1, dt=None)
@@ -1818,7 +1826,7 @@ class InitialCondition(object):
         n_samples_ic: Optional[int] = None,
         dt: Optional[float] = None,
     ) -> bool:
-        """Validate the initial condition format of a :py:class:`-TSCDataFrame`.
+        """Validate the initial condition format of a :py:class:`TSCDataFrame`.
 
         Parameters
         ----------
@@ -1833,8 +1841,16 @@ class InitialCondition(object):
             If provided, then validate that the time series have the set constant delta
             time sampling. The parameter ``n_samples_ic`` must be given at the same time.
 
+        Raises
+        ------
+        TypeError, ValueError
+            If initial condition is not valid
+
         Returns
         -------
+        bool
+            True if the the initial condition is valid
+
         """
 
         if not isinstance(X_ic, TSCDataFrame):

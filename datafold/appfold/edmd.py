@@ -99,20 +99,25 @@ class EDMD(
     TSCTransformerMixin,
     TSCPredictMixin,
 ):
-    """Extended Dynamic Mode Decomposition.
+    r"""Extended Dynamic Mode Decomposition.
 
     A data-driven model to approximate the Koopman operator from time series collection
     data (:py:class:`.TSCDataFrame`) with a finite function basis, specified by the
     data transformations in the EDMD-dictionary. The model is similar to the superclass
     :class:`sklearn.pipeline.Pipeline`, in that the EDMD-dictionary corresponds to the
-    transformations in the pipeline and a :class:`.DMDBase` model as the final final estimator
+    transformations in the pipeline and a :class:`.DMDBase` model as the final estimator
     of the pipeline to approximate the Koopman operator (using the EDMD-dictionary time
-    series). A key difference to a Pipeline as of scikit-learn is that the the states are not
+    series). A key difference to a Pipeline as of scikit-learn is that the states are not
     only mapped forward (to the EDMD-dictionary) but also reconstructed to the original
-    full-state time series (via the Koopman modes).
+    full-state time series (typically via Koopman modes).
 
     If the internal DMD model computes the eigenpairs of the Koopman matrix, then the
-    EDMD model provides the Koopman triplet (modes, eigenvalues and eigenfunctions).
+    EDMD model provides the Koopman triplet (modes :math:`V`, eigenvalues :math:`\Lambda` and
+    eigenfunctions :math:`\xi(\mathbf{x})`)
+
+    .. math::
+
+        \mathbf{x}_{k} = V \Lambda^k \xi(\mathbf{x}_0)
 
     ...
 
@@ -780,7 +785,7 @@ class EDMD(
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
         # the pipeline. The time values are set separately here:
-        self._validate_time_values(time_values=X.time_values())
+        self._validate_time_values_format(time_values=X.time_values())
         self.dt_ = X.delta_time
         self._feature_names_pred = X.columns
 
@@ -891,10 +896,12 @@ class EDMD(
         """
         check_is_fitted(self)
 
+        time_values = self._set_and_validate_time_values_predict(time_values=time_values, X=X, U=U)
+
         if isinstance(X, np.ndarray):
             # work only with TSCDataFrame internally
             X = InitialCondition.from_array(
-                if1dim_rowvec(X), feature_names=self.feature_names_in_
+                if1dim_rowvec(X), time_value=time_values[0], feature_names=self.feature_names_in_
             )
         else:
             InitialCondition.validate(
@@ -914,9 +921,8 @@ class EDMD(
             else:
                 InitialCondition.validate_control(X_ic=X, U=U)
 
-        X, U, time_values = self._validate_features_and_time_values(
-            X=X, U=U, time_values=time_values
-        )
+        self._validate_feature_names(X, U)
+
 
         qois = self._validate_qois(
             qois=qois, valid_feature_names=self._feature_names_pred
@@ -1230,7 +1236,7 @@ class EDMD(
             # Note: no const_delta_time required here. The required const samples for
             # time series initial conditions is included in the predict method.
         )
-        self._validate_feature_names(X)  # TODO: need to validate U feature names
+        self._validate_feature_names(X=X, U=U)
         self._validate_qois(qois=qois, valid_feature_names=self.feature_names_pred_)
 
         return self._reconstruct(X=X, U=U, qois=qois)

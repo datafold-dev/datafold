@@ -29,7 +29,7 @@ List
     tutorial_08_gh_oos
     tutorial_09_edmd_limitcycle
     tutorial_11_koopman_mpc
-    tutorial_11_online_dmd
+    tutorial_12_online_dmd
 
 
 * `01_datastructures.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/01_datastructures.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_01_datastructures.html>`__)
@@ -64,7 +64,7 @@ List
     We generate data from a dynamical system (Hopf system) and compare different dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate out-of-sample predictions with time ranges exceeding the time horizon of the training data.
 * `11_koopman_mpc/11_koopman_mpc.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip?path=tutorials/11_koopman_mpc>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_11_koopman_mpc.html>`__)
     Walkthrough for doing Model Predictive Control (MPC) based on the Koopman operator. We apply MPC using an EDMD predictor to a toy model: the inverted pendulum, sometimes referred to as a cartpole.
-* `11_online_dmd.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/11_online_dmd.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_11_online_dmd.html>`__)
+* `12_online_dmd.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/12_online_dmd.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_12_online_dmd.html>`__)
     We highlight ``OnlineDMD`` at the example of a simple system. The dynamic mode decomposition is updated once new data becomes available. This is particularly useful for time-varying systems. The notebook is taken from the original work by Zhang and Rowley, 2019; for reference see notebook.
 
 
@@ -76,31 +76,26 @@ Run notebooks with Jupyter
 Download files
 ^^^^^^^^^^^^^^
 
-* **If datafold was installed via PyPI, ...**
+* **If datafold was installed from PyPI, ...**
 
-  ... the tutorials are *not* included in the package. Download them separately from the
-  above list.
+  ... the tutorials are *not* included in the package. Download the tutorials separately from
+  the above list.
 
 * **If the datafold repository was downloaded, ...**
 
-  ... navigate to the folder ``/path/to/datafold/tutorials/``. Before executing the
+  ... then the tutorials are located at `path/to/repo/tutorials/`. Before executing the
   tutorials, please make sure that *datafold* is either installed
 
   .. code-block:: bash
 
-    pip install datafold
+    python -m pip install .
 
   **or** that ``path/to/datafold/`` is included in the ``PYTHONPATH`` environment variable
 
   .. code-block:: bash
 
-    export PYTHONPATH=$PYTHONPATH:/path/to/datafold/`
+    export PYTHONPATH=$PYTHONPATH:/path/to/repo/
 
-  **or** use the target in the Makefile:
-
-  .. code-block:: bash
-
-    make tutorial
 
 Start Jupyter
 ^^^^^^^^^^^^^
@@ -118,3 +113,9 @@ Jupyter notebook in a web browser, run
 .. code-block:: bash
 
     jupyter notebook path/to/datafold/tutorial_folder
+
+or simply use the target in the Makefile:
+
+.. code-block:: bash
+
+    make tutorial

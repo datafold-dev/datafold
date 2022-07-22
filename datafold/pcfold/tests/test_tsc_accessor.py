@@ -20,7 +20,7 @@ class TestTscAccessor(unittest.TestCase):
         self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
 
     def test_normalize_time1(self):
-        # NOTE: more tests are included in test_tsc_data_structre/test_is_normalize_time()
+        # NOTE: more tests are included in test_tsc_data_structure/test_is_normalize_time()
         to_convert = TSCDataFrame(self.simple_df)
 
         actual = to_convert.tsc.normalize_time()

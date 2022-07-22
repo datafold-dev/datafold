@@ -462,7 +462,7 @@ class TSCPredictMixin(TSCBase):
             self.control_names_in_ = U.columns  # type: ignore
 
         time_values = X.time_values()
-        time_values = self._validate_time_values(time_values=time_values)
+        time_values = self._validate_time_values_format(time_values=time_values)
 
         if is_controlled and not is_df_same_index(
             X, U, check_column=False, check_names=False, handle=None
@@ -489,12 +489,66 @@ class TSCPredictMixin(TSCBase):
             == 0
         )
 
-    def _validate_time_values(self, time_values: np.ndarray):
+    def _set_and_validate_time_values_predict(self, time_values, X, U):
+
+        is_controlled = U is not None
+
+        if isinstance(X, TSCDataFrame):
+            reference = X.final_states(n_samples=1).time_values()
+            reference = np.unique(reference)
+            if np.size(reference) != 1:
+                raise ValueError(
+                    "All initial conditions must have the same time reference. "
+                    f"Got {reference=}"
+                )
+            else:
+                reference = reference[0]
+        else:
+            if U is not None:
+                reference = U.time_values()[0]
+            else:
+                reference = 0  # TODO this may fail if time values are datetime.
+
+        if time_values is None:
+            if is_controlled:
+                if isinstance(U, TSCDataFrame):
+                    time_values = U.time_values()  # type: ignore
+                else:
+                    time_values = np.arange(0, U.shape[0] * self.dt_, self.dt_)
+            else:
+                time_values = np.array([reference, reference + self.dt_])
+        else:
+            time_values = self._validate_time_values_format(time_values=time_values)
+
+            if is_controlled:
+                if not np.array((time_values == U.time_values())).all():
+                    raise ValueError(
+                        "Two parameters ('U' and 'time_values') provide time values for the "
+                        "prediction. However, the time values do not match. It is recommended "
+                        "to only provide the control input U. "
+                    )
+
+            if isinstance(X, TSCDataFrame):
+                if (time_values < reference).any():
+                    raise ValueError(
+                        "The time values must not contain any value that is smaller than the "
+                        f"time reference of the initial condition reference value "
+                        f"({reference=})")
+
+                if reference != time_values[0]:
+                    time_values = np.append(reference, time_values)
+
+        return time_values
+
+    def _validate_time_values_format(self, time_values: np.ndarray):
 
         try:
             time_values = np.asarray(time_values)
         except Exception:
             raise TypeError("Cannot convert 'time_values' to array.")
+
+        if time_values.ndim != 1:
+            raise ValueError("'time_values' must be be an 1-dim. array")
 
         if not isinstance(time_values, np.ndarray):
             raise TypeError("time_values has to be a NumPy array")
@@ -502,7 +556,7 @@ class TSCPredictMixin(TSCBase):
         if time_values.dtype.kind not in "iufM":
             # see for dtype.kind values:
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
-            raise TypeError(f"time_values.dtype {time_values.dtype} not supported")
+            raise TypeError(f"{time_values.dtype=} not supported")
 
         if not is_datetime64_dtype(time_values) and (time_values < 0).any():
             # "datetime" cannot be negative and raises error when checked with "< 0"
@@ -511,14 +565,11 @@ class TSCPredictMixin(TSCBase):
         if not np.isfinite(time_values).all():
             raise ValueError("'time_values' contains invalid numbers (inf/nan).")
 
-        if time_values.ndim != 1:
-            raise ValueError("'time_values' must be be an 1-dim. array")
-
         if not (np.diff(time_values).astype(float) > 0).all():
             # as "float64" is required in case of datetime where the differences are in
             # terms of "np.timedelta"
             raise ValueError(
-                "'time_values' must be sorted with increasing unique values"
+                "'time_values' must be sorted with increasing (unique) numeric values"
             )
 
         return time_values
@@ -528,18 +579,21 @@ class TSCPredictMixin(TSCBase):
 
         if isinstance(delta_time, pd.Series):
             raise NotImplementedError(
-                "Currently, all methods assume that dt_ is const."
+                "Currently, all methods require that dt_ is constant. "
             )
 
         if np.abs(delta_time - self.dt_) > 1e-14:
             raise TSCException(
-                f"delta_time during fit was {self.dt_}, now it is {delta_time} "
+                f"delta_time during fit was {self.dt_=}, now it is {delta_time=} "
                 f"({np.abs(delta_time - self.dt_)=} with set tolerance 1e-14) "
             )
 
     def _validate_feature_names(
-        self: Union[BaseEstimator, "TSCPredictMixin"], X: TransformType
+        self: Union[BaseEstimator, "TSCPredictMixin"], X: TSCDataFrame, U: Optional[TSCDataFrame] = None
     ):
+
+        if not self._has_feature_names(X):
+            raise TypeError("only types that are indexed with time and states are supported")
 
         self._check_n_features(X, reset=False)  # type: ignore
 
@@ -556,26 +610,25 @@ class TSCPredictMixin(TSCBase):
                 f"but got\n{X.columns.tolist()}"
             )
 
-    def _validate_control_names(self, U):
+        if U is not None:
+            try:
+                # alternative check in datafold to sklearn
+                # self._check_feature_names(reset=False)
+                # Reason: in datafold there are also non-string feature names allowed
+                nptest.assert_array_equal(
+                    np.asarray(U.columns), np.asarray(self.control_names_in_)
+                )
+            except AssertionError:
+                raise ValueError(
+                    f"model was fit with feature names\n{self.control_names_in_.tolist()}\n"
+                    f"but got\n{U.columns.tolist()}"
+                )
 
-        try:
-            # alternative check in datafold to sklearn
-            # self._check_feature_names(reset=False)
-            # Reason: in datafold there are also non-string feature names allowed
-            nptest.assert_array_equal(
-                np.asarray(U.columns), np.asarray(self.control_names_in_)
-            )
-        except AssertionError:
-            raise ValueError(
-                f"model was fit with feature names\n{self.control_names_in_.tolist()}\n"
-                f"but got\n{U.columns.tolist()}"
-            )
-
-        if self.n_control_in_ != U.shape[1]:
-            raise ValueError(
-                f"The number of set control states ({self.n_control_in_=}) does not fit the "
-                f"current number in the control input {U.shape[1]=}."
-            )
+            if self.n_control_in_ != U.shape[1]:
+                raise ValueError(
+                    f"The number of set control states ({self.n_control_in_=}) does not fit "
+                    f"the current number in the control input {U.shape[1]=}."
+                )
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
 
@@ -606,36 +659,9 @@ class TSCPredictMixin(TSCBase):
         U: Optional[TSCDataFrame],
         time_values: Optional[np.ndarray],
     ):
-        is_controlled = U is not None
+        self._validate_feature_names(X=X )
 
-        if not self._has_feature_names(X):
-            raise TypeError("only types that support feature names are supported")
 
-        if time_values is None:
-            if is_controlled:
-                time_values = U.time_values()  # type: ignore
-            else:
-                reference = X.final_states(n_samples=1).time_values()
-                reference = np.unique(reference)
-                if np.size(reference) != 1:
-                    raise NotImplementedError(
-                        "Currently all initial conditions must have the same time reference"
-                    )
-
-                time_values = np.array([reference[0], reference[0] + self.dt_])
-        else:
-            if is_controlled:
-                if (time_values != U.time_values()).all():  # type: ignore
-                    raise ValueError(
-                        "Both control states in 'U' and 'time_values' are "
-                        "provided with non-matching time information. "
-                    )
-            time_values = self._validate_time_values(time_values=time_values)
-
-        self._validate_feature_names(X)
-
-        if is_controlled:
-            self._validate_control_names(U)
 
         return X, U, time_values
 
