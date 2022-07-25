@@ -360,7 +360,7 @@ class LinearKMPC:
         except:
             raise ValueError(
                 "The reference signal should be a frame or array with n (output_size) "
-                "columns and  Np (prediction horizon) rows."
+                "columns and Np (prediction horizon) rows."
             )
 
         U = solve_qp(

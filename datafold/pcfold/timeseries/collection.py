@@ -1,4 +1,3 @@
-import warnings
 from functools import partial
 from numbers import Number
 from typing import Generator, List, Optional, Tuple, Union
@@ -547,7 +546,9 @@ class TSCDataFrame(pd.DataFrame):
 
         if isinstance(df, TSCDataFrame) or df.index.nlevels > 1:
             # Handling of TSCDataFrame can be implemented if required.
-            raise TypeError("The row index must only contain time values.")
+            raise TypeError(
+                "The row index must be one-dimensional and only contain time values."
+            )
 
         if ts_id is None:
             ts_id = 0
@@ -1891,7 +1892,14 @@ class InitialCondition(object):
     def validate_control(cls, X_ic: TSCDataFrame, U: TSCDataFrame):
         # TODO: compare with information in X
         if (X_ic.ids != U.ids).all():
-            raise ValueError("The time series ids between X and U have to match!")
+            U_ids = list(U.ids)
+            X_ids = list(X_ic.ids)
+            raise ValueError(
+                f"The time series ids between initial conditions (X) and "
+                f"control (U) have to match! \n "
+                f"{X_ids=} \n"
+                f"{U_ids=}"
+            )
 
         # TODO: each time series in U should have the same time information
         # TODO:

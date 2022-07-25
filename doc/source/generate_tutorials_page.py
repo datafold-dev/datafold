@@ -314,7 +314,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "11_koopman_mpc/11_koopman_mpc.ipynb",
+        "11_koopman_mpc/koopman_mpc.ipynb",
         "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
         "operator. We apply MPC using an EDMD predictor to a toy model: the "
         "inverted pendulum, sometimes referred to as a cartpole.",

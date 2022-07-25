@@ -521,19 +521,30 @@ class TSCPredictMixin(TSCBase):
             time_values = self._validate_time_values_format(time_values=time_values)
 
             if is_controlled:
-                if not np.array((time_values == U.time_values())).all():
-                    raise ValueError(
-                        "Two parameters ('U' and 'time_values') provide time values for the "
-                        "prediction. However, the time values do not match. It is recommended "
-                        "to only provide the control input U. "
+                if isinstance(U, np.ndarray):
+                    if len(time_values) != U.shape[0]:
+                        raise ValueError(
+                            f"The length of time values ({len(time_values)=}) does "
+                            f"not match the number of control inputs ({U.shape=})"
+                        )
+                elif isinstance(U, TSCDataFrame):
+                    if not np.array((time_values == U.time_values())).all():
+                        raise ValueError(
+                            "Two parameters ('U' and 'time_values') provide time values for "
+                            "the prediction. However, the time values do not match. It is "
+                            "recommended to only provide the control input 'U'."
+                        )
+                else:
+                    raise TypeError(
+                        f"Invalid type of control input 'U' (got {type(U)=}."
                     )
 
             if isinstance(X, TSCDataFrame):
                 if (time_values < reference).any():
                     raise ValueError(
                         "The time values must not contain any value that is smaller than the "
-                        f"time reference of the initial condition reference value "
-                        f"({reference=})"
+                        f"time reference of the initial condition ({reference=})\n"
+                        f"{time_values[time_values < reference]=}"
                     )
 
                 if reference != time_values[0]:
@@ -546,13 +557,13 @@ class TSCPredictMixin(TSCBase):
         try:
             time_values = np.asarray(time_values)
         except Exception:
-            raise TypeError("Cannot convert 'time_values' to array.")
+            raise TypeError(
+                f"Cannot convert 'time_values' to NumPy array. "
+                f"Got {type(time_values)=}."
+            )
 
         if time_values.ndim != 1:
             raise ValueError("'time_values' must be be an 1-dim. array")
-
-        if not isinstance(time_values, np.ndarray):
-            raise TypeError("time_values has to be a NumPy array")
 
         if time_values.dtype.kind not in "iufM":
             # see for dtype.kind values:

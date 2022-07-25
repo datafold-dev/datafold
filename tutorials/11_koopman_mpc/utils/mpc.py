@@ -116,7 +116,9 @@ class MPC:
             pred = model.predict(dt, (i + 1) * step_size, control[: i + 1, :].flatten())
 
             state = pred.iloc[[-1]].copy()
-            state = TSCDataFrame.from_single_timeseries(state)
+            state = state.set_index("t")
+            state.index = [0]
+            state = TSCDataFrame.from_single_timeseries(state, ts_id=0)
 
             data.append((ret, pred))
 

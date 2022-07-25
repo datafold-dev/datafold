@@ -922,8 +922,10 @@ class EDMD(
                     dt=self.dt_,
                     time_values=time_values,
                 )
-            else:
+            elif isinstance(U, TSCDataFrame):
                 InitialCondition.validate_control(X_ic=X, U=U)
+            else:
+                raise TypeError(f"U has invalid type (got {type(U)}.")
 
         self._validate_feature_names(X, U)
 
