@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from typing import Any, Callable, List, Optional, Tuple, Union
-
+from datetime import datetime
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
@@ -504,10 +504,13 @@ class TSCPredictMixin(TSCBase):
             else:
                 reference = reference[0]
         else:
-            if U is not None:
+            if U is not None and isinstance(U, TSCDataFrame):
                 reference = U.time_values()[0]
             else:
-                reference = 0  # TODO this may fail if time values are datetime.
+                if isinstance(self.dt_, np.timedelta64):
+                    reference = np.datetime64(datetime.now())
+                else:
+                    reference = 0
 
         if time_values is None:
             if is_controlled:

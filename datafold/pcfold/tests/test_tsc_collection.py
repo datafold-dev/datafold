@@ -197,6 +197,7 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc_df.index = pd.MultiIndex.from_arrays([_ids, new_idx])
 
         self.assertTrue(tsc_df.is_datetime_index())
+        self.assertIsInstance(tsc_df.delta_time, np.timedelta64)
 
     def test_nelements_timeseries(self):
         tc = TSCDataFrame(self.simple_df)
