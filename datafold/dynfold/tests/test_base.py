@@ -132,7 +132,7 @@ class TestTSCBase(unittest.TestCase):
         U = np.arange(6).reshape(3, 2)
 
         actual = mixin._set_and_validate_time_values_predict(
-            time_values=expected.copy(), X=X, U=U
+            time_values=None, X=X, U=U
         )
         nptest.assert_array_equal(actual, expected)
 

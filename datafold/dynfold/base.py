@@ -517,7 +517,7 @@ class TSCPredictMixin(TSCBase):
                 if isinstance(U, TSCDataFrame):
                     time_values = U.time_values()  # type: ignore
                 else:
-                    time_values = np.arange(0, U.shape[0] * self.dt_, self.dt_)
+                    time_values = np.arange(reference, U.shape[0] * self.dt_, self.dt_)
             else:
                 time_values = np.array([reference, reference + self.dt_])
         else:
