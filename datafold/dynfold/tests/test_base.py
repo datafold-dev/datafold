@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime
+
 import numpy as np
 import numpy.testing as nptest
 
@@ -11,7 +12,7 @@ class TestTSCBase(unittest.TestCase):
     def test_predict_mixin01(self):
         # test with only time values
         mixin = TSCPredictMixin()
-
+        mixin.dt_ = 1
         expected = np.array([0, 1, 2])
         actual = mixin._set_and_validate_time_values_predict(
             time_values=expected, X=None, U=None
@@ -102,46 +103,18 @@ class TestTSCBase(unittest.TestCase):
     def test_predict_mixin05(self):
         # Test with U as datetime
         mixin = TSCPredictMixin()
-        mixin.dt_ = 0.1
-
-        expected = np.array([0.0, 0.1, 0.2])
-
-        X = np.arange(2)
-        U = np.arange(6).reshape(3, 2)
-
-        actual = mixin._set_and_validate_time_values_predict(
-            time_values=expected, X=X, U=U
-        )
-        nptest.assert_array_equal(actual, expected)
-
-        # no time information in X
-        actual = mixin._set_and_validate_time_values_predict(
-            time_values=expected, X=np.array([0, 1]), U=U
-        )
-        nptest.assert_array_equal(actual, expected)
-
-    def test_predict_mixin06(self):
-        # Test with U as datetime
-        mixin = TSCPredictMixin()
-        mixin.dt_ = np.timedelta64(1, 'h')
+        mixin.dt_ = np.timedelta64(1, "h")
         dt_now = np.datetime64(datetime.now())
 
-        expected = np.array([dt_now, dt_now+mixin.dt_, dt_now+2*mixin.dt_])
+        expected = np.array([dt_now, dt_now + mixin.dt_, dt_now + 2 * mixin.dt_])
 
         X = np.arange(2)
         U = np.arange(6).reshape(3, 2)
 
-        actual = mixin._set_and_validate_time_values_predict(
-            time_values=None, X=X, U=U
-        )
-        nptest.assert_array_equal(actual, expected)
+        actual = mixin._set_and_validate_time_values_predict(time_values=None, X=X, U=U)
 
-        # no time information in X
-        actual = mixin._set_and_validate_time_values_predict(
-            time_values=expected, X=np.array([0, 1]), U=U
-        )
-        nptest.assert_array_equal(actual, expected)
-
+        # this should not taks more than 5000 us (microseconds)
+        self.assertTrue(((actual - expected).astype(int) < 1000).all())
 
     def test_validate_time_values(self):
         mixin = TSCPredictMixin()

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime
+from typing import Any, Callable, List, Optional, Tuple, Union
+
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
@@ -489,8 +490,13 @@ class TSCPredictMixin(TSCBase):
             == 0
         )
 
-    def _set_and_validate_time_values_predict(self, time_values, X, U):
-
+    def _set_and_validate_time_values_predict(
+        self,
+        time_values,
+        X: Union[TSCDataFrame, np.ndarray],
+        U: Union[TSCDataFrame, np.ndarray],
+    ):
+        check_is_fitted(self, "dt_")
         is_controlled = U is not None
 
         if isinstance(X, TSCDataFrame):
