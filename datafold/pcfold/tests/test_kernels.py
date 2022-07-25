@@ -481,7 +481,7 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         self.assertIsInstance(graph_train, scipy.sparse.csr_matrix)
         self.assertLessEqual(graph_train.nnz, k * train_data.shape[0])
-        self.assertEqual(graph_train.dtype, np.bool)
+        self.assertEqual(graph_train.dtype, bool)
 
         if plot:
             self.plot_data(train_data, graph_train)

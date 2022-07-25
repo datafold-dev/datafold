@@ -142,7 +142,9 @@ class LinearKMPCTest(unittest.TestCase):
 
         reference = self.dfx[["x", "theta"]].iloc[: horizon + 1]
         initial_conditions = InitialCondition.from_array(
-            np.array([0, 0, np.pi, 0]), time_value=0, feature_names=["x", "xdot", "theta", "thetadot"]
+            np.array([0, 0, np.pi, 0]),
+            time_value=0,
+            feature_names=["x", "xdot", "theta", "thetadot"],
         )
         U = kmpc.generate_control_signal(
             initial_conditions=initial_conditions, reference=reference
@@ -289,7 +291,9 @@ class AffineKMPCTest(unittest.TestCase):
             [self.dfx[self._state_columns].iloc[: horizon + 1]]
         )
         initial_conditions = InitialCondition.from_array(
-            np.array([0, 0, np.pi, 0]), time_value=0, feature_names=["x", "xdot", "theta", "thetadot"]
+            np.array([0, 0, np.pi, 0]),
+            time_value=0,
+            feature_names=["x", "xdot", "theta", "thetadot"],
         )
         U = kmpc.generate_control_signal(
             initial_conditions=initial_conditions, reference=reference

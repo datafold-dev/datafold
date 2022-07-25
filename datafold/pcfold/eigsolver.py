@@ -231,7 +231,7 @@ def compute_kernel_eigenpairs(
     elif isinstance(kernel_matrix, np.ndarray) and not np.isfinite(kernel_matrix).all():
         raise err_nonfinite
 
-    if kernel_matrix.dtype == np.bool_:
+    if kernel_matrix.dtype == bool:
         # cast bools to float64, otherwise the resulting vectors are in float32
         kernel_matrix = kernel_matrix.astype(np.float64)
 

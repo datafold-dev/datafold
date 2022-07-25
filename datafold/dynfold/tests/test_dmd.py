@@ -1141,7 +1141,7 @@ class DMDControlTest(unittest.TestCase):
         return TSCDataFrame.from_single_timeseries(data)
 
     def _create_control_tsc(
-        self, state_size, input_size, n_timesteps, time_delta=1
+        self, state_size, input_size, n_timesteps, time_delta=1.0
     ) -> TSCDataFrame:
         gen = np.random.default_rng(42)
 
@@ -1218,7 +1218,7 @@ class DMDControlTest(unittest.TestCase):
         actual = dmd1.predict(tsc_ic, U=U_pred)  # control_input=np.zeros((10, 0)
         expected = dmd2.predict(tsc_ic, time_values=np.arange(1, 11))
 
-        pdtest.assert_frame_equal(actual, expected, rtol=1e-15, atol=1e-14)
+        pdtest.assert_frame_equal(actual, expected, rtol=1e-14, atol=1e-13)
 
     def test_dmd_control_multiple(self):
         state_size = 4
