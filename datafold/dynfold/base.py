@@ -469,7 +469,8 @@ class TSCPredictMixin(TSCBase):
             X, U, check_column=False, check_names=False, handle=None
         ):
             raise ValueError(
-                "System data ('X') and control data ('U') must have the same index."
+                "System time series ('X') and control time series ('U') must have identical "
+                "indices."
             )
 
         self.dt_ = X.delta_time
@@ -496,7 +497,10 @@ class TSCPredictMixin(TSCBase):
         X: Union[TSCDataFrame, np.ndarray],
         U: Union[TSCDataFrame, np.ndarray],
     ):
-        check_is_fitted(self, "dt_")
+
+        if not hasattr(self, "dt_"):
+            raise NotFittedError("The parameter 'dt_' is not set. Please report bug.")
+
         is_controlled = U is not None
 
         if isinstance(X, TSCDataFrame):

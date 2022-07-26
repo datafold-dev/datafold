@@ -22,6 +22,7 @@ class TestTSCBase(unittest.TestCase):
     def test_predict_mixin02(self):
         # Test with time information in X
         mixin = TSCPredictMixin()
+        mixin.dt_ = 1
 
         expected = np.array([0, 1, 2])
         X = TSCDataFrame.from_array(np.arange(2), time_values=expected[0])
@@ -58,6 +59,7 @@ class TestTSCBase(unittest.TestCase):
     def test_predict_mixin03(self):
         # Test with time information in control input U
         mixin = TSCPredictMixin()
+        mixin.dt_ = 1
 
         expected = np.array([0, 1, 2])
 
