@@ -19,8 +19,7 @@ except ImportError:
 
 
 class LinearKMPC:
-    r"""
-    Class to implement Lifting based Model Predictive Control
+    r"""Class to implement Lifting based Model Predictive Control.
 
     Given a linear controlled model evolving at timestep :math:`k`
 
@@ -108,9 +107,9 @@ class LinearKMPC:
     ) -> None:
         if solve_qp is None:
             raise ImportError(
-                "The optional dependencies qpsolvers and quadprog are required "
+                "The optional dependencies `qpsolvers` and `quadprog` are required "
                 "for LinearKMPC. They can be installed using option mpc. "
-                "E.g. `pip install datafold[mpc]`"
+                "E.g. `pip install qpsolvers quadprog`"
             )
 
         # utilize the lifting functions from EDMD
