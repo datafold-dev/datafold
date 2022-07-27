@@ -20,7 +20,7 @@ Welcome to datafold
 
 **What is datafold?**
 
-*datafold* is a :octicon:`link-external` |python| package
+*datafold* is a |python| :octicon:`link-external` package
 containing operator-theoretic models to identify dynamical systems from time series data and
 infer geometrical structures from point clouds. |MIT-license|
 
@@ -128,7 +128,7 @@ Cite
 ====
 
 If you use *datafold* in your research, please cite our paper |joss-paper| that we
-published in the *Journal of Open Source Software* (:octicon:`link-external` |joss|).
+published in the *Journal of Open Source Software* (|joss| :octicon:`link-external`).
 
 .. |joss-paper| image:: https://joss.theoj.org/papers/10.21105/joss.02283/status.svg
    :target: https://doi.org/10.21105/joss.02283
@@ -157,12 +157,13 @@ https://doi.org/10.21105/joss.02283
 Software maintainer and affiliation
 ===================================
 
-* **Daniel Lehmberg** (:octicon:`link-external` |dl-link|)
+* **Daniel Lehmberg** (|dl-link| :octicon:`link-external`)
 
-  - from 5/2022 (1): Postdoctoral researcher
-  - from 3/2018-5/2022 (1,2): PhD candidate with funding from the German Research Foundation (:octicon:`link-external` |dfg|), grant no. KO 5257/3-1.
+  - from 5/2022 postdoctoral researcher at (1)
+  - from 3/2018-5/2022 PhD candidate at both (1) and (2) with funding from the German Research
+    Foundation (|dfg| :octicon:`link-external`), grant no. KO 5257/3-1.
 
-* **Felix Dietrich** (1, :octicon:`link-external` |fd-link|)
+* **Felix Dietrich** (1, |fd-link| :octicon:`link-external`)
 
 All source code contributors are listed
 `here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
@@ -170,7 +171,7 @@ All source code contributors are listed
 (1) Technical University of Munich
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Chair of Scientific Computing in Computer Science (:octicon:`link-external` |sccs|)
+Chair of Scientific Computing in Computer Science (|sccs| :octicon:`link-external`)
 
 .. image:: _static/img/tum_logo.png
    :height: 75px
@@ -182,16 +183,16 @@ Chair of Scientific Computing in Computer Science (:octicon:`link-external` |scc
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Faculty of Computer Science and Mathematics
-(:octicon:`link-external` |cs-hm|) in Pedestrian Dynamics Research Group
-(:octicon:`link-external` |vadere|)
+(|cs-hm| :octicon:`link-external`) in Pedestrian Dynamics Research Group
+(|vadere| :octicon:`link-external`)
 
 .. image:: _static/img/hm_logo.png
    :height: 81px
    :width: 300px
    :target: https://www.hm.edu/en/index.en.html
 
-.. Links used above -- the external links (outside datafold) open a new tab; scheme used from
-.. https://stackoverflow.com/a/11718325
+.. Links used above -- the external links (outside datafold) open a new tab (which is why a
+.. raw-html directive is used (used from https://stackoverflow.com/a/11718325)
 
 .. |python| raw:: html
 
