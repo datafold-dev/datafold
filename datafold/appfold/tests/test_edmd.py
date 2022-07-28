@@ -100,7 +100,7 @@ class EDMDTest(unittest.TestCase):
             traj = inverted_pendulum.predict(
                 time_step=sim_time_step,
                 num_steps=sim_num_steps,
-                control_func=control_func,
+                U=control_func,
             )
             t = inverted_pendulum.sol.t
             dfx = pd.DataFrame(data=traj.T, index=t, columns=xycols)

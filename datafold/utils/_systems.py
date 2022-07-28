@@ -2,7 +2,7 @@
 
 import abc
 from logging import warning
-
+from typing import Callable, Optional, Union
 import numpy as np
 import pandas as pd
 from scipy.integrate import odeint, solve_ivp
@@ -12,6 +12,8 @@ from datafold.pcfold import TSCDataFrame
 
 # TODO: could be a TSCPredictMixin
 class DynamicalSystem(metaclass=abc.ABCMeta):
+
+    # TODO: initial_conditions should be "X" to align with the Predict models
     @abc.abstractmethod
     def predict(self, initial_conditions, time_values, **kwargs):
         raise NotImplementedError("base class")
@@ -44,13 +46,13 @@ class LimitCycle(DynamicalSystem):
         return np.real(vals), np.imag(vals)
 
     def predict(self, **kwargs):
-
+        # TODO: adapt to the predict in metaclass and do not put all in **kwargs
         if "t_eval" in kwargs:
             kwargs["nr_steps"] = len(kwargs["t_eval"])
             t_diff = np.diff(kwargs["t_eval"])
             assert (
                 len(np.unique(np.round(t_diff, decimals=10))) == 1
-            )  # TODO only equidistant is supported at the moment!
+            )  # TODO only equidistant sampling is supported at the moment!
             kwargs["dt"] = t_diff[0]
             del kwargs["t_eval"]
 
@@ -60,6 +62,7 @@ class LimitCycle(DynamicalSystem):
             return self.eval_finite_differences(**kwargs)
 
     def eval_finite_differences(self, x1, x2, dt, nr_steps):
+        # TODO: make private function!
         # use Euler, could also be solved analytically
         # diss, p. 52 t_end=10^-3 and nr_steps=10, eps=1E-2
         t = np.linspace(0, dt * (nr_steps - 1), nr_steps)
@@ -83,6 +86,7 @@ class LimitCycle(DynamicalSystem):
         return self.obs
 
     def eval_analytical(self, x1, x2, dt, nr_steps):
+        # TODO: make private function!
         t = np.linspace(0, dt * (nr_steps - 1), nr_steps)
 
         a0 = self._compute_angle(x1=x1, x2=x2)
@@ -102,7 +106,8 @@ class LimitCycle(DynamicalSystem):
 
 
 class HopfSystem(DynamicalSystem):
-    """
+    """From
+
     Lawrence Perko. Differential equations and dynamical systems, volume 7. Springer
     Science & Business Media, 2013. page 350
 
@@ -110,16 +115,17 @@ class HopfSystem(DynamicalSystem):
     """
 
     def __init__(self, mu: float = 1, return_xx: bool = True, return_rt: bool = True):
-
+        # TODO: rename "return_xx" and "return_rt"
         self.mu = mu
         self.return_xx = return_xx
         self.return_rt = return_rt
 
         if not self.return_xx and not return_rt:
-            raise ValueError("Cannot have both return_xx=False and return_rt=False")
+            raise ValueError(f"cannot have both {return_xx=} and {return_rt=}")
 
     def hopf_system(self, t, y):
-        """Autonmous, planar ODE System"""
+        """Autonomous, planar ODE System"""
+        # TODO make private
 
         y_dot = np.zeros(2)
         factor = self.mu - y[0] ** 2 - y[1] ** 2
@@ -129,7 +135,6 @@ class HopfSystem(DynamicalSystem):
         return y_dot
 
     def predict(self, initial_conditions, time_values, ic_type="xx"):
-
         assert ic_type in ["xx", "rt"]
         assert initial_conditions.ndim == 2
         assert initial_conditions.shape[1] == 2
@@ -205,10 +210,8 @@ class ClosedPeriodicalCurve(DynamicalSystem):
 
 
 class Pendulum(DynamicalSystem):
-    """
-    System explained:
+    """System explained:
     https://towardsdatascience.com/a-beginners-guide-to-simulating-dynamical-systems-with-python-a29bc27ad9b1
-
     """
 
     def __init__(self, mass_kg=1, length_rod_m=1, friction=0, gravity=9.81):
@@ -225,7 +228,6 @@ class Pendulum(DynamicalSystem):
         return theta_dot_1, theta_dot_2
 
     def _compute_cart_parameters(self):
-
         # 10 * circle_area = mass -- the 10 is artificial
         self.radius_mass_ = np.sqrt(self.mass_kg / np.pi) / 10
 
@@ -240,11 +242,11 @@ class Pendulum(DynamicalSystem):
 
     def predict(self, initial_conditions, time_values, **kwargs):
         # initial_conditions = theta_0 -- theta_1
-
         self._compute_cart_parameters()
 
         initial_conditions = np.asarray(initial_conditions)
 
+        # TODO: use np.atleast2d
         if initial_conditions.ndim == 1:
             initial_conditions = initial_conditions[np.newaxis, :]
 
@@ -290,88 +292,30 @@ class ControlledDynamicalSystem(DynamicalSystem):
         Scipt IVP solution object of the solved system
     """
 
-    _defaul_ic_ = np.array([])
-
     @abc.abstractmethod
     def _f(self, t, state, control_input, **kwarfs):
         raise NotImplementedError("base class")
 
-    def reset(self, state=None):
-        """
-        Restore to neutral position at 0 time.
-        """
-        self.state = self._check_state(state, self.initial_condition)
-        self.last_time = 0
-
-    def _check_state(self, state, default_state=None):
-        state_size = self._default_ic_.shape[0]
-        if state is None:
-            # use last state if none given
-            state = self.state if default_state is None else default_state
-        else:
-            # make sure state is the right shape
-            try:
-                state = state.reshape(state_size, 1)
-            except ValueError as e:
-                raise ValueError(f"State should have size {state_size}.") from e
-            except AttributeError as e:
-                raise ValueError(
-                    f"State should be an np.array(size={state_size})"
-                ) from e
-        return state
-
-    def step(self, time_step, state=None, control_input=0, current_time=None):
-        """
-        Return the next state
-
-        Parameters
-        ----------
-        time_step
-            length of single time step
-
-        state
-            state to step from (default last state of the pendulum)
-
-        control_input
-            applied control force (default 0)
-
-        current_time
-            time to step from (default last time of the pendulum)
-        """
-        state = self._check_state(state)
-        t0 = self.last_time if current_time is None else current_time
-        self.sol = solve_ivp(
-            fun=self._f,
-            args=(control_input,),
-            t_span=(t0, t0 + time_step),
-            y0=state.ravel(),
-            method="RK45",
-            t_eval=np.atleast_1d(t0 + time_step),
-            vectorized=True,
-        )
-        self.state = self._check_state(self.sol.y)
-        self.last_time = self.sol.t[-1]
-        return self.state
-
     def predict(
         self,
-        initial_condition=None,
+        X: Union[np.ndarray, TSCDataFrame],
+        U: Callable,
         time_values=None,
         t0=None,
         time_step=1.0,
         num_steps=10,
-        control_func=None,
     ):
-        """
-        Compute a trajectory in state space
+        """Compute a trajectory in state space
 
         Parameters
         ----------
 
-        initial_condition: np.array, optional
-            initial condition [position, veloctiy, angle from horizon, angular velocity]
-            Default to last state
-        time_values: np.array, optional
+        X
+            Initial condition state
+
+        U
+            f(t, state) callable returning control input.
+        time_values: np.ndarray, optional
             time values for which to evaluate the system.
             If not provided, t0, time_step and num_steps can be used.
         t0: float, optional
@@ -381,45 +325,43 @@ class ControlledDynamicalSystem(DynamicalSystem):
             length of single time step in the output (if time_values is None)
         num_steps: int, option
             number of time steps in the output (if time_values is None)
-        control_func: callable
-            f(t, state) callable returning control input. Defaults to constant 1.
         """
-        if control_func is None:
-            warning.warn("Default control function u=1 is used.")
-            control_func = lambda t, x: 1
-        if not callable(control_func):
-            raise TypeError("control_func needs to be a function of time and the state")
-        state = self._check_state(initial_condition)
+
+        if not callable(U):
+            raise TypeError("U needs to be a function of time and the state `f(t, state)`")
 
         if time_values is None:
-            t0 = self.last_time if t0 is None else t0
-            time_values = t0 + np.arange(num_steps + 1) * time_step
+            t0 = 0 if t0 is None else t0
+            time_values = np.arange(num_steps + 1) * time_step
         else:
             t0 = time_values[0]
         tf = time_values[-1]
 
-        self.sol = solve_ivp(
-            fun=lambda t, y: self._f(t, y, control_func(t, y)),
+        sol = solve_ivp(
+            fun=lambda t, y: self._f(t, y, U(t, y)),
             t_span=(t0, tf),
-            y0=state.ravel(),
+            y0=X.ravel(),
             method="RK45",
             t_eval=time_values,
             vectorized=True,
         )
-        self.state = self._check_state(self.sol.y[:, -1])
-        self.last_time = self.sol.t[-1]
 
-        return self.sol.y
+        if not sol.success:
+            raise RuntimeError(f"The prediction was not successful \n Reason: \n"
+                               f" {sol.message=}")
+
+        # need to use the control function again, not sure how to best extract within solve_ivp
+        _control_input = np.atleast_2d(U(time_values, sol.y)).T
+        control = TSCDataFrame.from_array(_control_input, time_values=time_values, feature_names=["u"])
+        states = TSCDataFrame.from_array(sol.y.T, time_values=time_values, feature_names=["x", "xdot", "theta", "thetadot"])
+        return states, control
 
 
 class InvertedPendulum(ControlledDynamicalSystem):
-    """
-    Model the physics of an inverted pendulum on a cart
-    controlled by electric motor.
+    """An inverted pendulum on a cart controlled by an electric motor.
 
-    The system requires as input the voltage to the electric
-    motor and is described by a four dimensional state:
-    [position, velocity, angle from horizon, angular velocity]
+    The system is parametrized with the voltage of the electric motor and the states include
+    four observations: 1) position, 2) velocity, 3) angle from horizon and 4) angular velocity.
 
     Parameters
     ----------
@@ -430,31 +372,28 @@ class InvertedPendulum(ControlledDynamicalSystem):
         Mass of the cart, defaults to 1.12 kg
 
     g: float
-        Graviational acceleration, defaults to 9.81 m/s^2
+        Gravitational acceleration, defaults to 9.81 m/s^2
 
     tension_force_gain: float
-        Conversion between electric motor input voltage in V and tesnsion
+        Conversion between electric motor input voltage in V and tension
         force in N, defaults to 7.5 N/V
 
     pendulum_length: float
-        Length of the penulum, defaults to 0.365 m
+        Length of the pendulum, defaults to 0.365 m
 
     cart_friction: float
         Dynamic damping coefficient on the cart, defaults to 6.65 kg/s
 
-    initial_condition: np.array
-        Initial condition for the state, default to [0,0,pi,0]
-
     Attributes
     ----------
-    state: np.array
+    state: np.ndarray
         Last state of the system
 
     last_time: float
         Last time value of the system
 
-    sol: object
-        Scipt IVP solution object of the solved system
+    sol: object  # TODO: the solution should not be stored!
+        IVP solution object of the solved system
     """
 
     _default_ic_ = np.array([[0, 0, np.pi, 0]]).T
@@ -468,7 +407,6 @@ class InvertedPendulum(ControlledDynamicalSystem):
         tension_force_gain=7.5,  # N/V
         pendulum_length=0.365,  # m
         cart_friction=6.65,  # kg/s
-        initial_condition=None,
     ):
         self.pendulum_mass = pendulum_mass
         self.cart_mass = cart_mass
@@ -476,8 +414,7 @@ class InvertedPendulum(ControlledDynamicalSystem):
         self.tension_force_gain = tension_force_gain
         self.pendulum_length = pendulum_length
         self.cart_friction = cart_friction
-        self.initial_condition = self._check_state(initial_condition, self._default_ic_)
-        self.reset(self.initial_condition)
+        self.last_time = 0
 
     def _f(self, t, state, control_input):
         # inverted pendulum physics
@@ -495,8 +432,6 @@ class InvertedPendulum(ControlledDynamicalSystem):
 
         alpha = M + m * sin_th * sin_th
 
-        # See doc/reports/cartpole/report.pdf for derivation
-
         f2 = (
             self.tension_force_gain * control_input
             + m * g * sin_th * cos_th
@@ -511,7 +446,7 @@ class InvertedPendulum(ControlledDynamicalSystem):
             - 2 * self.cart_friction * xdot * cos_th
         ) / (L * alpha)
 
-        return np.array((f1, f2, f3, f4))
+        return np.array([f1, f2, f3, f4])
 
 
 class Duffing1D(ControlledDynamicalSystem):

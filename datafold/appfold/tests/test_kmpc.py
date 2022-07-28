@@ -47,7 +47,7 @@ class LinearKMPCTest(unittest.TestCase):
             trajectory = model.predict(
                 time_step=dt,
                 num_steps=num_steps,
-                control_func=control_function,
+                U=control_function,
             )
             assert model.sol.success, (
                 f"Divergent solution for amplitude={control_amplitude}, "
@@ -186,7 +186,7 @@ class AffineKMPCTest(unittest.TestCase):
             trajectory = model.predict(
                 time_step=dt,
                 num_steps=num_steps,
-                control_func=control_function,
+                U=control_function,
             )
 
             try:

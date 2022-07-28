@@ -32,7 +32,7 @@ class CartPole(Model):
         traj = model.predict(
             time_step=t_step,
             num_steps=n_steps,
-            control_func=control_func,
+            U=control_func,
         )
 
         assert model.sol.success

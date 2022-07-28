@@ -353,6 +353,7 @@ class DMDBase(
                     dt=self.dt_,
                     time_values=time_values,
                 )
+                # TODO: include pd.DataFrame type (turn to TSCDataFrame)
 
             self._validate_datafold_data(
                 U, ensure_tsc=True, tsc_kwargs=dict(ensure_same_time_values=True)
