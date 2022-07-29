@@ -121,7 +121,8 @@ class TSCBase(object):
 
         if self._has_feature_names(X):
             if X.columns.ndim != 1:
-                raise ValueError("columns (features) must be 1-dim.")
+                raise ValueError(f"The feature columns of X must be 1-dim. "
+                                 f"Got {X.columns.ndim=}")
 
         if type(X) != TSCDataFrame:
             # Currently, everything that is not strictly a TSCDataFrame will go the
