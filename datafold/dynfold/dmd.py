@@ -337,7 +337,7 @@ class DMDBase(
         if isinstance(X, np.ndarray):
             # work internally only with DataFrames
             X = InitialCondition.from_array(
-                X, time_value=time_values[0], feature_names=self.feature_names_in_
+                X, time_value=time_values[0], feature_names=self.feature_names_in_, ts_ids=U.ids if isinstance(U, TSCDataFrame) else None
             )
         else:
             # for DMD the number of samples per initial condition is always 1

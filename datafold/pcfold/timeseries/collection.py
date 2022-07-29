@@ -1673,6 +1673,7 @@ class InitialCondition(object):
         X: np.ndarray,
         time_value: Union[float, int],
         feature_names: Union[pd.Index, List[str]],
+        ts_ids: Optional[np.ndarray] = None
     ) -> TSCDataFrame:
         """Build initial conditions object from a NumPy array.
 
@@ -1690,6 +1691,9 @@ class InitialCondition(object):
         feature_names
             Feature names in model during fit (they can be accessed with
             :code:`model_obj.features_in_[1]`.
+
+        ts_ids
+            Time series ids.  Defaults to range(0, n_initial_condition).
 
         Returns
         -------
@@ -1714,8 +1718,11 @@ class InitialCondition(object):
             )
 
         n_ic = X.shape[0]
+        if ts_ids is None:
+            ts_ids = np.arange(n_ic)
+
         index = pd.MultiIndex.from_arrays(
-            [np.arange(n_ic), np.repeat(time_value, n_ic)]
+            [ts_ids, np.repeat(time_value, n_ic)]
         )
 
         ic_df = TSCDataFrame(X, index=index, columns=feature_names)

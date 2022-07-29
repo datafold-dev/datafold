@@ -906,6 +906,7 @@ class EDMD(
                 if1dim_rowvec(X),
                 time_value=time_values[0],
                 feature_names=self.feature_names_in_,
+                ts_ids=U.ids if isinstance(U, TSCDataFrame) else None
             )
         else:
             InitialCondition.validate(

@@ -1441,6 +1441,26 @@ class TestInitialCondition(unittest.TestCase):
         self.assertTrue(InitialCondition.validate(actual))
         pdtest.assert_frame_equal(actual, expected)
 
+    def test_from_array03(self):
+        actual = InitialCondition.from_array(
+            np.array([[1, 2, 3], [4, 5, 6]]),
+            time_value=0.0,
+            feature_names=["A", "B", "C"],
+            ts_ids=np.array([55, 99])  # insert ts_ids
+        )
+
+        expected = TSCDataFrame(
+            np.array([[1, 2, 3], [4, 5, 6]]),
+            index=pd.MultiIndex.from_arrays(
+                [[55, 99], [0.0, 0.0]],
+                names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
+            ),
+            columns=pd.Index(["A", "B", "C"], name=TSCDataFrame.tsc_feature_col_name),
+        )
+
+        self.assertTrue(InitialCondition.validate(actual))
+        pdtest.assert_frame_equal(actual, expected)
+
     def test_from_tsc01(self):
         actual = InitialCondition.from_tsc(self.test_tsc01, n_samples_ic=1)
         expected = TSCDataFrame(self.test_tsc01).head(1)

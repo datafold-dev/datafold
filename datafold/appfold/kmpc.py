@@ -493,8 +493,7 @@ class AffineKgMPC(object):
 
         if input_bounds.shape != (self.input_size, 2):
             raise ValueError(
-                f"input_bounds is of shape {input_bounds.shape}, "
-                f"should be ({self.input_size},2)"
+                f"{input_bounds.shape=}, should be ({self.input_size=},2)"
             )
 
         if isinstance(cost_input, np.ndarray):
@@ -502,8 +501,7 @@ class AffineKgMPC(object):
                 self.cost_input = cost_input.reshape((self.input_size, 1))
             except ValueError:
                 raise ValueError(
-                    f"cost_input is of shape {cost_input.shape}, "
-                    f"should be ({self.input_size},1)"
+                    f"{cost_input.shape=}, should be ({self.input_size},1)"
                 )
         else:
             self.cost_input = cost_input * np.ones((self.input_size, 1))
@@ -513,8 +511,7 @@ class AffineKgMPC(object):
                 self.cost_state = cost_state.reshape((self.state_size, 1))
             except ValueError:
                 raise ValueError(
-                    f"cost_state is of shape {cost_state.shape}, "
-                    f"should be ({self.state_size},1)"
+                    f"{cost_state.shape=}, should be ({self.state_size},1)"
                 )
         else:
             self.cost_state = cost_state * np.ones((self.state_size, 1))
@@ -559,8 +556,8 @@ class AffineKgMPC(object):
 
         if not ivp_solution.success:
             raise RuntimeError(
-                f"The system could not be envolved for the "
-                f"requested timespan for initial condition {x0}."
+                "The system could not be envolved for the "
+                "requested time span for initial condition."
             )
 
         return ivp_solution.y
@@ -613,20 +610,19 @@ class AffineKgMPC(object):
 
         Parameters
         ----------
-        u : np.array
-            Control input
-            shape = (n*m,)
+        u
+            Control input of shape `(n*m,)`
             [u1(t0) u1(t1) ... u1(tn) u2(t1) ... um(tn)]
             with `n = self.horizon+1`; `m = self.input_size`
-        x0 : np.array
+        x0
             Initial conditions
             shape = `(self.state_size, 1)`
-        xref : np.array
+        xref
             Reference state
             shape = `(self.state_size, 1)`
-        t : np.array
+        t
             Time values for the evaluation
-        x : Optional[np.array]
+        x
             State to use. If not provided is calculated by self.predictor
         Returns
         ---------
@@ -652,24 +648,25 @@ class AffineKgMPC(object):
 
         Parameters
         ----------
-        u : np.array
+        u
             shape = (n*m,)
             [u1(t0) u1(t1) ... u1(tn) u2(t1) ... um(tn)]
             with `n = self.horizon+1`; `m = self.input_size`
-        x0 : np.array
+        x0
             shape = `(self.state_size, 1)`
-        xref : np.array
+        xref
             shape = `(self.state_size, 1)`
-        t : np.array
+        t
             Time values for the evaluation
-        x : Optional[np.array]
+        x
             State to use. If not provided is calculated by self.predictor
         Returns
         ---------
-        array_like, shape (n*m,)
-        [dJ/du1(t0) dJ/du1(t1) ... dJ/du1(tn) dJ/du2(t1) ... dJ/dum(tn)]
+        np.ndarray, shape (n*m,)
+            [dJ/du1(t0) dJ/du1(t1) ... dJ/du1(tn) dJ/du2(t1) ... dJ/dum(tn)]
         """
         u = u.reshape(self.input_size, self.horizon + 1)
+
         if x is None:
             x = self._predict(x0, u, t)  # shape = (lifted_state_size, horizon+1)
         interp_gamma = interp1d(t, self._dcost_dx(x, xref), axis=1, kind="previous")
@@ -707,7 +704,7 @@ class AffineKgMPC(object):
 
         if not sol.success:
             raise RuntimeError(
-                "Could not integrate the adjoint dynamics. Solver says '{sol.message}'"
+                f"Could not integrate the adjoint dynamics. Solver says '{sol.message}'"
             )
         return np.fliplr(sol.y)
 
@@ -730,33 +727,32 @@ class AffineKgMPC(object):
         time_values: Optional[np.ndarray] = None,
         **minimization_kwargs,
     ) -> np.ndarray:
-        r"""
-        Method to generate a control sequence, given some initial conditions and a reference
-        trajectory, as in :cite:`peitz-2020` , Section 4.1. This method solves the following
-        optimization problem (:cite:`peitz-2020` , Equation K-MPC).
+        r"""Method to generate a control sequence, given some initial conditions and a
+        reference trajectory. This method solves the following
+        optimization problem (:cite:t:`peitz-2020` , Equation K-MPC).
 
         .. math::
-            \text{given : } x_{0}, x_r
-            \text{find :} u
-            \text{minimizing : } J(x_0,x_r,u)
-            \text{subject to : } \dot{x}= Ax + \sum_{i=1}^m B_i u_i x
-
+            \text{given: } x_{0}, x_r
+            \text{find: } u
+            \text{minimizing: } J(x_0,x_r,u)
+            \text{subject to: } \dot{x}= Ax + \sum_{i=1}^m B_i u_i x
 
         Here, :math:`u` is the optimal control sequence to be estimated.
 
         The optimization is done using scipy.optimize.minimize. Suitable methods use
-        a calculated jacobian (but not hessian) and support bounds on the variable.
+        a calculated Jacobian (but not Hessian) and support bounds on the variable.
 
         Parameters
         ----------
-        initial_conditions : TSCDataFrame or np.ndarray
+        initial_conditions
             Initial conditions for the model
-        reference : TSCDataFrame or np.ndarray
-            Reference trajectory. Required to optimize the control sequence.
-            If TSCDataFrame and time_values is not provided, the time index is used.
-        time_vlues : Optional[np.ndarray]
-            Time values of the the reference trajectory at which control inputs will
-            be generated. If not provided is tried to be inferred from the reference.
+        reference
+            The reference trajectory, which is required to optimize the control sequence.
+            If ``TSCDataFrame`` and ``time_values`` is not provided, the time index of the
+            reference is used.
+        time_values
+            Time values of the reference trajectory at which control inputs will
+            be generated. If not provided tje  inferred from the reference.
         **minimization_kwargs:
             Passed to scipy.optimize.minimize. If method is not provided, 'L-BFGS-B' is used.
         Returns
@@ -768,22 +764,26 @@ class AffineKgMPC(object):
         ------
         ValueError
             In case of mis-shaped input
+
+        References
+        ----------
+            :cite:t:`peitz-2020`, Section 4.1
+
+
         """
-        # x0.shape = (nc,1)
-        # xref.shape = (nc,n)
-        # t.shape = (n,)
+
         if time_values is None:
             try:
                 time_values = reference.time_values()
             except AttributeError:
                 raise TypeError(
-                    "If time_values is not provided, "
-                    "the reference needs to be of type TSCDataFrame"
+                    "If time_values is not provided, the reference needs to be of type "
+                    f"TSCDataFrame. Got {type(reference)=}"
                 )
 
         if time_values.shape != (self.horizon + 1,):
             raise ValueError(
-                f"time_values is of shape {time_values.shape}, should be ({self.horizon+1},)"
+                f"time_values is of shape {time_values.shape} but should be ({self.horizon+1},)"
             )
 
         xref = (
