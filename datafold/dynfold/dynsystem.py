@@ -403,9 +403,9 @@ class LinearDynamicalSystem(object):
                 f"{control_input.shape[0]=} does not match the number of initial "
                 f"conditions (={n_initial_condition})"
             )
-        if control_input.shape[1] != n_time_values:
+        if control_input.shape[1]+1 != n_time_values:
             raise ValueError(
-                f"{control_input.shape[1]=} should have the same length as time_values "
+                f"{control_input.shape[1]+1=} should have the same length as time_values "
                 f"(={n_time_values})"
             )
         if control_input.shape[2] != self.control_matrix_.shape[-1]:

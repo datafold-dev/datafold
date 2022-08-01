@@ -512,7 +512,7 @@ class TSCPredictMixin(TSCBase):
             if np.size(reference) != 1:
                 raise ValueError(
                     "All initial conditions must have the same time reference. "
-                    f"Got {reference=}"
+                    f"Got {reference=}."
                 )
             else:
                 reference = reference[0]
@@ -528,7 +528,8 @@ class TSCPredictMixin(TSCBase):
         if time_values is None:
             if is_controlled:
                 if isinstance(U, TSCDataFrame):
-                    time_values = U.time_values()  # type: ignore
+                    Utv = U.time_values()
+                    time_values = np.append(Utv, Utv[-1] + self.dt_)
                 else:
                     time_values = np.arange(reference, U.shape[0] * self.dt_, self.dt_)
             else:
@@ -540,15 +541,19 @@ class TSCPredictMixin(TSCBase):
                 if isinstance(U, np.ndarray):
                     if len(time_values) != U.shape[0]:
                         raise ValueError(
-                            f"The length of time values ({len(time_values)=}) does "
-                            f"not match the number of control inputs ({U.shape=})"
+                            f"The length of time values ({len(time_values)=}) does not match "
+                            f"the required number of control states ({U.shape[0]+1=})."
                         )
                 elif isinstance(U, TSCDataFrame):
-                    if not np.array((time_values == U.time_values())).all():
+
+                    Utv = U.time_values()
+                    required_time_values = np.append(Utv, Utv)
+
+                    if not np.array((time_values == required_time_values)).all():
                         raise ValueError(
-                            "Two parameters ('U' and 'time_values') provide time values for "
-                            "the prediction. However, the time values do not match. It is "
-                            "recommended to only provide the control input 'U'."
+                            "Two parameters ('U' and 'time_values') provide time information "
+                            "for the prediction. However, the time information does not "
+                            "match. It is recommended to only provide the control input 'U'."
                         )
                 else:
                     raise TypeError(

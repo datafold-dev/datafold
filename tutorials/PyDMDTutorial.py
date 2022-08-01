@@ -91,7 +91,7 @@ plt.colorbar()
 
 
 plt.subplot(122)
-plt.pcolor(dmdcdf.reconstruct(X=X, U=TSCDataFrame.from_array(new_u)))
+plt.pcolor(dmdcdf.reconstruct(X=X, U=TSCDataFrame.from_array(new_u.T)).to_numpy().T)
 plt.colorbar()
 
 plt.show()
@@ -110,7 +110,3 @@ plt.show()
 
 
 # In[ ]:
-
-
-
-
