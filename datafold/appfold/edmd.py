@@ -762,23 +762,13 @@ class EDMD(
 
         if hasattr(self, "is_partial_fit_") and self.is_partial_fit_:
             raise ValueError(
-                f"Fit cannot be called if the model was set up with {self.is_partial_fit_}"
+                f"Fit cannot be called if the model was set up with {self.is_partial_fit_=}"
             )
         else:
             self.is_partial_fit_ = False
 
         self.is_controlled_ = False if U is None else True
-
-        if self.is_controlled_:
-            self._validate_datafold_data(
-                U,
-                ensure_tsc=True,
-            )
-
-            if not is_df_same_index(
-                X, U, check_column=False, check_names=False, handle=None
-            ):
-                raise ValueError("X and U must have same time indices")
+        # Currently, validation of U is only in the final DMD estimator
 
         self.dict_preserves_id_states_ = self._validate_dictionary()
 
@@ -917,11 +907,19 @@ class EDMD(
 
         if self.is_controlled_:
             if isinstance(U, np.ndarray):
+
+                if X.n_timeseries > 1:
+                    raise NotImplementedError(
+                        "If U is a numpy array, then only a prediction with "
+                        "a single initial condition is allowed. "
+                        f"Got {X.n_timeseries}")
+
                 U = InitialCondition.from_array_control(
                     U,
                     control_names=self.control_names_in_,
                     dt=self.dt_,
                     time_values=time_values,
+                    ts_id=int(X.ids[0]) if isinstance(X, TSCDataFrame) else None
                 )
             elif isinstance(U, TSCDataFrame):
                 InitialCondition.validate_control(X_ic=X, U=U)

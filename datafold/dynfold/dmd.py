@@ -346,12 +346,19 @@ class DMDBase(
         self._validate_datafold_data(X)
 
         if U is not None:
+
+            if X.n_timeseries > 1:
+                raise NotImplementedError("If U is a numpy array, then only a prediction with "
+                                          "a single initial condition is allowed. "
+                                          f"Got {X.n_timeseries}")
+
             if isinstance(U, np.ndarray):
                 U = InitialCondition.from_array_control(
                     U,
                     control_names=self.control_names_in_,
                     dt=self.dt_,
                     time_values=time_values,
+                    ts_id=int(X.ids[0]) if isinstance(X, TSCDataFrame) else None
                 )
                 # TODO: include pd.DataFrame type (turn to TSCDataFrame)
 
@@ -429,7 +436,7 @@ class DMDBase(
                 U_ic = U.loc[pd.IndexSlice[X_ic.ids, :], :]
             else:
                 U_ic = None
-            X_ts = self.predict(X=X_ic, U=U_ic, time_values=time_values)
+            X_ts = self.predict(X=X_ic, U=U_ic)
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)
@@ -743,7 +750,7 @@ class DMDFull(DMDBase):
             ensure_tsc=True,
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
-        self._setup_features_and_time_attrs_fit(X=X)
+        self._validate_and_setup_fit_attrs(X=X)
 
         store_system_matrix = self._read_fit_params(
             attrs=[("store_system_matrix", False)], fit_params=fit_params
@@ -950,7 +957,7 @@ class gDMDFull(DMDBase):
             ensure_tsc=True,
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
-        self._setup_features_and_time_attrs_fit(X=X)
+        self._validate_and_setup_fit_attrs(X=X)
 
         store_generator_matrix = self._read_fit_params(
             attrs=[("store_generator_matrix", False)], fit_params=fit_params
@@ -1130,7 +1137,7 @@ class DMDEco(DMDBase):
             ensure_tsc=True,
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
-        self._setup_features_and_time_attrs_fit(X)
+        self._validate_and_setup_fit_attrs(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         eigenvectors_right_, eigenvalues_, koopman_matrix = self._compute_internals(X)
@@ -1194,25 +1201,25 @@ class DMDControl(DMDBase):
 
     def _compute_koopman_and_control_matrix(
         self,
-        state: TSCDataFrame,
-        control_inp: TSCDataFrame,
+        X: TSCDataFrame,
+        U: TSCDataFrame,
     ):
-        XT, YT = state.tsc.shift_matrices(snapshot_orientation="row")
-        UT, _ = control_inp.tsc.shift_matrices(snapshot_orientation="row")
+        Xm, Xp = X.tsc.shift_matrices(snapshot_orientation="row")
+        Um = U.to_numpy()  # there is no need to apply shift matrices!
 
-        if XT.shape[1] > XT.shape[0]:
+        if Xm.shape[1] > Xm.shape[0]:
             warnings.warn(
                 "There are more observables than snapshots. The current implementation "
                 "favors more snapshots than observables. This may result in a bad "
                 "computational performance."
             )
 
-        XU = np.vstack([XT.T, UT.T])
+        XU = np.vstack([Xm.T, Um.T])
         # from :cite:`korda-2018` - eq. 22
         G = XU @ XU.T
-        np.multiply(1 / state.shape[0], G, out=G)  # improve condition?
-        V = YT.T @ XU.T
-        np.multiply(1 / state.shape[0], V, out=V)  # improve condition?
+        np.multiply(1 / X.shape[0], G, out=G)  # improve condition?
+        V = Xp.T @ XU.T
+        np.multiply(1 / X.shape[0], V, out=V)  # improve condition?
 
         # V = Mu @ G => V.T = G.T @ Mu.T
         MuT, residual, rank, _ = np.linalg.lstsq(G.T, V.T, rcond=self.rcond)
@@ -1222,7 +1229,7 @@ class DMDControl(DMDBase):
                 f"back to least squares solution. The sum of residuals is: "
                 f"{np.sum(residual)}"
             )
-        state_cols = XT.shape[1]
+        state_cols = Xm.shape[1]
         sys_matrix = MuT.conj().T[:, :state_cols]
         control_matrix = MuT.conj().T[:, state_cols:]
 
@@ -1253,6 +1260,7 @@ class DMDControl(DMDBase):
         DMDControl
             fitted model
         """
+
         self._validate_datafold_data(
             X=X,
             ensure_tsc=True,
@@ -1263,7 +1271,8 @@ class DMDControl(DMDBase):
             X=U,
             ensure_tsc=True,
         )
-        self._setup_features_and_time_attrs_fit(X=X, U=U)
+
+        self._validate_and_setup_fit_attrs(X=X, U=U)
         self._read_fit_params(None, fit_params=fit_params)
 
         sys_matrix, control_matrix = self._compute_koopman_and_control_matrix(X, U)
@@ -1578,7 +1587,7 @@ class PyDMDWrapper(DMDBase):
             ensure_tsc=True,
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
-        self._setup_features_and_time_attrs_fit(X=X)
+        self._validate_and_setup_fit_attrs(X=X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self._setup_pydmd_model()
@@ -1764,7 +1773,7 @@ class StreamingDMD(DMDBase):
                 "Only a single time series with two samples is permitted for the initial fit."
             )
 
-        self._setup_features_and_time_attrs_fit(X)
+        self._validate_and_setup_fit_attrs(X)
 
         s1, s2 = X.iloc[0, :].to_numpy(), X.iloc[1, :].to_numpy()
 
@@ -2020,7 +2029,7 @@ class OnlineDMD(DMDBase):
     def _basic_initialize(self, X) -> None:
         """Initialize online DMD with epsilon small (1e-15) ghost snapshot pairs before t=0"""
         self._validate_parameters()
-        self._setup_features_and_time_attrs_fit(X)
+        self._validate_and_setup_fit_attrs(X)
         n_states = X.shape[1]
 
         epsilon = 1e-15
@@ -2046,7 +2055,7 @@ class OnlineDMD(DMDBase):
             the start (also initial fit).
         """
 
-        self._setup_features_and_time_attrs_fit(X)
+        self._validate_and_setup_fit_attrs(X)
         self._validate_parameters()
         X = self._validate_datafold_data(X, ensure_tsc=True)
 

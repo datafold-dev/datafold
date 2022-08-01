@@ -524,6 +524,22 @@ class TSCAccessor(object):
 
         return self._tsc_df
 
+    def drop_last_n_samples(self, n_samples: int):
+        """Drop last `n` samples per time series in the collection.
+
+        n_samples
+            Number of samples to drop.
+
+        Returns
+        -------
+        TSCDataFrame
+            reduced time series collection
+        """
+
+        self.check_required_min_timesteps(n_samples)
+        drop_idx = self._tsc_df.groupby(by="ID").tail(n_samples).index
+        return self._tsc_df.drop(drop_idx)
+
     def time_derivative(
         self,
         scheme="center",
@@ -954,7 +970,7 @@ class TSCAccessor(object):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes shift matrices from time series data.
 
-        Both shift matrices have same shape with `(n_features, n_snapshots-1)` or
+        Both shift matrices have the same shape with `(n_features, n_snapshots-1)` or
         `(n_snapshots-1, n_features)`, depending on `snapshot_orientation`.
 
         Parameters
@@ -986,8 +1002,6 @@ class TSCAccessor(object):
         :py:class:`DMDFull`
 
         """
-
-        # TODO: option to obtain only left or right matrix
 
         if validate:
             self.check_required_min_timesteps(required_min_timesteps=2)

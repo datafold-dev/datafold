@@ -438,7 +438,7 @@ class TSCPredictMixin(TSCBase):
         self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")
         self._score_eval = TSCScoring(self.metric_eval)
 
-    def _setup_features_and_time_attrs_fit(
+    def _validate_and_setup_fit_attrs(
         self: Union[BaseEstimator, "TSCPredictMixin"],
         X: TSCDataFrame,
         U: Optional[TSCDataFrame] = None,
@@ -467,12 +467,14 @@ class TSCPredictMixin(TSCBase):
         time_values = self._validate_time_values_format(time_values=time_values)
 
         if is_controlled and not is_df_same_index(
-            X, U, check_column=False, check_names=False, handle=None
+            X.tsc.drop_last_n_samples(1), U, check_column=False, check_names=False, handle=None
         ):
-            raise ValueError(
-                "System time series ('X') and control time series ('U') must have identical "
-                "indices."
-            )
+            # TODO: possibly allow the last sample in U for user convenience, but it needs
+            #  to get dropped!
+            raise ValueError("Ths system time series ('X') must have the same time index "
+                             "than the control time series ('U'). Moreover, for the last "
+                             "system state there should be no control input for each time "
+                             "series.")
 
         self.dt_ = X.delta_time
 

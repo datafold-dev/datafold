@@ -465,6 +465,18 @@ class TestTscAccessor(unittest.TestCase):
             # time is not allowed to be negative
             tsc_df.tsc.shift_time(-5)
 
+    def test_drop_last_n_samples(self):
+        tsc_df = TSCDataFrame(self.simple_df)
+
+        actual = tsc_df.tsc.drop_last_n_samples(1)
+        expected = tsc_df.iloc[[0,2,4,6,7], :]
+
+        pdtest.assert_frame_equal(actual, expected)
+
+        with self.assertRaises(TSCException):
+            tsc_df.tsc.drop_last_n_samples(999)
+
+
     def test_timederivative(self):
         data = pd.DataFrame(np.arange(20).reshape(10, 2), columns=["A", "B"])
         tsc_df = TSCDataFrame.from_single_timeseries(data)

@@ -421,7 +421,7 @@ class AffineKgMPC(object):
     ):
         r"""
         Class to implement Lifting based (Koopman generator) Model Predictive Control,
-        given a controll-affine model in differential form
+        given a control-affine model in differential form
 
         .. math::
             \dot{x}= Ax + \sum_{i=1}^m B_i u_i x
@@ -573,23 +573,23 @@ class AffineKgMPC(object):
 
         Parameters
         ----------
-        u : np.array
+        u : np.ndarray
             Control input
             shape = (n*m,)
             [u1(t0) u1(t1) ... u1(tn) u2(t1) ... um(tn)]
             with `n = self.horizon+1`; `m = self.input_size`
-        x0 : np.array
+        x0 : np.ndarray
             Initial conditions
             shape = `(self.state_size, 1)`
-        xref : np.array
+        xref : np.ndarray
             Reference state
             shape = `(self.state_size, 1)`
-        t : np.array
+        t : np.ndarray
             Time values for the evaluation
 
         Returns
         -------
-        (float, np.array)
+        (float, np.ndarray)
             cost, jacobian
         """
         u = u.reshape(self.input_size, self.horizon + 1)

@@ -1737,6 +1737,7 @@ class InitialCondition(object):
         control_names,
         dt: Optional[Union[float, int]] = None,
         time_values: Optional[np.ndarray] = None,
+        ts_id: Optional[int] = None,
     ) -> TSCDataFrame:
 
         if not isinstance(U, np.ndarray):
@@ -1754,6 +1755,7 @@ class InitialCondition(object):
             U,
             time_values=time_values,
             feature_names=control_names,
+            ts_id=ts_id
         )
 
         return U
