@@ -42,21 +42,6 @@ def assert_equal_eigenvectors(eigvec1, eigvec2, tol=1e-14):
     nptest.assert_allclose(expected, actual, atol=tol, rtol=0)
 
 
-def is_reduced_tsc_same_index(tsc_left, tsc_right, remove_last_n_samples: int):
-    """Check if a `TSCDataFrame` (left), reduced by `n` samples, has the same index to
-    another `TSCDataFrame` on the right.
-    """
-
-    from datafold import TSCDataFrame  # import here to avoid circular imports
-
-    assert isinstance(tsc_left, TSCDataFrame)
-    assert isinstance(tsc_right, TSCDataFrame)
-
-    tsc_left.tsc.check_required_n_timesteps(required_n_timesteps=remove_last_n_samples)
-
-
-
-
 def is_df_same_index(
     df_left: pd.DataFrame,
     df_right: pd.DataFrame,

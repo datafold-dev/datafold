@@ -1561,17 +1561,18 @@ class TSCDataFrame(pd.DataFrame):
         ------
         TSCException
             If there is a time series in the collection that has less time values
-            than than the required number of samples.
+            than the required number of samples.
         """
 
         if not is_integer(n_samples) or n_samples < 1:
             raise ValueError(
-                "The parameter 'n_samples' must be a positive integer value."
+                f"The parameter 'n_samples' must be a positive integer value. "
+                f"Got {n_samples=} with {type(n_samples)=}"
             )
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
 
-        return self.groupby(by="ID", axis=0, level=0).head(n=n_samples)
+        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).head(n=n_samples)
 
     def final_states(self, n_samples: int = 1) -> "TSCDataFrame":
         """Get the final states of each time series in the collection.

@@ -531,7 +531,7 @@ class TSCPredictMixin(TSCBase):
                     Utv = U.time_values()
                     time_values = np.append(Utv, Utv[-1] + self.dt_)
                 else:
-                    time_values = np.arange(reference, U.shape[0] * self.dt_, self.dt_)
+                    time_values = np.arange(reference, (U.shape[0]+1) * self.dt_, self.dt_)
             else:
                 time_values = np.array([reference, reference + self.dt_])
         else:
@@ -547,13 +547,13 @@ class TSCPredictMixin(TSCBase):
                 elif isinstance(U, TSCDataFrame):
 
                     Utv = U.time_values()
-                    required_time_values = np.append(Utv, Utv)
+                    required_time_values = np.append(Utv, Utv[-1]+self.dt_)
 
                     if not np.array((time_values == required_time_values)).all():
                         raise ValueError(
-                            "Two parameters ('U' and 'time_values') provide time information "
-                            "for the prediction. However, the time information does not "
-                            "match. It is recommended to only provide the control input 'U'."
+                            "The two parameters ('U' and 'time_values') provide mismatching "
+                            "time information for the current prediction. It is recommended "
+                            "to only provide the control input 'U'."
                         )
                 else:
                     raise TypeError(

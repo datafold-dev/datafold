@@ -305,7 +305,7 @@ class ControlledDynamicalSystem(DynamicalSystem):
         time_step=1.0,
         num_steps=10,
     ):
-        """Compute a trajectory in state space
+        """Compute a trajectory of the inverted pendulum in state space.
 
         Parameters
         ----------
@@ -353,6 +353,10 @@ class ControlledDynamicalSystem(DynamicalSystem):
         # need to use the control function again, not sure how to best extract within solve_ivp
         _control_input = np.atleast_2d(U(time_values, sol.y)).T
         control = TSCDataFrame.from_array(_control_input, time_values=time_values, feature_names=["u"])
+
+        # for the last state there is no control input
+        control = control.tsc.drop_last_n_samples(1)
+
         states = TSCDataFrame.from_array(sol.y.T, time_values=time_values, feature_names=["x", "xdot", "theta", "thetadot"])
         return states, control
 

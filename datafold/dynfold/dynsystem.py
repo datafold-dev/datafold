@@ -209,6 +209,7 @@ class SystemSolveStrategy:
         control_matrix,
         control_input,
         time_values,
+        time_delta,
         **ignored,
     ):
         r"""A linear dynamical system as a discrete flowmap with control input
@@ -230,12 +231,15 @@ class SystemSolveStrategy:
 
         time_series_tensor[:, 0, :] = initial_conditions.T
 
-        for idx in range(len(time_values) - 1):
+        for idx, time_diff in enumerate(np.diff(time_values)):
             # x_n+1 = A*x_n + B*u_n
-            next_state = (
+            next_state = scipy.linalg.fractional_matrix_power(sys_matrix, time_diff / time_delta) @ time_series_tensor[:, idx, :].T + control_matrix @ control_input[:, idx, :].T
+
+            next_state_alt = (
                 sys_matrix @ time_series_tensor[:, idx, :].T
                 + control_matrix @ control_input[:, idx, :].T
             )
+
             time_series_tensor[:, idx + 1, :] = next_state.T
 
         return time_series_tensor

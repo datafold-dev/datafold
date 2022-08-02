@@ -918,7 +918,7 @@ class EDMD(
                     U,
                     control_names=self.control_names_in_,
                     dt=self.dt_,
-                    time_values=time_values,
+                    time_values=time_values[:-1],
                     ts_id=int(X.ids[0]) if isinstance(X, TSCDataFrame) else None
                 )
             elif isinstance(U, TSCDataFrame):
