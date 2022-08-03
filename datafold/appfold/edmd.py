@@ -89,7 +89,6 @@ from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
     if1dim_rowvec,
-    is_df_same_index,
     projection_matrix_from_features,
 )
 
@@ -896,7 +895,7 @@ class EDMD(
                 if1dim_rowvec(X),
                 time_value=time_values[0],
                 feature_names=self.feature_names_in_,
-                ts_ids=U.ids if isinstance(U, TSCDataFrame) else None
+                ts_ids=U.ids if isinstance(U, TSCDataFrame) else None,
             )
         else:
             InitialCondition.validate(
@@ -912,14 +911,15 @@ class EDMD(
                     raise NotImplementedError(
                         "If U is a numpy array, then only a prediction with "
                         "a single initial condition is allowed. "
-                        f"Got {X.n_timeseries}")
+                        f"Got {X.n_timeseries}"
+                    )
 
                 U = InitialCondition.from_array_control(
                     U,
                     control_names=self.control_names_in_,
                     dt=self.dt_,
                     time_values=time_values[:-1],
-                    ts_id=int(X.ids[0]) if isinstance(X, TSCDataFrame) else None
+                    ts_id=int(X.ids[0]) if isinstance(X, TSCDataFrame) else None,
                 )
             elif isinstance(U, TSCDataFrame):
                 InitialCondition.validate_control(X_ic=X, U=U)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import abc
-from logging import warning
-from typing import Callable, Optional, Union
+from typing import Callable, Union
+
 import numpy as np
 import pandas as pd
 from scipy.integrate import odeint, solve_ivp
@@ -15,7 +15,7 @@ class DynamicalSystem(metaclass=abc.ABCMeta):
 
     # TODO: initial_conditions should be "X" to align with the Predict models
     @abc.abstractmethod
-    def predict(self, initial_conditions, time_values, **kwargs):
+    def predict(self, X, time_values, **kwargs):
         raise NotImplementedError("base class")
 
 
@@ -134,20 +134,20 @@ class HopfSystem(DynamicalSystem):
         y_dot[1] = y[0] + y[1] * factor
         return y_dot
 
-    def predict(self, initial_conditions, time_values, ic_type="xx"):
+    def predict(self, X, time_values, ic_type="xx"):
         assert ic_type in ["xx", "rt"]
-        assert initial_conditions.ndim == 2
-        assert initial_conditions.shape[1] == 2
+        assert X.ndim == 2
+        assert X.shape[1] == 2
 
         if ic_type == "rt":
-            new_ic = np.copy(initial_conditions)
-            new_ic[:, 0] = initial_conditions[:, 0] * np.cos(initial_conditions[:, 1])
-            new_ic[:, 1] = initial_conditions[:, 0] * np.sin(initial_conditions[:, 1])
-            initial_conditions = new_ic
+            new_ic = np.copy(X)
+            new_ic[:, 0] = X[:, 0] * np.cos(X[:, 1])
+            new_ic[:, 1] = X[:, 0] * np.sin(X[:, 1])
+            X = new_ic
 
         tsc_dfs = []
 
-        for _id, ic in enumerate(initial_conditions):
+        for _id, ic in enumerate(X):
             solution = solve_ivp(
                 self.hopf_system,
                 t_span=(time_values[0], time_values[-1]),
@@ -204,8 +204,8 @@ class ClosedPeriodicalCurve(DynamicalSystem):
             np.column_stack([x, y, z]), index=t_eval, columns=["x", "y", "z"]
         )
 
-    def predict(self, initial_conditions, time_values, **kwargs):
-        assert initial_conditions is None
+    def predict(self, X, time_values, **kwargs):
+        assert X is None
         return self._closed_system(time_values)
 
 
@@ -240,21 +240,21 @@ class Pendulum(DynamicalSystem):
 
         return self.fixation_point_ + np.column_stack([x, y])
 
-    def predict(self, initial_conditions, time_values, **kwargs):
+    def predict(self, X, time_values, **kwargs):
         # initial_conditions = theta_0 -- theta_1
         self._compute_cart_parameters()
 
-        initial_conditions = np.asarray(initial_conditions)
+        X = np.asarray(X)
 
         # TODO: use np.atleast2d
-        if initial_conditions.ndim == 1:
-            initial_conditions = initial_conditions[np.newaxis, :]
+        if X.ndim == 1:
+            X = X[np.newaxis, :]
 
         solution_frames = []
 
-        for ic_idx in range(initial_conditions.shape[0]):
+        for ic_idx in range(X.shape[0]):
             theta_coord = odeint(
-                self._integrate_pendulum_sim, initial_conditions[ic_idx, :], time_values
+                self._integrate_pendulum_sim, X[ic_idx, :], time_values
             )
 
             cartesian_coord = self._convert_cartesian(theta_coord[:, 0].copy())
@@ -296,15 +296,7 @@ class ControlledDynamicalSystem(DynamicalSystem):
     def _f(self, t, state, control_input, **kwarfs):
         raise NotImplementedError("base class")
 
-    def predict(
-        self,
-        X: Union[np.ndarray, TSCDataFrame],
-        U: Callable,
-        time_values=None,
-        t0=None,
-        time_step=1.0,
-        num_steps=10,
-    ):
+    def predict(self, X: Union[np.ndarray, TSCDataFrame], U: Callable, time_values):
         """Compute a trajectory of the inverted pendulum in state space.
 
         Parameters
@@ -315,27 +307,18 @@ class ControlledDynamicalSystem(DynamicalSystem):
 
         U
             f(t, state) callable returning control input.
+
         time_values: np.ndarray, optional
             time values for which to evaluate the system.
             If not provided, t0, time_step and num_steps can be used.
-        t0: float, optional
-            Starting time of the prediction (if time_values is None)
-            (note - only affects the output time, doesn't change the initial state)
-        time_step: float, optional
-            length of single time step in the output (if time_values is None)
-        num_steps: int, option
-            number of time steps in the output (if time_values is None)
         """
 
         if not callable(U):
-            raise TypeError("U needs to be a function of time and the state `f(t, state)`")
+            raise TypeError(
+                "U needs to be a function of time and the state `f(t, state)`"
+            )
 
-        if time_values is None:
-            t0 = 0 if t0 is None else t0
-            time_values = np.arange(num_steps + 1) * time_step
-        else:
-            t0 = time_values[0]
-        tf = time_values[-1]
+        t0, tf = time_values[0], time_values[-1]
 
         sol = solve_ivp(
             fun=lambda t, y: self._f(t, y, U(t, y)),
@@ -347,17 +330,24 @@ class ControlledDynamicalSystem(DynamicalSystem):
         )
 
         if not sol.success:
-            raise RuntimeError(f"The prediction was not successful \n Reason: \n"
-                               f" {sol.message=}")
+            raise RuntimeError(
+                f"The prediction was not successful \n Reason: \n" f" {sol.message=}"
+            )
 
         # need to use the control function again, not sure how to best extract within solve_ivp
         _control_input = np.atleast_2d(U(time_values, sol.y)).T
-        control = TSCDataFrame.from_array(_control_input, time_values=time_values, feature_names=["u"])
+        control = TSCDataFrame.from_array(
+            _control_input, time_values=time_values, feature_names=["u"]
+        )
 
         # for the last state there is no control input
         control = control.tsc.drop_last_n_samples(1)
 
-        states = TSCDataFrame.from_array(sol.y.T, time_values=time_values, feature_names=["x", "xdot", "theta", "thetadot"])
+        states = TSCDataFrame.from_array(
+            sol.y.T,
+            time_values=time_values,
+            feature_names=["x", "xdot", "theta", "thetadot"],
+        )
         return states, control
 
 

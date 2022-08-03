@@ -233,16 +233,77 @@ class SystemSolveStrategy:
 
         for idx, time_diff in enumerate(np.diff(time_values)):
             # x_n+1 = A*x_n + B*u_n
-            next_state = scipy.linalg.fractional_matrix_power(sys_matrix, time_diff / time_delta) @ time_series_tensor[:, idx, :].T + control_matrix @ control_input[:, idx, :].T
 
-            next_state_alt = (
-                sys_matrix @ time_series_tensor[:, idx, :].T
-                + control_matrix @ control_input[:, idx, :].T
+            time_fraction = time_diff / time_delta
+
+            if np.abs(time_fraction - 1.0) > 1e-15:
+                # TODO: not sure if this is correct...
+                import warnings
+
+                warnings.warn(
+                    "Solving the control system with a different time sampling to "
+                    "the original sampling rate is potentially wrong."
+                )
+
+                _f_sys_matrix = scipy.linalg.fractional_matrix_power(
+                    sys_matrix, time_fraction
+                )
+                _f_con_matrix = scipy.linalg.fractional_matrix_power(
+                    control_matrix, time_fraction
+                )
+            else:
+                _f_sys_matrix = sys_matrix
+                _f_con_matrix = control_matrix
+
+            next_state = (
+                _f_sys_matrix @ time_series_tensor[:, idx, :].T
+                + _f_con_matrix @ control_input[:, idx, :].T
             )
-
-            time_series_tensor[:, idx + 1, :] = next_state.T
+            time_series_tensor[:, idx + 1, :] = next_state.real.T
 
         return time_series_tensor
+
+    @staticmethod
+    def flowmap_spectral_controlled(time_series_tensor,
+        initial_conditions,
+        sys_matrix,
+        eigenvectors_right,
+        eigenvectors_left,
+        eigenvalues,
+        control_matrix,
+        control_input,
+        time_values,
+        **ignored,):
+
+        last_state = initial_conditions
+
+        def _compute_spectral_state(state):
+            if eigenvectors_left is not None:
+                return eigenvectors_left @ state
+            else:
+                return np.linalg.lstsq(eigenvectors_right, state, rcond=None)[0]
+
+        # TODO: need to work with time-differences, because the system is re-started after every step!
+        # TODO: warning, if time_fraction is not 1, because control matrix needs to be adapted.
+        for idx, time in enumerate(time_values):
+            # x_n+1 = \Psi \Lambda^t * x_n + B * u_n
+
+            if idx != 0:
+                eigvals = np.power(eigenvalues, time)
+                current_state = (
+                    sys_matrix @ eigvals @ _compute_spectral_state(last_state)
+                    + control_matrix @ control_input[:, idx, :].T
+                )
+            else:
+                current_state = (
+                        sys_matrix @ last_state
+                )
+
+            last_state = current_state
+            time_series_tensor[:, idx + 1, :] = current_state.real.T
+
+        return time_series_tensor
+
 
     @staticmethod
     def select_strategy(
@@ -282,6 +343,13 @@ class SystemSolveStrategy:
             and not is_control_affine
         ):
             return SystemSolveStrategy.flowmap_matrix_controlled
+        elif (
+            system_type == "flowmap"
+            and system_mode == "spectral"
+            and is_controlled
+            and not is_control_affine
+        ):
+            return SystemSolveStrategy.flowmap_spectral_controlled
         elif (
             system_type == "differential"
             and system_mode == "matrix"
@@ -407,7 +475,7 @@ class LinearDynamicalSystem(object):
                 f"{control_input.shape[0]=} does not match the number of initial "
                 f"conditions (={n_initial_condition})"
             )
-        if control_input.shape[1]+1 != n_time_values:
+        if control_input.shape[1] + 1 != n_time_values:
             raise ValueError(
                 f"{control_input.shape[1]+1=} should have the same length as time_values "
                 f"(={n_time_values})"
@@ -623,7 +691,7 @@ class LinearDynamicalSystem(object):
             .. math::
                 \Psi_r b_0 = x_0
 
-        2. , or by using the left eigenvectors and computing the matrix-vector \
+        2. or by using the left eigenvectors and computing the matrix-vector \
            product
 
             .. math::
@@ -647,7 +715,7 @@ class LinearDynamicalSystem(object):
 
         if not self.is_spectral_mode:
             raise AttributeError(
-                f"To compute the spectral system states 'sys_mode='spectral' is required. "
+                f"To compute the spectral system states sys_mode='spectral' is required. "
                 f"Got {self.sys_mode=}."
             )
 
@@ -679,6 +747,7 @@ class LinearDynamicalSystem(object):
         eigenvectors_right: np.ndarray,
         eigenvalues: np.ndarray,
         eigenvectors_left: Optional[np.ndarray] = None,
+        control_matrix: Optional[np.ndarray]=None
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with spectral components of system matrix.
 
@@ -696,6 +765,10 @@ class LinearDynamicalSystem(object):
 
         eigenvectors_left
             The left eigenvectors :math:`\Psi_l` of system matrix.
+
+        control_matrix
+            An additional control matrix (note that currently the control matrix is not
+            described in spectral components.
 
         Returns
         -------
@@ -721,6 +794,8 @@ class LinearDynamicalSystem(object):
         self.eigenvectors_right_ = eigenvectors_right
         self.eigenvalues_ = eigenvalues
         self.eigenvectors_left_ = eigenvectors_left
+
+        self.control_matrix_ = control_matrix
 
         return self
 
@@ -869,6 +944,8 @@ class LinearDynamicalSystem(object):
             time_series_tensor=time_series_tensor,
             initial_conditions=initial_conditions,
             sys_matrix=sys_matrix,
+            eigenvectors_right=self.eigenvectors_right_,
+            eigenvectors_left=self.eigenvectors_left_,
             control_matrix=self.control_matrix_ if self.is_controlled else None,
             control_input=control_input,
             time_values=time_values,

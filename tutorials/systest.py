@@ -1,14 +1,12 @@
-from datafold.utils._systems import InvertedPendulum
-from datafold.pcfold import InitialCondition
-import numpy as np
-from datafold.utils._systems import InvertedPendulum
-import pandas as pd
-from datafold import TSCDataFrame
 import matplotlib.pyplot as plt
+import numpy as np
+
+from datafold import TSCDataFrame
+from datafold.utils._systems import InvertedPendulum
 
 # Data generation parameters
 training_size = 20
-time_values = np.arange(0, 10+1E-15, 0.01)
+time_values = np.arange(0, 10 + 1e-15, 0.01)
 
 Xlist, Ulist = [], []
 

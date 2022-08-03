@@ -492,9 +492,7 @@ class AffineKgMPC(object):
         self.state_size = len(predictor.feature_names_in_)
 
         if input_bounds.shape != (self.input_size, 2):
-            raise ValueError(
-                f"{input_bounds.shape=}, should be ({self.input_size=},2)"
-            )
+            raise ValueError(f"{input_bounds.shape=}, should be ({self.input_size=},2)")
 
         if isinstance(cost_input, np.ndarray):
             try:
@@ -783,7 +781,8 @@ class AffineKgMPC(object):
 
         if time_values.shape != (self.horizon + 1,):
             raise ValueError(
-                f"time_values is of shape {time_values.shape} but should be ({self.horizon+1},)"
+                f"time_values is of shape {time_values.shape} but should be "
+                f"({self.horizon+1},)."
             )
 
         xref = (

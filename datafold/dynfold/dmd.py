@@ -28,6 +28,27 @@ else:
     IS_IMPORTED_PYDMD = True
 
 
+def compute_spectal_components(system_matrix, is_diagonalize):
+    eigenvalues, eigenvectors_right = sort_eigenpairs(
+        *np.linalg.eig(system_matrix)
+    )
+    eigenvectors_right /= np.linalg.norm(eigenvectors_right, axis=0)
+
+    if is_diagonalize:
+        # Compute left eigenvectors such that
+        #     system_matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_
+        #
+        #  NOTE:
+        #     The left eigenvectors are
+        #          * not normed
+        #          * row-wise in returned matrix
+        eigenvectors_left_ = np.linalg.solve(mat_dot_diagmat(eigenvectors_right, eigenvalues), system_matrix)
+    else:
+        eigenvectors_left_ = None
+
+    return eigenvectors_right, eigenvalues, eigenvectors_left_
+
+
 class DMDBase(
     BaseEstimator, LinearDynamicalSystem, TSCPredictMixin, metaclass=abc.ABCMeta
 ):
@@ -133,22 +154,6 @@ class DMDBase(
             raise ValueError("post_map can only be provided with 'sys_type=spectral'")
 
         return post_map, user_set_modes, feature_columns
-
-    def _compute_left_eigenvectors(
-        self, system_matrix, eigenvalues, eigenvectors_right
-    ):
-        """Compute left eigenvectors such that
-        system_matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_
-
-        .. note::
-             The eigenvectors are
-
-             * not normed
-             * row-wise in returned matrix
-
-        """
-        lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
-        return np.linalg.solve(lhs_matrix, system_matrix)
 
     @abc.abstractmethod
     def fit(
@@ -337,7 +342,10 @@ class DMDBase(
         if isinstance(X, np.ndarray):
             # work internally only with DataFrames
             X = InitialCondition.from_array(
-                X, time_value=time_values[0], feature_names=self.feature_names_in_, ts_ids=U.ids if isinstance(U, TSCDataFrame) else None
+                X,
+                time_value=time_values[0],
+                feature_names=self.feature_names_in_,
+                ts_ids=U.ids if isinstance(U, TSCDataFrame) else None,
             )
         else:
             # for DMD the number of samples per initial condition is always 1
@@ -348,9 +356,11 @@ class DMDBase(
         if U is not None:
 
             if X.n_timeseries > 1:
-                raise NotImplementedError("If U is a numpy array, then only a prediction with "
-                                          "a single initial condition is allowed. "
-                                          f"Got {X.n_timeseries}")
+                raise NotImplementedError(
+                    "If U is a numpy array, then only a prediction with "
+                    "a single initial condition is allowed. "
+                    f"Got {X.n_timeseries}"
+                )
 
             if isinstance(U, np.ndarray):
                 U = InitialCondition.from_array_control(
@@ -358,7 +368,7 @@ class DMDBase(
                     control_names=self.control_names_in_,
                     dt=self.dt_,
                     time_values=time_values,
-                    ts_id=int(X.ids[0]) if isinstance(X, TSCDataFrame) else None
+                    ts_id=int(X.ids[0]) if isinstance(X, TSCDataFrame) else None,
                 )
                 # TODO: include pd.DataFrame type (turn to TSCDataFrame)
 
@@ -530,7 +540,7 @@ class DMDFull(DMDBase):
 
     is_diagonalize
         If True, also the left eigenvectors are computed to diagonalize the system matrix.
-        This afftects of how initial conditions are adapted for the spectral system
+        This affects of how initial conditions are adapted for the spectral system
         representation (instead of a least squares :math:`\Psi_r^\dagger x_0` with right
         eigenvectors it performs :math:`\Psi_l x_0`). The parameter is ignored if
         ``sys_mode=matrix``.
@@ -691,31 +701,6 @@ class DMDFull(DMDBase):
         koopman_matrix = koopman_matrix.conj().T
         return koopman_matrix
 
-    def _compute_spectal_components(self, system_matrix):
-        eigenvalues_, eigenvectors_right_ = sort_eigenpairs(
-            *np.linalg.eig(system_matrix)
-        )
-        eigenvectors_right_ /= np.linalg.norm(eigenvectors_right_, axis=0)
-
-        if self.is_diagonalize:
-            # must be computed with the Koopman eigenvalues
-            # (NOT the generator eigenvalues)
-            eigenvectors_left_ = self._compute_left_eigenvectors(
-                system_matrix=system_matrix,
-                eigenvalues=eigenvalues_,
-                eigenvectors_right=eigenvectors_right_,
-            )
-
-        else:
-            eigenvectors_left_ = None
-
-        if self.approx_generator:
-            # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
-            # Eq. 3.2 and 3.3.
-            eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
-
-        return eigenvectors_right_, eigenvalues_, eigenvectors_left_
-
     def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "DMDFull":
         """Compute Koopman matrix and if applicable the spectral components.
 
@@ -763,7 +748,13 @@ class DMDFull(DMDBase):
                 eigenvectors_right_,
                 eigenvalues_,
                 eigenvectors_left_,
-            ) = self._compute_spectal_components(koopman_matrix_)
+            ) = compute_spectal_components(koopman_matrix_, is_diagonalize=self.is_diagonalize)
+
+            if self.approx_generator:
+                # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
+                # Eq. 3.2 and 3.3.
+                eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
+
             self.setup_spectral_system(
                 eigenvectors_right=eigenvectors_right_,
                 eigenvalues=eigenvalues_,
@@ -1153,20 +1144,39 @@ class DMDControl(DMDBase):
     r"""Dynamic Mode Decomposition of time series data with control input to
     approximate the Koopman operator.
 
-    The model computes the system and control matrices :math:`A` and :math:`B` with
+    The model computes the system and control matrices :math:`A` and :math:`B` from data
+    (corresponding to mode ``matrix``)
 
     .. math::
-        A X + B U &= X^{+} \\
-        [A,B] &= X^{+} [X, U]^{\dagger},
+        \mathbf{x}_{k+1} &= A \mathbf{x}_{k} + B \mathbf{u}_k
 
-    where :math:`X` is the data with column oriented snapshots, :math:`\dagger` the
-    the Moore–Penrose inverse and :math:`+` the future time shifted data.
+    where :math:`\mathbf{x}` are the system states and :math:`\mathbf{u}` the control input.
+
+    if the system matrix is further decomposed into spectral terms
+    (:math:`A \Psi = \Psi \Lambda`), then the system is described with
+
+    .. math::
+        \mathbf{x}_{k+1} &= \Psi \Lambda \mathbf{z}_{k} + B \mathbf{u}_k
+
+    where :math:`\mathbf{z}_k` are the spectrally aligned system states
+    (see :py:meth:`datafold.dynfold.dynsystem.LinearDynamicalSystem.compute_spectral_system_states`).
 
     ...
 
     Parameters
     ----------
-    rcond: Optional[float]
+
+    sys_mode
+       Select the mode of how to evolve the linear system:
+
+       * "spectral" to decompose the system matrix (`A`) into spectral components. The
+         evaluation of the linear system is cheap and it provides valuable information about
+         the identified system. On the downside this mode has numerical issues if the
+         system matrix is badly conditioned.
+       * "matrix" to use system matrix (`A`) directly. The evaluation of the system is more
+         robust, but the system evaluation is computationally more expensive.
+
+    rcond
         Cut-off ratio for small singular values.
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
@@ -1183,18 +1193,22 @@ class DMDControl(DMDBase):
 
     :cite:`kutz-2016` (Chapter 6)
     :cite:`korda-2018`
-    """
+    """ # noqa
 
     def __init__(
         self,
         *,  # keyword-only
+        sys_mode: str = "spectral",
+        is_diagonalize=False,
         rcond: Optional[float] = None,
         **kwargs,
     ):
+
+        self.is_diagonalize = is_diagonalize
         self.rcond = rcond
         super().__init__(
             sys_type="flowmap",
-            sys_mode="matrix",
+            sys_mode=sys_mode,
             is_controlled=True,
             time_invariant=True,
         )
@@ -1215,7 +1229,8 @@ class DMDControl(DMDBase):
             )
 
         XU = np.vstack([Xm.T, Um.T])
-        # from :cite:`korda-2018` - eq. 22
+
+        # from :cite:`korda-2018` - Eq. 22
         G = XU @ XU.T
         np.multiply(1 / X.shape[0], G, out=G)  # improve condition?
         V = Xp.T @ XU.T
@@ -1231,15 +1246,10 @@ class DMDControl(DMDBase):
             )
         state_cols = Xm.shape[1]
         sys_matrix = MuT.conj().T[:, :state_cols]
+
         control_matrix = MuT.conj().T[:, state_cols:]
 
         return sys_matrix, control_matrix
-
-    def _validate_matching_state_control(self, X: TSCDataFrame, U: TSCDataFrame):
-        if not np.all(X.index == U.index):
-            raise ValueError(
-                "X and U should be sampled at the same times and time intervals."
-            )
 
     def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params) -> "DMDControl":  # type: ignore[override] # noqa
         """Fit model to approximate Koopman and control matrix.
@@ -1276,7 +1286,18 @@ class DMDControl(DMDBase):
         self._read_fit_params(None, fit_params=fit_params)
 
         sys_matrix, control_matrix = self._compute_koopman_and_control_matrix(X, U)
-        self.setup_matrix_system(sys_matrix, control_matrix=control_matrix)
+
+        if self.sys_mode == "spectral":
+            eigenvectors_right_, eigenvalues_, eigenvectors_left_ = compute_spectal_components(sys_matrix, is_diagonalize=self.is_diagonalize)
+
+            self.setup_spectral_system(
+                eigenvectors_right=eigenvectors_right_,
+                eigenvalues=eigenvalues_,
+                eigenvectors_left=eigenvectors_left_,
+                control_matrix=control_matrix
+            )
+        else:
+            self.setup_matrix_system(sys_matrix, control_matrix=control_matrix)
 
         return self
 
