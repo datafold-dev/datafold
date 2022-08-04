@@ -474,13 +474,9 @@ class TSCPredictMixin(TSCBase):
             check_names=False,
             handle=None,
         ):
-            # TODO: possibly allow the last sample in U for user convenience, but it needs
-            #  to get dropped!
             raise ValueError(
-                "Ths system time series ('X') must have the same time index "
-                "than the control time series ('U'). Moreover, for the last "
-                "system state there should be no control input for each time "
-                "series."
+                "For each system state in `X`, there must be a matching "
+                "(with ID and time value) control input in `U`."
             )
 
         self.dt_ = X.delta_time

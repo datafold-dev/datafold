@@ -236,8 +236,10 @@ class SystemSolveStrategy:
 
             time_fraction = time_diff / time_delta
 
-            if np.abs(time_fraction - 1.0) > 1e-15:
-                # TODO: not sure if this is correct...
+            if False and np.abs(time_fraction - 1.0) > 1e-15:
+                # TODO: how to "reduce" the control_matrix? It is generally rectangular!
+                # TODO: what if the system_matrix includes a post map, then this has to be
+                #  performed after each step (it cannot be combined with the eigenvectors!)
                 import warnings
 
                 warnings.warn(
@@ -248,16 +250,12 @@ class SystemSolveStrategy:
                 _f_sys_matrix = scipy.linalg.fractional_matrix_power(
                     sys_matrix, time_fraction
                 )
-                _f_con_matrix = scipy.linalg.fractional_matrix_power(
-                    control_matrix, time_fraction
-                )
             else:
                 _f_sys_matrix = sys_matrix
-                _f_con_matrix = control_matrix
 
             next_state = (
                 _f_sys_matrix @ time_series_tensor[:, idx, :].T
-                + _f_con_matrix @ control_input[:, idx, :].T
+                + control_matrix @ control_input[:, idx, :].T
             )
             time_series_tensor[:, idx + 1, :] = next_state.real.T
 
@@ -283,7 +281,6 @@ class SystemSolveStrategy:
             else:
                 return np.linalg.lstsq(eigenvectors_right, state, rcond=None)[0]
 
-        # TODO: need to work with time-differences, because the system is re-started after every step!
         # TODO: warning, if time_fraction is not 1, because control matrix needs to be adapted.
         for idx, time in enumerate(time_values):
             # x_n+1 = \Psi \Lambda^t * x_n + B * u_n
@@ -944,8 +941,6 @@ class LinearDynamicalSystem(object):
             time_series_tensor=time_series_tensor,
             initial_conditions=initial_conditions,
             sys_matrix=sys_matrix,
-            eigenvectors_right=self.eigenvectors_right_,
-            eigenvectors_left=self.eigenvectors_left_,
             control_matrix=self.control_matrix_ if self.is_controlled else None,
             control_input=control_input,
             time_values=time_values,

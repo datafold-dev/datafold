@@ -354,15 +354,14 @@ class DMDBase(
         self._validate_datafold_data(X)
 
         if U is not None:
-
-            if X.n_timeseries > 1:
-                raise NotImplementedError(
-                    "If U is a numpy array, then only a prediction with "
-                    "a single initial condition is allowed. "
-                    f"Got {X.n_timeseries}"
-                )
-
             if isinstance(U, np.ndarray):
+                if X.n_timeseries > 1:
+                    raise NotImplementedError(
+                        "If U is a numpy array, then only a prediction with "
+                        "a single initial condition is allowed. "
+                        f"Got {X.n_timeseries}"
+                    )
+
                 U = InitialCondition.from_array_control(
                     U,
                     control_names=self.control_names_in_,
@@ -1198,7 +1197,7 @@ class DMDControl(DMDBase):
     def __init__(
         self,
         *,  # keyword-only
-        sys_mode: str = "spectral",
+        sys_mode: str = "matrix",
         is_diagonalize=False,
         rcond: Optional[float] = None,
         **kwargs,
@@ -1252,7 +1251,7 @@ class DMDControl(DMDBase):
         return sys_matrix, control_matrix
 
     def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params) -> "DMDControl":  # type: ignore[override] # noqa
-        """Fit model to approximate Koopman and control matrix.
+        """Fit model to compute a system and control matrix.
 
         Parameters
         ----------
@@ -1260,9 +1259,9 @@ class DMDControl(DMDBase):
             System state time series
 
         U: TSCDataFrame
-            Control input. Note that each control input must have a matching state in
-            ``X`` (with same ID and time) except the last state (there is no control input for
-            the last state!).
+            Control input. Each control input must have a matching system state in ``X``
+            (same ID and time value) for all but the last state (i.e. all time series have one
+            timestep less than the time series in ``X``).
 
         y: None
             ignored

@@ -272,15 +272,16 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
         self.A = gen.uniform(size=(self.state_size, self.state_size))
         self.x0 = gen.uniform(size=self.state_size)
         self.B = gen.uniform(size=(self.state_size, self.input_size))
-        self.u = gen.uniform(size=(self.n_timesteps, self.input_size))
+        self.u = gen.uniform(size=(self.n_timesteps-1, self.input_size))
         self.t = np.linspace(0, self.n_timesteps - 1, self.n_timesteps)
         self.names = ["x" + str(i + 1) for i in range(self.state_size)]
 
         self.expected = np.zeros((self.n_timesteps, self.state_size))
-        x = self.x0
-        for idx, time in enumerate(self.t):
-            self.expected[idx, :] = x
-            x = self.A @ x + self.B @ self.u[idx, :]
+        self.expected[0, :] = self.x0
+        
+        for idx, time in enumerate(self.t[1:]):
+            self.expected[idx+1, :] = self.A @ self.expected[idx, :] + self.B @ self.u[idx, :]
+
         # do not write state past last since t starts at 0
 
     def test_controlled_system(self):
@@ -289,7 +290,7 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
             .setup_matrix_system(self.A, control_matrix=self.B)
             .evolve_system(
                 self.x0,
-                time_values=np.arange(self.u.shape[0]),
+                time_values=np.arange(self.u.shape[0]+1),
                 control_input=self.u,
                 time_delta=1,
             )
@@ -371,7 +372,7 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
             .evolve_system(
                 self.x0,
                 control_input=self.u,
-                time_values=np.arange(self.u.shape[0]),
+                time_values=np.arange(self.u.shape[0]+1),
                 feature_names_out=self.names,
                 time_delta=1,
             )
@@ -379,7 +380,7 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
 
         self.assertIsInstance(actual, TSCDataFrame)
         self.assertEqual(actual.columns.tolist(), self.names)
-        nptest.assert_array_equal(actual.time_values(), np.arange(self.u.shape[0]))
+        nptest.assert_array_equal(actual.time_values(), np.arange(self.u.shape[0]+1))
 
         # invalid feature_names_out
         with self.assertRaises(ValueError):
@@ -404,13 +405,14 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
             )
             .setup_matrix_system(self.A, control_matrix=self.B)
             .evolve_system(
-                self.x0, control_input=self.u[:1], time_values=0, time_delta=1
+                self.x0, control_input=self.u[:1], time_values=np.array([0, 1]), time_delta=1
             )
         )
 
         # Is a TSCDataFrame, also for single time steps
         self.assertIsInstance(actual, TSCDataFrame)
-        self.assertTrue(actual.has_degenerate())
+        self.assertEqual(actual.n_timesteps, 2)
+        self.assertEqual(actual.n_timeseries, 1)
 
         actual = (
             LinearDynamicalSystem(
@@ -418,7 +420,7 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
             )
             .setup_matrix_system(self.A, control_matrix=self.B)
             .evolve_system(
-                self.x0, control_input=self.u[:2, :], time_values=[0, 1], time_delta=1
+                self.x0, control_input=self.u[:2, :], time_values=[0, 1, 2], time_delta=1
             )
         )
 
@@ -1141,34 +1143,34 @@ class DMDControlTest(unittest.TestCase):
         return TSCDataFrame.from_single_timeseries(data)
 
     def _create_control_tsc(
-        self, state_size, input_size, n_timesteps, time_delta=1.0
-    ) -> TSCDataFrame:
+        self, state_size, control_size, n_timesteps, time_delta=1.0
+    ):
         gen = np.random.default_rng(42)
 
         A = gen.uniform(-1.0, 1.0, size=(state_size, state_size))
         x0 = gen.uniform(size=state_size)
-        B = gen.uniform(-1.0, 1.0, size=(state_size, input_size))
-        u = gen.uniform(size=(n_timesteps, input_size))
-        names = [f"x {i + 1}" for i in range(state_size)]
+        B = gen.uniform(-1.0, 1.0, size=(state_size, control_size))
+        U = gen.uniform(size=(n_timesteps - 1, control_size))
 
-        tsc_df = (
+        time_values = np.arange(0, time_delta * n_timesteps, time_delta)
+
+        X = (
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="matrix", is_controlled=True
             )
             .setup_matrix_system(A, control_matrix=B)
             .evolve_system(
                 x0,
-                control_input=u,
-                time_values=np.arange(0, time_delta * n_timesteps, time_delta),
+                control_input=U,
+                time_values=time_values,
                 time_delta=time_delta,
-                feature_names_out=names,
+                feature_names_out=[f"x {i + 1}" for i in range(state_size)],
             )
         )
 
-        for i in range(input_size):
-            tsc_df["u" + str(i + 1)] = u[:, i]
+        U = TSCDataFrame.from_array(U, time_values=time_values[:-1], feature_names=[f"u {i + 1}" for i in range(control_size)])
 
-        return tsc_df
+        return X, U
 
     def test_dmd_control(self):
         state_size = 4
@@ -1176,14 +1178,12 @@ class DMDControlTest(unittest.TestCase):
         n_timesteps = 50
         n_predict = 5
 
-        tsc_df = self._create_control_tsc(state_size, input_size, n_timesteps)
+        X, U = self._create_control_tsc(state_size, input_size, n_timesteps)
 
-        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
-        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
+        U_pred = U.tail(n_predict-1)
+        expected = X.tail(n_predict)
 
-        U_pred = U.iloc[-n_predict:]
-        t_eval = tsc_df.index.get_level_values(1)[-n_predict:]
-        expected = X.iloc[-n_predict:]
+        t_eval = expected.time_values()
 
         dmd = DMDControl().fit(expected, U=U_pred)
 
@@ -1205,14 +1205,14 @@ class DMDControlTest(unittest.TestCase):
 
         # mock control free by setting "U" to zero
         U = TSCDataFrame.from_same_indices_as(
-            tsc_df, np.zeros([tsc_df.shape[0], 1]), except_columns=["u"]
+            tsc_df.tsc.drop_last_n_samples(1), np.zeros([tsc_df.shape[0]-1, 1]), except_columns=["u"]
         )
 
         dmd1 = DMDControl().fit(tsc_df, U=U)
         dmd2 = DMDFull(sys_mode="matrix", approx_generator=False).fit(tsc_df)
 
         U_pred = TSCDataFrame.from_array(
-            np.zeros([10, 1]), time_values=np.arange(1, 11), feature_names=["u"]
+            np.zeros([9, 1]), time_values=np.arange(1, 10), feature_names=["u"]
         )
 
         actual = dmd1.predict(tsc_ic, U=U_pred)  # control_input=np.zeros((10, 0)
@@ -1225,13 +1225,11 @@ class DMDControlTest(unittest.TestCase):
         input_size = 2
         n_timesteps = 50
 
-        tsc_df_single = self._create_control_tsc(
+        X, U = self._create_control_tsc(
             state_size, input_size, n_timesteps, 0.1
         )
-        tsc_multi = TSCDataFrame.from_frame_list([tsc_df_single, tsc_df_single])
-
-        X_expected = tsc_multi.loc[:, tsc_multi.columns.str.startswith("x")]
-        U = tsc_multi.loc[:, tsc_multi.columns.str.startswith("u")]
+        X_expected = TSCDataFrame.from_frame_list([X, X])
+        U = TSCDataFrame.from_frame_list([U, U])
 
         dmd = DMDControl()
         actual = dmd.fit_predict(X_expected, U=U)
