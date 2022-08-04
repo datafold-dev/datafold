@@ -1257,10 +1257,12 @@ class DMDControl(DMDBase):
         Parameters
         ----------
         X : TSCDataFrame
-            Input state data
+            System state time series
 
-        U: None
-            ignored (the method does not support control input)
+        U: TSCDataFrame
+            Control input. Note that each control input must have a matching state in
+            ``X`` (with same ID and time) except the last state (there is no control input for
+            the last state!).
 
         y: None
             ignored
