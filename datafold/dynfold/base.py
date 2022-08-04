@@ -121,8 +121,9 @@ class TSCBase(object):
 
         if self._has_feature_names(X):
             if X.columns.ndim != 1:
-                raise ValueError(f"The feature columns of X must be 1-dim. "
-                                 f"Got {X.columns.ndim=}")
+                raise ValueError(
+                    f"The feature columns of X must be 1-dim. " f"Got {X.columns.ndim=}"
+                )
 
         if type(X) != TSCDataFrame:
             # Currently, everything that is not strictly a TSCDataFrame will go the
@@ -467,14 +468,20 @@ class TSCPredictMixin(TSCBase):
         time_values = self._validate_time_values_format(time_values=time_values)
 
         if is_controlled and not is_df_same_index(
-            X.tsc.drop_last_n_samples(1), U, check_column=False, check_names=False, handle=None
+            X.tsc.drop_last_n_samples(1),
+            U,
+            check_column=False,
+            check_names=False,
+            handle=None,
         ):
             # TODO: possibly allow the last sample in U for user convenience, but it needs
             #  to get dropped!
-            raise ValueError("Ths system time series ('X') must have the same time index "
-                             "than the control time series ('U'). Moreover, for the last "
-                             "system state there should be no control input for each time "
-                             "series.")
+            raise ValueError(
+                "Ths system time series ('X') must have the same time index "
+                "than the control time series ('U'). Moreover, for the last "
+                "system state there should be no control input for each time "
+                "series."
+            )
 
         self.dt_ = X.delta_time
 
@@ -531,7 +538,9 @@ class TSCPredictMixin(TSCBase):
                     Utv = U.time_values()
                     time_values = np.append(Utv, Utv[-1] + self.dt_)
                 else:
-                    time_values = np.arange(reference, (U.shape[0]+1) * self.dt_, self.dt_)
+                    time_values = np.arange(
+                        reference, (U.shape[0] + 1) * self.dt_, self.dt_
+                    )
             else:
                 time_values = np.array([reference, reference + self.dt_])
         else:
@@ -547,7 +556,7 @@ class TSCPredictMixin(TSCBase):
                 elif isinstance(U, TSCDataFrame):
 
                     Utv = U.time_values()
-                    required_time_values = np.append(Utv, Utv[-1]+self.dt_)
+                    required_time_values = np.append(Utv, Utv[-1] + self.dt_)
 
                     if not np.array((time_values == required_time_values)).all():
                         raise ValueError(

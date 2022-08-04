@@ -1572,7 +1572,9 @@ class TSCDataFrame(pd.DataFrame):
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
 
-        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).head(n=n_samples)
+        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).head(
+            n=n_samples
+        )
 
     def final_states(self, n_samples: int = 1) -> "TSCDataFrame":
         """Get the final states of each time series in the collection.
@@ -1674,7 +1676,7 @@ class InitialCondition(object):
         X: np.ndarray,
         time_value: Union[float, int],
         feature_names: Union[pd.Index, List[str]],
-        ts_ids: Optional[np.ndarray] = None
+        ts_ids: Optional[np.ndarray] = None,
     ) -> TSCDataFrame:
         """Build initial conditions object from a NumPy array.
 
@@ -1722,9 +1724,7 @@ class InitialCondition(object):
         if ts_ids is None:
             ts_ids = np.arange(n_ic)
 
-        index = pd.MultiIndex.from_arrays(
-            [ts_ids, np.repeat(time_value, n_ic)]
-        )
+        index = pd.MultiIndex.from_arrays([ts_ids, np.repeat(time_value, n_ic)])
 
         ic_df = TSCDataFrame(X, index=index, columns=feature_names)
         InitialCondition.validate(ic_df, n_samples_ic=1, dt=None)
@@ -1753,10 +1753,7 @@ class InitialCondition(object):
             time_values = np.arange(0, U.shape[0] * dt, dt)
 
         U = TSCDataFrame.from_array(
-            U,
-            time_values=time_values,
-            feature_names=control_names,
-            ts_id=ts_id
+            U, time_values=time_values, feature_names=control_names, ts_id=ts_id
         )
 
         return U

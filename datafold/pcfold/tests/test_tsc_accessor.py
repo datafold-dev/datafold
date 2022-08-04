@@ -469,13 +469,12 @@ class TestTscAccessor(unittest.TestCase):
         tsc_df = TSCDataFrame(self.simple_df)
 
         actual = tsc_df.tsc.drop_last_n_samples(1)
-        expected = tsc_df.iloc[[0,2,4,6,7], :]
+        expected = tsc_df.iloc[[0, 2, 4, 6, 7], :]
 
         pdtest.assert_frame_equal(actual, expected)
 
         with self.assertRaises(TSCException):
             tsc_df.tsc.drop_last_n_samples(999)
-
 
     def test_timederivative(self):
         data = pd.DataFrame(np.arange(20).reshape(10, 2), columns=["A", "B"])

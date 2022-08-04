@@ -9,6 +9,7 @@ import pandas.testing as pdtest
 import scipy.sparse
 from sklearn.utils.validation import check_scalar
 
+
 def series_if_applicable(ds: Union[pd.Series, pd.DataFrame]):
     """Turns a DataFrame with only one column into a :class:`pandas.Series`."""
     import datafold.pcfold

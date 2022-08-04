@@ -1446,7 +1446,7 @@ class TestInitialCondition(unittest.TestCase):
             np.array([[1, 2, 3], [4, 5, 6]]),
             time_value=0.0,
             feature_names=["A", "B", "C"],
-            ts_ids=np.array([55, 99])  # insert ts_ids
+            ts_ids=np.array([55, 99]),  # insert ts_ids
         )
 
         expected = TSCDataFrame(
