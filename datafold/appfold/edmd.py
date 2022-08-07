@@ -494,7 +494,6 @@ class EDMD(
         numpy.ndarray
             Koopman modes
         """
-
         koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
         return koopman_modes
 
@@ -791,7 +790,8 @@ class EDMD(
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         if self.is_controlled_ and self.n_samples_ic_ > 1:
-            U = U.loc[X_dict.index, :]  # type: ignore
+            # need to drop the last sample, because for this sample there is no control needed
+            U = U.loc[X_dict.tsc.drop_last_n_samples(1).index, :]  # type: ignore
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             if self.is_controlled_:
@@ -885,7 +885,7 @@ class EDMD(
         """
         check_is_fitted(self)
 
-        time_values = self._set_and_validate_time_values_predict(
+        time_values = self._validate_and_set_time_values_predict(
             time_values=time_values, X=X, U=U
         )
 
@@ -938,8 +938,15 @@ class EDMD(
         )
 
         X_dict = self.transform(X)
-        X_ts = self._predict_ic(X_dict=X_dict, U=U, time_values=time_values, qois=qois)
 
+        if self.is_controlled_:
+            U = U.loc[
+                U.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+                >= time_values[0],
+                :,
+            ]
+
+        X_ts = self._predict_ic(X_dict=X_dict, U=U, time_values=time_values, qois=qois)
         return X_ts
 
     def fit_predict(

@@ -14,7 +14,7 @@ class TestTSCBase(unittest.TestCase):
         mixin = TSCPredictMixin()
         mixin.dt_ = 1
         expected = np.array([0, 1, 2])
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=None, U=None
         )
         nptest.assert_array_equal(actual, expected)
@@ -26,7 +26,7 @@ class TestTSCBase(unittest.TestCase):
 
         expected = np.array([0, 1, 2])
         X = TSCDataFrame.from_array(np.arange(2), time_values=expected[0])
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=X, U=None
         )
         nptest.assert_array_equal(actual, expected)
@@ -35,7 +35,7 @@ class TestTSCBase(unittest.TestCase):
             # raise error because not all values in time_values are greater or equal to
             # initial condition reference
             X = TSCDataFrame.from_array(np.arange(2), time_values=expected[1])
-            mixin._set_and_validate_time_values_predict(
+            mixin._validate_and_set_time_values_predict(
                 time_values=expected, X=X, U=None
             )
 
@@ -43,7 +43,7 @@ class TestTSCBase(unittest.TestCase):
         # the time value is prepended
         expected = expected + 2
         X = TSCDataFrame.from_array(np.arange(2), time_values=0)
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=X, U=None
         )
         nptest.assert_array_equal(actual, np.append(0, expected))
@@ -51,7 +51,7 @@ class TestTSCBase(unittest.TestCase):
         X = TSCDataFrame.from_array(
             np.arange(6).reshape(3, 2), time_values=np.array([0, 1, 2])
         )
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=X, U=None
         )
         nptest.assert_array_equal(actual, expected)
@@ -61,25 +61,27 @@ class TestTSCBase(unittest.TestCase):
         mixin = TSCPredictMixin()
         mixin.dt_ = 1
 
-        expected = np.array([0, 1, 2])
+        expected = np.array([0, 1, 2, 3])
 
         X = TSCDataFrame.from_array(np.arange(2), time_values=expected[0])
-        U = TSCDataFrame.from_array(np.arange(6).reshape(3, 2), time_values=expected)
+        U = TSCDataFrame.from_array(
+            np.arange(6).reshape(3, 2), time_values=expected[:-1]
+        )
 
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=X, U=U
         )
         nptest.assert_array_equal(actual, expected)
 
         # no time information in X
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=np.array([0, 1]), U=U
         )
         nptest.assert_array_equal(actual, expected)
 
         with self.assertRaises(ValueError):
             X = TSCDataFrame.from_array(np.arange(2), time_values=expected[1])
-            mixin._set_and_validate_time_values_predict(time_values=expected, X=X, U=U)
+            mixin._validate_and_set_time_values_predict(time_values=expected, X=X, U=U)
 
     def test_predict_mixin04(self):
         # Test with U as Numpy array
@@ -91,13 +93,13 @@ class TestTSCBase(unittest.TestCase):
         X = np.arange(2)
         U = np.arange(6).reshape(3, 2)
 
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=X, U=U
         )
         nptest.assert_array_equal(actual, expected)
 
         # no time information in X
-        actual = mixin._set_and_validate_time_values_predict(
+        actual = mixin._validate_and_set_time_values_predict(
             time_values=expected, X=np.array([0, 1]), U=U
         )
         nptest.assert_array_equal(actual, expected)
@@ -108,14 +110,16 @@ class TestTSCBase(unittest.TestCase):
         mixin.dt_ = np.timedelta64(1, "h")
         dt_now = np.datetime64(datetime.now())
 
-        expected = np.array([dt_now, dt_now + mixin.dt_, dt_now + 2 * mixin.dt_])
+        expected = np.array(
+            [dt_now, dt_now + mixin.dt_, dt_now + 2 * mixin.dt_, dt_now + 3 * mixin.dt_]
+        )
 
         X = np.arange(2)
         U = np.arange(6).reshape(3, 2)
 
-        actual = mixin._set_and_validate_time_values_predict(time_values=None, X=X, U=U)
+        actual = mixin._validate_and_set_time_values_predict(time_values=None, X=X, U=U)
 
-        # this should not taks more than 5000 us (microseconds)
+        # this should not take more than 5000 us (microseconds)
         self.assertTrue(((actual - expected).astype(int) < 1000).all())
 
     def test_validate_time_values(self):

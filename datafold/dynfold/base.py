@@ -497,7 +497,7 @@ class TSCPredictMixin(TSCBase):
             == 0
         )
 
-    def _set_and_validate_time_values_predict(
+    def _validate_and_set_time_values_predict(
         self,
         time_values,
         X: Union[TSCDataFrame, np.ndarray],
@@ -508,6 +508,7 @@ class TSCPredictMixin(TSCBase):
             raise NotFittedError("The parameter 'dt_' is not set. Please report bug.")
 
         is_controlled = U is not None
+        dismiss_last_control_state = getattr(self, "_requires_last_control_state", True)
 
         if isinstance(X, TSCDataFrame):
             reference = X.final_states(n_samples=1).time_values()
@@ -531,11 +532,25 @@ class TSCPredictMixin(TSCBase):
         if time_values is None:
             if is_controlled:
                 if isinstance(U, TSCDataFrame):
-                    Utv = U.time_values()
-                    time_values = np.append(Utv, Utv[-1] + self.dt_)
+                    time_values = U.time_values()
+
+                    if dismiss_last_control_state:
+                        time_values = np.append(time_values, time_values[-1] + self.dt_)
+
+                    time_values = time_values[time_values >= reference]
+
+                    if time_values.size == 0:
+                        raise ValueError(
+                            f"There are no time values in 'U' that are larger "
+                            f"than the {reference=} time value in 'X'. No time "
+                            f"values for prediction could be set up."
+                        )
+
                 else:
                     time_values = np.arange(
-                        reference, (U.shape[0] + 1) * self.dt_, self.dt_
+                        reference,
+                        (U.shape[0] + int(dismiss_last_control_state)) * self.dt_,
+                        self.dt_,
                     )
             else:
                 time_values = np.array([reference, reference + self.dt_])
@@ -551,10 +566,18 @@ class TSCPredictMixin(TSCBase):
                         )
                 elif isinstance(U, TSCDataFrame):
 
-                    Utv = U.time_values()
-                    required_time_values = np.append(Utv, Utv[-1] + self.dt_)
+                    req_time_values = U.time_values()
+                    req_time_values = req_time_values[req_time_values >= reference]
 
-                    if not np.array((time_values == required_time_values)).all():
+                    if dismiss_last_control_state:
+                        req_time_values = np.append(
+                            req_time_values, req_time_values[-1] + self.dt_
+                        )
+
+                    if (
+                        time_values.shape != req_time_values.shape
+                        or not np.array((time_values - req_time_values) < 1e-15).all()
+                    ):
                         raise ValueError(
                             "The two parameters ('U' and 'time_values') provide mismatching "
                             "time information for the current prediction. It is recommended "
@@ -570,7 +593,7 @@ class TSCPredictMixin(TSCBase):
                     raise ValueError(
                         "The time values must not contain any value that is smaller than the "
                         f"time reference of the initial condition ({reference=})\n"
-                        f"{time_values[time_values < reference]=}"
+                        f"Invalid values found: {time_values[time_values < reference]=}"
                     )
 
                 if reference != time_values[0]:

@@ -1714,8 +1714,7 @@ class InitialCondition(object):
         if X.ndim == 1:
             # make a "row-matrix"
             X = X[np.newaxis, :]
-
-        if X.ndim > 2:
+        elif X.ndim > 2:
             raise ValueError(
                 f"Cannot convert arrays with dimension larger than 2. Got {X.ndim=}"
             )

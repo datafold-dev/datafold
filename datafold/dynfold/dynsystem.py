@@ -92,7 +92,7 @@ class SystemSolveStrategy:
         # solve for each initial condition separately
         for i in range(initial_conditions.shape[1]):
             interp_control = interp1d(
-                time_values, control_input[i], axis=0, kind="cubic"
+                time_values[:-1], control_input[i], axis=0, kind="cubic"
             )
 
             affine_system_func = lambda t, state: (
@@ -262,7 +262,8 @@ class SystemSolveStrategy:
         return time_series_tensor
 
     @staticmethod
-    def flowmap_spectral_controlled(time_series_tensor,
+    def flowmap_spectral_controlled(
+        time_series_tensor,
         initial_conditions,
         sys_matrix,
         eigenvectors_right,
@@ -271,7 +272,8 @@ class SystemSolveStrategy:
         control_matrix,
         control_input,
         time_values,
-        **ignored,):
+        **ignored,
+    ):
 
         last_state = initial_conditions
 
@@ -292,15 +294,12 @@ class SystemSolveStrategy:
                     + control_matrix @ control_input[:, idx, :].T
                 )
             else:
-                current_state = (
-                        sys_matrix @ last_state
-                )
+                current_state = sys_matrix @ last_state
 
             last_state = current_state
             time_series_tensor[:, idx + 1, :] = current_state.real.T
 
         return time_series_tensor
-
 
     @staticmethod
     def select_strategy(
@@ -474,8 +473,7 @@ class LinearDynamicalSystem(object):
             )
         if control_input.shape[1] + 1 != n_time_values:
             raise ValueError(
-                f"{control_input.shape[1]+1=} should have the same length as time_values "
-                f"(={n_time_values})"
+                f"{control_input.shape[1]+1=} does not match (={n_time_values})"
             )
         if control_input.shape[2] != self.control_matrix_.shape[-1]:
             raise ValueError(
@@ -744,7 +742,7 @@ class LinearDynamicalSystem(object):
         eigenvectors_right: np.ndarray,
         eigenvalues: np.ndarray,
         eigenvectors_left: Optional[np.ndarray] = None,
-        control_matrix: Optional[np.ndarray]=None
+        control_matrix: Optional[np.ndarray] = None,
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with spectral components of system matrix.
 

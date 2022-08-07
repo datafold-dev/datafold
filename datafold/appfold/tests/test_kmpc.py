@@ -7,6 +7,7 @@ import pandas as pd
 
 from datafold.appfold.edmd import EDMD
 from datafold.appfold.kmpc import AffineKgMPC, LinearKMPC
+from datafold.appfold.tests.test_edmd import EDMDTest
 from datafold.dynfold.dmd import DMDControl, gDMDAffine
 from datafold.dynfold.dynsystem import LinearDynamicalSystem
 from datafold.dynfold.transform import TSCIdentity
@@ -16,61 +17,9 @@ from datafold.utils._systems import InvertedPendulum
 
 class LinearKMPCTest(unittest.TestCase):
     def setUp(self) -> None:
-        self._state_columns = ["x", "xdot", "theta", "thetadot"]
-        self._control_columns = ["u"]
-        self.X, self.t, self.u, self.dfx, self.dfu = self._generate_data()
-
-    def _generate_data(self, seed=42):
-
-        # Simulation model parameters
-
-        dt = 0.01
-        num_steps = 1000
-        size = 20
-        model = InvertedPendulum()
-        gen = np.random.default_rng(seed)
-
-        # Data structures
-
-        Xlist = []
-        Ulist = []
-
-        for _ in range(size):
-            model.reset()
-            control_amplitude = 0.1 + 0.9 * gen.random()
-            control_frequency = np.pi + 2 * np.pi * gen.random()
-            control_phase = 2 * np.pi * gen.random()
-            control_function = lambda t, y: control_amplitude * np.sin(
-                control_frequency * t + control_phase
-            )
-
-            trajectory = model.predict(
-                time_step=dt,
-                num_steps=num_steps,
-                U=control_function,
-            )
-            assert model.sol.success, (
-                f"Divergent solution for amplitude={control_amplitude}, "
-                f"frequency={control_frequency}"
-            )
-            t = model.sol.t
-            dfx = pd.DataFrame(data=trajectory.T, index=t, columns=self._state_columns)
-            dfx["u"] = 0.0
-            Xlist.append(dfx)
-
-            control_input = control_function(t, trajectory)
-            dfu = pd.DataFrame(data=control_input, index=t, columns=("u",))
-            for col in self._state_columns:
-                dfu[col] = 0.0
-            dfu = dfu[self._state_columns + self._control_columns]
-            Ulist.append(dfu)
-
-            X_tsc = TSCDataFrame.from_frame_list(Xlist)[self._state_columns]
-            X_tsc[self._control_columns] = TSCDataFrame.from_frame_list(Ulist)[
-                self._control_columns
-            ]
-
-            return X_tsc, t, control_input, dfx, dfu
+        self.X_tsc, self.U_tsc = EDMDTest.setup_inverted_pendulum(
+            sim_time_step=0.01, sim_num_steps=1000, training_size=20
+        )
 
     def _execute_mock_test(self, state_size, input_size, n_timesteps, seed=42):
         gen = np.random.default_rng(seed)
@@ -78,7 +27,7 @@ class LinearKMPCTest(unittest.TestCase):
         A = gen.uniform(size=(state_size, state_size)) * 2 - 1.0
         x0 = gen.uniform(size=state_size)
         B = gen.uniform(size=(state_size, input_size)) * 2 - 1.0
-        t = np.linspace(0, n_timesteps - 1, n_timesteps)
+        t = np.linspace(0, n_timesteps, n_timesteps)
         u = gen.uniform(size=(1, input_size))
         u = (u.T + np.sin(u.T + u.T * np.atleast_2d(t))).T
         df = (
@@ -87,7 +36,7 @@ class LinearKMPCTest(unittest.TestCase):
             )
             .setup_matrix_system(A, control_matrix=B)
             .evolve_system(
-                x0, control_input=u, time_values=np.arange(u.shape[0]), time_delta=1
+                x0, control_input=u, time_values=np.arange(u.shape[0] + 1), time_delta=1
             )
         )
 
@@ -99,7 +48,7 @@ class LinearKMPCTest(unittest.TestCase):
 
         kmpcperfect = LinearKMPC(
             predictor=edmdmock,
-            horizon=n_timesteps - 1,
+            horizon=n_timesteps,
             state_bounds=np.array([[5, -5]] * state_size),
             input_bounds=np.array([[5, -5]] * input_size),
             cost_running=np.array([1] * state_size),
@@ -107,7 +56,7 @@ class LinearKMPCTest(unittest.TestCase):
             cost_input=0,
         )
         pred = kmpcperfect.generate_control_signal(x0, df)
-        nptest.assert_allclose(pred, u[:-1, :])
+        nptest.assert_allclose(pred, u)
 
     def test_kmpc_mock_edmd_1d(self):
         self._execute_mock_test(2, 1, 50)
@@ -125,8 +74,8 @@ class LinearKMPCTest(unittest.TestCase):
             include_id_state=False,
             dmd_model=DMDControl(),
         ).fit(
-            self.X[self._state_columns],
-            self.X[self._control_columns],
+            self.X_tsc,
+            U=self.U_tsc,
         )
 
         kmpc = LinearKMPC(
@@ -140,7 +89,7 @@ class LinearKMPCTest(unittest.TestCase):
             cost_input=1,
         )
 
-        reference = self.dfx[["x", "theta"]].iloc[: horizon + 1]
+        reference = self.X_tsc[["x", "theta"]].iloc[: horizon + 1]
         initial_conditions = InitialCondition.from_array(
             np.array([0, 0, np.pi, 0]),
             time_value=0,
@@ -150,67 +99,14 @@ class LinearKMPCTest(unittest.TestCase):
             initial_conditions=initial_conditions, reference=reference
         )
 
-        assert U.any() is not None
-        assert U.shape == (horizon, len(self._control_columns))
+        self.assertEqual(U.shape, (horizon, self.U_tsc.shape[1]))
 
 
 class AffineKMPCTest(unittest.TestCase):
     def setUp(self) -> None:
-        self._state_columns = ["x", "xdot", "theta", "thetadot"]
-        self._control_columns = ["u"]
-        self.X, self.t, self.u, self.dfx, self.dfu = self._generate_data()
-
-    def _generate_data(self, seed=42):
-
-        # Simulation model parameters
-
-        dt = 0.01
-        num_steps = 1000
-        size = 20
-        model = InvertedPendulum()
-        gen = np.random.default_rng(seed)
-
-        # Data structures
-        Xlist = []
-        Ulist = []
-
-        for _ in range(size):
-            model.reset()
-            control_amplitude = 0.1 + 0.9 * gen.random()
-            control_frequency = np.pi + 2 * np.pi * gen.random()
-            control_phase = 2 * np.pi * gen.random()
-            control_function = lambda t, y: control_amplitude * np.sin(
-                control_frequency * t + control_phase
-            )
-
-            trajectory = model.predict(
-                time_step=dt,
-                num_steps=num_steps,
-                U=control_function,
-            )
-
-            try:
-                self.assertTrue(model.sol.success)
-            except AssertionError as e:
-                print(
-                    f"Divergent solution for amplitude={control_amplitude}, "
-                    f"frequency={control_frequency}"
-                )
-                raise e
-
-            t = model.sol.t
-            dfx = pd.DataFrame(data=trajectory.T, index=t, columns=self._state_columns)
-            dfx["u"] = 0.0
-            Xlist.append(dfx)
-
-            control_input = control_function(t, trajectory)
-            dfu = pd.DataFrame(data=control_input, index=t, columns=("u",))
-            Ulist.append(dfu)
-
-            X_tsc = TSCDataFrame.from_frame_list(Xlist)
-            X_tsc[self._control_columns] = TSCDataFrame.from_frame_list(Ulist)
-
-            return X_tsc, t, control_input, dfx, dfu
+        self.X_tsc, self.U_tsc = EDMDTest.setup_inverted_pendulum(
+            sim_time_step=0.01, sim_num_steps=1000, training_size=20
+        )
 
     def _execute_mock_test(self, state_size, input_size, n_timesteps, seed=42):
         gen = np.random.default_rng(seed)
@@ -222,9 +118,10 @@ class AffineKMPCTest(unittest.TestCase):
             2,
         )
 
-        t = np.linspace(0, n_timesteps - 1, n_timesteps) * 0.1
-        u = 0.5 + gen.uniform(-0.1, 0.1, size=(1, input_size))
-        u = (u.T + np.sin(u.T + u.T * np.atleast_2d(t))).T
+        t = np.arange(0, 1.01, 0.1)
+        u = 0.5 + gen.uniform(-0.1, 0.1, size=(len(t), input_size))
+        u = u + np.sin(u + u * np.atleast_2d(t).T)
+
         sys = LinearDynamicalSystem(
             sys_type="differential",
             sys_mode="matrix",
@@ -275,8 +172,8 @@ class AffineKMPCTest(unittest.TestCase):
             dmd_model=gDMDAffine(),
             include_id_state=False,
         ).fit(
-            self.X[self._state_columns],
-            self.X[self._control_columns],
+            self.X_tsc,
+            self.U_tsc,
         )
 
         kmpc = AffineKgMPC(
@@ -287,17 +184,15 @@ class AffineKMPCTest(unittest.TestCase):
             cost_input=1,
         )
 
-        reference = TSCDataFrame.from_frame_list(
-            [self.dfx[self._state_columns].iloc[: horizon + 1]]
-        )
+        reference = self.X_tsc.iloc[: horizon + 1]
         initial_conditions = InitialCondition.from_array(
             np.array([0, 0, np.pi, 0]),
             time_value=0,
             feature_names=["x", "xdot", "theta", "thetadot"],
         )
-        U = kmpc.generate_control_signal(
+        actual = kmpc.generate_control_signal(
             initial_conditions=initial_conditions, reference=reference
         )
 
-        self.assertTrue(U is not None)
-        self.assertEqual(U.shape, (horizon, len(self._control_columns)))
+        self.assertTrue(actual is not None)
+        self.assertEqual(actual.shape, (horizon, self.U_tsc.shape[1]))

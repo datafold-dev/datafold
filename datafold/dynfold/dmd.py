@@ -29,9 +29,7 @@ else:
 
 
 def compute_spectal_components(system_matrix, is_diagonalize):
-    eigenvalues, eigenvectors_right = sort_eigenpairs(
-        *np.linalg.eig(system_matrix)
-    )
+    eigenvalues, eigenvectors_right = sort_eigenpairs(*np.linalg.eig(system_matrix))
     eigenvectors_right /= np.linalg.norm(eigenvectors_right, axis=0)
 
     if is_diagonalize:
@@ -42,7 +40,9 @@ def compute_spectal_components(system_matrix, is_diagonalize):
         #     The left eigenvectors are
         #          * not normed
         #          * row-wise in returned matrix
-        eigenvectors_left_ = np.linalg.solve(mat_dot_diagmat(eigenvectors_right, eigenvalues), system_matrix)
+        eigenvectors_left_ = np.linalg.solve(
+            mat_dot_diagmat(eigenvectors_right, eigenvalues), system_matrix
+        )
     else:
         eigenvectors_left_ = None
 
@@ -335,7 +335,7 @@ class DMDBase(
 
         check_is_fitted(self)
 
-        time_values = self._set_and_validate_time_values_predict(
+        time_values = self._validate_and_set_time_values_predict(
             time_values=time_values, X=X, U=U
         )
 
@@ -445,7 +445,11 @@ class DMDBase(
                 U_ic = U.loc[pd.IndexSlice[X_ic.ids, :], :]
             else:
                 U_ic = None
-            X_ts = self.predict(X=X_ic, U=U_ic)
+
+            # use time_values from U_ic if available, else set time_values
+            X_ts = self.predict(
+                X=X_ic, U=U_ic, time_values=time_values if U is None else None
+            )
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)
@@ -747,7 +751,9 @@ class DMDFull(DMDBase):
                 eigenvectors_right_,
                 eigenvalues_,
                 eigenvectors_left_,
-            ) = compute_spectal_components(koopman_matrix_, is_diagonalize=self.is_diagonalize)
+            ) = compute_spectal_components(
+                koopman_matrix_, is_diagonalize=self.is_diagonalize
+            )
 
             if self.approx_generator:
                 # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
@@ -961,11 +967,14 @@ class gDMDFull(DMDBase):
         generator_matrix_ = self._compute_koopman_generator(X, X_grad)
 
         if self.is_spectral_mode:
+
             (
                 eigenvectors_right_,
                 eigenvalues_,
                 eigenvectors_left_,
-            ) = self._compute_spectral_components(generator_matrix_=generator_matrix_)
+            ) = compute_spectal_components(
+                system_matrix=generator_matrix_, is_diagonalize=self.is_diagonalize
+            )
 
             self.setup_spectral_system(
                 eigenvectors_right=eigenvectors_right_,
@@ -1192,7 +1201,9 @@ class DMDControl(DMDBase):
 
     :cite:`kutz-2016` (Chapter 6)
     :cite:`korda-2018`
-    """ # noqa
+    """  # noqa
+
+    _requires_last_control_state = False
 
     def __init__(
         self,
@@ -1289,13 +1300,19 @@ class DMDControl(DMDBase):
         sys_matrix, control_matrix = self._compute_koopman_and_control_matrix(X, U)
 
         if self.sys_mode == "spectral":
-            eigenvectors_right_, eigenvalues_, eigenvectors_left_ = compute_spectal_components(sys_matrix, is_diagonalize=self.is_diagonalize)
+            (
+                eigenvectors_right_,
+                eigenvalues_,
+                eigenvectors_left_,
+            ) = compute_spectal_components(
+                sys_matrix, is_diagonalize=self.is_diagonalize
+            )
 
             self.setup_spectral_system(
                 eigenvectors_right=eigenvectors_right_,
                 eigenvalues=eigenvalues_,
                 eigenvectors_left=eigenvectors_left_,
-                control_matrix=control_matrix
+                control_matrix=control_matrix,
             )
         else:
             self.setup_matrix_system(sys_matrix, control_matrix=control_matrix)
@@ -1358,6 +1375,8 @@ class gDMDAffine(DMDBase):
 
     :cite:`peitz-2020`
     """
+
+    _requires_last_control_state = True
 
     def __init__(
         self,
