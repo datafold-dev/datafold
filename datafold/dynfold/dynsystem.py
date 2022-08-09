@@ -92,7 +92,7 @@ class SystemSolveStrategy:
         # solve for each initial condition separately
         for i in range(initial_conditions.shape[1]):
             interp_control = interp1d(
-                time_values[:-1], control_input[i], axis=0, kind="cubic"
+                time_values, control_input[i], axis=0, kind="cubic"
             )
 
             affine_system_func = lambda t, state: (
@@ -471,10 +471,18 @@ class LinearDynamicalSystem(object):
                 f"{control_input.shape[0]=} does not match the number of initial "
                 f"conditions (={n_initial_condition})"
             )
-        if control_input.shape[1] + 1 != n_time_values:
+
+        if self.control_matrix_ is None:
             raise ValueError(
-                f"{control_input.shape[1]+1=} does not match (={n_time_values})"
+                "If control input is provided, then a control_matrix needs to be set up!"
             )
+
+        req_last_control_state = getattr(self, "_requires_last_control_state", False)
+        req_control_input = control_input.shape[1] + int(not req_last_control_state)
+
+        if req_control_input != n_time_values:
+            raise ValueError(f"{req_control_input=} does not match (={n_time_values})")
+
         if control_input.shape[2] != self.control_matrix_.shape[-1]:
             raise ValueError(
                 f"{control_input.shape[2]=} should match the last dimension of the control "

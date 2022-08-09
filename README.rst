@@ -100,8 +100,8 @@ Installation requires `Python>=3.8 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
 `setuptools <https://setuptools.pypa.io/en/latest/>`__ installed. Both
 packages usually ship with a standard Python installation. The package dependencies
-install automatically. The main dependencies and their role in *datafold* are listed below
-in "Dependencies".
+install automatically. The main dependencies and their usage in *datafold* are listed below
+in section "Dependencies".
 
 There are two ways to install *datafold*:
 
@@ -131,7 +131,6 @@ To install the package and its dependencies with :code:`pip`, run
         conda install pip
         pip install datafold
 
-
 2. From source
 --------------
 
@@ -160,7 +159,6 @@ Download or git-clone the source code repository.
    .. code-block:: bash
 
        python -m pip install .
-
 
 Contributing
 ============

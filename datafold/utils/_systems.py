@@ -296,7 +296,13 @@ class ControlledDynamicalSystem(DynamicalSystem):
     def _f(self, t, state, control_input, **kwarfs):
         raise NotImplementedError("base class")
 
-    def predict(self, X: Union[np.ndarray, TSCDataFrame], U: Callable, time_values):
+    def predict(  # type: ignore[override] # noqa
+        self,
+        X: Union[np.ndarray, TSCDataFrame],
+        Ufunc: Callable,
+        time_values,
+        include_last_control_state=False,
+    ):
         """Compute a trajectory of the inverted pendulum in state space.
 
         Parameters
@@ -305,15 +311,20 @@ class ControlledDynamicalSystem(DynamicalSystem):
         X
             Initial condition state
 
-        U
+        Ufunc
             f(t, state) callable returning control input.
 
-        time_values: np.ndarray, optional
-            time values for which to evaluate the system.
-            If not provided, t0, time_step and num_steps can be used.
+        time_values: np.ndarray
+            Time values to evaluate the system at.
+
+        include_last_control_state
+            If True, a control state is also included for the last system state. While
+            typically the last control input is not required, enabling this flag can be useful
+            to interpolate control states.
+
         """
 
-        if not callable(U):
+        if not callable(Ufunc):
             raise TypeError(
                 "U needs to be a function of time and the state `f(t, state)`"
             )
@@ -321,7 +332,7 @@ class ControlledDynamicalSystem(DynamicalSystem):
         t0, tf = time_values[0], time_values[-1]
 
         sol = solve_ivp(
-            fun=lambda t, y: self._f(t, y, U(t, y)),
+            fun=lambda t, y: self._f(t, y, Ufunc(t, y)),
             t_span=(t0, tf),
             y0=X.ravel(),
             method="RK45",
@@ -335,20 +346,21 @@ class ControlledDynamicalSystem(DynamicalSystem):
             )
 
         # need to use the control function again, not sure how to best extract within solve_ivp
-        _control_input = np.atleast_2d(U(time_values, sol.y)).T
-        control = TSCDataFrame.from_array(
+        _control_input = np.atleast_2d(Ufunc(time_values, sol.y)).T
+        U = TSCDataFrame.from_array(
             _control_input, time_values=time_values, feature_names=["u"]
         )
 
-        # for the last state there is no control input
-        control = control.tsc.drop_last_n_samples(1)
+        if not include_last_control_state:
+            # for the last state there is no control input
+            U = U.tsc.drop_last_n_samples(1)
 
-        states = TSCDataFrame.from_array(
+        X = TSCDataFrame.from_array(
             sol.y.T,
             time_values=time_values,
             feature_names=["x", "xdot", "theta", "thetadot"],
         )
-        return states, control
+        return X, U
 
 
 class InvertedPendulum(ControlledDynamicalSystem):
@@ -389,8 +401,6 @@ class InvertedPendulum(ControlledDynamicalSystem):
     sol: object  # TODO: the solution should not be stored!
         IVP solution object of the solved system
     """
-
-    _default_ic_ = np.array([[0, 0, np.pi, 0]]).T
 
     def __init__(
         self,

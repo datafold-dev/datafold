@@ -467,16 +467,21 @@ class TSCPredictMixin(TSCBase):
         time_values = X.time_values()
         time_values = self._validate_time_values_format(time_values=time_values)
 
+        req_last_control_state = getattr(self, "_requires_last_control_state", False)
+
         if is_controlled and not is_df_same_index(
-            X.tsc.drop_last_n_samples(1),
+            X.tsc.drop_last_n_samples(1) if not req_last_control_state else X,
             U,
             check_column=False,
             check_names=False,
             handle=None,
         ):
+
+            msg = "(except the last state) " if not req_last_control_state else ""
+
             raise ValueError(
-                "For each system state in `X`, there must be a matching "
-                "(with ID and time value) control input in `U`."
+                f"For each system state {msg}in `X`, there must be a matching "
+                "control input in `U` (i.e. corresponding ID and time value). "
             )
 
         self.dt_ = X.delta_time
@@ -501,14 +506,14 @@ class TSCPredictMixin(TSCBase):
         self,
         time_values,
         X: Union[TSCDataFrame, np.ndarray],
-        U: Union[TSCDataFrame, np.ndarray],
+        U: Optional[Union[TSCDataFrame, np.ndarray]],
     ):
 
         if not hasattr(self, "dt_"):
             raise NotFittedError("The parameter 'dt_' is not set. Please report bug.")
 
         is_controlled = U is not None
-        dismiss_last_control_state = getattr(self, "_requires_last_control_state", True)
+        req_last_control_state = getattr(self, "_requires_last_control_state", False)
 
         if isinstance(X, TSCDataFrame):
             reference = X.final_states(n_samples=1).time_values()
@@ -534,22 +539,24 @@ class TSCPredictMixin(TSCBase):
                 if isinstance(U, TSCDataFrame):
                     time_values = U.time_values()
 
-                    if dismiss_last_control_state:
+                    if not req_last_control_state:
                         time_values = np.append(time_values, time_values[-1] + self.dt_)
 
                     time_values = time_values[time_values >= reference]
 
                     if time_values.size == 0:
                         raise ValueError(
-                            f"There are no time values in 'U' that are larger "
+                            f"There are no time values in 'U' that are greater "
                             f"than the {reference=} time value in 'X'. No time "
-                            f"values for prediction could be set up."
+                            f"values for prediction could be obtained."
                         )
 
                 else:
                     time_values = np.arange(
                         reference,
-                        (U.shape[0] + int(dismiss_last_control_state)) * self.dt_,
+                        reference
+                        + (U.shape[0] + int(not req_last_control_state))  # type: ignore
+                        * self.dt_,
                         self.dt_,
                     )
             else:
@@ -569,7 +576,7 @@ class TSCPredictMixin(TSCBase):
                     req_time_values = U.time_values()
                     req_time_values = req_time_values[req_time_values >= reference]
 
-                    if dismiss_last_control_state:
+                    if not req_last_control_state:
                         req_time_values = np.append(
                             req_time_values, req_time_values[-1] + self.dt_
                         )

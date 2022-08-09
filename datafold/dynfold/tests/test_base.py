@@ -6,6 +6,7 @@ import numpy.testing as nptest
 
 from datafold import TSCDataFrame
 from datafold.dynfold.base import TSCPredictMixin
+from datafold.pcfold.timeseries.collection import InitialCondition
 
 
 class TestTSCBase(unittest.TestCase):
@@ -15,7 +16,7 @@ class TestTSCBase(unittest.TestCase):
         mixin.dt_ = 1
         expected = np.array([0, 1, 2])
         actual = mixin._validate_and_set_time_values_predict(
-            time_values=expected, X=None, U=None
+            time_values=expected, X=np.array([]), U=None
         )
         nptest.assert_array_equal(actual, expected)
 
@@ -121,6 +122,48 @@ class TestTSCBase(unittest.TestCase):
 
         # this should not take more than 5000 us (microseconds)
         self.assertTrue(((actual - expected).astype(int) < 1000).all())
+
+    def test_predict_mixin06(self):
+        mixin = TSCPredictMixin()
+        mixin.dt_ = 1
+        mixin._requires_last_control_state = True
+
+        mixin2 = TSCPredictMixin()
+        mixin2.dt_ = 1
+
+        expected = np.array([0, 1, 2])
+
+        X = InitialCondition.from_array(
+            np.array([1, 2]), time_value=0, feature_names=["a", "b"]
+        )
+        U = TSCDataFrame.from_array(np.array([[1, 2, 3]]).T, time_values=expected)
+
+        actual = mixin._validate_and_set_time_values_predict(time_values=None, X=X, U=U)
+        nptest.assert_array_equal(expected, actual)
+
+        actual = mixin._validate_and_set_time_values_predict(
+            time_values=expected, X=X, U=U
+        )
+        nptest.assert_array_equal(expected, actual)
+
+        actual = mixin._validate_and_set_time_values_predict(
+            time_values=None, X=X, U=U.to_numpy()
+        )
+        nptest.assert_array_equal(expected, actual)
+
+        actual = mixin._validate_and_set_time_values_predict(
+            time_values=None, X=X.to_numpy(), U=U.to_numpy()
+        )
+        nptest.assert_array_equal(expected, actual)
+
+        # change time_value to 1
+        X_alt = InitialCondition.from_array(
+            np.array([1, 2]), time_value=1, feature_names=["a", "b"]
+        )
+        actual = mixin._validate_and_set_time_values_predict(
+            time_values=None, X=X_alt, U=U.to_numpy()
+        )
+        nptest.assert_array_equal(expected + 1, actual)
 
     def test_validate_time_values(self):
         mixin = TSCPredictMixin()

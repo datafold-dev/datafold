@@ -3,7 +3,6 @@ from unittest.mock import Mock
 
 import numpy as np
 import numpy.testing as nptest
-import pandas as pd
 
 from datafold.appfold.edmd import EDMD
 from datafold.appfold.kmpc import AffineKgMPC, LinearKMPC
@@ -11,8 +10,7 @@ from datafold.appfold.tests.test_edmd import EDMDTest
 from datafold.dynfold.dmd import DMDControl, gDMDAffine
 from datafold.dynfold.dynsystem import LinearDynamicalSystem
 from datafold.dynfold.transform import TSCIdentity
-from datafold.pcfold import InitialCondition, TSCDataFrame
-from datafold.utils._systems import InvertedPendulum
+from datafold.pcfold import InitialCondition
 
 
 class LinearKMPCTest(unittest.TestCase):
@@ -103,11 +101,6 @@ class LinearKMPCTest(unittest.TestCase):
 
 
 class AffineKMPCTest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.X_tsc, self.U_tsc = EDMDTest.setup_inverted_pendulum(
-            sim_time_step=0.01, sim_num_steps=1000, training_size=20
-        )
-
     def _execute_mock_test(self, state_size, input_size, n_timesteps, seed=42):
         gen = np.random.default_rng(seed)
         x0 = gen.uniform(size=state_size)
@@ -128,6 +121,9 @@ class AffineKMPCTest(unittest.TestCase):
             is_controlled=True,
             is_control_affine=True,
         ).setup_matrix_system(A, control_matrix=Bi)
+
+        sys._requires_last_control_state = True
+
         expected = sys.evolve_system(
             x0, control_input=u, time_values=t, time_delta=t[1] - t[0]
         )
@@ -140,18 +136,21 @@ class AffineKMPCTest(unittest.TestCase):
 
         kmpcperfect = AffineKgMPC(
             predictor=edmdmock,
-            horizon=n_timesteps - 1,
+            horizon=n_timesteps,
             input_bounds=np.array([[5, -5]] * input_size),
             cost_state=np.array([1] * state_size),
             cost_input=0,
         )
+
         pred = kmpcperfect.generate_control_signal(x0, expected)
+
         actual = sys.evolve_system(
             x0,
             control_input=np.pad(pred, ((0, 1), (0, 0))),
             time_values=t,
             time_delta=t[1] - t[0],
         )
+
         nptest.assert_allclose(
             actual.to_numpy(), expected.to_numpy(), rtol=0.1, atol=0.1
         )
@@ -165,6 +164,13 @@ class AffineKMPCTest(unittest.TestCase):
     def test_kmpc_generate_control_signal(self):
         horizon = 100
 
+        X_tsc, U_tsc = EDMDTest.setup_inverted_pendulum(
+            sim_time_step=0.01,
+            sim_num_steps=1000,
+            training_size=20,
+            include_last_control_state=True,
+        )
+
         edmdcontrol = EDMD(
             dict_steps=[
                 ("id", TSCIdentity()),
@@ -172,8 +178,8 @@ class AffineKMPCTest(unittest.TestCase):
             dmd_model=gDMDAffine(),
             include_id_state=False,
         ).fit(
-            self.X_tsc,
-            self.U_tsc,
+            X_tsc,
+            U=U_tsc,
         )
 
         kmpc = AffineKgMPC(
@@ -184,7 +190,7 @@ class AffineKMPCTest(unittest.TestCase):
             cost_input=1,
         )
 
-        reference = self.X_tsc.iloc[: horizon + 1]
+        reference = X_tsc.iloc[: horizon + 1]
         initial_conditions = InitialCondition.from_array(
             np.array([0, 0, np.pi, 0]),
             time_value=0,
@@ -195,4 +201,4 @@ class AffineKMPCTest(unittest.TestCase):
         )
 
         self.assertTrue(actual is not None)
-        self.assertEqual(actual.shape, (horizon, self.U_tsc.shape[1]))
+        self.assertEqual(actual.shape, (horizon, U_tsc.shape[1]))

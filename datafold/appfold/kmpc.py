@@ -125,7 +125,7 @@ class LinearKMPC:
         self.A = predictor.dmd_model.sys_matrix_
         self.B = predictor.dmd_model.control_matrix_
         try:
-            self.lifted_state_size, self.input_size = self.B.shape
+            self.lifted_state_size, self.input_size = self.B.shape  # type: ignore
         except ValueError:
             raise TypeError(
                 "The shape of the control matrix is not as expected. "
@@ -474,7 +474,7 @@ class AffineKgMPC(object):
         self.L = predictor.dmd_model.sys_matrix_
         self.B = predictor.dmd_model.control_matrix_
         try:
-            self.lifted_state_size, _, self.input_size = self.B.shape
+            self.lifted_state_size, _, self.input_size = self.B.shape  # type: ignore
         except ValueError:
             raise TypeError(
                 "The shape of the control tensor is not as expected "
@@ -678,7 +678,7 @@ class AffineKgMPC(object):
         # self.B.shape = (lifted_state_size, lifted_state_size, input_size)
         # (x.T @ self.B.T).shape = (input_size, horizon+1, lifted_state_size)
         # einsum(...).shape = rho.shape = (input_size, horizon+1)
-        jac = np.einsum("ijk,kj->ij", x.T @ self.B.T, lambda_adjoint) + rho
+        jac = np.einsum("ijk,kj->ij", x.T @ self.B.T, lambda_adjoint) + rho  # type: ignore
 
         return jac.ravel()
 
@@ -744,15 +744,19 @@ class AffineKgMPC(object):
         ----------
         initial_conditions
             Initial conditions for the model
+
         reference
             The reference trajectory, which is required to optimize the control sequence.
             If ``TSCDataFrame`` and ``time_values`` is not provided, the time index of the
             reference is used.
+
         time_values
             Time values of the reference trajectory at which control inputs will
             be generated. If not provided tje  inferred from the reference.
+
         **minimization_kwargs:
             Passed to scipy.optimize.minimize. If method is not provided, 'L-BFGS-B' is used.
+
         Returns
         -------
         U : np.ndarray(shape=(horizon,m))

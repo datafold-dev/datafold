@@ -940,6 +940,7 @@ class EDMD(
         X_dict = self.transform(X)
 
         if self.is_controlled_:
+            assert isinstance(U, TSCDataFrame)
             U = U.loc[
                 U.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
                 >= time_values[0],

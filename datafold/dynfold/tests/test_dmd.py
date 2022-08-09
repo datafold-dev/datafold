@@ -516,41 +516,42 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
         self.Bi = np.stack(Bi, 2)
 
     def test_affine_system(self):
-        actual = (
-            LinearDynamicalSystem(
-                sys_type="differential",
-                sys_mode="matrix",
-                is_controlled=True,
-                is_control_affine=True,
-            )
-            .setup_matrix_system(self.A, control_matrix=self.Bi)
-            .evolve_system(
-                self.x0,
-                control_input=self.u,
-                time_values=np.arange(self.u.shape[0]),
-                time_delta=1,
-            )
+        system = LinearDynamicalSystem(
+            sys_type="differential",
+            sys_mode="matrix",
+            is_controlled=True,
+            is_control_affine=True,
+        ).setup_matrix_system(self.A, control_matrix=self.Bi)
+
+        system._requires_last_control_state = True
+
+        actual = system.evolve_system(
+            self.x0,
+            control_input=self.u,
+            time_values=np.arange(self.u.shape[0]),
+            time_delta=1,
         )
 
         nptest.assert_allclose(actual.to_numpy(), self.expected, atol=0.1, rtol=0.1)
 
     def test_affine_vs_linear(self):
 
-        controlled = (
-            LinearDynamicalSystem(
-                sys_type="differential",
-                sys_mode="matrix",
-                is_controlled=True,
-                is_control_affine=True,
-            )
-            .setup_matrix_system(self.A, control_matrix=self.Bi)
-            .evolve_system(
-                self.x0,
-                control_input=np.zeros(self.u.shape),
-                time_values=self.t,
-                time_delta=self.t[1] - self.t[0],
-            )
+        controlled_system = LinearDynamicalSystem(
+            sys_type="differential",
+            sys_mode="matrix",
+            is_controlled=True,
+            is_control_affine=True,
+        ).setup_matrix_system(self.A, control_matrix=self.Bi)
+
+        controlled_system._requires_last_control_state = True
+
+        controlled = controlled_system.evolve_system(
+            self.x0,
+            control_input=np.zeros(self.u.shape),
+            time_values=self.t,
+            time_delta=self.t[1] - self.t[0],
         )
+
         linear = (
             LinearDynamicalSystem(sys_type="differential", sys_mode="matrix")
             .setup_matrix_system(self.A)
@@ -1334,15 +1335,19 @@ class gDMDAffineTest(unittest.TestCase):
             is_control_affine=True,
         )
         sys.setup_matrix_system(A, control_matrix=Bi)
-        tsc_df = sys.evolve_system(
+        sys._requires_last_control_state = True
+
+        X = sys.evolve_system(
             x0, control_input=u, time_values=t, time_delta=0.1, feature_names_out=names
         )
 
-        ureshaped = u.reshape((-1, input_size))
-        for i in range(input_size):
-            tsc_df["u" + str(i + 1)] = ureshaped[:, i]
+        U = TSCDataFrame.from_same_indices_as(
+            X,
+            values=u.reshape((-1, input_size)),
+            except_columns=["u" + str(i + 1) for i in range(input_size)],
+        )
 
-        return tsc_df, sys
+        return X, U, sys
 
     def test_dmda_control_insample(self):
         state_size = 4
@@ -1350,12 +1355,8 @@ class gDMDAffineTest(unittest.TestCase):
         n_timesteps = 50
         n_ic = 5
 
-        tsc_df, sys = self._create_control_tsc(
-            state_size, n_timesteps, n_ic, input_size
-        )
+        X, U, _ = self._create_control_tsc(state_size, n_timesteps, n_ic, input_size)
 
-        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
-        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
         dmd = gDMDAffine()
 
         expected = X
@@ -1369,12 +1370,7 @@ class gDMDAffineTest(unittest.TestCase):
         n_timesteps = 50
         n_ic = 5
 
-        tsc_df, sys = self._create_control_tsc(
-            state_size, n_timesteps, n_ic, input_size
-        )
-
-        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
-        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
+        X, U, _ = self._create_control_tsc(state_size, n_timesteps, n_ic, input_size)
 
         dmd = gDMDAffine(diff_accuracy=6)
 
@@ -1389,16 +1385,11 @@ class gDMDAffineTest(unittest.TestCase):
         n_timesteps = 50
         n_ic = 5
 
-        tsc_df, sys = self._create_control_tsc(
-            state_size, n_timesteps, n_ic, input_size
-        )
-
-        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
-        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
+        X, U, sys = self._create_control_tsc(state_size, n_timesteps, n_ic, input_size)
 
         dmd = gDMDAffine().fit(X=X, U=U)
 
-        t_orig = tsc_df.index.get_level_values(1)
+        t_orig = X.index.get_level_values(1)
         t_oos = np.linspace(t_orig.min(), t_orig.max() * 1.1, 2 * n_timesteps)
         U = TSCDataFrame.from_array(
             np.column_stack([np.sin(0.2 * np.pi * t_oos), np.cos(0.3 * np.pi * t_oos)]),
@@ -1423,12 +1414,7 @@ class gDMDAffineTest(unittest.TestCase):
         n_timesteps = 50
         n_ic = 20
 
-        tsc_df, sys = self._create_control_tsc(
-            state_size, n_timesteps, n_ic, input_size
-        )
-
-        X = tsc_df.loc[:, tsc_df.columns.str.startswith("x")]
-        U = tsc_df.loc[:, tsc_df.columns.str.startswith("u")]
+        X, U, _ = self._create_control_tsc(state_size, n_timesteps, n_ic, input_size)
 
         dmd = gDMDAffine()
 

@@ -29,6 +29,7 @@ from datafold.dynfold.transform import (
 )
 from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
+from datafold.utils._systems import InvertedPendulum
 from datafold.utils.general import is_df_same_index
 from datafold.utils.plot import plot_eigenvalues
 
@@ -79,9 +80,9 @@ class EDMDTest(unittest.TestCase):
         sim_time_step=0.1,
         sim_num_steps=10,
         training_size=5,
+        include_last_control_state=False,
         seed=42,
     ):
-        from datafold.utils._systems import InvertedPendulum
 
         gen = np.random.default_rng(seed)
 
@@ -91,14 +92,18 @@ class EDMDTest(unittest.TestCase):
             control_amplitude = 0.1 + 0.9 * gen.random()
             control_frequency = np.pi + 2 * np.pi * gen.random()
             control_phase = 2 * np.pi * gen.random()
-            control_func = lambda t, y: control_amplitude * np.sin(
+            Ufunc = lambda t, y: control_amplitude * np.sin(
                 control_frequency * t + control_phase
             )
 
             time_values = np.arange(0, sim_time_step * sim_num_steps, sim_time_step)
+            X_ic = np.array([[0, 0, np.pi, 0]]).T
 
             X, U = InvertedPendulum().predict(
-                X=InvertedPendulum._default_ic_, U=control_func, time_values=time_values
+                X=X_ic,
+                Ufunc=Ufunc,
+                time_values=time_values,
+                include_last_control_state=include_last_control_state,
             )
 
             X_tsc.append(X)
