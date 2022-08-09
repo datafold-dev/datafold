@@ -6,12 +6,12 @@ from typing import List
 import nbformat
 import pytest
 
-IGNORE_NOTEBOOKS: List[str] = []
+IGNORE_NOTEBOOKS: List[str] = ["koopman_mpc.ipynb"]
 
 
 def _notebook_run(path):
-    """Execute a notebook via nbconvert and collect output.
-    returns the parsed notebook object and the execution errors.
+    """Execute a notebook via nbconvert and collect output. Returns the parsed notebook object
+    and the execution errors.
 
     Source:
     https://blog.thedataincubator.com/2016/06/testing-jupyter-notebooks/

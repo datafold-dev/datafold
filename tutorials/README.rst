@@ -119,4 +119,3 @@ or simply use the target in the Makefile:
 .. code-block:: bash
 
     make tutorial
-
