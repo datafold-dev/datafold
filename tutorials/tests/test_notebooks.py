@@ -53,16 +53,18 @@ def _find_all_notebooks_to_run():
     assert len(datafold_path) == 1
     datafold_path = datafold_path[0]
 
-    examples_path = os.path.join(datafold_path, "..", "tutorials")
-    examples_path = os.path.abspath(examples_path)
+    tutorials_path = os.path.join(datafold_path, "..", "tutorials")
+    tutorials_path = os.path.abspath(tutorials_path)
+
+    assert os.path.isdir(tutorials_path)
 
     example_notebooks = []
-    for current_path, directories, files in os.walk(examples_path):
+    for current_path, directories, files in os.walk(tutorials_path):
         for file in files:
             if file.endswith(".ipynb") and ".ipynb_checkpoints" not in current_path:
 
                 insert_path = os.path.join(current_path, file)
-                assert os.path.exists(insert_path)
+                assert os.path.exists(insert_path) and os.path.isfile(insert_path)
 
                 if os.path.basename(insert_path) not in IGNORE_NOTEBOOKS:
                     example_notebooks.append(insert_path)
@@ -73,4 +75,4 @@ def _find_all_notebooks_to_run():
 @pytest.mark.parametrize("nb_path", _find_all_notebooks_to_run())
 def test_notebooks(nb_path):
     _, errors = _notebook_run(nb_path)
-    assert errors == []
+    assert not errors

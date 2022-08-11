@@ -5,6 +5,7 @@ from typing import Callable, Union
 
 import numpy as np
 import pandas as pd
+from py.xml import html
 from scipy.integrate import odeint, solve_ivp
 
 from datafold.pcfold import TSCDataFrame
@@ -326,7 +327,7 @@ class ControlledDynamicalSystem(DynamicalSystem):
 
         if not callable(Ufunc):
             raise TypeError(
-                "U needs to be a function of time and the state `f(t, state)`"
+                "U needs to be a function of time and the state `f(t, X_state)`"
             )
 
         t0, tf = time_values[0], time_values[-1]
@@ -366,7 +367,7 @@ class ControlledDynamicalSystem(DynamicalSystem):
 class InvertedPendulum(ControlledDynamicalSystem):
     """An inverted pendulum on a cart controlled by an electric motor.
 
-    The system is parametrized with the voltage of the electric motor and the states include
+    The system is parametrized with the voltage of the electric motor. The states include
     four observations: 1) position, 2) velocity, 3) angle from horizon and 4) angular velocity.
 
     Parameters
@@ -390,16 +391,6 @@ class InvertedPendulum(ControlledDynamicalSystem):
     cart_friction: float
         Dynamic damping coefficient on the cart, defaults to 6.65 kg/s
 
-    Attributes
-    ----------
-    state: np.ndarray
-        Last state of the system
-
-    last_time: float
-        Last time value of the system
-
-    sol: object  # TODO: the solution should not be stored!
-        IVP solution object of the solved system
     """
 
     def __init__(
@@ -451,6 +442,45 @@ class InvertedPendulum(ControlledDynamicalSystem):
         ) / (L * alpha)
 
         return np.array([f1, f2, f3, f4])
+
+    def animate(self, X: TSCDataFrame, U: TSCDataFrame):
+        assert X.n_timeseries == 1
+
+        import matplotlib.animation as animation
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure()
+
+        min_x, max_x = X.iloc[:, 0].min(), X.iloc[:, 0].max()
+
+        ax = plt.axes(xlim=(min_x - self.pendulum_length, max_x + self.pendulum_length), ylim=(-self.pendulum_length * 1.05, self.pendulum_length * 1.05))
+        ax.set_aspect('equal')
+        line, = ax.plot([], [], lw=2)
+
+        def pendulum_pos(x_pos, theta):
+            _cos, _sin = np.cos(theta), np.sin(theta)
+            pos = np.array([_cos, _sin]) * self.pendulum_length
+            pos[0] = pos[0] + x_pos
+            return pos
+
+        def init():
+            mounting = np.array([float(X.iloc[0, 0]), 0])
+            pendulum = pendulum_pos(float(X.iloc[0, 0]), float(X.iloc[0, 2]))
+
+            line.set_data(mounting, pendulum)
+            return line,
+
+        def animate(i):
+            mounting = np.array([float(X.iloc[i, 0]), 0])
+            pendulum = pendulum_pos(float(X.iloc[i, 0]), float(X.iloc[i, 2]))
+
+            line_data = np.row_stack([mounting, pendulum])
+
+            line.set_data(*line_data.T)
+            return line,
+
+        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=100, interval=20, blit=True)
+        plt.show()
 
 
 class Duffing1D(ControlledDynamicalSystem):

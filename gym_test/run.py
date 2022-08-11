@@ -1,6 +1,7 @@
+import enum
+
 import gym
 import numpy as np
-import enum
 
 env = gym.make("LunarLander-v2")
 observation, info = env.reset(seed=42, return_info=True)
@@ -12,12 +13,15 @@ class Action(enum.IntEnum):
     MAIN_FIRE = 2
     LEFT_FIRE = 3
 
+
 reward_sum = 0
 done = False
 while not done:
     env.render()
 
-    action = np.random.choice([Action.DO_NOTHING, Action.RIGHT_FIRE, Action.MAIN_FIRE, Action.LEFT_FIRE])
+    action = np.random.choice(
+        [Action.DO_NOTHING, Action.RIGHT_FIRE, Action.MAIN_FIRE, Action.LEFT_FIRE]
+    )
     observation, reward, done, info = env.step(action)
 
     reward_sum += reward
