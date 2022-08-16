@@ -1,13 +1,14 @@
 import numpy as np
-from datafold.utils._systems import InvertedPendulum
+
 from datafold import TSCDataFrame
+from datafold.utils._systems import InvertedPendulum
 
 # Data generation parameters
 training_size = 1
 time_values = np.arange(0, 10 + 1e-15, 0.01)
 
 # Sample from a single initial condition (but use randomly sampled control signals below)
-ic = np.array([0, 0, np.pi/2, 0])
+ic = np.array([0, 0, np.pi / 2, 0])
 
 X_tsc, U_tsc = [], []  # lists to collect sampled time series
 
@@ -42,4 +43,4 @@ U_tsc = TSCDataFrame.from_frame_list(U_tsc)
 invertedPendulum.animate(X_tsc, U_tsc)
 
 print(X_tsc)
-#print(U_tsc)
+# print(U_tsc)

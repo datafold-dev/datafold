@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
+from os import replace
 from typing import Union
 
 import numpy as np
@@ -782,10 +783,15 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         Selection of what to take as centers during fit.
 
         * `all_data` - all data points during fit are used as centers
+        * `random` - subsample `n_samples` samples from the dataset and use as
+           centers.
         * `fit_params` - set the center points with keyword arguments during fit
         * `initial_condition` - take the initial condition states as centers.
            Note for this option the data `X` during fit must be of
            type :class:`.TSCDataFrame`.
+
+    n_samples
+        Number of sub-samples to use. Parameter is only considered if `center_type=random`.
 
     exact_distance
         An inexact distance computation increases computational performance at the cost of
@@ -803,7 +809,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         delayed until `inverse_transform` is called for the first time.
     """
 
-    _cls_valid_center_types = ["all_data", "fit_params", "initial_condition"]
+    _cls_valid_center_types = ["all_data", "random", "fit_params", "initial_condition"]
     _required_parameters = ["kernel"]
 
     def __init__(
@@ -811,10 +817,12 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         kernel,
         *,  # keyword-only
         center_type: str = "all_data",
+        n_samples: int = 100,
         exact_distance=True,
     ):
         self.kernel = kernel
         self.center_type = center_type
+        self.n_samples = n_samples
         self.exact_distance = exact_distance
 
     def _validate_center_type(self, center_type):
@@ -861,6 +869,19 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 raise ValueError("center points were passed but center_type='all_data'")
 
             self.centers_ = self._X_to_numpy(X)
+        elif self.center_type == "random":
+            if self.n_samples > X.shape[0]:
+                raise ValueError(
+                    f"{self.n_samples=} is greater than the number of samples in the "
+                    f"dataset ({X.shape[0]=})"
+                )
+
+            rng = np.random.default_rng(1)  # TODO: possibly make a parameter
+            idx_samples = rng.choice(
+                range(0, X.shape[0]), size=self.n_samples, replace=False
+            )
+            self.centers_ = self._X_to_numpy(X)[idx_samples, :]
+
         elif self.center_type == "fit_params":
 
             if _centers is None:

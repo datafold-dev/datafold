@@ -297,6 +297,85 @@ class ControlledDynamicalSystem(DynamicalSystem):
     def _f(self, t, state, control_input, **kwarfs):
         raise NotImplementedError("base class")
 
+
+class InvertedPendulum(ControlledDynamicalSystem):
+    """An inverted pendulum on a cart controlled by an electric motor.
+
+    The system is parametrized with the voltage of the electric motor. The states include
+    four observations: 1) position, 2) velocity, 3) angle from horizon and 4) angular velocity.
+
+    Parameters
+    ----------
+    pendulum_mass: float
+        Mass of pendulum, defaults to 0.0905 kg
+
+    cart_mass: float
+        Mass of the cart, defaults to 1.12 kg
+
+    g: float
+        Gravitational acceleration, defaults to 9.81 m/s^2
+
+    tension_force_gain: float
+        Conversion between electric motor input voltage in V and tension
+        force in N, defaults to 7.5 N/V
+
+    pendulum_length: float
+        Length of the pendulum, defaults to 0.365 m
+
+    cart_friction: float
+        Dynamic damping coefficient on the cart, defaults to 6.65 kg/s
+
+    """
+
+    def __init__(
+        self,
+        pendulum_mass=0.0905,  # kg
+        cart_mass=1.12,  # kg
+        g=9.81,  # m/s^2
+        tension_force_gain=7.5,  # N/V
+        pendulum_length=0.365,  # m
+        cart_friction=6.65,  # kg/s
+    ):
+        self.pendulum_mass = pendulum_mass
+        self.cart_mass = cart_mass
+        self.g = g
+        self.tension_force_gain = tension_force_gain
+        self.pendulum_length = pendulum_length
+        self.cart_friction = cart_friction
+        self.last_time = 0
+
+    def _f(self, t, state, control_input):
+        # inverted pendulum physics
+        x, xdot, theta, thetadot = state
+
+        m = self.pendulum_mass
+        M = self.cart_mass
+
+        sin_th = np.sin(theta)
+        cos_th = np.cos(theta)
+
+        alpha = M + m * np.square(sin_th)
+
+        f1 = xdot
+
+        f2 = (
+            self.tension_force_gain * control_input
+            + m * self.g * sin_th * cos_th
+            - m * self.pendulum_length * thetadot**2 * sin_th
+            - 2 * self.cart_friction * xdot
+        ) / alpha
+
+        f3 = thetadot
+
+        f4 = (
+            self.tension_force_gain * control_input * cos_th
+            - m * self.pendulum_length * thetadot**2 * sin_th * cos_th
+            + (M + m) * self.g * sin_th
+            - 2 * self.cart_friction * xdot * cos_th
+        ) / (self.pendulum_length * alpha)
+
+        return np.array([f1, f2, f3, f4])
+
     def predict(  # type: ignore[override] # noqa
         self,
         X: Union[np.ndarray, TSCDataFrame],
@@ -356,92 +435,33 @@ class ControlledDynamicalSystem(DynamicalSystem):
             # for the last state there is no control input
             U = U.tsc.drop_last_n_samples(1)
 
+        X = sol.y.T
         X = TSCDataFrame.from_array(
-            sol.y.T,
+            X,
             time_values=time_values,
             feature_names=["x", "xdot", "theta", "thetadot"],
         )
         return X, U
 
+    @staticmethod
+    def theta_to_trigonometric(X):
+        theta = X["theta"].to_numpy()
+        trig_values = np.column_stack([np.cos(theta), np.sin(theta)])
 
-class InvertedPendulum(ControlledDynamicalSystem):
-    """An inverted pendulum on a cart controlled by an electric motor.
+        X = X.drop("theta", axis=1)
+        X[["angle_cos", "angle_sin"]] = trig_values
 
-    The system is parametrized with the voltage of the electric motor. The states include
-    four observations: 1) position, 2) velocity, 3) angle from horizon and 4) angular velocity.
+        return X
 
-    Parameters
-    ----------
-    pendulum_mass: float
-        Mass of pendulum, defaults to 0.0905 kg
+    @staticmethod
+    def trigonometric_to_theta(X):
+        trig_values = X[["angle_sin", "angle_cos"]].to_numpy()
 
-    cart_mass: float
-        Mass of the cart, defaults to 1.12 kg
+        theta = np.arctan2(trig_values[:, 0], trig_values[:, 1])
 
-    g: float
-        Gravitational acceleration, defaults to 9.81 m/s^2
-
-    tension_force_gain: float
-        Conversion between electric motor input voltage in V and tension
-        force in N, defaults to 7.5 N/V
-
-    pendulum_length: float
-        Length of the pendulum, defaults to 0.365 m
-
-    cart_friction: float
-        Dynamic damping coefficient on the cart, defaults to 6.65 kg/s
-
-    """
-
-    def __init__(
-        self,
-        # Pendulum parameters
-        pendulum_mass=0.0905,  # kg
-        cart_mass=1.12,  # kg
-        g=9.81,  # m/s^2
-        tension_force_gain=7.5,  # N/V
-        pendulum_length=0.365,  # m
-        cart_friction=6.65,  # kg/s
-    ):
-        self.pendulum_mass = pendulum_mass
-        self.cart_mass = cart_mass
-        self.g = g
-        self.tension_force_gain = tension_force_gain
-        self.pendulum_length = pendulum_length
-        self.cart_friction = cart_friction
-        self.last_time = 0
-
-    def _f(self, t, state, control_input):
-        # inverted pendulum physics
-        x, xdot, theta, thetadot = state
-        f1 = xdot
-        f3 = thetadot
-
-        m = self.pendulum_mass
-        M = self.cart_mass
-        L = self.pendulum_length
-        g = self.g
-
-        sin_th = np.sin(theta)
-        cos_th = np.cos(theta)
-
-        alpha = M + m * sin_th * sin_th
-
-        f2 = (
-            self.tension_force_gain * control_input
-            + m * g * sin_th * cos_th
-            - m * L * thetadot**2 * sin_th
-            - 2 * self.cart_friction * xdot
-        ) / alpha
-
-        f4 = (
-            self.tension_force_gain * control_input * cos_th
-            - m * L * thetadot**2 * sin_th * cos_th
-            + (M + m) * g * sin_th
-            - 2 * self.cart_friction * xdot * cos_th
-        ) / (L * alpha)
-
-        return np.array([f1, f2, f3, f4])
+        X = X.drop(["angle_sin", "angle_cos"], axis=1)
+        X["theta"] = theta
+        return X
 
     def animate(self, X: TSCDataFrame, U: TSCDataFrame):
         assert X.n_timeseries == 1
@@ -453,34 +473,39 @@ class InvertedPendulum(ControlledDynamicalSystem):
 
         min_x, max_x = X.iloc[:, 0].min(), X.iloc[:, 0].max()
 
-        ax = plt.axes(xlim=(min_x - self.pendulum_length, max_x + self.pendulum_length), ylim=(-self.pendulum_length * 1.05, self.pendulum_length * 1.05))
-        ax.set_aspect('equal')
-        line, = ax.plot([], [], lw=2)
+        ax = plt.axes(
+            xlim=(min_x - self.pendulum_length, max_x + self.pendulum_length),
+            ylim=(-self.pendulum_length * 1.05, self.pendulum_length * 1.05),
+        )
+        ax.set_aspect("equal")
+        (line,) = ax.plot([], [], lw=2)
 
         def pendulum_pos(x_pos, theta):
-            _cos, _sin = np.cos(theta), np.sin(theta)
+            _cos, _sin = np.cos(theta + np.pi / 2), np.sin(theta + np.pi / 2)
             pos = np.array([_cos, _sin]) * self.pendulum_length
             pos[0] = pos[0] + x_pos
             return pos
 
         def init():
             mounting = np.array([float(X.iloc[0, 0]), 0])
-            pendulum = pendulum_pos(float(X.iloc[0, 0]), float(X.iloc[0, 2]))
+            pendulum = pendulum_pos(float(X.iloc[0, 0]), float(X.iloc[0].loc["theta"]))
 
             line.set_data(mounting, pendulum)
-            return line,
+            return (line,)
 
         def animate(i):
             mounting = np.array([float(X.iloc[i, 0]), 0])
-            pendulum = pendulum_pos(float(X.iloc[i, 0]), float(X.iloc[i, 2]))
+            pendulum = pendulum_pos(float(X.iloc[i, 0]), float(X.iloc[i].loc["theta"]))
 
             line_data = np.row_stack([mounting, pendulum])
 
             line.set_data(*line_data.T)
-            return line,
+            return (line,)
 
-        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=100, interval=20, blit=True)
-        plt.show()
+        anim = animation.FuncAnimation(
+            fig, animate, init_func=init, frames=X.shape[0], interval=20, blit=True
+        )
+        return anim
 
 
 class Duffing1D(ControlledDynamicalSystem):

@@ -1120,6 +1120,8 @@ class EDMD(
         else:
             X_dict = X
 
+        # TODO: need to validate data here?
+
         # carry out dictionary transformations:
         for _, name, tsc_transform in self._iter(with_final=False):
             X_dict = tsc_transform.transform(X_dict)

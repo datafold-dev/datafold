@@ -583,7 +583,7 @@ class TSCPredictMixin(TSCBase):
 
                     if (
                         time_values.shape != req_time_values.shape
-                        or not np.array((time_values - req_time_values) < 1e-15).all()
+                        or not np.array((time_values - req_time_values) < 1e-14).all()
                     ):
                         raise ValueError(
                             "The two parameters ('U' and 'time_values') provide mismatching "
