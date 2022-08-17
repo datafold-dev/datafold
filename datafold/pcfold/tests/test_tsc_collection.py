@@ -1327,7 +1327,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
 
         def _get_col_types(cols):
-            types = list(set([type(v) for v in cols]))
+            types = list({type(v) for v in cols})
             return types[0] if len(types) == 1 else types
 
         self.assertEqual(_get_col_types(tsc_int.columns), int)

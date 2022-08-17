@@ -546,7 +546,7 @@ class EDMD(
         # normalized to 1 -- the factor corrects the ic_koop_eigenfunc accordingly
         # (1/factor * modes) * eigvals * (factor * eigfunc)
         factor = np.linalg.norm(self._koopman_modes, axis=0)
-        triplet_importance = np.abs((factor[:, np.newaxis] * ic_koop_eigenfunc))
+        triplet_importance = np.abs(factor[:, np.newaxis] * ic_koop_eigenfunc)
         # take the mean over all
         triplet_importance = np.mean(triplet_importance, axis=1)
 
@@ -2095,7 +2095,7 @@ class EDMDPostObservable(object):  # pragma: no cover
 
         if verbose:
             msg = f"split: {split_nr}"
-            print("[CV] %s %s" % (msg, (64 - len(msg)) * "."), flush=True)
+            print("[CV] {} {}".format(msg, (64 - len(msg)) * "."), flush=True)
 
         X_train, X_test = _split_X_edmd(X, y, train_indices=train, test_indices=test)
 

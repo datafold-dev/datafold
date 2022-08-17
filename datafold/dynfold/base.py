@@ -538,7 +538,7 @@ class TSCPredictMixin(TSCBase):
                             f"not match the number of control inputs ({U.shape=})"
                         )
                 elif isinstance(U, TSCDataFrame):
-                    if not np.array((time_values == U.time_values())).all():
+                    if not np.array(time_values == U.time_values()).all():
                         raise ValueError(
                             "Two parameters ('U' and 'time_values') provide time values for "
                             "the prediction. However, the time values do not match. It is "
