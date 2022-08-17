@@ -136,7 +136,7 @@ class TSCBase(object):
 
             if ensure_tsc:
                 raise TypeError(
-                    f"Input 'X' is of type {type(X)} but type TSCDataFrame is required."
+                    f"Found type {type(X)=} but type TSCDataFrame is required."
                 )
 
             tsc_kwargs = {}  # no need to check -> overwrite to empty dict
@@ -144,9 +144,7 @@ class TSCBase(object):
             if type(X) == pd.DataFrame:
 
                 if ensure_np:
-                    TypeError(
-                        f"Input 'X' is of type {type(X)} but a numpy format is required."
-                    )
+                    TypeError(f"Found type {type(X)=} but type np.ndarray is required.")
 
                 # special handling of pandas.DataFrame (strictly, not including
                 # TSCDataFrame) --> keep the type (recover after validation).
@@ -204,13 +202,12 @@ class TSCBase(object):
                 ),
             )
 
-        if array_kwargs != {} or tsc_kwargs != {}:
-            # validate_kwargs have to be empty and must only contain key-values that can
-            # be handled to check_array / check_tsc
+        if array_kwargs or tsc_kwargs:
+            # validation kwargs have to be empty at this point (after "kwargs.pop()" above)
 
             left_over_keys = list(array_kwargs.keys()) + list(tsc_kwargs.keys())
             raise ValueError(
-                f"{left_over_keys} are no valid validation keys. Please report bug."
+                f"{left_over_keys} are no valid keys arguments. Please report bug."
             )
 
         return X
@@ -583,7 +580,7 @@ class TSCPredictMixin(TSCBase):
 
                     if (
                         time_values.shape != req_time_values.shape
-                        or not np.array((time_values - req_time_values) < 1e-14).all()
+                        or not (np.array(time_values - req_time_values) < 1e-14).all()
                     ):
                         raise ValueError(
                             "The two parameters ('U' and 'time_values') provide mismatching "
