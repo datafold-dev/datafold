@@ -86,3 +86,9 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
         return super(TSCColumnTransformer, self).fit(X)
+
+    def partial_fit(self, X, y=None, **fit_params):
+        if not hasattr(self, "transformers_"):
+            return self.fit(X, y, **fit_params)
+        else:
+            return self
