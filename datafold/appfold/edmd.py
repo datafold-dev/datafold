@@ -462,7 +462,7 @@ class EDMD(
                 X_dict.columns, self.feature_names_in_
             )
         else:
-            # Compute the matrix in a least squares sense
+            # Compute the matrix in least squares sense
             # inverse_map = "B" in Williams et al., Eq. 16
             inverse_map = self._least_squares_inverse_map(
                 X=X.loc[X_dict.index, :], X_dict=X_dict
@@ -1071,8 +1071,12 @@ class EDMD(
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             self._dmd_model.partial_fit(X=X_dict, y=y, **dmd_fit_params)
 
-        if not self.use_transform_inverse:
-            self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
+        if (
+            not self.use_transform_inverse
+        ):  # TODO: avoid duplicated code with fit() here!
+
+            if not self.use_transform_inverse:
+                self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
 
             if self.dmd_model.is_spectral_mode:
                 self._koopman_modes = self._compute_koopman_modes(

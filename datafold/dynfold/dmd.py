@@ -1639,6 +1639,9 @@ class StreamingDMD(DMDBase):
     # TODO: there is also an adaptation for total least squares (only Matlab):
     #   https://github.com/cwrowley/dmdtools/blob/master/matlab/StreamingTDMD.m
 
+    # TODO: IncrementalPCA has the attribute self.n_samples_seen_ -- can use here too
+    # TODO: IncrementalPCA has a parameter check_input=True in "predict_fit" -- this should
+    #  also be used here
     def __init__(self, max_rank=None, ngram=5, incr_basis_tol=1.0e-10):
         self.max_rank = max_rank
         self.ngram = ngram
@@ -1858,7 +1861,7 @@ class StreamingDMD(DMDBase):
         for i in range(Xm.shape[0]):
             self._update(Xm[i, :], Xp[i, :], norm_m[i], norm_p[i])
 
-        # required to perform predictions:
+        # required to perform predictions
         (
             eigenvectors_right,
             eigenvalues,
@@ -1979,16 +1982,22 @@ class OnlineDMD(DMDBase):
     # TODO for an implementation with control see
     #        https://github.com/VArdulov/online_dmd/blob/master/online_dmd/control.py
 
-    def __init__(self, weighting: float = 1.0, is_diagonalize: bool = False) -> None:
+    # TODO: IncrementalPCA has the attribute self.n_samples_seen_ -- can use here too
+    # TODO: IncrementalPCA has a parameter check_input=True in "predict_fit" -- this should
+    #  also be used here
+    def __init__(
+        self, weighting: float = 1.0, is_diagonalize: bool = False, with_warm_up=True
+    ) -> None:
         self.weighting = weighting
         self.is_diagonalize = is_diagonalize
+        self.with_warm_up = with_warm_up
         super(OnlineDMD, self).__init__(sys_type="flowmap", sys_mode="spectral")
 
     def _validate_parameters(self):
         check_scalar(
             self.weighting,
             name="weighing",
-            target_type=float,
+            target_type=(float, int),
             min_val=0,
             max_val=1,
             include_boundaries="right",
@@ -2001,6 +2010,7 @@ class OnlineDMD(DMDBase):
                 f"Model has not seen enough data. Requires at least {2 * self.n_features_in_} "
                 f"samples (currently {self.timestep_})."
             )
+
         evals, right_evec = np.linalg.eig(self.A)
 
         if self.is_diagonalize:
@@ -2033,8 +2043,12 @@ class OnlineDMD(DMDBase):
     @property
     def ready_(self) -> bool:
         """Indicates if enough samples have been processed to perform predictions and
-        access the spectral system components."""
-        return self.timestep_ >= 2 * self.n_features_in_
+        access the spectral system components. Returns always True if ``with_warm_up=False``.
+        """
+        if self.with_warm_up:
+            return self.timestep_ >= 2 * self.n_features_in_
+        else:
+            return True
 
     def fit(self, X, y=None, **fit_params):
         """Initialize the model with the first time series data in a batch.
@@ -2094,7 +2108,7 @@ class OnlineDMD(DMDBase):
             ignored
 
         **fit_params
-            batch_initialize: bool
+            batch_fit: bool
                 If True then the entire initial batch is used to initialize the system matrix.
                 Parameter is ignored if the model has been fitted once already.
 
@@ -2114,12 +2128,12 @@ class OnlineDMD(DMDBase):
         #  predict is called or if the attributes (eigenvalues eigenvectors) are accessed).
         #  Again, this may be integrated if needed.
 
-        batch_initialize = self._read_fit_params(
-            attrs=[("batch_initialize", False)], fit_params=fit_params
+        batch_fit = self._read_fit_params(
+            attrs=[("batch_fit", False)], fit_params=fit_params
         )
         is_fitted = hasattr(self, "A")
 
-        if batch_initialize and not is_fitted:
+        if batch_fit and not is_fitted:
             return self.fit(X)
         elif not is_fitted:
             self._basic_initialize(X)
