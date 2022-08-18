@@ -1,6 +1,3 @@
-""" Unit test for the dmap module.
-
-"""
 import unittest
 from copy import deepcopy
 

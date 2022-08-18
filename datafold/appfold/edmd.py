@@ -89,7 +89,7 @@ from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
     df_type_and_indices_from,
     if1dim_rowvec,
-    projection_matrix_from_features,
+    projection_matrix_from_feature_names,
 )
 
 
@@ -420,20 +420,49 @@ class EDMD(
         # number that is required for the initial condition
         return int(diff) + 1
 
-    def _least_squares_inverse_map(self, X, X_dict):
+    def _least_squares_inverse_map(self, X, X_dict, U):
         if isinstance(X, pd.DataFrame):
-            X = X.to_numpy()
+            if U is not None:
+                X = X.loc[
+                    U.index,
+                ].to_numpy()
+            else:
+                X = X.to_numpy()
 
         if isinstance(X_dict, pd.DataFrame):
-            X_dict = X_dict.to_numpy()
+            if U is not None:
+                X_dict = X_dict.loc[
+                    U.index,
+                ].to_numpy()
+                U = U.to_numpy()
+            else:
+                X_dict = X_dict.to_numpy()
 
-        return scipy.linalg.lstsq(X_dict, X, cond=None)[0]
+        if False and U is not None:
+            matrix = scipy.linalg.lstsq(np.column_stack([X_dict, U]), X, cond=None)[0]
+            self._inverse_map_control = matrix[X_dict.shape[1] :, :]
+            return matrix[: X_dict.shape[1], :]
+        else:
+            return scipy.linalg.lstsq(X_dict, X, cond=None)[0]
 
     def _compute_inverse_map(
-        self, X: TSCDataFrame, X_dict: TSCDataFrame
+        self, X: TSCDataFrame, X_dict: TSCDataFrame, U
     ) -> Optional[Union[scipy.sparse.csr_matrix, np.ndarray]]:
         """Compute matrix that linearly maps from dictionary space to original feature
         space.
+
+        # TODO: If EDMD is controlled there is currently only a map from dictionary states to
+            the full-state representation.
+            - i.e.
+            X_dict B = X
+            -
+            However, the control states can also be included in the mapping, which can improve
+            the mapping
+            -
+            [X_dict, U] [B_dict, B_u] = X
+            -
+            This is also captured in a typical state space representation (matrix "D")
+            see https://en.wikipedia.org/wiki/State-space_representation#Linear_systems
 
         This is equivalent to matrix :math:`B`, Eq. 16 in
         :cite:`williams_datadriven_2015`.
@@ -457,14 +486,14 @@ class EDMD(
         if self.include_id_state or self.dict_preserves_id_states_:
             # trivial case: we just need a projection matrix to select the
             # original full-states from the dictionary functions
-            inverse_map = projection_matrix_from_features(
+            inverse_map = projection_matrix_from_feature_names(
                 X_dict.columns, self.feature_names_in_
             )
         else:
             # Compute the matrix in a least squares sense
             # inverse_map = "B" in Williams et al., Eq. 16
             inverse_map = self._least_squares_inverse_map(
-                X=X.loc[X_dict.index, :], X_dict=X_dict
+                X=X.loc[X_dict.index, :], X_dict=X_dict, U=U
             )
 
         return inverse_map
@@ -663,7 +692,7 @@ class EDMD(
                 if qois is None:
                     modes = self.koopman_modes.to_numpy()
                 else:
-                    project_matrix = projection_matrix_from_features(
+                    project_matrix = projection_matrix_from_feature_names(
                         self.feature_names_pred_, qois
                     )
                     modes = project_matrix.T @ self._koopman_modes
@@ -692,10 +721,20 @@ class EDMD(
                 X_ts = self._dmd_model.predict(X_dict, **dmd_params)
 
                 # map back to original space and select qois
+
+                if hasattr(self, "_inverse_map_control"):
+                    vals = (X_ts.to_numpy() @ self._inverse_map)[
+                        :-1, :
+                    ] + U.to_numpy() @ self._inverse_map_control
+                    idx = X_ts.index[:-1]
+                else:
+                    vals = X_ts.to_numpy() @ self._inverse_map
+                    idx = X_ts.index
+
                 X_ts = TSCDataFrame(
-                    X_ts.to_numpy() @ self._inverse_map,
+                    vals,
                     columns=self.feature_names_pred_,
-                    index=X_ts.index,
+                    index=idx,
                 ).loc[:, feature_columns]
 
         else:
@@ -800,9 +839,16 @@ class EDMD(
                 self._dmd_model.fit(X=X_dict, y=y, **dmd_fit_params)
 
         if not self.use_transform_inverse:
-            self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
+            self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict, U=U)
 
             if self.dmd_model.is_spectral_mode:
+
+                if self.is_controlled_:
+                    raise NotImplementedError(
+                        "currently the inverse mapping from a spectral "
+                        "system representation and control is not captured in datafold."
+                    )
+
                 self._koopman_modes = self._compute_koopman_modes(
                     inverse_map=self._inverse_map,
                 )
@@ -1078,8 +1124,12 @@ class EDMD(
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             self._dmd_model.partial_fit(X=X_dict, y=y, **dmd_fit_params)
 
-        if not self.use_transform_inverse:
-            self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
+        if (
+            not self.use_transform_inverse
+        ):  # TODO: avoid duplicated code with fit() here!
+
+            if not self.use_transform_inverse:
+                self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
 
             if self.dmd_model.is_spectral_mode:
                 self._koopman_modes = self._compute_koopman_modes(
@@ -2100,7 +2150,7 @@ class EDMDPostObservable(object):  # pragma: no cover
 
         if verbose:
             msg = f"split: {split_nr}"
-            print("[CV] %s %s" % (msg, (64 - len(msg)) * "."), flush=True)
+            print("[CV] {} {}".format(msg, (64 - len(msg)) * "."), flush=True)
 
         X_train, X_test = _split_X_edmd(X, y, train_indices=train, test_indices=test)
 

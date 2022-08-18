@@ -117,7 +117,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         if len(self.data_splits) <= 1:
             raise ValueError("parameter 'data_splits' must at least contain two splits")
 
-        if len(set([n[0] for n in self.data_splits])) != len(self.data_splits):
+        if len({n[0] for n in self.data_splits}) != len(self.data_splits):
             raise ValueError("the names in 'data_splits' must be unique")
 
         for a in self.data_splits:

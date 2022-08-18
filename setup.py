@@ -12,7 +12,7 @@ from setuptools import find_packages, setup
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/
 
 author = "datafold development team"
-email = "daniel.lehmberg@hm.edu"
+email = "d.lehmberg@tum.de"
 
 setuppy_dir = Path(__file__).absolute().parent
 docs_dir = os.path.join(setuppy_dir, "doc")

@@ -908,7 +908,7 @@ class TSCDataFrame(pd.DataFrame):
                 f"Got: columns.nlevels={columns.nlevels}"
             )
 
-        col_types = sorted(t.__qualname__ for t in set(type(v) for v in columns))
+        col_types = sorted(t.__qualname__ for t in {type(v) for v in columns})
 
         if len(col_types) > 1:
             raise AttributeError(

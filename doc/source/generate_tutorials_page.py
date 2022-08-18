@@ -178,8 +178,8 @@ def add_tutorial(
     _req_weblink_doc = requests.head(web_link)
     if _req_weblink_doc.status_code != 200:
         print(
-            f"WARNING: The web link \n{web_link} does not exist. Check if "
-            f"the tutorial will be published soon and that the link is correct."
+            f"\nWARNING: The web link \n{web_link} does not exist. Check if "
+            f"the tutorial will be published soon and that the link is correct.\n"
         )
 
 

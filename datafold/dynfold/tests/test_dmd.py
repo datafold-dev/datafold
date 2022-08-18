@@ -942,7 +942,7 @@ class StreamingDMDTest(unittest.TestCase):
 
         stream_dmd_classes = [
             (StreamingDMD(max_rank=None, ngram=5), {}),
-            (OnlineDMD(weighting=1.0), dict(batch_initialize=True)),
+            (OnlineDMD(weighting=1.0), dict(batch_fit=True)),
         ]
 
         batches = np.array_split(df, df.shape[0] // batchsize)
@@ -1102,7 +1102,7 @@ class TestOnlineDMD(unittest.TestCase):
         X = DMDTest._create_harmonic_tsc(n_samples=500, dim=4)
 
         expected = DMDFull().fit(X)
-        actual = OnlineDMD(weighting=1.0).partial_fit(X, batch_initialize=True)
+        actual = OnlineDMD(weighting=1.0).partial_fit(X, batch_fit=True)
 
         nptest.assert_allclose(
             expected.eigenvalues_, actual.eigenvalues_, rtol=1e-14, atol=1e-14
@@ -1116,7 +1116,7 @@ class TestOnlineDMD(unittest.TestCase):
 
         # The weighing != 1.0 triggers a different if-case
         # (but should have essentially no effect)
-        actual = OnlineDMD(weighting=1.0 - 1e-15).partial_fit(X, batch_initialize=True)
+        actual = OnlineDMD(weighting=1.0 - 1e-15).partial_fit(X, batch_fit=True)
 
         nptest.assert_allclose(
             expected.eigenvectors_right_,

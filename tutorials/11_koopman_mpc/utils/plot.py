@@ -98,7 +98,7 @@ def plot_pred(
             for col in state_cols:
                 ax = axes[i, k]
 
-                diff = np.abs((dfx[col].values - pred[col].values.flatten()))
+                diff = np.abs(dfx[col].values - pred[col].values.flatten())
                 ax.plot(np.log(diff[:max_t]) / np.log(10))
 
                 ax.set_title(col)

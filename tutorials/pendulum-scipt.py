@@ -20,7 +20,7 @@ include_dmdcontrol = False
 
 # Data generation parameters
 training_size = 20
-time_values = np.arange(0, 15, 0.05)
+time_values = np.arange(0, 10, 0.05)
 
 # Sample from a single initial condition (but use randomly sampled control signals below)
 ics = np.array([[0, 0, np.pi + 0.1, 0], [0, 0, np.pi + 1.0, 0], [0, 0, 0.1, 0]])
@@ -145,30 +145,33 @@ from datafold import DiffusionMaps, GaussianKernel, TSCTakensEmbedding
 
 delays = 35
 delay = ("delay", TSCTakensEmbedding(delays=delays))
-transform_U = TSCTakensEmbedding(delays=delays)
-# transform_U = TSCIdentity()
+# transform_U = TSCTakensEmbedding(delays=delays)
+transform_U = TSCIdentity()
 
 U_tsc = transform_U.fit_transform(U_tsc)
 
-dmap = DiffusionMaps(
-    kernel=GaussianKernel(epsilon=lambda d: np.median(d) / 3), n_eigenpairs=70
+dmap = (
+    "dmap",
+    DiffusionMaps(
+        kernel=GaussianKernel(epsilon=lambda d: np.median(d) / 3), n_eigenpairs=70
+    ),
 )
 
 _id = ("id", TSCIdentity())
-pca = ("pca", TSCPrincipalComponent(n_components=100))
+pca = ("pca", TSCPrincipalComponent(n_components=144))
 
 _dict = [delay]
 
-edmdrbf = EDMD(dict_steps=_dict, dmd_model=DMDControl(), include_id_state=False)
+edmd = EDMD(dict_steps=_dict, dmd_model=DMDControl(), include_id_state=False)
 
-edmdrbf.fit(
+edmd.fit(
     X_tsc,
     U=U_tsc,
 )
 
 
-rbfprediction = edmdrbf.predict(
-    X_last.head(edmdrbf.n_samples_ic_), U=transform_U.transform(U_last)
+rbfprediction = edmd.predict(
+    X_last.head(edmd.n_samples_ic_), U=transform_U.transform(U_last)
 )
 
 plt.figure(figsize=(16, 3))
@@ -206,8 +209,22 @@ plt.plot(
 plt.plot(time_values, X_last["theta"].to_numpy(), c="black", label="actual")
 plt.legend()
 
-anim3 = InvertedPendulum().animate(X_last, U_last)
+# anim3 = InvertedPendulum().animate(X_last, U_last)
 # anim4 = InvertedPendulum().animate(rbfprediction, U_last)
+
+
+horizon = 100  # in time steps
+
+kmpc = LinearKMPC(
+    predictor=edmd,
+    horizon=horizon,
+    state_bounds=np.array([[1, -1], [6.28, 0]]),
+    input_bounds=np.array([[5, -5]]),
+    qois=["x", "theta"],
+    cost_running=np.array([100, 0]),
+    cost_terminal=1,
+    cost_input=0.001,
+)
 
 plt.show()
 

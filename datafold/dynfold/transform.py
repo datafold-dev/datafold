@@ -7,7 +7,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, clone
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScaler
 from sklearn.utils.validation import NotFittedError, check_is_fitted, check_scalar
 
@@ -256,6 +256,12 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
 
         return self
 
+    def partial_fit(self, X, y=None, **fit_transform):
+        if not hasattr(self, "feature_names_in_"):
+            return self.fit(X, y, **fit_transform)
+        else:
+            return self
+
     def transform(self, X: TransformType) -> TransformType:
         """Passthrough data and validate feature.
 
@@ -313,6 +319,36 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
                 X = X[:, :-1]
 
         return X
+
+
+class TSCIncrementalPCA(IncrementalPCA, TSCTransformerMixin):  # pragma: no cover
+    # TODO: docu, tests
+
+    def __init__(self, n_components, *, whiten=False, copy=False, batch_size=None):
+        super(TSCIncrementalPCA, self).__init__(
+            n_components=n_components, whiten=whiten, copy=copy, batch_size=batch_size
+        )
+
+    def get_feature_names_out(self, input_features=None):
+        return np.array([f"pca{i}" for i in range(self.n_components_)], dtype=object)
+
+    def partial_fit(self, X, y=None, check_input=True):
+
+        super(TSCIncrementalPCA, self).partial_fit(X, y=y)
+
+        if self.n_samples_seen_ == X.shape[0]:
+            self._setup_feature_attrs_fit(X)
+        return self
+
+    def transform(self, X):
+        check_is_fitted(self)
+        X = self._validate_datafold_data(X)
+
+        self._validate_feature_input(X, direction="transform")
+        pca_data = super(IncrementalPCA, self).transform(X)
+        return self._same_type_X(
+            X, values=pca_data, feature_names=self.get_feature_names_out()
+        )
 
 
 class TSCPrincipalComponent(PCA, TSCTransformerMixin):
@@ -769,6 +805,49 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         return X.loc[:, self.feature_names_in_]
 
 
+class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
+    def __init__(self, n_features=100, sigma=1):
+        self.n_features = n_features
+        self.sigma = sigma
+
+    def get_feature_names_out(self, input_features=None):
+        sin = [f"sin{i}" for i in range(self.n_features)]
+        cos = [f"cos{i}" for i in range(self.n_features)]
+        return pd.Index(sin + cos)
+
+    def fit(self, X, y=None, **fit_params):
+        self._setup_feature_attrs_fit(X, n_features_out=2 * self.n_features)
+
+        # sample features components
+        self.fourier_components_ = np.zeros([X.shape[1], self.n_features])
+
+        mean = np.zeros(X.shape[1])
+        cov = np.identity(X.shape[1]) / self.sigma**2
+
+        for d in range(self.n_features):
+            self.fourier_components_[:, d] = np.random.multivariate_normal(mean, cov)
+
+        return self
+
+    def partial_fit(self, X, y, **fit_params):
+        if not hasattr(self, "fourier_components_"):
+            return self.fit(X, y, **fit_params)
+        else:
+            return self
+
+    def transform(self, X):
+        mc_samples = np.dot(X.to_numpy(), self.fourier_components_)
+        all_samples = np.zeros([X.shape[0], 2 * self.n_features])
+        all_samples[:, : self.n_features] = np.sin(mc_samples)
+        all_samples[:, self.n_features :] = np.cos(mc_samples)
+
+        return TSCDataFrame.from_same_indices_as(
+            indices_from=X,
+            values=all_samples,
+            except_columns=self.get_feature_names_out(),
+        )
+
+
 class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
     """Represent data in coefficients of radial basis functions.
 
@@ -1084,6 +1163,13 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
 
         return self
 
+    def partial_fit(self, X: TransformType, y=None, **fit_params):
+        if not hasattr(self, "feature_names_in_"):
+            # is fit already
+            return self.fit(X, y=None, **fit_params)
+        else:
+            return self
+
     def transform(self, X: TransformType) -> TransformType:
         """Transform data to polynomial features.
 
@@ -1366,6 +1452,12 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         )
 
         return self
+
+    def partial_fit(self, X: TransformType, y=None, **fit_params) -> TransformType:
+        if not hasattr(self, "feature_names_in_"):
+            return self.fit(X, y, **fit_params)
+        else:
+            return self
 
     def transform(self, X: TransformType) -> TransformType:
         """Compute the finite difference values.

@@ -68,7 +68,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     @property
     def n_features_out_(self):
         check_is_fitted(self, "transformers_")
-        return sum([tr.n_features_out_ for _, tr, _ in self.transformers_])
+        return sum(tr.n_features_out_ for _, tr, _ in self.transformers_)
 
     def _hstack(self, Xs):
         if self.sparse_output_:
@@ -86,3 +86,9 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
         return super(TSCColumnTransformer, self).fit(X)
+
+    def partial_fit(self, X, y=None, **fit_params):
+        if not hasattr(self, "transformers_"):
+            return self.fit(X, y, **fit_params)
+        else:
+            return self

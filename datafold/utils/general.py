@@ -215,7 +215,7 @@ def if1dim_rowvec(vec: np.ndarray) -> np.ndarray:
         return vec
 
 
-def projection_matrix_from_features(
+def projection_matrix_from_feature_names(
     features_all: pd.Index, features_select: pd.Index
 ) -> scipy.sparse.csr_matrix:
     r"""Compute a sparse projection matrix which maps to selected columns from a matrix.
@@ -230,10 +230,10 @@ def projection_matrix_from_features(
     Parameters
     ----------
     features_all
-        All features in the original matrix.
+        All original feature names.
 
     features_select
-        The features to include in the final matrix after the projection.
+        The (partial or re-ordered) feature names after the projection
 
     Returns
     -------

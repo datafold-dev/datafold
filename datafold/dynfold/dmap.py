@@ -1514,7 +1514,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         # residual according to paper, equation 12  (also used in PCM code)
         residual = np.sqrt(
-            np.sum(np.square((target_eigenvector - estimated_target_values)))
+            np.sum(np.square(target_eigenvector - estimated_target_values))
             / np.sum(np.square(target_eigenvector))
         )
 
