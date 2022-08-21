@@ -551,7 +551,7 @@ class TSCPredictMixin(TSCBase):
                 else:
                     time_values = np.arange(
                         reference,
-                        reference
+                        -1E-14 + reference  # TODO: need to check...
                         + (U.shape[0] + int(not req_last_control_state))  # type: ignore
                         * self.dt_,
                         self.dt_,

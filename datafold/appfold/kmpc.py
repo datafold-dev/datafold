@@ -9,7 +9,7 @@ from scipy.optimize import minimize
 
 from datafold.appfold import EDMD
 from datafold.dynfold.base import InitialConditionType, TransformType
-from datafold.utils.general import if1dim_colvec
+from datafold.utils.general import if1dim_rowvec, if1dim_colvec
 
 try:
     import quadprog  # noqa: F401
@@ -158,11 +158,11 @@ class LinearKMPC:
         # setup conversion from lifted state to output quantities of interest
         self.Cb, self.output_size = self._setup_qois(qois, predictor)
 
-        if input_bounds.shape != (self.input_size, 2):
-            raise ValueError("")
-
-        if state_bounds.shape != (self.output_size, 2):
-            raise ValueError("")
+        # if input_bounds.shape != (self.input_size, 2):
+        #     raise ValueError("")
+        #
+        # if state_bounds.shape != (self.output_size, 2):
+        #     raise ValueError("")
 
         self.input_bounds = input_bounds
         self.state_bounds = state_bounds
@@ -174,9 +174,9 @@ class LinearKMPC:
             np.linalg.cholesky(self.H)
         except np.linalg.LinAlgError:
             warnings.warn(
-                "Cost matrix H is not positive-definite, using H^T@H instead."
+                "Cost matrix H is not positive-definite, using H^T @ H instead."
             )
-            self.H = np.dot(self.H.T, self.H)
+            self.H = self.H.T @ self.H
 
     def _setup_qois(self, qois, predictor):
 
@@ -247,18 +247,57 @@ class LinearKMPC:
         Np = self.horizon
         N = self.lifted_state_size
         m = self.input_size
+
         A = self.A
         B = self.B
+        # TODO: C is here a projection matrix, and applied after Ab and Bb are set up.
+        #  -- as of my understanding it is unnecessary to store the full Ab, we can apply the
+        #  projection already (we only need to store the last "full A") -- similarily Bb
         Ab = np.eye((Np + 1) * N, N)
         Bb = np.zeros(((Np + 1) * N, Np * m))
 
-        for i in range(Np):
-            Ab[(i + 1) * N : (i + 2) * N, :] = A @ Ab[i * N : (i + 1) * N, :]
-            Bb[(i + 1) * N : (i + 2) * N, i * m : (i + 1) * m] = B
-            if i > 0:
-                Bb[(i + 1) * N : (i + 2) * N, : i * m] = (
-                    A @ Bb[i * N : (i + 1) * N, : i * m]
+        # for i in range(Np):  # TODO: maybe adapt the range to (1, Np+1) and remove the +1 +2 in the code (this makes it easier to "think the loop")
+        #     start = (i + 1) * N
+        #     e = (i + 2) * N
+        #
+        #     Ab[start:e, :] = A @ Ab[i * N : (i + 1) * N, :]
+        #     Bb[start:e, i * m : (i + 1) * m] = B
+        #
+        #     if i > 0:
+        #         Bb[start:e, :i * m] = (
+        #             A @ Bb[i * N : (i + 1) * N, : i * m]
+        #         )
+
+        for i in range(1, Np+1):  # TODO: maybe adapt the range to (1, Np+1) and remove the +1 +2 in the code (this makes it easier to "think the loop")
+            s = i * N
+            e = (i + 1) * N
+
+            prev_s = (i-1) * N
+            prev_e = s
+
+            # Take previous A and multiply
+            Ab[s:e, :] = A @ Ab[prev_s : prev_e, :]
+
+            # Place B on diagonal (this can also be done at the beginning as a copy operation!)
+            Bb[s:e, (i-1) * m : i * m] = B
+
+            if i > 1:
+                # TODO: this works, but does not perform any copy operations, only
+                #  A*(A^{n-1} B) needs to be computed
+                Bb[s:e, 0:(i-1) * m] = (
+                    A @ Bb[prev_s : prev_e, : (i-1) * m]
                 )
+
+        if False:
+            np.save('Ab.npy', Ab)
+            np.save('Bb.npy', Bb)
+        elif False:
+            old_Ab = np.load('Ab.npy')
+            old_Bb = np.load('Bb.npy')
+            import numpy.testing as nptest
+
+            nptest.assert_equal(old_Ab, Ab)
+            nptest.assert_equal(old_Bb, Bb)
 
         # transform the evolution matrices from the lifted to the referenced state
         return self.Cb @ Ab, self.Cb @ Bb
@@ -271,6 +310,7 @@ class LinearKMPC:
         N = self.output_size
         m = self.input_size
 
+        # TODO: Eb and Fb are very sparse matrices (~ 99 %)
         # constraint equations
         E = np.vstack([np.eye(N), -np.eye(N), np.zeros((2 * m, N))])
         Eb = np.kron(np.eye(Np + 1), E)
@@ -295,7 +335,7 @@ class LinearKMPC:
                 cost = cost.flatten()
                 assert len(cost) == N
             except AssertionError:
-                raise ValueError(f"Cost should have length {N}, received {len(cost)}.")
+                raise ValueError(f"Cost should have length {N=}, received {len(cost)=}.")
             return cost
         else:
             try:
@@ -325,7 +365,11 @@ class LinearKMPC:
         vec_terminal = self._cost_to_array(self.cost_terminal, N)
         vec_input = self._cost_to_array(self.cost_input, m)
 
+        # TODO: do not store the diagonal matrices explicitly (or use sparse matrices).
+        # quadratic matrix for state cost
         Qb = np.diag(np.hstack([np.tile(vec_running, Np), vec_terminal]))
+
+        # quadratic matrix for input cost
         Rb = np.diag(np.tile(vec_input, Np))
 
         return Qb, q, Rb, r
@@ -362,21 +406,13 @@ class LinearKMPC:
         ValueError
             In case of mis-shaped input
         """
-        z0 = self.lifting_function(initial_conditions)
-        z0 = if1dim_colvec(z0)
-        z0 = if1dim_colvec(np.array(z0))
+
+        # TODO: need validation here
+        z0 = self.lifting_function(initial_conditions).to_numpy().T
 
         try:
-            z0 = z0.reshape(self.lifted_state_size, 1)
-        except ValueError as e:
-            raise ValueError(
-                "The initial state should match the shape of the system state "
-                "before the lifting."
-            ) from e
-
-        try:
-            yr = np.array(reference)
-            assert yr.shape[1] == self.output_size
+            yr = np.asarray(reference)
+            assert yr.shape[1] == self.output_size  # TODO: make error and validation
             yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
         except:
             raise ValueError(
@@ -387,11 +423,12 @@ class LinearKMPC:
         U = solve_qp(
             P=2 * self.H,
             q=(self.h.T + z0.T @ self.G - yr.T @ self.Y).flatten(),
-            G=self.L,
-            h=(self.c - self.M @ z0).flatten(),
+            G=None, # self.L,
+            h=None, # (self.c - self.M @ z0).flatten(),
             A=None,
             b=None,
             solver="quadprog",
+            verbose=True
         )
 
         if U is None:
@@ -427,6 +464,7 @@ class LinearKMPC:
         e3 = z0.T @ self.G @ U
         e4 = -yr.T @ self.Y @ U
 
+        # TODO: Need to return a TSCDataFrame
         return (e1 + e2 + e3 + e4)[0, 0]
 
 
