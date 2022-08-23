@@ -9,7 +9,7 @@ from scipy.optimize import minimize
 
 from datafold.appfold import EDMD
 from datafold.dynfold.base import InitialConditionType, TransformType
-from datafold.utils.general import if1dim_rowvec, if1dim_colvec
+from datafold.utils.general import if1dim_colvec, if1dim_rowvec
 
 try:
     import quadprog  # noqa: F401
@@ -44,8 +44,9 @@ class LinearKMPC:
         Prediction model to use, must be already fitted.
         The underlying DMD model in :py:class:`EDMD` must support control, such as
         :py:class:`.DMDControl`.
+
     horizon : int
-        prediction horizon, number of time steps to predict, :math:`N_p`
+        prediction horizon, number of time steps to predict, :math:`N_p`.
 
     state_bounds : np.ndarray(shape=(n,2))
         The min/max bounds of the system states:
@@ -131,9 +132,6 @@ class LinearKMPC:
             )
 
         self.predictor = predictor
-
-        # utilize the lifting functions from EDMD
-        self.lifting_function = predictor.transform
 
         # define default values of properties
         self.horizon = horizon
@@ -268,32 +266,32 @@ class LinearKMPC:
         #             A @ Bb[i * N : (i + 1) * N, : i * m]
         #         )
 
-        for i in range(1, Np+1):  # TODO: maybe adapt the range to (1, Np+1) and remove the +1 +2 in the code (this makes it easier to "think the loop")
+        for i in range(
+            1, Np + 1
+        ):  # TODO: maybe adapt the range to (1, Np+1) and remove the +1 +2 in the code (this makes it easier to "think the loop")
             s = i * N
             e = (i + 1) * N
 
-            prev_s = (i-1) * N
+            prev_s = (i - 1) * N
             prev_e = s
 
             # Take previous A and multiply
-            Ab[s:e, :] = A @ Ab[prev_s : prev_e, :]
+            Ab[s:e, :] = A @ Ab[prev_s:prev_e, :]
 
             # Place B on diagonal (this can also be done at the beginning as a copy operation!)
-            Bb[s:e, (i-1) * m : i * m] = B
+            Bb[s:e, (i - 1) * m : i * m] = B
 
             if i > 1:
                 # TODO: this works, but does not perform any copy operations, only
                 #  A*(A^{n-1} B) needs to be computed
-                Bb[s:e, 0:(i-1) * m] = (
-                    A @ Bb[prev_s : prev_e, : (i-1) * m]
-                )
+                Bb[s:e, 0 : (i - 1) * m] = A @ Bb[prev_s:prev_e, : (i - 1) * m]
 
         if False:
-            np.save('Ab.npy', Ab)
-            np.save('Bb.npy', Bb)
+            np.save("Ab.npy", Ab)
+            np.save("Bb.npy", Bb)
         elif False:
-            old_Ab = np.load('Ab.npy')
-            old_Bb = np.load('Bb.npy')
+            old_Ab = np.load("Ab.npy")
+            old_Bb = np.load("Bb.npy")
             import numpy.testing as nptest
 
             nptest.assert_equal(old_Ab, Ab)
@@ -335,7 +333,9 @@ class LinearKMPC:
                 cost = cost.flatten()
                 assert len(cost) == N
             except AssertionError:
-                raise ValueError(f"Cost should have length {N=}, received {len(cost)=}.")
+                raise ValueError(
+                    f"Cost should have length {N=}, received {len(cost)=}."
+                )
             return cost
         else:
             try:
@@ -362,7 +362,12 @@ class LinearKMPC:
         # optimization - quadratic
         # assuming only autocorrelation
         vec_running = self._cost_to_array(self.cost_running, N)
-        vec_terminal = self._cost_to_array(self.cost_terminal, N)
+
+        if self.cost_terminal == 0 or self.cost_terminal is None:
+            vec_terminal = self._cost_to_array(self.cost_running, N)
+        else:
+            vec_terminal = self._cost_to_array(self.cost_terminal, N)
+
         vec_input = self._cost_to_array(self.cost_input, m)
 
         # TODO: do not store the diagonal matrices explicitly (or use sparse matrices).
@@ -375,7 +380,7 @@ class LinearKMPC:
         return Qb, q, Rb, r
 
     def generate_control_signal(
-        self, initial_conditions: InitialConditionType, reference: TransformType
+        self, X: InitialConditionType, reference: TransformType
     ) -> np.ndarray:
         r"""Method to generate a control sequence, given some initial conditions and
         a reference trajectory, as in :cite:`korda-2018` Algorithm 1. This method solves the
@@ -390,7 +395,7 @@ class LinearKMPC:
 
         Parameters
         ----------
-        initial_conditions : TSCDataFrame or np.ndarray
+        X : TSCDataFrame or np.ndarray
             Initial conditions for the model
 
         reference : np.ndarray
@@ -408,7 +413,7 @@ class LinearKMPC:
         """
 
         # TODO: need validation here
-        z0 = self.lifting_function(initial_conditions).to_numpy().T
+        X_dict = self.predictor.transform(X).to_numpy().T
 
         try:
             yr = np.asarray(reference)
@@ -422,13 +427,13 @@ class LinearKMPC:
 
         U = solve_qp(
             P=2 * self.H,
-            q=(self.h.T + z0.T @ self.G - yr.T @ self.Y).flatten(),
-            G=None, # self.L,
-            h=None, # (self.c - self.M @ z0).flatten(),
+            q=(self.h.T + X_dict.T @ self.G - yr.T @ self.Y).flatten(),
+            G=self.L,
+            h=(self.c - self.M @ X_dict).flatten(),
             A=None,
             b=None,
             solver="quadprog",
-            verbose=True
+            verbose=True,
         )
 
         if U is None:

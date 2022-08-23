@@ -93,9 +93,7 @@ class LinearKMPCTest(unittest.TestCase):
             time_value=0,
             feature_names=["x", "xdot", "theta", "thetadot"],
         )
-        U = kmpc.generate_control_signal(
-            initial_conditions=initial_conditions, reference=reference
-        )
+        U = kmpc.generate_control_signal(X=initial_conditions, reference=reference)
 
         self.assertEqual(U.shape, (horizon, self.U_tsc.shape[1]))
 
