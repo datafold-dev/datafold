@@ -225,6 +225,7 @@ plt.legend()
 # anim3 = InvertedPendulum().animate(X_last, U_last)
 # anim4 = InvertedPendulum().animate(rbfprediction, U_last)
 
+
 horizon = 300  # in time steps
 
 kmpc = LinearKMPC(

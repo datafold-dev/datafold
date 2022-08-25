@@ -29,7 +29,7 @@ for i in range(training_size):
     # X are the states and U is the control input acting on the state's evolution
     X, U = invertedPendulum.predict(
         X=ic,
-        Ufunc=Ufunc,
+        U=Ufunc,
         time_values=time_values,
     )
 

@@ -501,7 +501,7 @@ class TSCPredictMixin(TSCBase):
 
     def _validate_and_set_time_values_predict(
         self,
-        time_values,
+        time_values: Optional[np.ndarray],
         X: Union[TSCDataFrame, np.ndarray],
         U: Optional[Union[TSCDataFrame, np.ndarray]],
     ):
@@ -523,7 +523,7 @@ class TSCPredictMixin(TSCBase):
             else:
                 reference = reference[0]
         else:
-            if U is not None and isinstance(U, TSCDataFrame):
+            if is_controlled and isinstance(U, TSCDataFrame):
                 reference = U.time_values()[0]
             else:
                 if isinstance(self.dt_, np.timedelta64):
@@ -533,6 +533,11 @@ class TSCPredictMixin(TSCBase):
 
         if time_values is None:
             if is_controlled:
+
+                if isinstance(U, Callable):
+                    raise ValueError("If U` is a control input function (Callable), then the "
+                                     "parameter 'time_values' cannot be None")
+
                 if isinstance(U, TSCDataFrame):
                     time_values = U.time_values()
 
@@ -587,6 +592,8 @@ class TSCPredictMixin(TSCBase):
                             "time information for the current prediction. It is recommended "
                             "to only provide the control input 'U'."
                         )
+                elif isinstance(U, Callable):
+                    pass  # nothing to do for now ...
                 else:
                     raise TypeError(
                         f"Invalid type of control input 'U' (got {type(U)=}."

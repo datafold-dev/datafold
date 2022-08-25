@@ -2,6 +2,7 @@
 
 import abc
 from typing import Callable, Union
+from datafold.dynfold.base import TSCPredictMixin
 
 import numpy as np
 import pandas as pd
@@ -11,12 +12,11 @@ from scipy.integrate import odeint, solve_ivp
 from datafold.pcfold import TSCDataFrame
 
 
-# TODO: could be a TSCPredictMixin
-class DynamicalSystem(metaclass=abc.ABCMeta):
+class DynamicalSystem(TSCPredictMixin, metaclass=abc.ABCMeta):
 
     # TODO: initial_conditions should be "X" to align with the Predict models
     @abc.abstractmethod
-    def predict(self, X, time_values, **kwargs):
+    def predict(self, X, *, U=None, time_values=None, **kwargs):
         raise NotImplementedError("base class")
 
 
@@ -274,31 +274,166 @@ class Pendulum(DynamicalSystem):
         return tsc_df
 
 
-class ControlledDynamicalSystem(DynamicalSystem):
-    """Abstract class for controlled dynamical systems
+class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
-    * Get initialization parameters in a constructor
-    * Initialize `_default_ic_` to provide default initial conditions.
-    * Override `_f` to provide the governing dynamics
-
-    Attributes
-    ----------
-    state: np.array
-        Last state of the system
-
-    last_time: float
-        Last time value of the system
-
-    sol: object
-        Scipt IVP solution object of the solved system
-    """
+    def __init__(self, n_features_in, feature_names_in, n_control_in, control_names_in):
+        # TODO: possibly move one up to DynamicalSystem
+        self.n_features_in_ = n_features_in
+        self.feature_names_in_ = feature_names_in
+        self.n_control_in_ = n_control_in
+        self.control_names_in_ = control_names_in
+        self._default_step_size = 0.01
 
     @abc.abstractmethod
-    def _f(self, t, state, control_input, **kwarfs):
+    def _f(self, t, X, U):
+        """Right hand side of the ODE.
+
+        The return of the function must match the 'fun' parameter in Scipy's 'solve_ivp'
+        function.
+        See https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
+
+        The U parameter is an extra parameter for the control input.
+        """
         raise NotImplementedError("base class")
 
+    def predict(self, X, *, U=None, time_values=None, require_last_control_state=False):
 
-class InvertedPendulum(ControlledDynamicalSystem):
+        # some validation
+        if isinstance(U, np.ndarray) and U.ndim == 1:
+            U = U[:, np.newaxis]
+
+        if isinstance(U, (TSCDataFrame, np.ndarray)) and U.shape[1] != self.n_control_in_:
+            raise ValueError(f"{U.shape[1]=} must match {self.n_control_in_=}")
+
+        if isinstance(X, np.ndarray) and X.ndim == 1:
+            X = X[np.newaxis, :]
+
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(f"{X.shape[1]=} must match {self.n_features_in_=}")
+
+        one_step_sim = isinstance(U, (np.ndarray, TSCDataFrame)) and X.shape[0] == U.shape[0]
+
+        if time_values is None:
+            self.dt_ = self._default_step_size
+
+            if one_step_sim:
+                self._requires_last_control_state = False # no interpolation
+            else:
+                self._requires_last_control_state = True  # interpolation
+            time_values = self._validate_and_set_time_values_predict(time_values=time_values, X=X, U=U)
+        elif len(time_values) == 1 and one_step_sim:
+            self.dt_ = time_values[0]
+            time_values = np.array([0, self.dt_])
+        elif len(time_values) == 2 and time_values[0] == 0:
+            self.dt_ = time_values[1] - time_values[0]
+            self._requires_last_control_state = False
+            time_values = self._validate_and_set_time_values_predict(time_values=time_values, X=X, U=U)
+        else:
+            self.dt_ = time_values[1] - time_values[0]
+            self._requires_last_control_state = True  # for interpolation
+            time_values = self._validate_and_set_time_values_predict(time_values=time_values, X=X, U=U)
+
+        # solve ODE
+        if one_step_sim:
+            if isinstance(U, TSCDataFrame):
+                # for one step, each state must have a corresponding control input
+                U = U.to_numpy()
+            elif not isinstance(U, np.ndarray):
+                raise TypeError(f"For one-step predictions `U` must be of type TSCDataFrame "
+                                f"or np.ndarray. Got {type(U)=}")
+
+            if U.shape[0] != X.shape[0]:
+                raise TypeError(f"For one-step predictions {U.shape[0]=} must match {X.shape[0]=}.")
+
+            # make one RK45 step
+            t = time_values[0]
+            k1 = self._f(t, X, U).T * self.dt_
+            k2 = self._f(t, X + k1 / 2.0, U).T * self.dt_
+            k3 = self._f(t, X + k2 / 2.0, U).T * self.dt_
+            k4 = self._f(t, X + k3, U).T * self.dt_
+            X_next = X + (k1 + 2 * (k2 + k3) + k4) / 6
+
+            # make one Euler step
+            # X_next = X + (self.dt_ * self._f(None, X, U)).T
+
+            X_sol = TSCDataFrame.from_shift_matrices(left_matrix=X, right_matrix=X_next, time_values=time_values, snapshot_orientation="row", columns=self.feature_names_in_)
+
+            index = pd.MultiIndex.from_product([np.arange(U.shape[0]), [0]])
+            U = TSCDataFrame(U, index=index, columns=self.control_names_in_)
+
+        else:
+
+            if not isinstance(U, Callable):
+                if X.shape[0] > 1 and not isinstance(U, TSCDataFrame):
+                    raise ValueError("For multiple initial conditions `U` must be of type TSCDataFrame.")
+                elif isinstance(U, TSCDataFrame):
+                    U.tsc.check_equal_timevalues()
+                elif isinstance(U, np.ndarray):
+                    U = TSCDataFrame.from_array(U, time_values=time_values, feature_names=self.control_names_in_)
+
+            if isinstance(X, pd.DataFrame):
+                X = X.to_numpy()
+
+            X_sol = list()
+
+            for i in range(X.shape[0]):
+                ic = X[i]
+
+                if isinstance(U, Callable):
+                    # user specified input
+                    Ufunc = U
+                else:
+                    # interpolates control input from data
+                    U_interp = U.loc[[U.ids[i]], :].to_numpy()
+
+                    interp_control = []
+
+                    for i in range(self.n_control_in_):
+                        func = lambda t, x: np.interp(t, time_values, U_interp[:, i])
+                        interp_control.append(func)
+
+                    Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
+
+                sol = solve_ivp(
+                    fun=lambda t, x: self._f(t, x, Ufunc(t, x)),
+                    t_span=(time_values[0], time_values[-1]),
+                    y0=ic,
+                    method="RK45",
+                    t_eval=time_values,
+                    vectorized=True,
+                )
+
+                if not sol.success:
+                    raise RuntimeError(
+                        f"The prediction was not successful \n Reason: \n" f" {sol.message=}"
+                    )
+
+                X_sol.append(TSCDataFrame.from_array(
+                    sol.y.T,
+                    time_values=time_values,
+                    feature_names=self.feature_names_in_,
+                ))
+
+            X_sol = TSCDataFrame.from_frame_list(X_sol)
+
+        if isinstance(U, Callable):
+            tv = X_sol.index.get_level_values(TSCDataFrame.tsc_time_idx_name).to_numpy()
+
+            # turn callable into actual data -- needs to be re-computed as I do not see a way
+            # to access this from the scipy ODE solver
+
+            # TODO: this only works if U is vectorized, need to implement an element-by-element way too..
+            U = U(tv, X_sol.to_numpy())
+            U = TSCDataFrame.from_same_indices_as(X_sol, values=U, except_columns=self.control_names_in_)
+
+        if not require_last_control_state and not one_step_sim:
+            # for the last state there is no control input
+            U = U.tsc.drop_last_n_samples(1)
+
+        return X_sol, U
+
+
+class InvertedPendulum(ControllableODE):
     """An inverted pendulum on a cart controlled by an electric motor.
 
     The system is parametrized with the voltage of the electric motor. The states include
@@ -342,7 +477,9 @@ class InvertedPendulum(ControlledDynamicalSystem):
         self.tension_force_gain = tension_force_gain
         self.pendulum_length = pendulum_length
         self.cart_friction = cart_friction
-        self.last_time = 0
+
+        super(InvertedPendulum, self).__init__(n_features_in=4, feature_names_in=["x", "xdot", "theta", "thetadot"], n_control_in=1, control_names_in=["u"])
+
 
     def _f(self, t, state, control_input):
         # inverted pendulum physics
@@ -375,73 +512,6 @@ class InvertedPendulum(ControlledDynamicalSystem):
         ) / (self.pendulum_length * alpha)
 
         return np.array([f1, f2, f3, f4])
-
-    def predict(  # type: ignore[override] # noqa
-        self,
-        X: Union[np.ndarray, TSCDataFrame],
-        Ufunc: Callable,
-        time_values,
-        include_last_control_state=False,
-    ):
-        """Compute a trajectory of the inverted pendulum in state space.
-
-        Parameters
-        ----------
-
-        X
-            Initial condition state
-
-        Ufunc
-            f(t, state) callable returning control input.
-
-        time_values: np.ndarray
-            Time values to evaluate the system at.
-
-        include_last_control_state
-            If True, a control state is also included for the last system state. While
-            typically the last control input is not required, enabling this flag can be useful
-            to interpolate control states.
-
-        """
-
-        if not callable(Ufunc):
-            raise TypeError(
-                "U needs to be a function of time and the state `f(t, X_state)`"
-            )
-
-        t0, tf = time_values[0], time_values[-1]
-
-        sol = solve_ivp(
-            fun=lambda t, y: self._f(t, y, Ufunc(t, y)),
-            t_span=(t0, tf),
-            y0=X.ravel(),
-            method="RK45",
-            t_eval=time_values,
-            vectorized=True,
-        )
-
-        if not sol.success:
-            raise RuntimeError(
-                f"The prediction was not successful \n Reason: \n" f" {sol.message=}"
-            )
-
-        # need to use the control function again, not sure how to best extract within solve_ivp
-        _control_input = np.atleast_2d(Ufunc(time_values, sol.y)).T
-        U = TSCDataFrame.from_array(
-            _control_input, time_values=time_values, feature_names=["u"]
-        )
-
-        if not include_last_control_state:
-            # for the last state there is no control input
-            U = U.tsc.drop_last_n_samples(1)
-
-        X = sol.y.T
-        X = TSCDataFrame.from_array(
-            X,
-            time_values=time_values,
-            feature_names=["x", "xdot", "theta", "thetadot"],
-        )
-        return X, U
 
     @staticmethod
     def theta_to_trigonometric(X):
@@ -508,27 +578,104 @@ class InvertedPendulum(ControlledDynamicalSystem):
         return anim
 
 
-class Duffing1D(ControlledDynamicalSystem):
-    _default_ic_ = np.array([[0.1, -0.9]]).T
+class VanDerPol(ControllableODE):
+
+    def __init__(self, eps=1.0):
+        super(VanDerPol, self).__init__(n_features_in=2, feature_names_in=["x1", "x2"], n_control_in=2, control_names_in=["u1", "u2"])
+        self.eps = eps
+
+    def _f(self, t, x, u):
+
+        if x.shape[1] == 1:
+            x = x.T
+
+        x1 = x[:, 0]
+        x2 = x[:, 1]
+
+        u1 = u[:, 0]
+        u2 = u[:, 1]
+
+        xdot = np.row_stack([
+            x2 + u1,
+            -x1 + self.eps * (1 - x1 ** 2) * x2 + u2
+        ])
+        return xdot
+
+
+class Duffing1D(ControllableODE):
 
     def __init__(self, alpha=-1, beta=1, delta=0.6):
         self.alpha = alpha
         self.beta = beta
         self.delta = delta
+        
+        super(Duffing1D, self).__init__(n_features_in=2, feature_names_in=["x1", "x2"], n_control_in=1, control_names_in=["u"])
 
-    def _f(self, t, state, control_input):
-        xdot = np.array([state[1, 0], 0])
-        xdot[1] = (
-            -self.delta * state[1, 0]
-            - self.alpha * state[0, 0]
-            - self.beta * state[0, 0] ** 3
-            + control_input
+    def _f(self, t, X, U):
+
+        x1, x2 = X.ravel()
+
+        f1 = x2
+        f2 = (
+                -self.delta * x2
+                - self.alpha * x1
+                - self.beta * x1 ** 3
+                + U
         )
-        return xdot
+        return np.array([f1, f2])
 
 
 # TODO:
 #  include benchmark systems from: https://arxiv.org/pdf/2008.12874.pdf
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+
+
+    exit()
+
+    if False:
+        n_ic = 500
+        state = np.random.uniform(-3., 3., size=(n_ic, 2))
+
+        x = np.linspace(-3, 3, 50)
+        y = np.linspace(-3, 3, 50)
+        xv, yv = np.meshgrid(x, y)
+
+        sys = VanDerPol()
+
+        state = np.column_stack([xv.flatten(), yv.flatten()])
+        control = np.random.uniform(-3., 3., size=(state.shape[0], 1))
+        control = np.zeros((state.shape[0], 1))
+        trajectory, U = sys.predict(X=state, U=control, time_values=np.array([0.03]))
+
+        group = trajectory.groupby("ID")
+        start, end = group.head(1).to_numpy(), group.tail(1).to_numpy()
+
+        for i in range(start.shape[0]):
+            plt.plot(np.array([start[i,0], end[i, 0]]), np.array([start[i, 1], end[i, 1]]), "black")
+
+        n_timesteps = 500
+        state = np.random.uniform(-3., 3., size=(1, 2))
+        control = np.zeros((n_timesteps,1))
+        timevals = np.linspace(0, 10, n_timesteps)
+        trajectory, _ = sys.predict(X=state, U=control, time_values=timevals)
+
+        plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
+
+    else:
+        n_timesteps = 500
+        state = np.random.uniform(-3., 3., size=(1, 2))
+        control = np.random.uniform(-3., 3., size=(n_timesteps,1))
+        control = np.zeros((n_timesteps,1))
+        timevals = np.linspace(0, 10, n_timesteps)
+        trajectory, U = VanDerPol(eps=1).predict(X=state, U=control, time_values=timevals)
+
+        plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
+
+
+
+    plt.show()
 
 
 # if __name__ == "__main__":

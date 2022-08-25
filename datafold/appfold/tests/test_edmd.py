@@ -101,7 +101,7 @@ class EDMDTest(unittest.TestCase):
 
             X, U = InvertedPendulum().predict(
                 X=X_ic,
-                Ufunc=Ufunc,
+                U=Ufunc,
                 time_values=time_values,
                 include_last_control_state=include_last_control_state,
             )

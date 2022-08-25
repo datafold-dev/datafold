@@ -418,6 +418,8 @@ class TSCDataFrame(pd.DataFrame):
         cls,
         left_matrix,
         right_matrix,
+        *,
+        time_values=(0,1),
         snapshot_orientation: str = "col",
         columns: Optional[Union[pd.Index, list]] = None,
     ) -> "TSCDataFrame":
@@ -430,6 +432,9 @@ class TSCDataFrame(pd.DataFrame):
 
         right_matrix
             Time series values at time "next".
+
+        time_values
+            Two time values to highlight the time step size.
 
         snapshot_orientation
             Indicate whether the snapshots (states) are in rows ("row") or columns
@@ -473,7 +478,7 @@ class TSCDataFrame(pd.DataFrame):
         zipped_values[1::2, :] = right_matrix.copy()
 
         id_idx = np.repeat(np.arange(n_timeseries), 2)
-        time_values = np.array([0, 1] * n_timeseries)
+        time_values = np.array([time_values[0], time_values[1]] * n_timeseries)
         index = pd.MultiIndex.from_arrays([id_idx, time_values])
 
         return cls(data=zipped_values, index=index, columns=columns)

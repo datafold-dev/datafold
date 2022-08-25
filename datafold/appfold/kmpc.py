@@ -428,8 +428,8 @@ class LinearKMPC:
         U = solve_qp(
             P=2 * self.H,
             q=(self.h.T + X_dict.T @ self.G - yr.T @ self.Y).flatten(),
-            G=self.L,
-            h=(self.c - self.M @ X_dict).flatten(),
+            G=None, # self.L,
+            h=None, # (self.c - self.M @ X_dict).flatten(),
             A=None,
             b=None,
             solver="quadprog",

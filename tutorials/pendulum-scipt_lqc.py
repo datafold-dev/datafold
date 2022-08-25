@@ -174,7 +174,7 @@ _id = ("id", TSCIdentity(include_const=True))
 
 pca = ("pca", TSCPrincipalComponent(n_components=60))
 
-_dict = [delay, pca, _id]
+_dict = [_id]
 
 edmd = EDMD(dict_steps=_dict, dmd_model=DMDControl(), include_id_state=False)
 
@@ -227,18 +227,28 @@ plt.legend()
 
 horizon = 300  # in time steps
 
-kmpc = LinearKMPC(
-    predictor=edmd,
-    horizon=horizon,
-    state_bounds=np.array([[-5, 5], [0, 6.28]]),
-    input_bounds=np.array([[-99, 99]]),
-    qois=["x", "theta"],
-    cost_running=np.array([100, 0]),
-    cost_terminal=0.1,
-    cost_input=0.1,
-)
+import scipy
+
+Ad = edmd.dmd_model.sys_matrix_
+Bd = edmd.dmd_model.control_matrix_
+
+Q = np.eye(Ad.shape[0])
+R = np.eye(Bd.shape[1]) * 0.01
+
+dt = 0.01
+Pd = scipy.linalg.solve_discrete_are(Ad, Bd, Q, R) * dt
+Flqr = np.linalg.inv(R + Bd.T @ Pd @ Bd) @ Bd.T @ Pd @ Ad
+
+trajectory = np.zeros((horizon+1, X_tsc.shape[1]))
+trajectory[0] = ics_test[0]
+
+for i in range(horizon):
+    u = -Flqr @ edmd.transform(np.atleast_2d(trajectory[i])).T
+    trajectory[i+1] = invertedPendulum.predict(trajectory[i], U=u, time_values=0.01)
+
 
 reference = X_oos[["x", "theta"]].iloc[
+
     edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon
 ]
 reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon]
