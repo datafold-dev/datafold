@@ -211,11 +211,9 @@ def animate(k):
 
 step = round(n_steps/100)
 anim = animation.FuncAnimation(fig, animate, frames=np.arange(len(xs)//step) * step, interval=1000//30, blit=True)
-HTML(anim.to_html5_video())
 
 
 # In[8]:
 
 
-# anim.save('ventilator-mpc.mp4', codec='h264')
-
+anim.save('ventilator-mpc.mp4', codec='h264')

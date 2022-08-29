@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.interpolate import interp1d
+
 
 from datafold import (
     EDMD,
@@ -11,22 +11,22 @@ from datafold import (
     TSCIdentity,
     TSCPrincipalComponent,
     TSCRadialBasis,
-    TSCTransformerMixin,
+    TSCApplyLambdas,
+    TSCColumnTransformer,
 )
-from datafold.appfold.kmpc import LinearKMPC
+
 from datafold.utils._systems import InvertedPendulum
 
 include_dmdcontrol = False
 
 # Data generation parameters
 training_size = 5
-time_values = np.arange(0, 13, 0.01)
+dt = 0.01
+time_values = np.arange(0, 13, dt)
 
 # specify a seed
-rng = np.random.default_rng(4)
-
-invertedPendulum = InvertedPendulum(pendulum_mass=2)
-
+rng = np.random.default_rng(1)
+invertedPendulum = InvertedPendulum(pendulum_mass=1)
 
 def generate_data(n_timeseries, ics):
     X_tsc, U_tsc = [], []  # lists to collect sampled time series
@@ -36,16 +36,20 @@ def generate_data(n_timeseries, ics):
             control_amplitude = rng.uniform(0.1, 1)
             control_frequency = rng.uniform(np.pi / 2, 2 * np.pi)
             control_phase = rng.uniform(0, 2 * np.pi)
-            Ufunc = lambda t, y: control_fraction * (
+            U = lambda t, y: control_fraction * (
                 control_amplitude * np.sin(control_frequency * t + control_phase)
             )
+
+            U = lambda t, y: np.interp(t, time_values, rng.uniform(-0.1, 0.1, size=(len(time_values))))
 
             # X are the states and U is the control input acting on the state's evolution
             X, U = invertedPendulum.predict(
                 X=ics[ic, :],
-                U=Ufunc,
+                U=U,
                 time_values=time_values,
             )
+
+            print("done")
 
             X_tsc.append(X)
             U_tsc.append(U)
@@ -63,13 +67,19 @@ def generate_data(n_timeseries, ics):
 ics_train = np.zeros((4, 4))
 
 for i in range(4):
-    ics_train[i] = [0, 0, np.pi + rng.uniform(-1, 1), 0]
+    ics_train[i] = [0, 0, 0+rng.uniform(-1, 1), 0]
 # ics_train = np.array([[0, 0, np.pi + 0.1, 0], [0, 0, np.pi + 1.0, 0], [0, 0, 0.1, 0]])
 
-ics_test = np.array([[0, 0, np.pi + rng.uniform(-1, 1), 0]])
+ics_test = np.array([[0, 0, rng.uniform(-1, 1), 0]])
+ics_test = np.array([[0, 0, -0.1, 0]])
 
 X_tsc, U_tsc = generate_data(training_size, ics_train)
 X_oos, U_oos = generate_data(1, ics_test[[0]])
+
+# anim = invertedPendulum.animate(X_tsc.loc[pd.IndexSlice[1, :], :], None)
+# plt.show()
+# exit()
+
 
 print(f"{X_tsc.shape[0]=}")
 print(f"{X_tsc.n_timesteps=}")
@@ -82,30 +92,31 @@ X_tsc_theta = X_tsc.copy()
 # max_diff = np.max(X_back["theta"].to_numpy() - X_theta_req)
 # print(f"{min_diff=} -- {max_diff=}")
 
-plt.figure(figsize=(16, 7))
+plot_training = False
+if plot_training:
+    plt.figure(figsize=(16, 7))
 
-plt.subplot(311)
-plt.title(
-    r"Training data - cart position $\theta$ $\mathbf{x}$ (each time series is separated by verical lines)"
-)
-plt.plot(X_tsc_theta["theta"].to_numpy())
-[plt.axvline(i, c="black") for i in np.arange(0, X_tsc.shape[0], X_tsc.n_timesteps)]
-plt.xticks([])
+    plt.subplot(311)
+    plt.title(
+        r"Training data - cart position $\theta$ $\mathbf{x}$ (each time series is separated by verical lines)"
+    )
+    plt.plot(X_tsc_theta["theta"].to_numpy())
+    [plt.axvline(i, c="black") for i in np.arange(0, X_tsc.shape[0], X_tsc.n_timesteps)]
+    plt.xticks([])
 
+    plt.subplot(312)
+    plt.title(
+        r"Training data - control voltage $\mathbf{u}$ (each time series is separated by verical lines)"
+    )
 
-plt.subplot(312)
-plt.title(
-    r"Training data - control voltage $\mathbf{u}$ (each time series is separated by verical lines)"
-)
+    # plt.plot(InvertedPendulum.trigonometric_to_theta(X_tsc)["theta"].to_numpy())
+    # [plt.axvline(i, c="black") for i in np.arange(0, X_tsc.shape[0], X_tsc.n_timesteps)]
+    # plt.xticks([])
 
-# plt.plot(InvertedPendulum.trigonometric_to_theta(X_tsc)["theta"].to_numpy())
-# [plt.axvline(i, c="black") for i in np.arange(0, X_tsc.shape[0], X_tsc.n_timesteps)]
-# plt.xticks([])
-
-plt.subplot(313)
-plt.plot(U_tsc["u"].to_numpy())
-[plt.axvline(i, c="black") for i in np.arange(0, U_tsc.shape[0], U_tsc.n_timesteps)]
-plt.xticks([])
+    plt.subplot(313)
+    plt.plot(U_tsc["u"].to_numpy())
+    [plt.axvline(i, c="black") for i in np.arange(0, U_tsc.shape[0], U_tsc.n_timesteps)]
+    plt.xticks([])
 
 # last_id = X_tsc.ids[2]
 # X_oos = X_tsc.loc[[last_id], :]
@@ -159,7 +170,7 @@ from datafold import DiffusionMaps, GaussianKernel, TSCTakensEmbedding
 delays = 100
 delay = ("delay", TSCTakensEmbedding(delays=delays))
 # transform_U = TSCTakensEmbedding(delays=delays)
-transform_U = TSCIdentity()
+transform_U = TSCIdentity(include_const=False)
 
 U_tsc = transform_U.fit_transform(U_tsc)
 
@@ -170,13 +181,16 @@ dmap = (
     ),
 )
 
-_id = ("id", TSCIdentity(include_const=True))
-
+_id = ("id", TSCIdentity(include_const=False))
 pca = ("pca", TSCPrincipalComponent(n_components=60))
 
-_dict = [_id]
+ldas_sin = ("sin", TSCApplyLambdas(lambdas=[lambda x: np.sin(x)]), ["theta"])
+ldas_cos = ("cos", TSCApplyLambdas(lambdas=[lambda x: np.cos(x)]), ["theta"])
+trigon = ("trigon", TSCColumnTransformer(transformers=[ldas_cos, ldas_sin]))
 
-edmd = EDMD(dict_steps=_dict, dmd_model=DMDControl(), include_id_state=False)
+_dict = [trigon, _id]
+
+edmd = EDMD(dict_steps=_dict, dmd_model=DMDControl(), include_id_state=True)
 
 edmd.fit(
     X_tsc,
@@ -187,93 +201,101 @@ edmdpredict = edmd.predict(
     X_oos.head(edmd.n_samples_ic_), U=transform_U.transform(U_oos)
 )
 
-plt.figure(figsize=(16, 3))
-plt.subplot(121)
-plt.title(r"EDMD(100 random rbf) prediction - cart position $x$")
-plt.plot(
-    edmdpredict.time_values(),
-    edmdpredict["x"].to_numpy(),
-    c="red",
-    label="prediction",
-)
-plt.plot(
-    edmdpredict.time_values()[0],
-    edmdpredict["x"].to_numpy()[0],
-    c="red",
-    marker="o",
-)
-plt.plot(time_values, X_oos["x"].to_numpy(), c="black", label="actual")
-plt.legend()
+plot_oos_predict = True
+if plot_oos_predict:
+    plt.figure(figsize=(16, 3))
+    plt.subplot(121)
+    plt.title(r"EDMD(100 random rbf) prediction - cart position $x$")
+    plt.plot(
+        edmdpredict.time_values(),
+        edmdpredict["x"].to_numpy(),
+        c="red",
+        label="prediction",
+    )
+    plt.plot(
+        edmdpredict.time_values()[0],
+        edmdpredict["x"].to_numpy()[0],
+        c="red",
+        marker="o",
+    )
+    plt.plot(time_values, X_oos["x"].to_numpy(), c="black", label="actual")
+    plt.legend()
 
-plt.subplot(122)
-plt.title(r"EDMD(100 random rbf) prediction - pendulum angle $\theta$")
-plt.plot(
-    edmdpredict.time_values(),
-    edmdpredict["theta"].to_numpy(),
-    c="red",
-    label="prediction",
-)
-plt.plot(
-    edmdpredict.time_values()[0],
-    edmdpredict["theta"].to_numpy()[0],
-    c="red",
-    marker="o",
-)
-plt.plot(time_values, X_oos["theta"].to_numpy(), c="black", label="actual")
-plt.legend()
+    plt.subplot(122)
+    plt.title(r"EDMD(100 random rbf) prediction - pendulum angle $\theta$")
+    plt.plot(
+        edmdpredict.time_values(),
+        edmdpredict["theta"].to_numpy(),
+        c="red",
+        label="prediction",
+    )
+    plt.axhline(np.pi, linestyle="--", color="blue", label="stable")
+    plt.axhline(-np.pi, linestyle="--", color="blue")
+    plt.axhline(0, linestyle="--", color="red", label="unstable")
+
+    plt.plot(
+        edmdpredict.time_values()[0],
+        edmdpredict["theta"].to_numpy()[0],
+        c="red",
+        marker="o",
+    )
+    plt.plot(time_values, X_oos["theta"].to_numpy(), c="black", label="actual")
+    plt.legend()
 
 # anim3 = InvertedPendulum().animate(X_last, U_last)
 # anim4 = InvertedPendulum().animate(rbfprediction, U_last)
 
-horizon = 300  # in time steps
+horizon = 200  # in time steps
 
 import scipy
 
 Ad = edmd.dmd_model.sys_matrix_
 Bd = edmd.dmd_model.control_matrix_
 
-Q = np.eye(Ad.shape[0])
-R = np.eye(Bd.shape[1]) * 0.01
+import control
 
-dt = 0.01
+print(f"{np.linalg.matrix_rank(control.ctrb(Ad, Bd))=}")
+print(f"{Ad.shape=}")
+
+
+Q = np.eye(Ad.shape[0]) * 0.00001
+Q[2, 2] = 1
+R = np.eye(Bd.shape[1]) * 0.00001
+
 Pd = scipy.linalg.solve_discrete_are(Ad, Bd, Q, R) * dt
 Flqr = np.linalg.inv(R + Bd.T @ Pd @ Bd) @ Bd.T @ Pd @ Ad
 
 trajectory = np.zeros((horizon+1, X_tsc.shape[1]))
-trajectory[0] = ics_test[0]
+
+X_controlled = X_oos.copy()
+target_x = TSCDataFrame.from_same_indices_as(X_oos.iloc[[0], :], values=np.array([[0, 0, 0, 0]]))
+target_dict = edmd.transform(target_x)
+
+trajectory_u = np.zeros((horizon, 1))
 
 for i in range(horizon):
-    u = -Flqr @ edmd.transform(np.atleast_2d(trajectory[i])).T
-    trajectory[i+1] = invertedPendulum.predict(trajectory[i], U=u, time_values=0.01)
+    u = -Flqr @ (edmd.transform(X_controlled.iloc[[i], :]).to_numpy().T - target_dict.to_numpy().T)
+    next_state = invertedPendulum.predict(X_controlled.iloc[[i], :].to_numpy(), U=u, time_values=0.01)[0]
+    # TODO: this can be improved - later the idea would be to simply pass the feedback law as
+    #  a function (U as Callable) to the inverted pendulum!
+    trajectory_u[i] = u
+    X_controlled.iloc[i+1, :] = next_state.to_numpy()[-1, :]
 
+U_lq = TSCDataFrame.from_array(trajectory_u, time_values=np.arange(0, horizon * dt, dt), feature_names=invertedPendulum.control_names_in_)
 
 reference = X_oos[["x", "theta"]].iloc[
-
-    edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon
+    edmd.n_samples_ic_ - 1: edmd.n_samples_ic_ + horizon
 ]
 reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon]
-# reference = TSCDataFrame.from_same_indices_as(reference, values=np.zeros_like(reference.to_numpy()))
 
-ukmpc = kmpc.generate_control_signal(
-    X_oos.initial_states(edmd.n_samples_ic_), reference
-)
 
-kmpcpred = edmd.predict(X_oos.initial_states(edmd.n_samples_ic_), U=ukmpc)
+anim = invertedPendulum.animate(X_controlled, None)
 
-ukmpc_interp = interp1d(
-    kmpcpred.time_values()[:-1],
-    ukmpc[:, 0],
-    axis=0,
-    fill_value=0,
-    bounds_error=False,
-)
+f, ax = plt.subplots()
+ax.plot(U_lq.time_values(), U_lq.to_numpy().ravel())
 
-ukmpc_func = lambda t, y: ukmpc_interp(t).T
-kmpctraj, _ = invertedPendulum.predict(
-    X=X_oos.initial_states(edmd.n_samples_ic_).to_numpy()[-1, :],
-    U=ukmpc_func,
-    time_values=kmpcpred.time_values()[:horizon],
-)
+plt.show()
+exit()
 
 
 plt.figure(figsize=(16, 3.5))
@@ -282,8 +304,8 @@ plt.subplot(131)
 plt.title(r"Comparison : Cart Position $x$")
 plt.plot(reference.time_values(), reference["x"].to_numpy(), label="reference")
 plt.plot(
-    kmpcpred.time_values(),
-    kmpcpred["x"].to_numpy(),
+    X_controlled.time_values(),
+    X_controlled["x"].to_numpy(),
     label="prediction",
 )
 plt.plot(kmpctraj.time_values(), kmpctraj["x"].to_numpy(), label="actual")

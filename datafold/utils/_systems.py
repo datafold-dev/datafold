@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
 import abc
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 from datafold.dynfold.base import TSCPredictMixin
-
+import findiff as fd
 import numpy as np
 import pandas as pd
-from py.xml import html
 from scipy.integrate import odeint, solve_ivp
 
 from datafold.pcfold import TSCDataFrame
@@ -276,13 +275,17 @@ class Pendulum(DynamicalSystem):
 
 class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
-    def __init__(self, n_features_in, feature_names_in, n_control_in, control_names_in):
+    def __init__(self, n_features_in, feature_names_in, n_control_in, control_names_in, **ivp_kwargs):
         # TODO: possibly move one up to DynamicalSystem
         self.n_features_in_ = n_features_in
         self.feature_names_in_ = feature_names_in
         self.n_control_in_ = n_control_in
         self.control_names_in_ = control_names_in
         self._default_step_size = 0.01
+
+        self.ivp_kwargs = ivp_kwargs
+        self.ivp_kwargs.setdefault("method", "RK45")
+        self.ivp_kwargs.setdefault("vectorized", True)
 
     @abc.abstractmethod
     def _f(self, t, X, U):
@@ -296,7 +299,11 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("base class")
 
-    def predict(self, X, *, U=None, time_values=None, require_last_control_state=False):
+    def predict(self, X, *, U: Optional[Union[np.ndarray, TSCDataFrame, Callable]]=None, time_values: Optional[np.ndarray]=None, require_last_control_state=False):
+        # TODO: need to support if X is TSCDataFrame!
+
+        # TODO: make U really optional (do not apply any control) -- this needs to be covered
+        #  also in _f
 
         # some validation
         if isinstance(U, np.ndarray) and U.ndim == 1:
@@ -311,7 +318,10 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         if X.shape[1] != self.n_features_in_:
             raise ValueError(f"{X.shape[1]=} must match {self.n_features_in_=}")
 
-        one_step_sim = isinstance(U, (np.ndarray, TSCDataFrame)) and X.shape[0] == U.shape[0]
+        # TODO: cast time_values only containing a float/int to np.array([value])
+        #   then check for one_step_sim
+
+        one_step_sim = (isinstance(U, (np.ndarray, TSCDataFrame)) and X.shape[0] == U.shape[0]) or isinstance(time_values, (float, int))
 
         if time_values is None:
             self.dt_ = self._default_step_size
@@ -321,8 +331,8 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             else:
                 self._requires_last_control_state = True  # interpolation
             time_values = self._validate_and_set_time_values_predict(time_values=time_values, X=X, U=U)
-        elif len(time_values) == 1 and one_step_sim:
-            self.dt_ = time_values[0]
+        elif isinstance(time_values, (float, int)) or (len(np.asarray(time_values)) == 1 and one_step_sim):
+            self.dt_ = time_values if isinstance(time_values, (float, int)) else time_values[0]
             time_values = np.array([0, self.dt_])
         elif len(time_values) == 2 and time_values[0] == 0:
             self.dt_ = time_values[1] - time_values[0]
@@ -347,16 +357,23 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
             # make one RK45 step
             t = time_values[0]
-            k1 = self._f(t, X, U).T * self.dt_
-            k2 = self._f(t, X + k1 / 2.0, U).T * self.dt_
-            k3 = self._f(t, X + k2 / 2.0, U).T * self.dt_
-            k4 = self._f(t, X + k3, U).T * self.dt_
-            X_next = X + (k1 + 2 * (k2 + k3) + k4) / 6
+
+            # work on column-major data to match SciPy's definition in the "fun" method of
+            # solve_ivp
+            Xt = X.T
+            Ut = U.T
+
+            k1 = self._f(t, Xt, Ut) * self.dt_
+            k2 = self._f(t, Xt + k1 / 2.0, Ut) * self.dt_
+            k3 = self._f(t, Xt + k2 / 2.0, Ut) * self.dt_
+            k4 = self._f(t, Xt + k3, Ut) * self.dt_
+            X_next = Xt + (k1 + 2 * (k2 + k3) + k4) / 6
 
             # make one Euler step
             # X_next = X + (self.dt_ * self._f(None, X, U)).T
 
-            X_sol = TSCDataFrame.from_shift_matrices(left_matrix=X, right_matrix=X_next, time_values=time_values, snapshot_orientation="row", columns=self.feature_names_in_)
+            # this turns the data orientation back to row-major
+            X_sol = TSCDataFrame.from_shift_matrices(left_matrix=Xt, right_matrix=X_next, time_values=time_values, snapshot_orientation="col", columns=self.feature_names_in_)
 
             index = pd.MultiIndex.from_product([np.arange(U.shape[0]), [0]])
             U = TSCDataFrame(U, index=index, columns=self.control_names_in_)
@@ -395,12 +412,13 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                     Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
 
                 sol = solve_ivp(
-                    fun=lambda t, x: self._f(t, x, Ufunc(t, x)),
+                    # U should be a row-major mapping in datafold
+                    # to align with Scipy's ODE solver (column-major), the control mapping is transposed
+                    fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
                     t_span=(time_values[0], time_values[-1]),
                     y0=ic,
-                    method="RK45",
                     t_eval=time_values,
-                    vectorized=True,
+                    **self.ivp_kwargs
                 )
 
                 if not sol.success:
@@ -422,7 +440,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             # turn callable into actual data -- needs to be re-computed as I do not see a way
             # to access this from the scipy ODE solver
 
-            # TODO: this only works if U is vectorized, need to implement an element-by-element way too..
+            # TODO: this only works if U is vectorized, maybe need an element-by-element way too...
             U = U(tv, X_sol.to_numpy())
             U = TSCDataFrame.from_same_indices_as(X_sol, values=U, except_columns=self.control_names_in_)
 
@@ -480,10 +498,8 @@ class InvertedPendulum(ControllableODE):
 
         super(InvertedPendulum, self).__init__(n_features_in=4, feature_names_in=["x", "xdot", "theta", "thetadot"], n_control_in=1, control_names_in=["u"])
 
-
-    def _f(self, t, state, control_input):
-        # inverted pendulum physics
-        x, xdot, theta, thetadot = state
+    def _f(self, t, x, u):
+        _, xdot, theta, thetadot = x
 
         m = self.pendulum_mass
         M = self.cart_mass
@@ -496,42 +512,48 @@ class InvertedPendulum(ControllableODE):
         f1 = xdot
 
         f2 = (
-            self.tension_force_gain * control_input
-            + m * self.g * sin_th * cos_th
-            - m * self.pendulum_length * thetadot**2 * sin_th
-            - 2 * self.cart_friction * xdot
+                     self.tension_force_gain * u
+                     + m * self.g * sin_th * cos_th
+                     - m * self.pendulum_length * thetadot ** 2 * sin_th
+                     - 2 * self.cart_friction * xdot
         ) / alpha
 
         f3 = thetadot
 
         f4 = (
-            self.tension_force_gain * control_input * cos_th
-            - m * self.pendulum_length * thetadot**2 * sin_th * cos_th
-            + (M + m) * self.g * sin_th
-            - 2 * self.cart_friction * xdot * cos_th
+                     self.tension_force_gain * u * cos_th
+                     - m * self.pendulum_length * thetadot ** 2 * sin_th * cos_th
+                     + (M + m) * self.g * sin_th
+                     - 2 * self.cart_friction * xdot * cos_th
         ) / (self.pendulum_length * alpha)
 
-        return np.array([f1, f2, f3, f4])
+        return np.row_stack([f1, f2, f3, f4])
 
-    @staticmethod
-    def theta_to_trigonometric(X):
+    def theta_to_trigonometric(self, X):
         theta = X["theta"].to_numpy()
         trig_values = np.column_stack([np.cos(theta), np.sin(theta)])
-
         X = X.drop("theta", axis=1)
-        X[["angle_cos", "angle_sin"]] = trig_values
+        X[["theta_cos", "theta_sin"]] = trig_values
+
+        thetadot = X["thetadot"].to_numpy()
+        trig_values = np.column_stack([np.cos(thetadot), np.sin(thetadot)])
+        X = X.drop("thetadot", axis=1)
+        X[["thetadot_cos", "thetadot_sin"]] = trig_values
 
         return X
 
-    @staticmethod
-    def trigonometric_to_theta(X):
-        trig_values = X[["angle_sin", "angle_cos"]].to_numpy()
-
+    def trigonometric_to_theta(self, X):
+        trig_values = X[["theta_sin", "theta_cos"]].to_numpy()
         theta = np.arctan2(trig_values[:, 0], trig_values[:, 1])
-
-        X = X.drop(["angle_sin", "angle_cos"], axis=1)
+        X = X.drop(["theta_sin", "theta_cos"], axis=1)
         X["theta"] = theta
-        return X
+
+        trig_values = X[["thetadot_sin", "thetadot_cos"]].to_numpy()
+        thetadot = np.arctan2(trig_values[:, 0], trig_values[:, 1])
+        X = X.drop(["thetadot_sin", "thetadot_cos"], axis=1)
+        X["thetadot"] = thetadot
+
+        return X.loc[:, self.feature_names_in_]
 
     def animate(self, X: TSCDataFrame, U: TSCDataFrame):
         assert X.n_timeseries == 1
@@ -547,8 +569,6 @@ class InvertedPendulum(ControllableODE):
             xlim=(min_x - self.pendulum_length, max_x + self.pendulum_length),
             ylim=(-self.pendulum_length * 1.05, self.pendulum_length * 1.05),
         )
-        ax.set_aspect("equal")
-        (line,) = ax.plot([], [], lw=2)
 
         def pendulum_pos(x_pos, theta):
             _cos, _sin = np.cos(theta + np.pi / 2), np.sin(theta + np.pi / 2)
@@ -556,26 +576,55 @@ class InvertedPendulum(ControllableODE):
             pos[0] = pos[0] + x_pos
             return pos
 
+        ax.set_aspect("equal")
+        ax.plot()
+        (line,) = ax.plot([], [], lw=2, label="pendulum")
+        (point,) = ax.plot([], [], marker="o", lw=2, label="mounting")
+        (pendulum_unstable,) = ax.plot([], [], lw=2, linestyle="--", color="red", label="unstable location")
+        plt.legend()
+
         def init():
             mounting = np.array([float(X.iloc[0, 0]), 0])
             pendulum = pendulum_pos(float(X.iloc[0, 0]), float(X.iloc[0].loc["theta"]))
+            unstable = pendulum_pos(mounting[0], 0)
 
-            line.set_data(mounting, pendulum)
-            return (line,)
+            line.set_data(*np.row_stack([mounting, pendulum]).T)
+            point.set_data(*mounting.T)
+            pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
 
-        def animate(i):
+            return (line, point, pendulum_unstable, )
+
+        def _animate(i):
             mounting = np.array([float(X.iloc[i, 0]), 0])
             pendulum = pendulum_pos(float(X.iloc[i, 0]), float(X.iloc[i].loc["theta"]))
+            unstable = pendulum_pos(mounting[0], 0)
 
-            line_data = np.row_stack([mounting, pendulum])
-
-            line.set_data(*line_data.T)
-            return (line,)
+            line.set_data(*np.row_stack([mounting, pendulum]).T)
+            point.set_data(*mounting.T)
+            pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
+            return (line, point, pendulum_unstable, )
 
         anim = animation.FuncAnimation(
-            fig, animate, init_func=init, frames=X.shape[0], interval=20, blit=True
+            fig, _animate, init_func=init, frames=X.shape[0], interval=20, blit=True
         )
         return anim
+
+class Burger(ControllableODE):
+
+    def __init__(self,  n_spatial_points: int=100, nu=0.01):
+        self.nu = nu
+        self.x_nodes = np.linspace(0, 1, n_spatial_points)
+        dx = self.x_nodes[1] - self.x_nodes[0]
+        self.d2_dx2 = fd.FinDiff(0, dx, 2)
+        self.d_dx = fd.FinDiff(0, dx, 1)
+        super(Burger, self).__init__(n_features_in=n_spatial_points, feature_names_in=[f"x{i}" for i in range(n_spatial_points)], n_control_in=1, control_names_in=[f"u{i}" for i in range(n_spatial_points)], **{"method": "RK23", "vectorized": True})
+
+    def _f(self, t, x, u):
+        state_pad = np.concatenate([x[[-1]], x, x[[0]]])
+        statedot_pad_new = self.nu * self.d2_dx2(state_pad) - self.d_dx(state_pad) * state_pad
+        statedot_pad_new[1:-1, :] = statedot_pad_new[1:-1] + u
+        state_dot = statedot_pad_new[1:-1]
+        return state_dot
 
 
 class VanDerPol(ControllableODE):
@@ -586,14 +635,8 @@ class VanDerPol(ControllableODE):
 
     def _f(self, t, x, u):
 
-        if x.shape[1] == 1:
-            x = x.T
-
-        x1 = x[:, 0]
-        x2 = x[:, 1]
-
-        u1 = u[:, 0]
-        u2 = u[:, 1]
+        x1, x2 = x
+        u1, u2 = u
 
         xdot = np.row_stack([
             x2 + u1,
@@ -630,6 +673,10 @@ class Duffing1D(ControllableODE):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
+
+    X = np.array(100)
+
+    Burger().predict()
 
 
     exit()

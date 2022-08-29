@@ -1233,7 +1233,7 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
     def _not_implemented_numpy_arrays(self, X):
         if isinstance(X, np.ndarray):
             raise NotImplementedError(
-                "Currently not implemented for numpy.ndarray. If this is required please "
+                "Currently not implemented for np.ndarray. If this is required please "
                 "open an issue on Gitlab."
             )
 

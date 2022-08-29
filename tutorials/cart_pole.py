@@ -81,6 +81,7 @@ def v(s, a):
 
 def dvdu(s, a):
     return np.array([[1.0, np.cos(s[0])]]).T
+
 def dvdz(s, a):
     th, x, thdot, xdot = s
     out = np.zeros((num_u_obs, num_x_obs))
@@ -101,6 +102,7 @@ _G = np.zeros((num_obs, num_obs))
 cnt = 0
 s_bnds = np.array([6.24, 1.0, 2.0, 2.0])
 a_bnds = np.array([1.])
+
 ## loop to collect data
 for k in range(num_trials):
 #     x_t = npr.uniform(low=-s_bnds, high=s_bnds)
@@ -144,6 +146,7 @@ def update(x, u, A, B):
         zt = z(zt[:state_dim])
         zot.append(zt.copy())
         zt = np.dot(A, zt) + np.dot(B, v(zt[:state_dim], u[t]))
+
     rho = np.zeros_like(zt)
     for t in reversed(range(T)):
         Bdz = np.dot(B, dvdz(zot[t][:state_dim], u[t]))
@@ -192,15 +195,23 @@ for t in range(int(40*hz)):
 
 import matplotlib.pyplot as plt
 trajectory = np.stack(trajectory)
-plt.plot(trajectory[:,0])
-plt.plot(trajectory[:,1])
+plt.plot(trajectory[:,0], label="theta")
+plt.plot(trajectory[:,1], label="x")
 plt.xlabel('t')
 plt.ylabel('theta, x')
+plt.legend()
+
+
+# from datafold.utils._systems import InvertedPendulum
+# from datafold import TSCDataFrame
+#
+# df = TSCDataFrame.from_array(trajectory, time_values=np.arange(trajectory.shape[0]), feature_names=["theta", "x", "thetadot", "xdot"])
+# anim = InvertedPendulum().animate(df, None)
+
 plt.show()
 
 
+
+
+
 # In[ ]:
-
-
-
-
