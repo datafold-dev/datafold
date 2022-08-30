@@ -809,6 +809,7 @@ class EDMD(
 
         self.dict_preserves_id_states_ = self._validate_dictionary()
 
+
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
         # the pipeline. The time values are set separately here:
@@ -829,8 +830,10 @@ class EDMD(
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         if self.is_controlled_ and self.n_samples_ic_ > 1:
-            # need to drop the last sample, because for this sample there is no control needed
-            U = U.loc[X_dict.tsc.drop_last_n_samples(1).index, :]  # type: ignore
+            # intersection of indices, because often U does not require *all* indices in X
+            # (mainly the last control state should not be included)
+            inters_keys = X_dict.index.intersection(U.index)
+            U = U.loc[inters_keys, :]  # type: ignore
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             if self.is_controlled_:
