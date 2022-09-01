@@ -2,12 +2,13 @@
 
 import abc
 from typing import Callable, Optional, Union
-from datafold.dynfold.base import TSCPredictMixin
+
 import findiff as fd
 import numpy as np
 import pandas as pd
 from scipy.integrate import odeint, solve_ivp
 
+from datafold.dynfold.base import TSCPredictMixin
 from datafold.pcfold import TSCDataFrame
 
 
@@ -274,8 +275,14 @@ class Pendulum(DynamicalSystem):
 
 
 class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
-
-    def __init__(self, n_features_in, feature_names_in, n_control_in, control_names_in, **ivp_kwargs):
+    def __init__(
+        self,
+        n_features_in,
+        feature_names_in,
+        n_control_in,
+        control_names_in,
+        **ivp_kwargs,
+    ):
         # TODO: possibly move one up to DynamicalSystem
         self.n_features_in_ = n_features_in
         self.feature_names_in_ = feature_names_in
@@ -299,7 +306,14 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("base class")
 
-    def predict(self, X, *, U: Optional[Union[np.ndarray, TSCDataFrame, Callable]]=None, time_values: Optional[np.ndarray]=None, require_last_control_state=False):
+    def predict(
+        self,
+        X,
+        *,
+        U: Optional[Union[np.ndarray, TSCDataFrame, Callable]] = None,
+        time_values: Optional[np.ndarray] = None,
+        require_last_control_state=False,
+    ):
         # TODO: need to support if X is TSCDataFrame!
 
         # TODO: make U really optional (do not apply any control) -- this needs to be covered
@@ -309,7 +323,10 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         if isinstance(U, np.ndarray) and U.ndim == 1:
             U = U[:, np.newaxis]
 
-        if isinstance(U, (TSCDataFrame, np.ndarray)) and U.shape[1] != self.n_control_in_:
+        if (
+            isinstance(U, (TSCDataFrame, np.ndarray))
+            and U.shape[1] != self.n_control_in_
+        ):
             raise ValueError(f"{U.shape[1]=} must match {self.n_control_in_=}")
 
         if isinstance(X, np.ndarray) and X.ndim == 1:
@@ -321,27 +338,39 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         # TODO: cast time_values only containing a float/int to np.array([value])
         #   then check for one_step_sim
 
-        one_step_sim = (isinstance(U, (np.ndarray, TSCDataFrame)) and X.shape[0] == U.shape[0]) or isinstance(time_values, (float, int))
+        one_step_sim = (
+            isinstance(U, (np.ndarray, TSCDataFrame)) and X.shape[0] == U.shape[0]
+        ) or isinstance(time_values, (float, int))
 
         if time_values is None:
             self.dt_ = self._default_step_size
 
             if one_step_sim:
-                self._requires_last_control_state = False # no interpolation
+                self._requires_last_control_state = False  # no interpolation
             else:
                 self._requires_last_control_state = True  # interpolation
-            time_values = self._validate_and_set_time_values_predict(time_values=time_values, X=X, U=U)
-        elif isinstance(time_values, (float, int)) or (len(np.asarray(time_values)) == 1 and one_step_sim):
-            self.dt_ = time_values if isinstance(time_values, (float, int)) else time_values[0]
+            time_values = self._validate_and_set_time_values_predict(
+                time_values=time_values, X=X, U=U
+            )
+        elif isinstance(time_values, (float, int)) or (
+            len(np.asarray(time_values)) == 1 and one_step_sim
+        ):
+            self.dt_ = (
+                time_values if isinstance(time_values, (float, int)) else time_values[0]
+            )
             time_values = np.array([0, self.dt_])
         elif len(time_values) == 2 and time_values[0] == 0:
             self.dt_ = time_values[1] - time_values[0]
             self._requires_last_control_state = False
-            time_values = self._validate_and_set_time_values_predict(time_values=time_values, X=X, U=U)
+            time_values = self._validate_and_set_time_values_predict(
+                time_values=time_values, X=X, U=U
+            )
         else:
             self.dt_ = time_values[1] - time_values[0]
             self._requires_last_control_state = True  # for interpolation
-            time_values = self._validate_and_set_time_values_predict(time_values=time_values, X=X, U=U)
+            time_values = self._validate_and_set_time_values_predict(
+                time_values=time_values, X=X, U=U
+            )
 
         # solve ODE
         if one_step_sim:
@@ -349,11 +378,15 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 # for one step, each state must have a corresponding control input
                 U = U.to_numpy()
             elif not isinstance(U, np.ndarray):
-                raise TypeError(f"For one-step predictions `U` must be of type TSCDataFrame "
-                                f"or np.ndarray. Got {type(U)=}")
+                raise TypeError(
+                    f"For one-step predictions `U` must be of type TSCDataFrame "
+                    f"or np.ndarray. Got {type(U)=}"
+                )
 
             if U.shape[0] != X.shape[0]:
-                raise TypeError(f"For one-step predictions {U.shape[0]=} must match {X.shape[0]=}.")
+                raise TypeError(
+                    f"For one-step predictions {U.shape[0]=} must match {X.shape[0]=}."
+                )
 
             # make one RK45 step
             t = time_values[0]
@@ -373,7 +406,13 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             # X_next = X + (self.dt_ * self._f(None, X, U)).T
 
             # this turns the data orientation back to row-major
-            X_sol = TSCDataFrame.from_shift_matrices(left_matrix=Xt, right_matrix=X_next, time_values=time_values, snapshot_orientation="col", columns=self.feature_names_in_)
+            X_sol = TSCDataFrame.from_shift_matrices(
+                left_matrix=Xt,
+                right_matrix=X_next,
+                time_values=time_values,
+                snapshot_orientation="col",
+                columns=self.feature_names_in_,
+            )
 
             index = pd.MultiIndex.from_product([np.arange(U.shape[0]), [0]])
             U = TSCDataFrame(U, index=index, columns=self.control_names_in_)
@@ -382,11 +421,15 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
             if not isinstance(U, Callable):
                 if X.shape[0] > 1 and not isinstance(U, TSCDataFrame):
-                    raise ValueError("For multiple initial conditions `U` must be of type TSCDataFrame.")
+                    raise ValueError(
+                        "For multiple initial conditions `U` must be of type TSCDataFrame."
+                    )
                 elif isinstance(U, TSCDataFrame):
                     U.tsc.check_equal_timevalues()
                 elif isinstance(U, np.ndarray):
-                    U = TSCDataFrame.from_array(U, time_values=time_values, feature_names=self.control_names_in_)
+                    U = TSCDataFrame.from_array(
+                        U, time_values=time_values, feature_names=self.control_names_in_
+                    )
 
             if isinstance(X, pd.DataFrame):
                 X = X.to_numpy()
@@ -418,19 +461,22 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                     t_span=(time_values[0], time_values[-1]),
                     y0=ic,
                     t_eval=time_values,
-                    **self.ivp_kwargs
+                    **self.ivp_kwargs,
                 )
 
                 if not sol.success:
                     raise RuntimeError(
-                        f"The prediction was not successful \n Reason: \n" f" {sol.message=}"
+                        f"The prediction was not successful \n Reason: \n"
+                        f" {sol.message=}"
                     )
 
-                X_sol.append(TSCDataFrame.from_array(
-                    sol.y.T,
-                    time_values=time_values,
-                    feature_names=self.feature_names_in_,
-                ))
+                X_sol.append(
+                    TSCDataFrame.from_array(
+                        sol.y.T,
+                        time_values=time_values,
+                        feature_names=self.feature_names_in_,
+                    )
+                )
 
             X_sol = TSCDataFrame.from_frame_list(X_sol)
 
@@ -442,7 +488,9 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
             # TODO: this only works if U is vectorized, maybe need an element-by-element way too...
             U = U(tv, X_sol.to_numpy())
-            U = TSCDataFrame.from_same_indices_as(X_sol, values=U, except_columns=self.control_names_in_)
+            U = TSCDataFrame.from_same_indices_as(
+                X_sol, values=U, except_columns=self.control_names_in_
+            )
 
         if not require_last_control_state and not one_step_sim:
             # for the last state there is no control input
@@ -496,7 +544,12 @@ class InvertedPendulum(ControllableODE):
         self.pendulum_length = pendulum_length
         self.cart_friction = cart_friction
 
-        super(InvertedPendulum, self).__init__(n_features_in=4, feature_names_in=["x", "xdot", "theta", "thetadot"], n_control_in=1, control_names_in=["u"])
+        super(InvertedPendulum, self).__init__(
+            n_features_in=4,
+            feature_names_in=["x", "xdot", "theta", "thetadot"],
+            n_control_in=1,
+            control_names_in=["u"],
+        )
 
     def _f(self, t, x, u):
         _, xdot, theta, thetadot = x
@@ -512,19 +565,19 @@ class InvertedPendulum(ControllableODE):
         f1 = xdot
 
         f2 = (
-                     self.tension_force_gain * u
-                     + m * self.g * sin_th * cos_th
-                     - m * self.pendulum_length * thetadot ** 2 * sin_th
-                     - 2 * self.cart_friction * xdot
+            self.tension_force_gain * u
+            + m * self.g * sin_th * cos_th
+            - m * self.pendulum_length * thetadot**2 * sin_th
+            - 2 * self.cart_friction * xdot
         ) / alpha
 
         f3 = thetadot
 
         f4 = (
-                     self.tension_force_gain * u * cos_th
-                     - m * self.pendulum_length * thetadot ** 2 * sin_th * cos_th
-                     + (M + m) * self.g * sin_th
-                     - 2 * self.cart_friction * xdot * cos_th
+            self.tension_force_gain * u * cos_th
+            - m * self.pendulum_length * thetadot**2 * sin_th * cos_th
+            + (M + m) * self.g * sin_th
+            - 2 * self.cart_friction * xdot * cos_th
         ) / (self.pendulum_length * alpha)
 
         return np.row_stack([f1, f2, f3, f4])
@@ -580,7 +633,9 @@ class InvertedPendulum(ControllableODE):
         ax.plot()
         (line,) = ax.plot([], [], lw=2, label="pendulum")
         (point,) = ax.plot([], [], marker="o", lw=2, label="mounting")
-        (pendulum_unstable,) = ax.plot([], [], lw=2, linestyle="--", color="red", label="unstable location")
+        (pendulum_unstable,) = ax.plot(
+            [], [], lw=2, linestyle="--", color="red", label="unstable location"
+        )
         plt.legend()
 
         def init():
@@ -592,7 +647,11 @@ class InvertedPendulum(ControllableODE):
             point.set_data(*mounting.T)
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
 
-            return (line, point, pendulum_unstable, )
+            return (
+                line,
+                point,
+                pendulum_unstable,
+            )
 
         def _animate(i):
             mounting = np.array([float(X.iloc[i, 0]), 0])
@@ -602,35 +661,51 @@ class InvertedPendulum(ControllableODE):
             line.set_data(*np.row_stack([mounting, pendulum]).T)
             point.set_data(*mounting.T)
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
-            return (line, point, pendulum_unstable, )
+            return (
+                line,
+                point,
+                pendulum_unstable,
+            )
 
         anim = animation.FuncAnimation(
             fig, _animate, init_func=init, frames=X.shape[0], interval=20, blit=True
         )
         return anim
 
-class Burger(ControllableODE):
 
-    def __init__(self,  n_spatial_points: int=100, nu=0.01):
+class Burger(ControllableODE):
+    def __init__(self, n_spatial_points: int = 100, nu=0.01):
         self.nu = nu
         self.x_nodes = np.linspace(0, 1, n_spatial_points)
         dx = self.x_nodes[1] - self.x_nodes[0]
-        self.d2_dx2 = fd.FinDiff(0, dx, 2)
         self.d_dx = fd.FinDiff(0, dx, 1)
-        super(Burger, self).__init__(n_features_in=n_spatial_points, feature_names_in=[f"x{i}" for i in range(n_spatial_points)], n_control_in=1, control_names_in=[f"u{i}" for i in range(n_spatial_points)], **{"method": "RK23", "vectorized": True})
+        self.d2_dx2 = fd.FinDiff(0, dx, 2)
+        super(Burger, self).__init__(
+            n_features_in=n_spatial_points,
+            feature_names_in=[f"x{i}" for i in range(n_spatial_points)],
+            n_control_in=n_spatial_points,
+            control_names_in=[f"u{i}" for i in range(n_spatial_points)],
+            **{"method": "RK23", "vectorized": True},
+        )
 
     def _f(self, t, x, u):
         state_pad = np.concatenate([x[[-1]], x, x[[0]]])
-        statedot_pad_new = self.nu * self.d2_dx2(state_pad) - self.d_dx(state_pad) * state_pad
+        statedot_pad_new = (
+            self.nu * self.d2_dx2(state_pad) - self.d_dx(state_pad) * state_pad
+        )
         statedot_pad_new[1:-1, :] = statedot_pad_new[1:-1] + u
         state_dot = statedot_pad_new[1:-1]
         return state_dot
 
 
 class VanDerPol(ControllableODE):
-
     def __init__(self, eps=1.0):
-        super(VanDerPol, self).__init__(n_features_in=2, feature_names_in=["x1", "x2"], n_control_in=2, control_names_in=["u1", "u2"])
+        super(VanDerPol, self).__init__(
+            n_features_in=2,
+            feature_names_in=["x1", "x2"],
+            n_control_in=2,
+            control_names_in=["u1", "u2"],
+        )
         self.eps = eps
 
     def _f(self, t, x, u):
@@ -638,52 +713,47 @@ class VanDerPol(ControllableODE):
         x1, x2 = x
         u1, u2 = u
 
-        xdot = np.row_stack([
-            x2 + u1,
-            -x1 + self.eps * (1 - x1 ** 2) * x2 + u2
-        ])
+        xdot = np.row_stack([x2 + u1, -x1 + self.eps * (1 - x1**2) * x2 + u2])
         return xdot
 
 
 class Duffing1D(ControllableODE):
-
     def __init__(self, alpha=-1, beta=1, delta=0.6):
         self.alpha = alpha
         self.beta = beta
         self.delta = delta
-        
-        super(Duffing1D, self).__init__(n_features_in=2, feature_names_in=["x1", "x2"], n_control_in=1, control_names_in=["u"])
+
+        super(Duffing1D, self).__init__(
+            n_features_in=2,
+            feature_names_in=["x1", "x2"],
+            n_control_in=1,
+            control_names_in=["u"],
+        )
 
     def _f(self, t, X, U):
 
         x1, x2 = X.ravel()
 
         f1 = x2
-        f2 = (
-                -self.delta * x2
-                - self.alpha * x1
-                - self.beta * x1 ** 3
-                + U
-        )
+        f2 = -self.delta * x2 - self.alpha * x1 - self.beta * x1**3 + U
         return np.array([f1, f2])
 
 
 # TODO:
 #  include benchmark systems from: https://arxiv.org/pdf/2008.12874.pdf
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     X = np.array(100)
 
     Burger().predict()
 
-
     exit()
 
     if False:
         n_ic = 500
-        state = np.random.uniform(-3., 3., size=(n_ic, 2))
+        state = np.random.uniform(-3.0, 3.0, size=(n_ic, 2))
 
         x = np.linspace(-3, 3, 50)
         y = np.linspace(-3, 3, 50)
@@ -692,7 +762,7 @@ if __name__ == '__main__':
         sys = VanDerPol()
 
         state = np.column_stack([xv.flatten(), yv.flatten()])
-        control = np.random.uniform(-3., 3., size=(state.shape[0], 1))
+        control = np.random.uniform(-3.0, 3.0, size=(state.shape[0], 1))
         control = np.zeros((state.shape[0], 1))
         trajectory, U = sys.predict(X=state, U=control, time_values=np.array([0.03]))
 
@@ -700,11 +770,15 @@ if __name__ == '__main__':
         start, end = group.head(1).to_numpy(), group.tail(1).to_numpy()
 
         for i in range(start.shape[0]):
-            plt.plot(np.array([start[i,0], end[i, 0]]), np.array([start[i, 1], end[i, 1]]), "black")
+            plt.plot(
+                np.array([start[i, 0], end[i, 0]]),
+                np.array([start[i, 1], end[i, 1]]),
+                "black",
+            )
 
         n_timesteps = 500
-        state = np.random.uniform(-3., 3., size=(1, 2))
-        control = np.zeros((n_timesteps,1))
+        state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+        control = np.zeros((n_timesteps, 1))
         timevals = np.linspace(0, 10, n_timesteps)
         trajectory, _ = sys.predict(X=state, U=control, time_values=timevals)
 
@@ -712,15 +786,15 @@ if __name__ == '__main__':
 
     else:
         n_timesteps = 500
-        state = np.random.uniform(-3., 3., size=(1, 2))
-        control = np.random.uniform(-3., 3., size=(n_timesteps,1))
-        control = np.zeros((n_timesteps,1))
+        state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+        control = np.random.uniform(-3.0, 3.0, size=(n_timesteps, 1))
+        control = np.zeros((n_timesteps, 1))
         timevals = np.linspace(0, 10, n_timesteps)
-        trajectory, U = VanDerPol(eps=1).predict(X=state, U=control, time_values=timevals)
+        trajectory, U = VanDerPol(eps=1).predict(
+            X=state, U=control, time_values=timevals
+        )
 
         plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
-
-
 
     plt.show()
 

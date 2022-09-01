@@ -134,6 +134,7 @@ class LinearKMPC:
         self.predictor = predictor
 
         # define default values of properties
+        # TODO: horizon could / should? be replaced with time_values
         self.horizon = horizon
 
         self.cost_running = cost_running
@@ -177,6 +178,9 @@ class LinearKMPC:
             self.H = self.H.T @ self.H
 
     def _setup_qois(self, qois, predictor):
+        # TODO: support C to be Callable - then generate a projection matrix from this!
+        # TODO: is it required to compute Cb here, or leave C
+        # TODO: C should be a sparse matrix as it is only a projection!
 
         # handle default case
         if qois is None:
@@ -266,9 +270,7 @@ class LinearKMPC:
         #             A @ Bb[i * N : (i + 1) * N, : i * m]
         #         )
 
-        for i in range(
-            1, Np + 1
-        ):  # TODO: maybe adapt the range to (1, Np+1) and remove the +1 +2 in the code (this makes it easier to "think the loop")
+        for i in range(1, Np + 1):
             s = i * N
             e = (i + 1) * N
 
@@ -364,6 +366,7 @@ class LinearKMPC:
         vec_running = self._cost_to_array(self.cost_running, N)
 
         if self.cost_terminal == 0 or self.cost_terminal is None:
+            # add the running cost for the last iteration...
             vec_terminal = self._cost_to_array(self.cost_running, N)
         else:
             vec_terminal = self._cost_to_array(self.cost_terminal, N)
@@ -413,11 +416,13 @@ class LinearKMPC:
         """
 
         # TODO: need validation here
+        # TODO: work more with native TSCDataFrame here
         X_dict = self.predictor.transform(X).to_numpy().T
 
         try:
             yr = np.asarray(reference)
             assert yr.shape[1] == self.output_size  # TODO: make error and validation
+            # TODO reference signal should contain horizon (and not horizon+1, as this is confusing!)
             yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
         except:
             raise ValueError(
@@ -428,17 +433,18 @@ class LinearKMPC:
         U = solve_qp(
             P=2 * self.H,
             q=(self.h.T + X_dict.T @ self.G - yr.T @ self.Y).flatten(),
-            G=None, # self.L,
-            h=None, # (self.c - self.M @ X_dict).flatten(),
+            G=None,  # self.L,
+            h=None,  # (self.c - self.M @ X_dict).flatten(),
             A=None,
             b=None,
             solver="quadprog",
-            verbose=True,
         )
 
         if U is None:
-            raise ValueError("The solver did not converge.")
+            raise ValueError("the solver did not converge")
 
+        # TODO: U should be a TSCDataFrame -- use the columns from edmd
+        # TODO: There should be a parameter time_values to set the time values in U
         return U.reshape((-1, self.input_size))
 
     def compute_cost(self, U, reference, initial_conditions):
