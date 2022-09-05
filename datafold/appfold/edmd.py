@@ -777,8 +777,17 @@ class EDMD(
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
             each parameter name is prefixed such that parameter ``p`` for step
-            ``s`` has key ``s__p``. To add parameters for the set DMD model use
+            ``s`` has key ``s__p``. To add parameters for the internal DMD model use
             ``s=dmd``, e.g. ``dmd__param``.
+
+            The following EDMD options are available (do not prepend ``edmd__``):
+
+            * dict_preserves_id_states: bool, defaults to False
+              If True, the inverse map from dictionary to full state is performed with a
+              simple matrix projection. For some dictionary choices this can also be detected
+              by EDMD (see internal function `_validate_dictionary`), but with the flag set to
+              True this can also be enforced if the detection fails. The feature names in the
+              dictionary must contain names in attribute `feature_names_in_`.
 
         Returns
         -------
@@ -791,6 +800,8 @@ class EDMD(
             Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all time series values must be finite (no `NaN` or `inf`)
         """
+
+        # Currently, validation of U is only performed in the final DMD estimator
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
@@ -805,10 +816,15 @@ class EDMD(
             self.is_partial_fit_ = False
 
         self.is_controlled_ = False if U is None else True
-        # Currently, validation of U is only in the final DMD estimator
 
-        self.dict_preserves_id_states_ = self._validate_dictionary()
+        # 1) first get the EDMD fit_params, 2) validate the fit_params for the pipeline,
+        # 3) separate the DMD fit_params to treat them separately
+        dict_preserves_id_states = fit_params.pop("dict_preserves_id_states", False)
+        fit_params = self._check_fit_params(**fit_params or {})
+        dmd_fit_params = fit_params.pop("dmd", None)
 
+        # Either automatically detected of enforced in dict_preserves_id_states
+        self.dict_preserves_id_states_ = self._validate_dictionary() or dict_preserves_id_states
 
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
@@ -819,9 +835,6 @@ class EDMD(
 
         # '_fit' calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu):
-        fit_params = self._check_fit_params(**fit_params or {})
-        dmd_fit_params = fit_params.pop("dmd", None)
-
         X_dict = self._fit(X, y, **fit_params)
         self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 

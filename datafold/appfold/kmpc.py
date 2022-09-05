@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
-
+import matplotlib.pyplot as plt
 from datafold.appfold import EDMD
 from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec, if1dim_rowvec
@@ -155,7 +155,12 @@ class LinearKMPC:
         self.state_size = len(predictor.feature_names_in_)
 
         # setup conversion from lifted state to output quantities of interest
-        self.Cb, self.output_size = self._setup_qois(qois, predictor)
+
+        from datafold.utils.general import projection_matrix_from_feature_names
+
+        self.Cb = projection_matrix_from_feature_names(features_all=predictor.feature_names_out_, features_select=qois)
+        self.Cb = self.Cb.T.toarray()
+        self.output_size = len(qois)
 
         # if input_bounds.shape != (self.input_size, 2):
         #     raise ValueError("")
@@ -168,78 +173,21 @@ class LinearKMPC:
 
         self.H, self.h, self.G, self.Y, self.L, self.M, self.c = self._setup_optimizer()
 
-        # check for positive-definiteness, as the optimizer requires it.
-        try:
-            np.linalg.cholesky(self.H)
-        except np.linalg.LinAlgError:
-            warnings.warn(
-                "Cost matrix H is not positive-definite, using H^T @ H instead."
-            )
-            self.H = self.H.T @ self.H
-
-    def _setup_qois(self, qois, predictor):
-        # TODO: support C to be Callable - then generate a projection matrix from this!
-        # TODO: is it required to compute Cb here, or leave C
-        # TODO: C should be a sparse matrix as it is only a projection!
-
-        # handle default case
-        if qois is None:
-            output_size = self.state_size
-            C = np.zeros((output_size, self.lifted_state_size))
-            C[:output_size, :output_size] = np.eye(output_size)
-            Cb = np.kron(np.eye(self.horizon + 1), C)
-            return Cb, output_size
-
-        if not isinstance(qois, list):
-            raise ValueError("qois should be a list of strings or ints")
-
-        output_size = len(qois)
-        if output_size <= 0 or output_size > self.state_size:
-            raise ValueError("qois should satisfy 0 < len(qois) <= state_size.")
-        qtype = str if isinstance(qois[0], str) else int
-
-        C = np.zeros((output_size, self.lifted_state_size))
-        ixs = []
-        for qoi in qois:
-            try:
-                qoi = qtype(qoi)
-            except (TypeError, ValueError) as e:
-                raise ValueError(
-                    f"Entries in qoi should be only strings or ints (is {qoi})."
-                ) from e
-            try:
-                if qtype is str:
-                    ixs.append(list(predictor.feature_names_in_).index(qoi))
-                else:
-                    assert qoi < self.state_size
-                    ixs.append(qoi)
-            except (ValueError, AssertionError):
-                raise ValueError(
-                    f"Entries in qois should be contained in the predictor state (is {qoi})."
-                )
-
-        for i, ix in enumerate(ixs):
-            C[i, ix] = 1.0
-
-        # TODO: this does not make much sense... it becomes really large and sparse!
-        Cb = np.kron(np.eye(self.horizon + 1), C)
-
-        return Cb, output_size
 
     def _setup_optimizer(self):
         # implements relevant part of :cite:`korda-2018` to set up the optimization problem
 
-        Ab, Bb = self._create_evolution_matrices()
+        self.Ab, self.Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
         F, E, c = self._create_constraint_matrices()
 
-        H = R + Bb.T @ Q @ Bb
-        h = r + Bb.T @ q
-        G = 2 * Ab.T @ Q @ Bb
-        Y = 2 * Q @ Bb
+        H = 2 * (self.Bb.T @ Q @ self.Bb + R)
+        h = r + self.Bb.T @ q  # TODO: currently h is always zero
+        G = 2 * self.Bb.T @ Q @ self.Ab
+        Y = (-2 * Q @ self.Bb).T
 
-        L = F + E @ Bb
-        M = E @ Ab
+        L = None
+        M = None
 
         return H, h, G, Y, L, M, c
 
@@ -255,52 +203,38 @@ class LinearKMPC:
         # TODO: C is here a projection matrix, and applied after Ab and Bb are set up.
         #  -- as of my understanding it is unnecessary to store the full Ab, we can apply the
         #  projection already (we only need to store the last "full A") -- similarily Bb
-        Ab = np.eye((Np + 1) * N, N)
-        Bb = np.zeros(((Np + 1) * N, Np * m))
+        Ab = np.eye((Np + 1) * self.output_size, N)
+        Bb = np.zeros(((Np+1) * self.output_size, Np * m))
 
-        # for i in range(Np):  # TODO: maybe adapt the range to (1, Np+1) and remove the +1 +2 in the code (this makes it easier to "think the loop")
-        #     start = (i + 1) * N
-        #     e = (i + 2) * N
-        #
-        #     Ab[start:e, :] = A @ Ab[i * N : (i + 1) * N, :]
-        #     Bb[start:e, i * m : (i + 1) * m] = B
-        #
-        #     if i > 0:
-        #         Bb[start:e, :i * m] = (
-        #             A @ Bb[i * N : (i + 1) * N, : i * m]
-        #         )
+        A_last = A.copy()
 
+        # set up A
         for i in range(1, Np + 1):
-            s = i * N
-            e = (i + 1) * N
+            s = i * self.output_size
+            e = (i + 1) * self.output_size
+            Ab[s:e, :] = self.Cb @ A_last
+            A_last = A @ A_last
 
-            prev_s = (i - 1) * N
-            prev_e = s
+        B_current = B
 
-            # Take previous A and multiply
-            Ab[s:e, :] = A @ Ab[prev_s:prev_e, :]
+        # set up B
+        for i in range(1, Np+1):
+            for k, j in enumerate(range(i, Np+1)):
+                sr = j * self.output_size
+                er = (j + 1) * self.output_size
+                sc = k * m
+                ec = (k+1) * m
 
-            # Place B on diagonal (this can also be done at the beginning as a copy operation!)
-            Bb[s:e, (i - 1) * m : i * m] = B
+                Bb[sr:er, sc:ec] = self.Cb @ B_current
 
-            if i > 1:
-                # TODO: this works, but does not perform any copy operations, only
-                #  A*(A^{n-1} B) needs to be computed
-                Bb[s:e, 0 : (i - 1) * m] = A @ Bb[prev_s:prev_e, : (i - 1) * m]
+            B_current = A @ B_current  # TODO: the last can be saved!
 
-        if False:
-            np.save("Ab.npy", Ab)
-            np.save("Bb.npy", Bb)
-        elif False:
-            old_Ab = np.load("Ab.npy")
-            old_Bb = np.load("Bb.npy")
-            import numpy.testing as nptest
+        remove_initial = True
+        if remove_initial:
+            Ab = Ab[self.output_size:]
+            Bb = Bb[self.output_size:]
 
-            nptest.assert_equal(old_Ab, Ab)
-            nptest.assert_equal(old_Bb, Bb)
-
-        # transform the evolution matrices from the lifted to the referenced state
-        return self.Cb @ Ab, self.Cb @ Bb
+        return Ab, Bb
 
     def _create_constraint_matrices(self):
         # implements appendix from :cite:`korda-2018`
@@ -312,22 +246,33 @@ class LinearKMPC:
 
         # TODO: Eb and Fb are very sparse matrices (~ 99 %)
         # constraint equations
-        E = np.vstack([np.eye(N), -np.eye(N), np.zeros((2 * m, N))])
-        Eb = np.kron(np.eye(Np + 1), E)
+        # E = np.vstack([np.eye(N), -np.eye(N), np.zeros((2 * m, N))])
+        # Eb = np.kron(np.eye(Np+1), E) # TODO Np+1 if not ignoring initial
 
-        F = np.vstack([np.zeros((2 * N, m)), np.eye(m), -np.eye(m)])
-        Fb = np.vstack([np.kron(np.eye(Np), F), np.zeros((2 * (N + m), m * Np))])
+        rc = (Np + 1) * self.lifted_state_size
+        Eb = np.zeros((rc, rc))
+
+        # from scipy.sparse import block_diag
+        # block_diag([np.eye(Np+1) for _ in range(self.lifted_state_size)]).to_array()
+
+
+        # F = np.vstack([np.zeros((2 * N, m)), np.eye(m), -np.eye(m)])
+        # Fb = np.vstack([np.kron(np.eye(Np), F), np.zeros((2 * (N + m), m * Np))])
+
+        Fb = np.zeros(((Np+1)*self.lifted_state_size, Np*m))
 
         # constraint
-        c = np.zeros((1, 2 * (N + m)))
-        c[:, :N] = self.state_bounds[:, 0]
-        c[:, N : 2 * N] = -self.state_bounds[:, 1]
-        c[:, 2 * N : 2 * N + m] = self.input_bounds[:, 0]
-        c[:, 2 * N + m :] = -self.input_bounds[:, 1]
-        c = c.T
-        cb = np.tile(c, (Np + 1, 1))
+        cb = np.zeros(((Np+1)*self.lifted_state_size, 1))
 
-        return Fb, Eb, cb
+
+        # c[:, :N] = self.state_bounds[:, 0]
+        # c[:, N : 2 * N] = -self.state_bounds[:, 1]  # TODO: does it make any sense to negate here??
+        # c[:, 2 * N : 2 * N + m] = self.input_bounds[:, 0]
+        # c[:, 2 * N + m :] = -self.input_bounds[:, 1]
+        # c = c.T
+        # cb = np.tile(c, (Np, 1))  # Np+1 if initial state is accounted
+
+        return Eb, Fb, cb
 
     def _cost_to_array(self, cost: Union[float, np.ndarray], N: int):
         if isinstance(cost, np.ndarray):
@@ -358,8 +303,8 @@ class LinearKMPC:
         # optimization - linear
         # assume linear optimization term is 0
         # TODO: improve or set h = 0
-        q = np.zeros((N * (Np + 1), 1))
-        r = np.zeros((m * Np, 1))
+        q = np.zeros((N * (Np), 1))  # TODO: Np-1 to not account for initial state -- q is always zero!
+        r = np.zeros((m * Np, 1))  # TODO: r is always zero currently...
 
         # optimization - quadratic
         # assuming only autocorrelation
@@ -375,7 +320,9 @@ class LinearKMPC:
 
         # TODO: do not store the diagonal matrices explicitly (or use sparse matrices).
         # quadratic matrix for state cost
-        Qb = np.diag(np.hstack([np.tile(vec_running, Np), vec_terminal]))
+        # TODO: -1 because initial state is not accounted!
+        # TODO: include vec_terminal again
+        Qb = np.diag(np.hstack([np.tile(vec_running, Np-1), vec_terminal]))
 
         # quadratic matrix for input cost
         Rb = np.diag(np.tile(vec_input, Np))
@@ -423,7 +370,7 @@ class LinearKMPC:
             yr = np.asarray(reference)
             assert yr.shape[1] == self.output_size  # TODO: make error and validation
             # TODO reference signal should contain horizon (and not horizon+1, as this is confusing!)
-            yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
+            yr = yr.reshape(((self.horizon) * self.output_size, 1))
         except:
             raise ValueError(
                 "The reference signal should be a frame or array with n (output_size) "
@@ -431,17 +378,24 @@ class LinearKMPC:
             )
 
         U = solve_qp(
-            P=2 * self.H,
-            q=(self.h.T + X_dict.T @ self.G - yr.T @ self.Y).flatten(),
-            G=None,  # self.L,
-            h=None,  # (self.c - self.M @ X_dict).flatten(),
+            P=self.H,
+            q=(self.G @ X_dict + self.Y @ yr).flatten(),
+            G=None, # , self.L
+            h=None, # (self.c - self.M @ X_dict).flatten(),  # (,
             A=None,
             b=None,
-            solver="quadprog",
+            lb=-0.1 * np.ones(20),
+            ub=0.1 * np.ones(20),
+            solver="cvxpy",
+            verbose=True,
+            initvals=None, # TODO: can set after first iteration!
         )
 
         if U is None:
             raise ValueError("the solver did not converge")
+
+        y = self.Cb @ X_dict # TODO: comment from source % Should be y - yr, but yr adds just a constant term
+
 
         # TODO: U should be a TSCDataFrame -- use the columns from edmd
         # TODO: There should be a parameter time_values to set the time values in U

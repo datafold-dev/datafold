@@ -693,8 +693,7 @@ class Burger(ControllableODE):
         statedot_pad_new = (
             self.nu * self.d2_dx2(state_pad) - self.d_dx(state_pad) * state_pad
         )
-        statedot_pad_new[1:-1, :] = statedot_pad_new[1:-1] + u
-        state_dot = statedot_pad_new[1:-1]
+        state_dot = statedot_pad_new[1:-1, :] + u
         return state_dot
 
 

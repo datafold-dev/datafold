@@ -30,9 +30,9 @@ training_size = 100
 
 # MPC options
 Tpred = 0.1  # prediction horizon
-horizon = int(Tpred // dt)
-Tend = 6
-Nsim = int(Tend // (dt * horizon))
+horizon = int(np.round(Tpred // dt))
+Tend = 1  # 6
+Nsim = int(Tend // dt) + 1
 
 # control options
 umin, umax = (-0.1, 0.1)
@@ -43,8 +43,8 @@ time_values = np.arange(0, dt * sim_length + 1e-15, dt)
 
 sys = Burger()
 
-f1 = lambda x: np.atleast_2d(np.exp(-((15 * (x - 0.25)) ** 2)))
-f2 = lambda x: np.atleast_2d(np.exp(-((15 * (x - 0.75)) ** 2)))
+f1 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.25)) ** 2)))
+f2 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.75)) ** 2)))
 
 ic1 = np.exp(-(((sys.x_nodes - 0.5) * 5) ** 2))
 ic2 = np.sin(4 * np.pi * sys.x_nodes) ** 2
@@ -66,9 +66,7 @@ if MODE_DATA == "generate_save":
         U2rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 1])).T
 
         def U(t, x):
-            if x.shape[1] == 1:
-                x = x.T
-            return U1rand(t) * f1(x) + U2rand(t) * f2(x)
+            return U1rand(t) * f1 + U2rand(t) * f2
 
         X_predict, Ufull = sys.predict(
             ic, U=U, time_values=time_values, require_last_control_state=False
@@ -140,8 +138,11 @@ elif MODE_DATA == "matlab":
 print(f"{X_tsc.head(5)}")
 print(f"{U_tsc.head(5)}")
 
-# subselect measurements to every 10th node
-X_tsc_reduced = X_tsc.iloc[:, 0::10]
+def subselect_measurements(tscdf):
+    # subselect measurements to every 10th node
+    return tscdf.iloc[:, 9::10]
+
+X_tsc_reduced = subselect_measurements(X_tsc)
 
 assert isinstance(X_tsc_reduced, TSCDataFrame)
 
@@ -168,9 +169,28 @@ class L2Norm(BaseEstimator, TSCTransformerMixin):
     def transform(self, X: TSCDataFrame, y=None):
         return TSCDataFrame.from_same_indices_as(
             X,
-            np.linalg.norm(X.to_numpy(), axis=1),
+            # np.linalg.norm(X.to_numpy(), axis=1),
+            np.sum(np.square(np.abs(X.to_numpy())), axis=1) / X.shape[1],
             except_columns=self.get_feature_names_out(),
         )
+
+
+class ReorderColumns(BaseEstimator, TSCTransformerMixin):
+    def fit(self, X):
+        return self
+
+    def get_feature_names_out(self, input_features=None):
+        firsts = np.logical_and(input_features.str.contains("x"), input_features.str.contains("d"))
+        second = np.logical_and(input_features.str.contains("x"), ~input_features.str.contains("d"))
+        third = input_features.str.contains("u")
+        fourth = input_features.str.contains("l2norm")
+        fifth = input_features.str.contains("const")
+
+        return input_features[firsts].append(input_features[second]).append(input_features[third]).append(input_features[fourth]).append(input_features[fifth])
+
+
+    def transform(self, X):
+        return X.loc[:, self.get_feature_names_out(X.columns)]
 
 
 l2norm = ("l2", L2Norm(), lambda df: df.columns.str.startswith("x"))
@@ -198,7 +218,9 @@ tde = (
 
 _id = ("_id", TSCIdentity(include_const=True))
 
-edmd = EDMD([l2norm, tde, _id], dmd_model=DMDControl(), include_id_state=False)
+_reorder = ("reorder", ReorderColumns())
+
+edmd = EDMD([l2norm, tde, _id, _reorder], dmd_model=DMDControl(), include_id_state=False)
 
 # import tempfile
 # from sklearn.utils import estimator_html_repr
@@ -213,25 +235,25 @@ edmd = EDMD([l2norm, tde, _id], dmd_model=DMDControl(), include_id_state=False)
 # The last sample is not required (as there is no prediction from the last state)
 # U_tsc = U_tsc.tsc.drop_last_n_samples(1)
 
-edmd.fit(X_tsc_reduced, U=U_tsc)
+edmd.fit(X_tsc_reduced, U=U_tsc, dict_preserves_id_states=True)
+
 X_dict = edmd.transform(X_tsc_reduced.head(10))
 
 print(f"{X_dict.columns=}")
 print(f"{len(X_dict.columns)=}")
 print(X_dict.head(5))
 
-# TODO: use cvxpy instead of quadprog
+
 kmpc = LinearKMPC(
     predictor=edmd,
     horizon=horizon,
-    state_bounds=np.array([[np.inf, np.inf]]),
+    state_bounds=np.array([[-np.inf, np.inf]]),
     input_bounds=np.array([[-0.1, 0.1], [-0.1, 0.1]]),
-    qois=list(np.arange(10)),
+    qois=X_tsc_reduced.columns[X_tsc_reduced.columns.str.startswith("x")],
     cost_running=1,
     cost_terminal=1,
     cost_input=1,
 )
-
 
 # perform simulation for the initial time embedding
 X_init, _ = sys.predict(
@@ -252,61 +274,45 @@ X_ref = TSCDataFrame.from_array(
     X_ref, time_values=time_values_ref, feature_names=X_tsc.columns
 )
 
-X_ref_reduced = X_ref.iloc[:, ::10]
+X_ref_reduced = subselect_measurements(X_ref)
 
 U_ic = TSCDataFrame.from_array(
     np.zeros((5, 2)), time_values=X_init.time_values(), feature_names=["u1", "u2"]
 )
 
-edmd_state = pd.concat([X_init.iloc[:, ::10], U_ic], axis=1)
+edmd_state = pd.concat([subselect_measurements(X_init), U_ic], axis=1)
 model_state = X_init.iloc[[-1], :]
 
-X_model_evolution = [X_init.tsc.drop_last_n_samples(1)]
-U_evolution = [U_ic.tsc.drop_last_n_samples(1)]
+X_model_evolution = X_init
+U_evolution = U_ic.tsc.drop_last_n_samples(1)
 
 for i in range(Nsim):
     print(i)
+    ref = X_ref_reduced.iloc[i+1:i+horizon+1, :]
 
-    start_i = i * horizon
-    end_i = (i + 1) * horizon + 1
-    ref = X_ref_reduced.iloc[start_i:end_i, :]
-    time_values_predict = ref.time_values()
+    t = X_model_evolution.time_values()[-1]
+    t_new = X_model_evolution.time_values()[-1] + dt
+
+    if ref.shape[0] != 10:
+        break
 
     U = kmpc.generate_control_signal(edmd_state, reference=ref)
-    U = TSCDataFrame.from_array(
-        U, time_values=time_values_predict[:-1], feature_names=edmd.control_names_in_
-    )
+    print(U[0, :])
 
-    U1 = lambda t: np.atleast_2d(
-        np.interp(t, time_values_predict[:-1], U.iloc[:, 0].to_numpy())
-    ).T
-    U2 = lambda t: np.atleast_2d(
-        np.interp(t, time_values_predict[:-1], U.iloc[:, 1].to_numpy())
-    ).T
+    Ufull = U[0, 0] * f1 + U[0, 1] * f2
 
-    def Ufunc(t, x):
-        if x.shape[1] == 1:
-            x = x.T
-        return U1(t) * f1(x) + U2(t) * f2(x)
+    X_model, _ = sys.predict(X_model_evolution.iloc[[-1], :].to_numpy(), U=Ufull, time_values=dt)
+    X_model = X_model.iloc[[1], :]
+    X_model.index = pd.MultiIndex.from_arrays([[0], [t_new]])
 
-    X_model, _ = sys.predict(model_state, U=Ufunc, time_values=time_values_predict)
+    X_model_evolution = pd.concat([X_model_evolution, X_model], axis=0)
+    U_evolution = pd.concat([U_evolution, TSCDataFrame.from_array(U[0, :], time_values=[t], feature_names=U_evolution.columns)], axis=0)
 
     # prepare new edmd state
-    X_model_last = X_model.iloc[-edmd.n_samples_ic_ :, ::10]
-    U_last = U.iloc[-edmd.n_samples_ic_ + 1 :, :]
+    X_model_last = subselect_measurements(X_model_evolution.iloc[-edmd.n_samples_ic_ :, :])
+    U_last = U_evolution.iloc[-edmd.n_samples_ic_ :-1, :]
     U_last_shifted = shift_index_U(X_model_last, shift_index_U(X_model_last, U_last))
     edmd_state = pd.concat([X_model_last, U_last_shifted], axis=1).fillna(0)
-
-    # set new model state from where to predict
-    model_state = X_model.iloc[[-1], :]
-
-    # remove last state, bc. it is also used as the initial condition for the next (avoid duplicate states)
-    X_model_evolution.append(X_model.tsc.drop_last_n_samples(1))
-    U_evolution.append(U)
-
-X_model_evolution = pd.concat(X_model_evolution, axis=0)
-U_evolution = pd.concat(U_evolution, axis=0)
-# TODO: measure output error (state-reference) over time!
 
 if True:
 
@@ -315,12 +321,10 @@ if True:
     (model_line,) = ax[0].plot(sys.x_nodes, X_model_evolution.iloc[0], label="model")
     (ref_line,) = ax[0].plot(sys.x_nodes, X_ref.iloc[0], label="reference")
 
-    Ufunc = lambda u, x: (u[0] * f1(x) + u[1] * f2(x)).ravel()
+    Ufunc = lambda u, x: (u[0] * f1 + u[1] * f2).ravel()
     (control_line,) = ax[1].plot(
         sys.x_nodes,
-        Ufunc(
-            U_evolution.iloc[0, :].to_numpy(), X_model_evolution.iloc[0, :].to_numpy()
-        ),
+        Ufunc(U_evolution.iloc[0, :].to_numpy(), None),
         label="control",
     )
 
@@ -331,7 +335,7 @@ if True:
         ref_line.set_ydata(X_ref.iloc[i, :])
         control_line.set_ydata(
             Ufunc(
-                U_evolution.iloc[i].to_numpy(), X_model_evolution.iloc[i, :].to_numpy()
+                U_evolution.iloc[i].to_numpy(), None
             )
         )
         return (
