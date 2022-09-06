@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation
-from scipy.integrate import solve_ivp
+
 from scipy.io import loadmat
 from sklearn.base import BaseEstimator
 
@@ -53,17 +53,23 @@ icfunc = lambda a: a * ic1 + (1 - a) * ic2
 X_tsc = []
 U_tsc = []
 
-MODE_DATA = ["generate_save", "load", "matlab"][2]
+MODE_DATA = ["generate_save", "load", "matlab"][0]
+print(f"{MODE_DATA=}")
 if MODE_DATA == "generate_save":
     for i in range(training_size):
         ic = icfunc(rng.uniform(0, 1))
 
-        print(i)
+        print(f"{i} / {training_size}")
 
         rand_vals = rng.uniform(umin, umax, size=(len(time_values), 2))
         # rand_vals = np.zeros((len(time_values), 2))
-        U1rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 0])).T
-        U2rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 1])).T
+
+        from scipy.interpolate import interp1d
+        # U1rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 0])).T
+        # U2rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 1])).T
+
+        U1rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 0], kind="previous")(t)).T
+        U2rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 1], kind="previous")(t)).T
 
         def U(t, x):
             return U1rand(t) * f1 + U2rand(t) * f2
@@ -129,7 +135,7 @@ elif MODE_DATA == "matlab":
     def func(i):
         model_line.set_ydata(X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
         ref_line.set_ydata(X_tsc_own.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
-        return (model_line, ref_line,)
+        return (ref_line,)
 
     anim = FuncAnimation(f, func=func, frames=X_tsc.shape[0], interval=500)
     plt.show()
@@ -137,6 +143,33 @@ elif MODE_DATA == "matlab":
 
 print(f"{X_tsc.head(5)}")
 print(f"{U_tsc.head(5)}")
+
+
+plt_trajectory = True
+if plt_trajectory:
+    f, ax = plt.subplots(nrows=2)
+    tsid = 0
+    (ref_line,) = ax[0].plot(sys.x_nodes,
+                           X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy(),
+                           label="model")
+
+    def Ufunc(u):
+        return u[0] * f1 + u[1] * f2
+
+    (control_line,) = ax[1].plot(sys.x_nodes,
+                           Ufunc(U_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy()).ravel(),
+                           label="model")
+    plt.legend()
+
+    def func(i):
+        ref_line.set_ydata(X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
+        control_line.set_ydata(Ufunc(U_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[i].to_numpy()).ravel())
+        return (ref_line, control_line, )
+
+
+    anim = FuncAnimation(f, func=func, frames=U_tsc.shape[0], interval=500)
+    plt.show()
+    exit()
 
 def subselect_measurements(tscdf):
     # subselect measurements to every 10th node
@@ -250,7 +283,7 @@ kmpc = LinearKMPC(
     state_bounds=np.array([[-np.inf, np.inf]]),
     input_bounds=np.array([[-0.1, 0.1], [-0.1, 0.1]]),
     qois=X_tsc_reduced.columns[X_tsc_reduced.columns.str.startswith("x")],
-    cost_running=1,
+    cost_running=20,
     cost_terminal=1,
     cost_input=1,
 )
@@ -286,28 +319,32 @@ model_state = X_init.iloc[[-1], :]
 X_model_evolution = X_init
 U_evolution = U_ic.tsc.drop_last_n_samples(1)
 
+X_model_unctr_evolution = X_init.copy()
+
 for i in range(Nsim):
     print(i)
-    ref = X_ref_reduced.iloc[i+1:i+horizon+1, :]
+    ref = X_ref_reduced.iloc[i + int(not kmpc.account_initial):i+horizon+1, :]
 
     t = X_model_evolution.time_values()[-1]
     t_new = X_model_evolution.time_values()[-1] + dt
 
-    if ref.shape[0] != 10:
+    if ref.shape[0] != 10 + int(kmpc.account_initial):
         break
 
-    # U = kmpc.generate_control_signal(edmd_state, reference=ref, initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None)
-    U = np.random.uniform(low=-0.1, high=0.1, size=(5, 2))
-
-    print(U[0, :])
+    U = kmpc.generate_control_signal(edmd_state, reference=ref, initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None)
 
     Ufull = U[0, 0] * f1 + U[0, 1] * f2
 
     X_model, _ = sys.predict(X_model_evolution.iloc[[-1], :].to_numpy(), U=Ufull, time_values=dt)
     X_model = X_model.iloc[[1], :]
     X_model.index = pd.MultiIndex.from_arrays([[0], [t_new]])
-
     X_model_evolution = pd.concat([X_model_evolution, X_model], axis=0)
+
+    X_model_unctr, _ = sys.predict(X_model_unctr_evolution.iloc[[-1], :].to_numpy(), U=np.zeros_like(sys.x_nodes)[np.newaxis, :], time_values=dt)
+    X_model_unctr = X_model_unctr.iloc[[1], :]
+    X_model_unctr.index = pd.MultiIndex.from_arrays([[0], [t_new]])
+    X_model_unctr_evolution = pd.concat([X_model_unctr_evolution, X_model_unctr], axis=0)
+
     U_evolution = pd.concat([U_evolution, TSCDataFrame.from_array(U[0, :], time_values=[t], feature_names=U_evolution.columns)], axis=0)
 
     # prepare new edmd state
@@ -321,6 +358,7 @@ if True:
     f, ax = plt.subplots(nrows=2)
 
     (model_line,) = ax[0].plot(sys.x_nodes, X_model_evolution.iloc[0], label="model")
+    (model_uctr_line,) = ax[0].plot(sys.x_nodes, X_model_unctr_evolution.iloc[0], label="model uncontrolled")
     (ref_line,) = ax[0].plot(sys.x_nodes, X_ref.iloc[0], label="reference")
 
     Ufunc = lambda u, x: (u[0] * f1 + u[1] * f2).ravel()
@@ -334,6 +372,7 @@ if True:
 
     def func(i):
         model_line.set_ydata(X_model_evolution.iloc[i, :])
+        model_uctr_line.set_ydata(X_model_unctr_evolution.iloc[i, :])
         ref_line.set_ydata(X_ref.iloc[i, :])
         control_line.set_ydata(
             Ufunc(
@@ -342,8 +381,9 @@ if True:
         )
         return (
             model_line,
+            model_uctr_line,
             ref_line,
         )
 
-    anim = FuncAnimation(f, func=func, frames=X_model_evolution.shape[0])
+    anim = FuncAnimation(f, func=func, frames=U_evolution.shape[0])
     plt.show()

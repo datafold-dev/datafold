@@ -405,6 +405,16 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             # make one Euler step
             # X_next = X + (self.dt_ * self._f(None, X, U)).T
 
+            ivpsol = solve_ivp(
+                fun=lambda t, x: self._f(t, x, Ut),
+                t_span=(time_values[0], time_values[-1]),
+                y0=Xt.ravel(),
+                t_eval=time_values,
+                **self.ivp_kwargs,
+            )
+
+            X_next = ivpsol.y[:, [1]]
+
             # this turns the data orientation back to row-major
             X_sol = TSCDataFrame.from_shift_matrices(
                 left_matrix=Xt,
@@ -413,6 +423,8 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 snapshot_orientation="col",
                 columns=self.feature_names_in_,
             )
+
+
 
             index = pd.MultiIndex.from_product([np.arange(U.shape[0]), [0]])
             U = TSCDataFrame(U, index=index, columns=self.control_names_in_)
@@ -449,7 +461,9 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                     interp_control = []
 
                     for i in range(self.n_control_in_):
-                        func = lambda t, x: np.interp(t, time_values, U_interp[:, i])
+
+                        from scipy.interpolate import interp1d
+                        func = lambda t, x: interp1d(time_values, U_interp[:, i], kind='previous')(t)
                         interp_control.append(func)
 
                     Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
@@ -677,9 +691,9 @@ class Burger(ControllableODE):
     def __init__(self, n_spatial_points: int = 100, nu=0.01):
         self.nu = nu
         self.x_nodes = np.linspace(0, 1, n_spatial_points)
-        dx = self.x_nodes[1] - self.x_nodes[0]
-        self.d_dx = fd.FinDiff(0, dx, 1)
-        self.d2_dx2 = fd.FinDiff(0, dx, 2)
+        self.dx = self.x_nodes[1] - self.x_nodes[0]
+        self.d_dx = fd.FinDiff(0, self.dx, 1)
+        self.d2_dx2 = fd.FinDiff(0, self.dx, 2)
         super(Burger, self).__init__(
             n_features_in=n_spatial_points,
             feature_names_in=[f"x{i}" for i in range(n_spatial_points)],
@@ -689,11 +703,15 @@ class Burger(ControllableODE):
         )
 
     def _f(self, t, x, u):
+
         state_pad = np.concatenate([x[[-1]], x, x[[0]]])
+
+        first_order = (state_pad[:-1] - state_pad[1:])/self.dx
+
         statedot_pad_new = (
             self.nu * self.d2_dx2(state_pad) - self.d_dx(state_pad) * state_pad
         )
-        state_dot = statedot_pad_new[1:-1, :] + u
+        state_dot = statedot_pad_new[1:-1, :] - u
         return state_dot
 
 

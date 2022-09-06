@@ -465,8 +465,8 @@ class TSCDataFrame(pd.DataFrame):
         if left_matrix.shape != right_matrix.shape:
             raise ValueError(
                 "The matrix shapes are not the same. "
-                f"left_matrix.shape={left_matrix.shape}"
-                f"right_matrix.shape={right_matrix.shape}"
+                f"{left_matrix.shape=} " 
+                f"{right_matrix.shape=}."
             )
 
         n_timeseries, n_features = left_matrix.shape

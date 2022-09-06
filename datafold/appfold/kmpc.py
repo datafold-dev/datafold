@@ -141,6 +141,8 @@ class LinearKMPC:
         self.cost_terminal = cost_terminal
         self.cost_input = cost_input
 
+        self.account_initial = True
+
         try:
             # Note that these are defined on the lifted space:
             self.A = predictor.dmd_model.sys_matrix_
@@ -229,8 +231,7 @@ class LinearKMPC:
 
             B_current = A @ B_current  # TODO: the last can be saved!
 
-        remove_initial = True
-        if remove_initial:
+        if not self.account_initial:
             Ab = Ab[self.output_size:]
             Bb = Bb[self.output_size:]
 
@@ -303,7 +304,7 @@ class LinearKMPC:
         # optimization - linear
         # assume linear optimization term is 0
         # TODO: improve or set h = 0
-        q = np.zeros((N * (Np), 1))  # TODO: Np-1 to not account for initial state -- q is always zero!
+        q = np.zeros((N * (Np+int(self.account_initial)), 1))  # TODO: Np-1 to not account for initial state -- q is always zero!
         r = np.zeros((m * Np, 1))  # TODO: r is always zero currently...
 
         # optimization - quadratic
@@ -322,7 +323,7 @@ class LinearKMPC:
         # quadratic matrix for state cost
         # TODO: -1 because initial state is not accounted!
         # TODO: include vec_terminal again
-        Qb = np.diag(np.hstack([np.tile(vec_running, Np-1), vec_terminal]))
+        Qb = np.diag(np.hstack([np.tile(vec_running, Np-1 + int(self.account_initial)), vec_terminal]))
 
         # quadratic matrix for input cost
         Rb = np.diag(np.tile(vec_input, Np))
@@ -370,7 +371,7 @@ class LinearKMPC:
             yr = np.asarray(reference)
             assert yr.shape[1] == self.output_size  # TODO: make error and validation
             # TODO reference signal should contain horizon (and not horizon+1, as this is confusing!)
-            yr = yr.reshape(((self.horizon) * self.output_size, 1))
+            yr = yr.reshape(((self.horizon + int(self.account_initial)) * self.output_size, 1))
         except:
             raise ValueError(
                 "The reference signal should be a frame or array with n (output_size) "
@@ -385,16 +386,16 @@ class LinearKMPC:
             A=None,
             b=None,
             lb=-0.1 * np.ones(20),
-            ub=0.1 * np.ones(20),
-            solver="cvxpy",
-            verbose=True,
-            initvals=initvals, # TODO: can set after first iteration!
+            ub=0.1* np.ones(20),
+            solver="quadprog",
+            verbose=False,
+            initvals=None, # TODO: can set after first iteration!
         )
 
         if U is None:
             raise ValueError("the solver did not converge")
 
-        y = self.Cb @ X_dict # TODO: comment from source % Should be y - yr, but yr adds just a constant term
+        # y = self.Cb @ X_dict # TODO: comment from source % Should be y - yr, but yr adds just a constant term
 
 
         # TODO: U should be a TSCDataFrame -- use the columns from edmd
