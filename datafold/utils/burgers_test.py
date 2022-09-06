@@ -41,7 +41,7 @@ umin, umax = (-0.1, 0.1)
 
 time_values = np.arange(0, dt * sim_length + 1e-15, dt)
 
-sys = Burger()
+sys = Burger(nu=0.01)
 
 f1 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.25)) ** 2)))
 f2 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.75)) ** 2)))
@@ -119,21 +119,21 @@ elif MODE_DATA == "matlab":
         U_tsc, time_values=time_values[:-1], columns=[f"u{i+1}" for i in range(2)]
     )
 
-    # f = plt.figure()
-    #
-    # tsid = 5
-    # (model_line,) = plt.plot(sys.x_nodes, X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy(), label="model matlab")
-    # (ref_line,) = plt.plot(sys.x_nodes, X_tsc_own.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy(), label="model own")
-    # plt.legend()
-    #
-    # def func(i):
-    #     model_line.set_ydata(X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
-    #     ref_line.set_ydata(X_tsc_own.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
-    #     return (model_line, ref_line,)
-    #
-    # anim = FuncAnimation(f, func=func, frames=X_tsc.shape[0], interval=500)
-    # plt.show()
-    # exit()
+    f = plt.figure()
+
+    tsid = 9
+    (model_line,) = plt.plot(sys.x_nodes, X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy(), label="model matlab")
+    (ref_line,) = plt.plot(sys.x_nodes, X_tsc_own.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy(), label="model own")
+    plt.legend()
+
+    def func(i):
+        model_line.set_ydata(X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
+        ref_line.set_ydata(X_tsc_own.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
+        return (model_line, ref_line,)
+
+    anim = FuncAnimation(f, func=func, frames=X_tsc.shape[0], interval=500)
+    plt.show()
+    exit()
 
 print(f"{X_tsc.head(5)}")
 print(f"{U_tsc.head(5)}")
@@ -296,7 +296,9 @@ for i in range(Nsim):
     if ref.shape[0] != 10:
         break
 
-    U = kmpc.generate_control_signal(edmd_state, reference=ref)
+    # U = kmpc.generate_control_signal(edmd_state, reference=ref, initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None)
+    U = np.random.uniform(low=-0.1, high=0.1, size=(5, 2))
+
     print(U[0, :])
 
     Ufull = U[0, 0] * f1 + U[0, 1] * f2

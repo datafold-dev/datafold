@@ -330,7 +330,7 @@ class LinearKMPC:
         return Qb, q, Rb, r
 
     def generate_control_signal(
-        self, X: InitialConditionType, reference: TransformType
+        self, X: InitialConditionType, reference: TransformType, initvals=None
     ) -> np.ndarray:
         r"""Method to generate a control sequence, given some initial conditions and
         a reference trajectory, as in :cite:`korda-2018` Algorithm 1. This method solves the
@@ -388,7 +388,7 @@ class LinearKMPC:
             ub=0.1 * np.ones(20),
             solver="cvxpy",
             verbose=True,
-            initvals=None, # TODO: can set after first iteration!
+            initvals=initvals, # TODO: can set after first iteration!
         )
 
         if U is None:
