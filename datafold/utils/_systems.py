@@ -474,6 +474,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                     fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
                     t_span=(time_values[0], time_values[-1]),
                     y0=ic,
+                    jac=self._jac,
                     t_eval=time_values,
                     **self.ivp_kwargs,
                 )
@@ -690,30 +691,79 @@ class InvertedPendulum(ControllableODE):
 class Burger(ControllableODE):
     def __init__(self, n_spatial_points: int = 100, nu=0.01):
         self.nu = nu
-        self.x_nodes = np.linspace(0, 1, n_spatial_points)
+        self.x_nodes = np.linspace(0,1,n_spatial_points)
         self.dx = self.x_nodes[1] - self.x_nodes[0]
-        self.d_dx = fd.FinDiff(0, self.dx, 1)
-        self.d2_dx2 = fd.FinDiff(0, self.dx, 2)
+
+        use_template = False
+        if use_template:
+            self.x_nodes_internal = np.arange(0, (n_spatial_points - 1) * 2 * np.pi / n_spatial_points + 1E-15,2 * np.pi / n_spatial_points)
+            self.dx_internal = self.x_nodes_internal[1] - self.x_nodes_internal[0]
+        else:
+            self.x_nodes_internal = self.x_nodes
+            self.dx_internal = self.dx
+
+
+        self.d_dx = fd.coefficients(deriv=1, acc=2)["backward"]
+        self.d2_dx2 = fd.coefficients(deriv=2, acc=2)["center"]
+
         super(Burger, self).__init__(
             n_features_in=n_spatial_points,
             feature_names_in=[f"x{i}" for i in range(n_spatial_points)],
             n_control_in=n_spatial_points,
             control_names_in=[f"u{i}" for i in range(n_spatial_points)],
-            **{"method": "RK23", "vectorized": True},
+            **{"method": "Radau", "vectorized": True},
         )
+
 
     def _f(self, t, x, u):
+        c = self.d_dx["coefficients"]
+        c2 = self.d2_dx2["coefficients"]
 
-        state_pad = np.concatenate([x[[-1]], x, x[[0]]])
+        x_pad = np.concatenate([x[-3:-1], x])
+        advection_upwind = (c[0] * x_pad[:-2] + c[1] * x_pad[1:-1] + c[2] * x_pad[2:]) / (2 * self.dx_internal)
 
-        first_order = (state_pad[:-1] - state_pad[1:])/self.dx
+        # x_pad = np.concatenate([x[[-1]], x, x[[0]]])
+        # advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx_internal)
 
-        statedot_pad_new = (
-            self.nu * self.d2_dx2(state_pad) - self.d_dx(state_pad) * state_pad
-        )
-        state_dot = statedot_pad_new[1:-1, :] - u
-        return state_dot
+        x_pad = np.concatenate([x[[-1]], x, x[[0]]])
+        convection = (c2[0] * x_pad[:-2] + c2[1] * x_pad[1:-1] + c2[2] * x_pad[2:]) / (self.dx_internal**2)
 
+        x_dot = -advection_upwind * x + self.nu * convection
+        x_dot += u
+
+        # result = self._jac(t, x)
+
+        return x_dot
+
+    def _jac(self, t, x):
+
+        n_nodes = len(self.x_nodes)
+
+        if x.ndim == 1:
+            x = x[:, np.newaxis]
+
+        # x_pad = np.concatenate([x[[-1]], x, x[[0]]])
+        x_pad = np.concatenate([x[-3:-1], x])
+        xdiag = np.diag(x_pad.flatten())
+
+        c = self.d_dx["coefficients"]
+
+        first = np.zeros((n_nodes, n_nodes))
+
+        for i in range(xdiag.shape[1]-2):
+            first[:, i] = (c[0] * xdiag[:-2, i+1] + c[1] * xdiag[1:-1, i+1] + c[2] * xdiag[2:, i+1]) / (2 * self.dx_internal)
+
+            # first[:, i] = (-xdiag[:-2, i+1] + xdiag[2:, i+1]) / (2 * self.dx_internal)
+
+        first *= 2
+
+        main_diagonal = np.diag(np.ones(n_nodes)*(-2))
+        off_diagonal = np.diag(np.ones(n_nodes-1), 1)
+
+        second = main_diagonal + off_diagonal + off_diagonal.T
+        second /= (self.dx_internal**2)
+
+        return -first - (np.eye(n_nodes) - self.nu * second)
 
 class VanDerPol(ControllableODE):
     def __init__(self, eps=1.0):

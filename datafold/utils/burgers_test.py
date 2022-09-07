@@ -26,7 +26,7 @@ plot = False
 # data generation options
 dt = 0.01
 sim_length = 200
-training_size = 100
+training_size = 11
 
 # MPC options
 Tpred = 0.1  # prediction horizon
@@ -50,6 +50,8 @@ ic1 = np.exp(-(((sys.x_nodes - 0.5) * 5) ** 2))
 ic2 = np.sin(4 * np.pi * sys.x_nodes) ** 2
 icfunc = lambda a: a * ic1 + (1 - a) * ic2
 
+# sys.predict(icfunc(1), U=np.zeros((1, 100)), time_values=0.1)
+
 X_tsc = []
 U_tsc = []
 
@@ -70,6 +72,9 @@ if MODE_DATA == "generate_save":
 
         U1rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 0], kind="previous")(t)).T
         U2rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 1], kind="previous")(t)).T
+
+        # U1rand = lambda t: np.atleast_2d(interp1d(time_values, np.ones(len(time_values)), kind="previous")(t)).T
+        # U2rand = lambda t: np.atleast_2d(interp1d(time_values, np.ones(len(time_values)), kind="previous")(t)).T
 
         def U(t, x):
             return U1rand(t) * f1 + U2rand(t) * f2
@@ -137,7 +142,7 @@ elif MODE_DATA == "matlab":
         ref_line.set_ydata(X_tsc_own.loc[pd.IndexSlice[tsid, :], :].iloc[i, :].to_numpy())
         return (ref_line,)
 
-    anim = FuncAnimation(f, func=func, frames=X_tsc.shape[0], interval=500)
+    anim = FuncAnimation(f, func=func, frames=X_tsc.shape[0])
     plt.show()
     exit()
 
@@ -167,7 +172,7 @@ if plt_trajectory:
         return (ref_line, control_line, )
 
 
-    anim = FuncAnimation(f, func=func, frames=U_tsc.shape[0], interval=500)
+    anim = FuncAnimation(f, func=func, frames=U_tsc.shape[0])
     plt.show()
     exit()
 

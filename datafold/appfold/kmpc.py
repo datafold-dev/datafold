@@ -385,9 +385,9 @@ class LinearKMPC:
             h=None, # (self.c - self.M @ X_dict).flatten(),  # (,
             A=None,
             b=None,
-            lb=-0.1 * np.ones(20),
-            ub=0.1* np.ones(20),
-            solver="quadprog",
+            lb=-1 * np.ones(20),
+            ub=1* np.ones(20),
+            solver="cvxpy",
             verbose=False,
             initvals=None, # TODO: can set after first iteration!
         )
