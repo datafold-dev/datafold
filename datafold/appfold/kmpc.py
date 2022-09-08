@@ -141,7 +141,7 @@ class LinearKMPC:
         self.cost_terminal = cost_terminal
         self.cost_input = cost_input
 
-        self.account_initial = True
+        self.account_initial = False
 
         try:
             # Note that these are defined on the lifted space:
@@ -385,9 +385,9 @@ class LinearKMPC:
             h=None, # (self.c - self.M @ X_dict).flatten(),  # (,
             A=None,
             b=None,
-            lb=-1 * np.ones(20),
-            ub=1* np.ones(20),
-            solver="cvxpy",
+            lb=-0.1 * np.ones(38), #,
+            ub=0.1* np.ones(38),
+            solver="quadprog",
             verbose=False,
             initvals=None, # TODO: can set after first iteration!
         )

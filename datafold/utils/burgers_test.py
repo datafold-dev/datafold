@@ -24,14 +24,14 @@ rng = np.random.default_rng(2)
 plot = True
 
 # data generation options
-dt = 0.01
+dt = 0.19
 sim_length = 200
-training_size = 1
+training_size = 100
 
 # MPC options
-Tpred = 0.1  # prediction horizon
+Tpred = dt * 20  # prediction horizon
 horizon = int(np.round(Tpred // dt))
-Tend = 1  # 6
+Tend = 60  # 6
 Nsim = int(Tend // dt) + 1
 
 # control options
@@ -39,7 +39,7 @@ umin, umax = (-0.1, 0.1)
 
 # START
 
-time_values = np.arange(0, dt * sim_length + 1e-15, dt)
+time_values = np.arange(0, dt * sim_length + 1e-12, dt)
 
 sys = Burger(nu=0.01)
 
@@ -56,12 +56,11 @@ icfunc = lambda a: a * ic1 + (1 - a) * ic2
 X_tsc = []
 U_tsc = []
 
-MODE_DATA = ["generate_save", "load", "matlab"][2]
+MODE_DATA = ["generate_save", "load", "matlab"][1]
 print(f"{MODE_DATA=}")
 if MODE_DATA == "generate_save":
     for i in range(training_size):
         ic = icfunc(rng.uniform(0, 1))
-        ic = icfunc(1)
 
         print(f"{i} / {training_size}")
 
@@ -72,11 +71,11 @@ if MODE_DATA == "generate_save":
         # U1rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 0])).T
         # U2rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 1])).T
 
-        # U1rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 0], kind="previous")(t)).T
-        # U2rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 1], kind="previous")(t)).T
+        U1rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 0], kind="previous")(t)).T
+        U2rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 1], kind="previous")(t)).T
 
-        U1rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
-        U2rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
+        # U1rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
+        # U2rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
 
         def U(t, x):
             return U1rand(t) * f1 + U2rand(t) * f2
@@ -152,7 +151,7 @@ print(f"{X_tsc.head(5)}")
 print(f"{U_tsc.head(5)}")
 
 
-plt_trajectory = True
+plt_trajectory = False
 if plt_trajectory:
     f, ax = plt.subplots(nrows=2)
     tsid = 0
@@ -283,6 +282,16 @@ print(f"{X_dict.columns=}")
 print(f"{len(X_dict.columns)=}")
 print(X_dict.head(5))
 
+# TODO: fix the grid [0,1] or [0,2pi]
+# TODO: update the controllable ODE to remove distinguish between one step or multi-step
+# TODO: optimize LinearKMPC for speed
+# TODO: optimize the Burger equatio for speed (Provide the Jacobian in a fast way)
+# TODO: Use (optional?) the upwind finite difference?
+# TODO: In KMPC "self.account_initial = False" needs to be set, otherwise it fails, do I need this option
+# TODO: need to align -- is the reference solution "on time" with what is returned by the optimization
+# TODO: work with initvals to fasten up solutions of convex optimization
+
+
 
 kmpc = LinearKMPC(
     predictor=edmd,
@@ -290,7 +299,7 @@ kmpc = LinearKMPC(
     state_bounds=np.array([[-np.inf, np.inf]]),
     input_bounds=np.array([[-0.1, 0.1], [-0.1, 0.1]]),
     qois=X_tsc_reduced.columns[X_tsc_reduced.columns.str.startswith("x")],
-    cost_running=20,
+    cost_running=1,
     cost_terminal=1,
     cost_input=1,
 )
@@ -306,9 +315,9 @@ X_init, _ = sys.predict(
 start_time = X_init.time_values()[-1]
 time_values_ref = np.arange(start_time, start_time + Tend, dt)
 X_ref = np.zeros(len(time_values_ref))
-X_ref[time_values_ref <= 2] = 0.5
-X_ref[np.logical_and(time_values_ref > 2, time_values_ref < 4)] = 1
-X_ref[time_values_ref > 4] = 0.5
+X_ref[time_values_ref <= 20] = 0.5
+X_ref[np.logical_and(time_values_ref > 20, time_values_ref < 40)] = 1
+X_ref[time_values_ref > 40] = 0.5
 X_ref = np.outer(X_ref, np.ones(X_tsc.shape[1]))
 X_ref = TSCDataFrame.from_array(
     X_ref, time_values=time_values_ref, feature_names=X_tsc.columns
@@ -335,7 +344,7 @@ for i in range(Nsim):
     t = X_model_evolution.time_values()[-1]
     t_new = X_model_evolution.time_values()[-1] + dt
 
-    if ref.shape[0] != 10 + int(kmpc.account_initial):
+    if ref.shape[0] != int(kmpc.Bb.shape[1] / kmpc.input_size):
         break
 
     U = kmpc.generate_control_signal(edmd_state, reference=ref, initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None)

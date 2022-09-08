@@ -405,19 +405,17 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             # make one Euler step
             # X_next = X + (self.dt_ * self._f(None, X, U)).T
 
-            # ivpsol = solve_ivp(
-            #     fun=lambda t, x: self._f(t, x, Ut),
-            #     t_span=(time_values[0], time_values[-1]),
-            #     y0=Xt.ravel(),
-            #     t_eval=time_values,
-            #     **self.ivp_kwargs,
-            # )
-            #
-            # X_next = ivpsol.y[:, [1]]
+            ivpsol = solve_ivp(
+                fun=lambda t, x: self._f(t, x, Ut),
+                t_span=(time_values[0], time_values[-1]),
+                y0=Xt.ravel(),
+                t_eval=time_values,
+                **self.ivp_kwargs,
+            )
 
-            sol = self.solve_ivp(Xt, Ut, time_values=time_values)
-            X_next = sol[[1], :].T
+            X_next = ivpsol.y[:, [1]]
 
+            # this turns the data orientation back to row-major
             X_sol = TSCDataFrame.from_shift_matrices(
                 left_matrix=Xt,
                 right_matrix=X_next,
@@ -427,7 +425,9 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             )
 
 
-            # this turns the data orientation back to row-major
+            # sol = self.solve_ivp(Xt, Ut, time_values=time_values)
+            # X_next = sol[[1], :].T
+
             # X_sol = TSCDataFrame.from_shift_matrices(
             #     left_matrix=Xt,
             #     right_matrix=X_next,
@@ -435,6 +435,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             #     snapshot_orientation="col",
             #     columns=self.feature_names_in_,
             # )
+
 
 
 
@@ -480,41 +481,41 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
                     Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
 
-                # sol = solve_ivp(
-                #     # U should be a row-major mapping in datafold
-                #     # to align with Scipy's ODE solver (column-major), the control mapping is transposed
-                #     fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
-                #     t_span=(time_values[0], time_values[-1]),
-                #     y0=ic,
-                #     jac=self._jac,
-                #     t_eval=time_values,
-                #     **self.ivp_kwargs,
-                # )
+                sol = solve_ivp(
+                    # U should be a row-major mapping in datafold
+                    # to align with Scipy's ODE solver (column-major), the control mapping is transposed
+                    fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
+                    t_span=(time_values[0], time_values[-1]),
+                    y0=ic,
+                    # jac=self._jac,
+                    t_eval=time_values,
+                    **self.ivp_kwargs,
+                )
 
-                sol = self.solve_ivp(ic, U, time_values)
+                # sol = self.solve_ivp(ic, U, time_values)
 
 
-                # if not sol.success:
-                #     raise RuntimeError(
-                #         f"The prediction was not successful \n Reason: \n"
-                #         f" {sol.message=}"
-                #     )
-
-                # X_sol.append(
-                #     TSCDataFrame.from_array(
-                #         sol.y.T,
-                #         time_values=time_values,
-                #         feature_names=self.feature_names_in_,
-                #     )
-                # )
+                if not sol.success:
+                    raise RuntimeError(
+                        f"The prediction was not successful \n Reason: \n"
+                        f" {sol.message=}"
+                    )
 
                 X_sol.append(
                     TSCDataFrame.from_array(
-                        sol,
+                        sol.y.T,
                         time_values=time_values,
                         feature_names=self.feature_names_in_,
                     )
                 )
+
+                # X_sol.append(
+                #     TSCDataFrame.from_array(
+                #         sol,
+                #         time_values=time_values,
+                #         feature_names=self.feature_names_in_,
+                #     )
+                # )
 
             X_sol = TSCDataFrame.from_frame_list(X_sol)
 
@@ -742,8 +743,8 @@ class Burger(ControllableODE):
         c = self.d_dx["coefficients"]
         c2 = self.d2_dx2["coefficients"]
 
-        x_pad = np.concatenate([x[-3:-1], x])
-        advection_upwind = (c[0] * x_pad[:-2] + c[1] * x_pad[1:-1] + c[2] * x_pad[2:]) / (2 * self.dx_internal)
+        # x_pad = np.concatenate([x[-3:-1], x])
+        # advection_upwind = (c[0] * x_pad[:-2] + c[1] * x_pad[1:-1] + c[2] * x_pad[2:]) / (2 * self.dx_internal)
 
         x_pad = np.concatenate([x[[-1]], x, x[[0]]])
         advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx_internal)
@@ -751,10 +752,8 @@ class Burger(ControllableODE):
         x_pad = np.concatenate([x[[-1]], x, x[[0]]])
         convection = (c2[0] * x_pad[:-2] + c2[1] * x_pad[1:-1] + c2[2] * x_pad[2:]) / (self.dx_internal**2)
 
-        x_dot = -advection_upwind * x + self.nu * convection
+        x_dot = -advection_central * x + self.nu * convection
         x_dot += u
-
-        # result = self._jac(t, x)
 
         return x_dot
 
@@ -775,8 +774,6 @@ class Burger(ControllableODE):
 
         for i in range(xdiag.shape[1]-2):
             first[:, i] = (c[0] * xdiag[:-2, i+1] + c[1] * xdiag[1:-1, i+1] + c[2] * xdiag[2:, i+1]) / (2 * self.dx_internal)
-
-            # first[:, i] = (-xdiag[:-2, i+1] + xdiag[2:, i+1]) / (2 * self.dx_internal)
 
         first *= 2
 
