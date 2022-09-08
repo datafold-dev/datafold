@@ -21,12 +21,12 @@ from datafold.utils._systems import Burger
 # simulates the setting from https://arxiv.org/pdf/1804.05291.pdf
 
 rng = np.random.default_rng(2)
-plot = False
+plot = True
 
 # data generation options
 dt = 0.01
 sim_length = 200
-training_size = 11
+training_size = 1
 
 # MPC options
 Tpred = 0.1  # prediction horizon
@@ -50,16 +50,18 @@ ic1 = np.exp(-(((sys.x_nodes - 0.5) * 5) ** 2))
 ic2 = np.sin(4 * np.pi * sys.x_nodes) ** 2
 icfunc = lambda a: a * ic1 + (1 - a) * ic2
 
-# sys.predict(icfunc(1), U=np.zeros((1, 100)), time_values=0.1)
+# sys.predict(icfunc(1), U=np.zeros((3, 100)), time_values=np.array([0, dt, 2*dt]))
+
 
 X_tsc = []
 U_tsc = []
 
-MODE_DATA = ["generate_save", "load", "matlab"][0]
+MODE_DATA = ["generate_save", "load", "matlab"][2]
 print(f"{MODE_DATA=}")
 if MODE_DATA == "generate_save":
     for i in range(training_size):
         ic = icfunc(rng.uniform(0, 1))
+        ic = icfunc(1)
 
         print(f"{i} / {training_size}")
 
@@ -70,11 +72,11 @@ if MODE_DATA == "generate_save":
         # U1rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 0])).T
         # U2rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 1])).T
 
-        U1rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 0], kind="previous")(t)).T
-        U2rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 1], kind="previous")(t)).T
+        # U1rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 0], kind="previous")(t)).T
+        # U2rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 1], kind="previous")(t)).T
 
-        # U1rand = lambda t: np.atleast_2d(interp1d(time_values, np.ones(len(time_values)), kind="previous")(t)).T
-        # U2rand = lambda t: np.atleast_2d(interp1d(time_values, np.ones(len(time_values)), kind="previous")(t)).T
+        U1rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
+        U2rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
 
         def U(t, x):
             return U1rand(t) * f1 + U2rand(t) * f2
@@ -132,7 +134,7 @@ elif MODE_DATA == "matlab":
 
     f = plt.figure()
 
-    tsid = 9
+    tsid = 0
     (model_line,) = plt.plot(sys.x_nodes, X_tsc.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy(), label="model matlab")
     (ref_line,) = plt.plot(sys.x_nodes, X_tsc_own.loc[pd.IndexSlice[tsid, :], :].iloc[0].to_numpy(), label="model own")
     plt.legend()

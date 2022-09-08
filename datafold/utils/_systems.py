@@ -405,17 +405,19 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             # make one Euler step
             # X_next = X + (self.dt_ * self._f(None, X, U)).T
 
-            ivpsol = solve_ivp(
-                fun=lambda t, x: self._f(t, x, Ut),
-                t_span=(time_values[0], time_values[-1]),
-                y0=Xt.ravel(),
-                t_eval=time_values,
-                **self.ivp_kwargs,
-            )
+            # ivpsol = solve_ivp(
+            #     fun=lambda t, x: self._f(t, x, Ut),
+            #     t_span=(time_values[0], time_values[-1]),
+            #     y0=Xt.ravel(),
+            #     t_eval=time_values,
+            #     **self.ivp_kwargs,
+            # )
+            #
+            # X_next = ivpsol.y[:, [1]]
 
-            X_next = ivpsol.y[:, [1]]
+            sol = self.solve_ivp(Xt, Ut, time_values=time_values)
+            X_next = sol[[1], :].T
 
-            # this turns the data orientation back to row-major
             X_sol = TSCDataFrame.from_shift_matrices(
                 left_matrix=Xt,
                 right_matrix=X_next,
@@ -423,6 +425,16 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 snapshot_orientation="col",
                 columns=self.feature_names_in_,
             )
+
+
+            # this turns the data orientation back to row-major
+            # X_sol = TSCDataFrame.from_shift_matrices(
+            #     left_matrix=Xt,
+            #     right_matrix=X_next,
+            #     time_values=time_values,
+            #     snapshot_orientation="col",
+            #     columns=self.feature_names_in_,
+            # )
 
 
 
@@ -468,26 +480,37 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
                     Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
 
-                sol = solve_ivp(
-                    # U should be a row-major mapping in datafold
-                    # to align with Scipy's ODE solver (column-major), the control mapping is transposed
-                    fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
-                    t_span=(time_values[0], time_values[-1]),
-                    y0=ic,
-                    jac=self._jac,
-                    t_eval=time_values,
-                    **self.ivp_kwargs,
-                )
+                # sol = solve_ivp(
+                #     # U should be a row-major mapping in datafold
+                #     # to align with Scipy's ODE solver (column-major), the control mapping is transposed
+                #     fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
+                #     t_span=(time_values[0], time_values[-1]),
+                #     y0=ic,
+                #     jac=self._jac,
+                #     t_eval=time_values,
+                #     **self.ivp_kwargs,
+                # )
 
-                if not sol.success:
-                    raise RuntimeError(
-                        f"The prediction was not successful \n Reason: \n"
-                        f" {sol.message=}"
-                    )
+                sol = self.solve_ivp(ic, U, time_values)
+
+
+                # if not sol.success:
+                #     raise RuntimeError(
+                #         f"The prediction was not successful \n Reason: \n"
+                #         f" {sol.message=}"
+                #     )
+
+                # X_sol.append(
+                #     TSCDataFrame.from_array(
+                #         sol.y.T,
+                #         time_values=time_values,
+                #         feature_names=self.feature_names_in_,
+                #     )
+                # )
 
                 X_sol.append(
                     TSCDataFrame.from_array(
-                        sol.y.T,
+                        sol,
                         time_values=time_values,
                         feature_names=self.feature_names_in_,
                     )
@@ -694,7 +717,7 @@ class Burger(ControllableODE):
         self.x_nodes = np.linspace(0,1,n_spatial_points)
         self.dx = self.x_nodes[1] - self.x_nodes[0]
 
-        use_template = False
+        use_template = True
         if use_template:
             self.x_nodes_internal = np.arange(0, (n_spatial_points - 1) * 2 * np.pi / n_spatial_points + 1E-15,2 * np.pi / n_spatial_points)
             self.dx_internal = self.x_nodes_internal[1] - self.x_nodes_internal[0]
@@ -722,8 +745,8 @@ class Burger(ControllableODE):
         x_pad = np.concatenate([x[-3:-1], x])
         advection_upwind = (c[0] * x_pad[:-2] + c[1] * x_pad[1:-1] + c[2] * x_pad[2:]) / (2 * self.dx_internal)
 
-        # x_pad = np.concatenate([x[[-1]], x, x[[0]]])
-        # advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx_internal)
+        x_pad = np.concatenate([x[[-1]], x, x[[0]]])
+        advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx_internal)
 
         x_pad = np.concatenate([x[[-1]], x, x[[0]]])
         convection = (c2[0] * x_pad[:-2] + c2[1] * x_pad[1:-1] + c2[2] * x_pad[2:]) / (self.dx_internal**2)
@@ -764,6 +787,85 @@ class Burger(ControllableODE):
         second /= (self.dx_internal**2)
 
         return -first - (np.eye(n_nodes) - self.nu * second)
+
+
+    def _step(self, x, dt, u):
+
+        if x.ndim == 1:
+            x = x[:, np.newaxis]
+
+        if x.ndim == 1:
+            x = x[:, np.newaxis]
+
+        # compute residual
+        # R = SimPar.dt*(D*v).*v + (eye(N,N) - SimPar.dt*SimPar.nu*D2)*v - X(:,t-1) - SimPar.dt*u;
+
+        n_nodes = len(self.x_nodes)
+
+        for j in range(1, 20):
+
+            x_pad = np.concatenate([x[[-1]], x, x[[0]]])
+            advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx_internal)
+            advection_central *= dt
+            advection_central = advection_central*x
+
+
+            dxsq = (self.dx_internal ** 2)
+            factor = - (dt * self.nu) / dxsq
+
+            convection = factor * x_pad[:-2] + (1 + (2 * dt * self.nu)/dxsq) * x_pad[1:-1] + factor * x_pad[2:]
+
+            R = advection_central + convection - x - dt*u.T
+
+            x_pad = np.concatenate([x[[-1]], x, x[[0]]])
+            # x_pad = np.concatenate([x[-3:-1], x])
+            xdiag = np.diag(x_pad.flatten())
+
+
+
+            first = np.zeros((n_nodes, n_nodes))
+
+            for i in range(xdiag.shape[1]-2):
+                first[:, i] = (-xdiag[:-2, i+1] + xdiag[2:, i+1]) / (2 * self.dx_internal)
+
+            first *= dt*2
+
+            main_diagonal = np.diag(np.ones(n_nodes)*(-2))
+            off_diagonal = np.diag(np.ones(n_nodes-1), 1)
+            off_diagonal[0, -1] = 1
+
+            second = main_diagonal + off_diagonal + off_diagonal.T
+            second /= dxsq
+
+            J = first + (np.eye(n_nodes) - dt * self.nu * second)
+            x = x - np.linalg.solve(J, R)
+        return x
+
+
+    def solve_ivp(self, X_ic, U, time_values):
+
+        x = X_ic
+
+        ts = np.zeros((len(time_values), len(x)))
+        ts[0, :] = X_ic.flatten()
+
+        dts = np.append([0], np.diff(time_values))
+
+        for i in range(1, len(time_values)):
+
+            if isinstance(U, Callable):
+                Ut =  U(time_values[i], x)
+            elif isinstance(U, pd.DataFrame):
+                Ut = U.iloc[[i-1]].to_numpy()
+            else:
+                Ut = U[[i-1]]
+
+            ts[i, :] = self._step(ts[i-1], dts[i], Ut).flatten()
+
+        return ts
+
+
+
 
 class VanDerPol(ControllableODE):
     def __init__(self, eps=1.0):
