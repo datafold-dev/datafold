@@ -290,7 +290,9 @@ print(X_dict.head(5))
 # TODO: In KMPC "self.account_initial = False" needs to be set, otherwise it fails, do I need this option
 # TODO: need to align -- is the reference solution "on time" with what is returned by the optimization
 # TODO: work with initvals to fasten up solutions of convex optimization
-
+# TODO: make the upper/lower bound on control variable better!
+# TODO: include state bounds properly (they are essentially ignored currently)?
+# TODO: continue with Pendulum tutorial!
 
 
 kmpc = LinearKMPC(
