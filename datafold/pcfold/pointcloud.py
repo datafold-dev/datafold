@@ -80,7 +80,7 @@ class PCManifold(np.ndarray):
 
         # Set the kernel according to user input
         obj.kernel = kernel
-        obj.dist_kwargs = dist_kwargs or {}
+        obj.distance = dist_kwargs or {}
 
         return obj
 
@@ -231,7 +231,7 @@ class PCManifold(np.ndarray):
             A kernel can return further values see :meth:`PCManifoldKernel.__call__`
             for details.
         """
-        return self.kernel(X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs)
+        return self.kernel(X=self, Y=Y, **kernel_kwargs)
 
     def optimize_parameters(
         self,

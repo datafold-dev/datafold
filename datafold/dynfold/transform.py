@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, clone
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScaler
-from sklearn.utils.validation import check_is_fitted, check_scalar
+from sklearn.utils.validation import NotFittedError, check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
-from datafold.pcfold import MultiquadricKernel, PCManifold, TSCDataFrame
-from datafold.pcfold.kernels import PCManifoldKernel
+from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.timeseries.collection import TSCException
 
 
@@ -65,6 +64,11 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
                 f"name='{name}' is not known. Choose from {cls._cls_valid_scale_names}"
             )
 
+    def get_feature_names_out(self, input_features=None):
+        return self.sklearn_transformer_fit_.get_feature_names_out(
+            input_features=input_features
+        )
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeaturePreprocess":
         """Calls fit of internal transform ``sklearn`` object.
 
@@ -87,17 +91,15 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
 
         if not hasattr(self.sklearn_transformer, "transform"):
             raise AttributeError("sklearn object has no 'transform' attribute")
-
-        X = self._validate_datafold_data(X)
-        self._setup_feature_attrs_fit(X, features_out="like_features_in")
-
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self.sklearn_transformer_fit_ = clone(
             estimator=self.sklearn_transformer, safe=True
         )
+        self._validate_datafold_data(X)
 
         self.sklearn_transformer_fit_.fit(X)
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -122,11 +124,13 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
 
         values = self.sklearn_transformer_fit_.transform(X)
         return self._same_type_X(
-            X=X, values=values, feature_names=self.feature_names_out_
+            X=X,
+            values=values,
+            feature_names=self.get_feature_names_out(),
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params):
-        """Calls fit_transform of internal transform ``sklearn`` object..
+        """Calls fit_transform of internal transform ``sklearn`` object.
 
         Parameters
         ----------
@@ -144,13 +148,15 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(X)
 
-        self._setup_feature_attrs_fit(X, features_out="like_features_in")
-
         self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
         values = self.sklearn_transformer_fit_.fit_transform(X)
 
+        self._setup_feature_attrs_fit(X)
+
         return self._same_type_X(
-            X=X, values=values, feature_names=self.feature_names_out_
+            X=X,
+            values=values,
+            feature_names=self.get_feature_names_out(),
         )
 
     def inverse_transform(self, X: TransformType):
@@ -197,6 +203,27 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         self.include_const = include_const
         self.rename_features = rename_features
 
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=not self.rename_features)
+
+    def get_feature_names_out(self, input_features=None):
+
+        if input_features is None and hasattr(self, "feature_names_in_"):
+            features_out = self.feature_names_in_
+        else:
+            features_out = input_features
+
+        if features_out is not None:
+            if self.rename_features:
+                features_out = np.array(
+                    [f"{col}_id" for col in features_out], dtype=object
+                )
+
+            if self.include_const:
+                features_out = np.append(features_out, ["const"])
+
+        return features_out
+
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
 
@@ -219,18 +246,9 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        if self._has_feature_names(X):
-            if self.rename_features:
-                features_out = np.asarray([f"{col}_id" for col in X.columns])
-            else:
-                features_out = X.columns
-
-            if self.include_const:
-                features_out = np.append(features_out, ["const"])
-        else:
-            features_out = "like_features_in"
-
-        self._setup_feature_attrs_fit(X, features_out=features_out)
+        self._setup_feature_attrs_fit(
+            X, n_features_out=X.shape[1] + int(self.include_const)
+        )
 
         # Dummy attribute to indicate that fit was called
         self.is_fit_ = True
@@ -308,6 +326,9 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
     * `PCA user guide <https://scikit-learn.org/stable/modules/decomposition.html#pca>`__
     """
 
+    def get_feature_names_out(self, input_features=None):
+        return np.array([f"pca{i}" for i in range(self.n_components_)], dtype=object)
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "PCA":
         """Compute the principal components from training data.
 
@@ -331,13 +352,9 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        # validation happens here:
+        # validation happens in super.fit()
         super(TSCPrincipalComponent, self).fit(X, y=y)
-
-        self._setup_feature_attrs_fit(
-            X, features_out=[f"pca{i}" for i in range(self.n_components_)]
-        )
-
+        self._setup_feature_attrs_fit(X)
         return self
 
     def transform(self, X: TransformType):
@@ -361,7 +378,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         self._validate_feature_input(X, direction="transform")
         pca_data = super(TSCPrincipalComponent, self).transform(X)
         return self._same_type_X(
-            X, values=pca_data, feature_names=self.feature_names_out_
+            X, values=pca_data, feature_names=self.get_feature_names_out()
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
@@ -385,12 +402,10 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
 
         pca_values = super(TSCPrincipalComponent, self).fit_transform(X, y=y)
 
-        self._setup_feature_attrs_fit(
-            X, features_out=[f"pca{i}" for i in range(self.n_components_)]
-        )
+        self._setup_feature_attrs_fit(X)
 
         return self._same_type_X(
-            X, values=pca_values, feature_names=self.feature_names_out_
+            X, values=pca_values, feature_names=self.get_feature_names_out()
         )
 
     def inverse_transform(self, X: TransformType):
@@ -458,7 +473,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     * Original paper from :cite:t:`takens-1981`
     * Generalized to multiple observation in :cite:`deyle-2011`
-    * time delay embedding in the context of Koopman operator, e.g.
+    * time delay embedding in the context of Koopman operator theory, e.g.
       :cite:t:`arbabi-2017` or :cite:t:`champion-2019`.
     """
 
@@ -469,6 +484,9 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         self.delays = delays
         self.frequency = frequency
         self.kappa = kappa
+
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=True)
 
     def _validate_parameter(self):
 
@@ -519,18 +537,24 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         X.columns = X.columns.astype(np.str_)
         return X
 
-    def _expand_all_delay_columns(self, cols):
+    def get_feature_names_out(self, input_features=None):
+
+        if input_features is None:
+            input_features = self.feature_names_in_
+
         def expand():
             delayed_columns = list()
             for delay_idx in self.delay_indices_:
                 # rename columns: [column_name]:d[delay_index]
-                _cur_delay_columns = [f"{col}:d{delay_idx}" for col in cols.astype(str)]
+                _cur_delay_columns = [
+                    f"{col}:d{delay_idx}" for col in input_features.astype(str)
+                ]
                 delayed_columns.append(_cur_delay_columns)
             return delayed_columns
 
         # the name of the original indices is not changed, therefore append the delay
         # indices to
-        columns_names = cols.tolist() + list(itertools.chain(*expand()))
+        columns_names = input_features.tolist() + list(itertools.chain(*expand()))
 
         return pd.Index(
             columns_names,
@@ -583,9 +607,37 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         # save delta time during fit to check that time series collections in
         # transform have the same delta time
         self.delta_time_fit_ = X.delta_time
+        self._setup_feature_attrs_fit(X)
 
-        features_out = self._expand_all_delay_columns(X.columns)
-        self._setup_feature_attrs_fit(X, features_out=features_out)
+        return self
+
+    def partial_fit(
+        self, X: TransformType, y=None, **fit_params
+    ) -> "TSCTakensEmbedding":
+        """# TODO
+
+        Parameters
+        ----------
+        X
+        y
+        fit_params
+
+        Returns
+        -------
+
+        """
+        try:
+            check_is_fitted(self)
+            # there is no real model update needed, just check if the data still complies with
+            # the data used during the initial fit
+            self._validate_datafold_data(
+                X,
+                ensure_tsc=True,
+                tsc_kwargs=dict(ensure_delta_time=self.delta_time_fit_),
+            )
+        except NotFittedError:
+            # fit the model
+            self.fit(X, y, **fit_params)
 
         return self
 
@@ -645,8 +697,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         #     bool_idx = np.logical_not(np.sum(pd.isnull(X), axis=1).astype(np.bool))
         #     X = X.loc[bool_idx]
 
-        # Implementation using numpy functions.
-
+        # Implementation using numpy functions:
         # pre-allocate list
         delayed_timeseries = [pd.DataFrame([])] * len(X.ids)
 
@@ -688,9 +739,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             df = pd.DataFrame(
                 np.hstack([original_data, delayed_data]),
                 index=df.index[max_delay:],
-                columns=self.feature_names_out_,
+                columns=self.get_feature_names_out(self.feature_names_in_),
             )
-
             delayed_timeseries[idx] = df
 
         X = TSCDataFrame(pd.concat(delayed_timeseries, axis=0))
@@ -754,10 +804,11 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
     """
 
     _cls_valid_center_types = ["all_data", "fit_params", "initial_condition"]
+    _required_parameters = ["kernel"]
 
     def __init__(
         self,
-        kernel: Optional[PCManifoldKernel] = None,
+        kernel,
         *,  # keyword-only
         center_type: str = "all_data",
         exact_distance=True,
@@ -773,8 +824,8 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 f"{self._cls_valid_center_types} "
             )
 
-    def _get_default_kernel(self):
-        return MultiquadricKernel(epsilon=1.0)
+    def get_feature_names_out(self, feature_names_in=None):
+        return np.array([f"rbf{i}" for i in range(self.centers_.shape[0])])
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCRadialBasis":
         """Set the point centers of the radial basis functions.
@@ -836,18 +887,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 "center_type was not checked correctly. Please report bug."
             )
 
-        set_kernel = (
-            self.kernel if self.kernel is not None else self._get_default_kernel()
-        )
-
-        self.centers_ = PCManifold(
-            self.centers_,
-            kernel=set_kernel,
-            dist_kwargs=dict(backend="brute", exact_numeric=self.exact_distance),
-        )
-
-        n_centers = self.centers_.shape[0]
-        self._setup_feature_attrs_fit(X, [f"rbf{i}" for i in range(n_centers)])
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -869,10 +909,10 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         self._validate_feature_input(X, direction="transform")
 
         X_intern = self._X_to_numpy(X)
-        rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
+        rbf_coeff = self.kernel(self.centers_, X_intern)
 
         return self._same_type_X(
-            X, values=rbf_coeff, feature_names=self.feature_names_out_
+            X, values=rbf_coeff, feature_names=self.get_feature_names_out()
         )
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -898,13 +938,13 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if self.center_type == "all_data":
             # compute pdist distance matrix, which is often more efficient
-            rbf_coeff = self.centers_.compute_kernel_matrix()
+            rbf_coeff = self.kernel(X)
         else:  # self.center_type in ["initial_condition", "fit_params"]:
-            rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
+            rbf_coeff = self.kernel(self.centers_, X_intern)
 
         # import matplotlib.pyplot as plt; plt.matshow(rbf_coeff)
         return self._same_type_X(
-            X=X, values=rbf_coeff, feature_names=self.feature_names_out_
+            X=X, values=rbf_coeff, feature_names=self.get_feature_names_out()
         )
 
     def inverse_transform(self, X: TransformType):
@@ -930,7 +970,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if not hasattr(self, "inv_coeff_matrix_"):
             # save inv_coeff_matrix_
-            center_kernel = self.centers_.compute_kernel_matrix()
+            center_kernel = self.kernel(self.centers_)
             self.inv_coeff_matrix_ = np.linalg.lstsq(
                 center_kernel, self.centers_, rcond=None
             )[0]
@@ -979,6 +1019,9 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         else:
             return powers[powers.sum(axis=1) != 1, :]
 
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=self.include_first_order)
+
     def _get_poly_feature_names(self, X, input_features=None):
         # Note: get_feature_names function is already provided by super class
         if self._has_feature_names(X):
@@ -1016,11 +1059,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         super(TSCPolynomialFeatures, self).fit(X, y=y)
-
-        self._setup_feature_attrs_fit(
-            X,
-            features_out=self._get_poly_feature_names(X),
-        )
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -1048,7 +1087,11 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
             poly_data = poly_data[:, self._non_id_state_mask()]
 
         poly_data = self._same_type_X(
-            X, values=poly_data, feature_names=self._get_poly_feature_names(X)
+            X,
+            values=poly_data,
+            feature_names=self.get_feature_names_out(
+                input_features=self.feature_names_in_
+            ),
         )
 
         return poly_data
@@ -1087,6 +1130,19 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
                 "open an issue on Gitlab."
             )
 
+    def get_feature_names_out(self, feature_names_in=None):
+
+        if feature_names_in is None:
+            feature_names_in = self.feature_names_in_
+
+        return np.array(
+            [
+                f"{feature_name}_lambda{i}"
+                for feature_name in feature_names_in
+                for i in range(len(self.lambdas))
+            ]
+        )
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCApplyLambdas":
         """Set internal feature information.
 
@@ -1110,13 +1166,7 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X, ensure_tsc=True)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        features_out = [
-            f"{feature_name}_lambda{i}"
-            for feature_name in X.columns
-            for i in range(len(self.lambdas))
-        ]
-
-        self._setup_feature_attrs_fit(X, features_out=features_out)
+        self._setup_feature_attrs_fit(X)
         return self
 
     def transform(self, X: TransformType) -> TransformType:
@@ -1204,6 +1254,11 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         self.diff_order = diff_order
         self.accuracy = accuracy
 
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            input_features = self.feature_names_in_
+        return [f"{col}_dot" for col in input_features]
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFiniteDifference":
         """Set and validate time spacing between samples.
 
@@ -1242,12 +1297,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
 
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        if self._has_feature_names(X):
-            features_out = [f"{col}_dot" for col in X.columns]
-        else:
-            features_out = X.shape[1]
-
-        self._setup_feature_attrs_fit(X=X, features_out=features_out)
+        self._setup_feature_attrs_fit(X=X)
 
         if self.spacing == "dt":
             if not isinstance(X, TSCDataFrame):
@@ -1276,8 +1326,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             "spacing",
             target_type=(int, np.integer, float, np.floating),
             min_val=0,
-            max_val=None,
-            include_boundaries="right",
+            include_boundaries="neither",
         )
         self.spacing_ = float(self.spacing_)
 

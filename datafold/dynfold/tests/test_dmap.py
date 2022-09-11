@@ -2,6 +2,7 @@
 
 """
 import unittest
+from copy import deepcopy
 
 import diffusion_maps as legacy_dmap
 import matplotlib.pyplot as plt
@@ -25,8 +26,9 @@ from datafold.dynfold.tests.helper import (
     make_strip,
 )
 from datafold.pcfold import ContinuousNNKernel, GaussianKernel, TSCDataFrame
+from datafold.pcfold.distance import SklearnKNN
 from datafold.pcfold.kernels import ConeKernel
-from datafold.utils.general import random_subsample
+from datafold.utils.general import is_symmetric_matrix, random_subsample
 from datafold.utils.plot import plot_pairwise_eigenvector
 
 try:
@@ -191,9 +193,8 @@ class DiffusionMapsTest(unittest.TestCase):
             data, store_kernel_matrix=True
         )
         sparse_case = DiffusionMaps(
-            GaussianKernel(epsilon=1.25),
+            GaussianKernel(epsilon=1.25, distance=dict(cut_off=1e100)),
             n_eigenpairs=11,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data, store_kernel_matrix=True)
 
         nptest.assert_allclose(
@@ -235,7 +236,7 @@ class DiffusionMapsTest(unittest.TestCase):
         ).fit(data)
 
         # make sure that the symmetric transformation is really used
-        self.assertTrue(dmap1._dmap_kernel.is_symmetric_transform())
+        self.assertTrue(dmap1._dmap_kernel.is_conjugate)
 
         # Note: cannot compare kernel matrices, because they are only similar (sharing
         # same eigenvalues and eigenvectors [after transformation] not equal
@@ -249,21 +250,19 @@ class DiffusionMapsTest(unittest.TestCase):
         data, _ = make_swiss_roll(1500, random_state=2)
 
         dmap1 = DiffusionMaps(
-            GaussianKernel(epsilon=3),
+            GaussianKernel(epsilon=3, distance=dict(cut_off=1e100)),
             n_eigenpairs=5,
             symmetrize_kernel=True,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data)
 
         dmap2 = DiffusionMaps(
-            GaussianKernel(epsilon=3),
+            GaussianKernel(epsilon=3, distance=dict(cut_off=1e100)),
             n_eigenpairs=5,
             symmetrize_kernel=False,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data)
 
         # make sure that the symmetric transformation is really used
-        self.assertTrue(dmap1._dmap_kernel.is_symmetric_transform())
+        self.assertTrue(dmap1._dmap_kernel.is_conjugate)
 
         # Note: cannot compare kernel matrices, because they are only similar (sharing
         # same eigenvalues and eigenvectors [after transformation] not equal
@@ -300,10 +299,7 @@ class DiffusionMapsTest(unittest.TestCase):
         nptest.assert_array_equal(actual_dmap2.eigenvectors_, expected)
 
         self.assertEqual(actual_dmap.n_features_out_, 2)
-        self.assertEqual(actual_dmap.feature_names_out_, None)
-
         self.assertEqual(actual_dmap2.n_features_out_, 2)
-        self.assertEqual(actual_dmap2.feature_names_out_, None)
 
     def test_set_target_coords2(self):
         X_swiss_all, _ = make_swiss_roll(n_samples=2000, noise=0, random_state=5)
@@ -456,7 +452,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
         # for variation use sparse code
         dmap_embed = DiffusionMaps(
-            GaussianKernel(epsilon=0.9), n_eigenpairs=2, dist_kwargs=dict(cut_off=1e100)
+            GaussianKernel(epsilon=0.9, distance=dict(cut_off=1e100)), n_eigenpairs=2
         ).fit(X_all)
 
         expected_oos = (
@@ -489,8 +485,8 @@ class DiffusionMapsTest(unittest.TestCase):
 
         # Therefore, only reference solutions can be tested here.
 
-        X_swiss_train, _ = make_swiss_roll(2700, random_state=1)
-        X_swiss_test, _ = make_swiss_roll(1300, random_state=1)
+        X_swiss_train, color_train = make_swiss_roll(2700, random_state=1)
+        X_swiss_test, color_test = make_swiss_roll(1300, random_state=1)
 
         setting = {
             "kernel": GaussianKernel(epsilon=1.9),
@@ -506,12 +502,25 @@ class DiffusionMapsTest(unittest.TestCase):
             X_swiss_test
         )
 
+        if plot:
+            plot_pairwise_eigenvector(
+                eigenvectors=dmap_embed.eigenvectors_,
+                n=1,
+                scatter_params=dict(c=color_train),
+            )
+
+            plot_pairwise_eigenvector(
+                eigenvectors=dmap_embed_test_eval,
+                n=1,
+                scatter_params=dict(c=color_test),
+            )
+            plt.show()
+
         # NOTE: These tests are only to detect potentially unwanted changes in computation
         # NOTE: For some reason the remote computer produces other results. Therefore,
         # it is only checked with "allclose"
-
         np.set_printoptions(precision=17)
-        # print(dmap_embed_test_eval.sum(axis=0))
+        print(dmap_embed_test_eval.sum(axis=0))
 
         nptest.assert_allclose(
             dmap_embed_test_eval.sum(axis=0),
@@ -538,12 +547,22 @@ class DiffusionMapsTest(unittest.TestCase):
 
         data = np.random.default_rng(1).random(size=(100, 100))
 
-        for alpha in [0, 0.5, 1]:
-            DiffusionMaps(ContinuousNNKernel(k_neighbor=4, delta=2), alpha=alpha).fit(
-                data
+        for alpha, is_stochastic in zip([0, 0.5, 1], [True, False]):
+            dmap = DiffusionMaps(
+                ContinuousNNKernel(k_neighbor=4, delta=1.11),
+                alpha=alpha,
+                is_stochastic=is_stochastic,
             )
+            dmap = dmap.fit(data, store_kernel_matrix=True)
 
-        self.assertTrue(True)
+            self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
+            if is_stochastic:
+                self.assertEqual(dmap.kernel_matrix_.dtype, float)
+            else:
+                self.assertEqual(dmap.kernel_matrix_.dtype, bool)
+
+            self.assertIsInstance(dmap.eigenvectors_, np.ndarray)
+            self.assertIsInstance(dmap.eigenvalues_, np.ndarray)
 
     def test_dynamic_kernel(self):
 
@@ -566,19 +585,72 @@ class DiffusionMapsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             dmap.transform(tsc_data.iloc[:10].to_numpy())
 
-    def test_dist_kwargs(self):
+    def test_distance(self):
         _x = np.linspace(0, 2 * np.pi, 20)
         df = pd.DataFrame(
             np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
         )
         tsc_data = TSCDataFrame.from_single_timeseries(df=df)
 
-        dmap = DiffusionMaps(kernel=GaussianKernel(), dist_kwargs=dict(cut_off=2)).fit(
+        dmap = DiffusionMaps(kernel=GaussianKernel(distance=dict(cut_off=2))).fit(
             tsc_data, store_kernel_matrix=True
         )
 
-        self.assertEqual(dmap.X_fit_.dist_kwargs["cut_off"], 2)
+        # cut-off is squared because it is squared euclidean (while the cut-off is given
+        # in Euclidean metric)
+        self.assertEqual(dmap._dmap_kernel.distance.cut_off, 4)
         self.assertIsInstance(dmap.kernel_matrix_, scipy.sparse.csr_matrix)
+
+    def test_knn_kernel_matrix(self, plot=False):
+        X_swiss_train, color_train = make_swiss_roll(2700, random_state=1)
+        X_swiss_oos, color_oos = make_swiss_roll(1300, random_state=1)
+
+        setting = {
+            "kernel": GaussianKernel(
+                epsilon=2.1, distance=SklearnKNN(metric="sqeuclidean", k=100)
+            ),
+            "n_eigenpairs": 7,
+            "is_stochastic": True,
+            "alpha": 1,
+        }
+
+        dmap_list = [None, None]
+
+        for i, symmetrize_kernel in enumerate([True, False]):
+            setting["symmetrize_kernel"] = symmetrize_kernel
+            dmap_list[i] = DiffusionMaps(**setting).fit(
+                X_swiss_train, store_kernel_matrix=True
+            )
+            psi_oos = dmap_list[i].transform(X_swiss_oos)
+
+            self.assertFalse(is_symmetric_matrix(dmap_list[i].kernel_matrix_))
+
+            reconst_oos = dmap_list[i].inverse_transform(psi_oos)
+
+            # Test for linear reconstruction to identify future changes
+            self.assertLessEqual(np.linalg.norm(X_swiss_oos - reconst_oos), 72.441387)
+
+        nptest.assert_array_equal(
+            dmap_list[0].kernel_matrix_.toarray(), dmap_list[1].kernel_matrix_.toarray()
+        )
+        nptest.assert_array_equal(
+            dmap_list[0].eigenvectors_, dmap_list[1].eigenvectors_
+        )
+        nptest.assert_array_equal(dmap_list[0].eigenvalues_, dmap_list[1].eigenvalues_)
+
+        if plot:
+            plot_pairwise_eigenvector(
+                eigenvectors=dmap_list[0].eigenvectors_,
+                n=1,
+                scatter_params=dict(c=color_train),
+            )
+
+            plot_pairwise_eigenvector(
+                eigenvectors=psi_oos,
+                n=1,
+                scatter_params=dict(c=color_oos),
+            )
+            plt.show()
 
     def test_kernel_symmetric_conjugate(self):
         X = make_swiss_roll(1000)[0]
@@ -616,7 +688,6 @@ class DiffusionMapsTest(unittest.TestCase):
         )
 
         self.assertIsInstance(dmap.eigenvectors_, TSCDataFrame)
-        self.assertIsInstance(dmap.kernel_matrix_, TSCDataFrame)
 
         # insert TSCDataFrame -> output TSCDataFrame
         actual_tsc = dmap.transform(tsc_data.iloc[:10, :])
@@ -666,16 +737,14 @@ class DiffusionMapsTest(unittest.TestCase):
         X = TSCDataFrame.from_frame_list([X1, X2])
 
         actual_dmap = DiffusionMaps(
-            kernel=GaussianKernel(epsilon=1.25),
+            kernel=GaussianKernel(epsilon=1.25, distance=dict(cut_off=10)),
             n_eigenpairs=6,
-            dist_kwargs=dict(cut_off=10),
         )
         actual_result = actual_dmap.fit_transform(X, store_kernel_matrix=True)
 
         expected_dmap = DiffusionMaps(
-            kernel=GaussianKernel(epsilon=1.25),
+            kernel=GaussianKernel(epsilon=1.25, distance=dict(cut_off=10)),
             n_eigenpairs=6,
-            dist_kwargs=dict(cut_off=10),
         )
         expected_result = expected_dmap.fit_transform(
             X.to_numpy(), store_kernel_matrix=True
@@ -709,16 +778,16 @@ class DiffusionMapsTest(unittest.TestCase):
 
         t1 = time()
         cknn_kernel = pfold.kernels.ContinuousNNKernel(
-            k_neighbor=k_neighbor, delta=delta
+            k_neighbor=k_neighbor,
+            delta=delta,
+            distance=dict(cut_off=pcm.cut_off, backend="rdist"),
         )
         k, distance = cknn_kernel(
             pcm,
-            dist_kwargs=dict(cut_off=pcm.cut_off, backend="rdist")
-            # dist_backend_kwargs={"kmin": k_neighbor + 1},
         )
         t2 = time()
 
-        dmap = DiffusionMaps(n_eigenpairs=10, dist_kwargs=dict(cut_off=pcm.cut_off))
+        dmap = DiffusionMaps(n_eigenpairs=10)
         dmap._dmap_kernel = cknn_kernel
         dmap.fit(pcm)
 
@@ -727,7 +796,7 @@ class DiffusionMapsTest(unittest.TestCase):
         print(f"kernel has {k.nnz/k.shape[0]} neighbors per row, on {k.shape[0]} rows")
         print(f"pcm: {t1-t0}, cknn kernel: {t2-t1}, dmap: {t3-t2}")
 
-    @unittest.skip(reason="Temporarily, remove skip")
+    @unittest.skip(reason="Speed test without any asssertions, use if required")
     def test_speed(self):
         from time import time
 
@@ -751,25 +820,26 @@ class DiffusionMapsTest(unittest.TestCase):
         pcm.optimize_parameters()
 
         setting = {
-            "kernel": GaussianKernel(pcm.kernel.epsilon),
+            "kernel": GaussianKernel(
+                pcm.kernel.epsilon,
+                distance={"cut_off": pcm.cut_off, "backend": "scipy.kdtree"},
+            ),
             "n_eigenpairs": 5,
             "is_stochastic": True,
             "alpha": 1,
             "symmetrize_kernel": True,
-            "dist_kwargs": {"cut_off": pcm.cut_off, "backend": "scipy.kdtree"},
         }
 
         dmap_embed = DiffusionMaps(**setting)
+        kernel = deepcopy(dmap_embed.kernel)
 
         t1 = time()
         dmap_embed.fit(data, store_kernel_matrix=True)
         t2 = time()
-        (
-            _,
-            _basis_change_matrix,
-            _row_sums_alpha,
-        ) = dmap_embed.X_fit_.compute_kernel_matrix()
+        # compute kernel
+        kernel(data)
         t22 = time()
+
         solver_kwargs = {
             "k": setting["n_eigenpairs"],
             "which": "LM",
@@ -825,10 +895,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         data, epsilon = circle_data(nsamples=1000)
 
         actual = DiffusionMaps(
-            GaussianKernel(epsilon=epsilon),
+            GaussianKernel(epsilon=epsilon, distance=dict(cut_off=1e100)),
             n_eigenpairs=11,
             symmetrize_kernel=False,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data, store_kernel_matrix=True)
         expected = legacy_dmap.SparseDiffusionMaps(points=data, epsilon=epsilon)
 
@@ -861,10 +930,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         ne = 5
         for cut_off in all_cut_offs:
             actual1 = DiffusionMaps(
-                GaussianKernel(epsilon=1e-3),
+                GaussianKernel(epsilon=1e-3, distance=dict(cut_off=cut_off)),
                 n_eigenpairs=ne,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=cut_off),
             ).fit(data1)
             expected1 = legacy_dmap.DiffusionMaps(
                 points=data1, epsilon=1e-3, num_eigenpairs=ne, cut_off=cut_off
@@ -873,10 +941,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_eigenpairs(actual1, expected1)
 
             actual2 = DiffusionMaps(
-                GaussianKernel(epsilon=epsilon2),
+                GaussianKernel(epsilon=epsilon2, distance=dict(cut_off=cut_off)),
                 n_eigenpairs=ne,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=cut_off),
             ).fit(data2)
             expected2 = legacy_dmap.DiffusionMaps(
                 points=data2, epsilon=epsilon2, num_eigenpairs=ne, cut_off=cut_off
@@ -907,10 +974,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
 
         # Sparse case
         actual = DiffusionMaps(
-            GaussianKernel(epsilon=epsilon),
+            GaussianKernel(epsilon=epsilon, distance=dict(cut_off=3)),
             n_eigenpairs=11,
             is_stochastic=False,
-            dist_kwargs=dict(cut_off=3),
         ).fit(data, store_kernel_matrix=True)
 
         expected = legacy_dmap.SparseDiffusionMaps(
@@ -920,11 +986,10 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
         cmp_kernel_matrix(actual, expected, rtol=1e-15, atol=1e-15)
 
         actual = DiffusionMaps(
-            GaussianKernel(epsilon=epsilon),
+            GaussianKernel(epsilon=epsilon, distance=dict(cut_off=3)),
             n_eigenpairs=11,
             is_stochastic=True,
             symmetrize_kernel=False,
-            dist_kwargs=dict(cut_off=3),
         ).fit(data, store_kernel_matrix=True)
         expected = legacy_dmap.SparseDiffusionMaps(
             data, epsilon=1.25, num_eigenpairs=11, cut_off=3, normalize_kernel=True
@@ -948,11 +1013,10 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
 
             actual = DiffusionMaps(
-                GaussianKernel(epsilon=1.25),
+                GaussianKernel(epsilon=1.25, distance=dict(cut_off=3)),
                 n_eigenpairs=11,
                 symmetrize_kernel=False,
                 alpha=factor,
-                dist_kwargs=dict(cut_off=3),
             ).fit(data, store_kernel_matrix=True)
 
             expected = legacy_dmap.SparseDiffusionMaps(
@@ -976,10 +1040,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             )
 
             actual_sparse = DiffusionMaps(
-                GaussianKernel(epsilon=eps),
+                GaussianKernel(epsilon=eps, distance=dict(cut_off=3)),
                 n_eigenpairs=n_eigenpairs,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=3),
             ).fit(data, store_kernel_matrix=True)
             expected_sparse = legacy_dmap.SparseDiffusionMaps(
                 points=data, epsilon=eps, num_eigenpairs=n_eigenpairs, cut_off=3
@@ -1006,10 +1069,9 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
 
             actual = DiffusionMaps(
-                GaussianKernel(epsilon=1.25),
+                GaussianKernel(epsilon=1.25, distance=dict(cut_off=3)),
                 n_eigenpairs=n_eigenpairs,
                 symmetrize_kernel=False,
-                dist_kwargs=dict(cut_off=3),
             ).fit(data, store_kernel_matrix=True)
             expected = legacy_dmap.SparseDiffusionMaps(
                 data, epsilon=1.25, cut_off=3, num_eigenpairs=n_eigenpairs
@@ -1238,7 +1300,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
             plt.show()
 
         # TESTS:
-        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
+        h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermitian polynomial
         factor = DiffusionMapsVariableTest.eig_neg_factor(
             h3(X), dmap.eigenvectors_[:, 3]
         )

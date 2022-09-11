@@ -20,7 +20,9 @@ from datafold.dynfold.dmd import (
     DMDEco,
     DMDFull,
     LinearDynamicalSystem,
+    OnlineDMD,
     PyDMDWrapper,
+    StreamingDMD,
     gDMDAffine,
     gDMDFull,
 )
@@ -30,6 +32,7 @@ from datafold.utils.general import (
     is_df_same_index,
     sort_eigenpairs,
 )
+from datafold.utils.plot import plot_eigenvalues
 
 
 class LinearDynamicalSystemTest(unittest.TestCase):
@@ -475,10 +478,11 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
 class DMDTest(unittest.TestCase):
     def _create_random_tsc(self, dim, n_samples):
         data = np.random.default_rng(1).normal(size=(n_samples, dim))
-        data = pd.DataFrame(data)
+        data = pd.DataFrame(data, columns=np.arange(dim))
         return TSCDataFrame.from_single_timeseries(data)
 
-    def _create_harmonic_tsc(self, n_samples, dim):
+    @classmethod
+    def _create_harmonic_tsc(cls, n_samples, dim):
         x_eval = np.linspace(0, 2, n_samples)
 
         col_stacks = []
@@ -711,7 +715,7 @@ class DMDTest(unittest.TestCase):
 
         self.assertIsInstance(actual, TSCDataFrame)
         self.assertEqual(actual.n_timeseries, predict_ic.shape[0])
-        self.assertEqual(actual.n_timesteps, np.size(dmd.time_values_in_))
+        self.assertEqual(actual.n_timesteps, 2)
         nptest.assert_array_equal(actual.ids, np.arange(predict_ic.shape[0]))
 
         # provide own time series IDs in the initial condition and own time values
@@ -778,6 +782,262 @@ class DMDTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _values = time_values.copy()[np.newaxis, :]
             dmd.predict(predict_ic, _values)
+
+    def test_invalid_feature_names(self):
+        tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
+        predict_ic = self._create_random_tsc(n_samples=1, dim=10)
+
+        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+
+        predict_ic.columns = pd.Index(np.arange(2, 12))
+
+        with self.assertRaises(ValueError):
+            dmd.predict(predict_ic)
+
+
+class StreamingDMDTest(unittest.TestCase):
+    def _snapshots(self, n_states, n_snaps, noise_cov=0.0):
+
+        # Code part for test taken from
+        # https://github.com/cwrowley/dmdtools/blob/master/python/tests/test_dmd.py
+        # See also LICENSE_bundeled file for the copy of the BSD 3-Clause license
+
+        dt = 0.01  # timestep
+
+        # Define the example system
+        v1 = np.random.default_rng(1).normal(size=n_states)
+        v2 = np.random.default_rng(2).normal(size=n_states)
+        v3 = np.random.default_rng(3).normal(size=n_states)
+        v4 = np.random.default_rng(4).normal(size=n_states)
+
+        # characteristic frequencies
+        f1 = 5.2
+        f2 = 1.0
+
+        X = np.zeros([n_snaps, n_states])
+
+        for k in range(n_snaps):
+            shot = (
+                v1 * np.cos(2 * np.pi * f1 * dt * k)
+                + v2 * np.cos(2 * np.pi * f2 * dt * k)
+                + v3 * np.sin(2 * np.pi * f1 * dt * k)
+                + v4 * np.sin(2 * np.pi * f2 * dt * k)
+            )
+            X[k, :] = shot + np.sqrt(noise_cov) * np.random.default_rng(5).normal(
+                size=n_states
+            )
+
+        return TSCDataFrame.from_array(X)
+
+    def _generate_delayed_sine_wave(self, sigma_noise=0):
+        t_eval = np.linspace(0, 2 * 8 * np.pi, 1000)
+        data = np.sin(t_eval)
+        data += np.random.default_rng(1).normal(
+            loc=data, scale=sigma_noise, size=len(data)
+        )
+
+        df = TSCDataFrame.from_array(
+            data[:, np.newaxis], time_values=t_eval, feature_names=["sin"]
+        )
+        df = TSCTakensEmbedding(delays=4).fit_transform(df)
+        return df
+
+    def test_sine_curve(self, plot=False):
+
+        df = self._generate_delayed_sine_wave()
+
+        batchsize = 200
+
+        stream_dmd_classes = [
+            (StreamingDMD(max_rank=None, ngram=5), {}),
+            (OnlineDMD(weighting=1.0), dict(batch_initialize=True)),
+        ]
+
+        batches = np.array_split(df, df.shape[0] // batchsize)
+        predict = []
+        predict_fulldmd = []
+        train = []
+
+        for dmd, fit_params in stream_dmd_classes:
+
+            for i in range(len(batches) - 1):
+                fit_batch = batches[i]
+                predict_batch = batches[i + 1]
+
+                dmd_full = DMDFull().fit(pd.concat(batches[: i + 1], axis=0))
+                expected_ev = dmd_full.eigenvalues_[:2]
+
+                predict_fulldmd.append(
+                    dmd_full.reconstruct(predict_batch).loc[:, "sin"]
+                )
+
+                dmd = dmd.partial_fit(fit_batch, **fit_params)
+                actual_ev = dmd.eigenvalues_[:2]
+
+                train.append(dmd.reconstruct(fit_batch).loc[:, "sin"])
+                predict.append(dmd.reconstruct(predict_batch).loc[:, "sin"])
+
+                nptest.assert_allclose(expected_ev, actual_ev, rtol=1e-15, atol=1e-12)
+
+            if plot:
+                ax = plot_eigenvalues(
+                    dmd_full.eigenvalues_,
+                    plot_unit_circle=True,
+                    plot_kwargs=dict(marker="o", alpha=0.3, label="full"),
+                )
+                plot_eigenvalues(
+                    dmd.eigenvalues_, ax=ax, plot_kwargs=dict(label="streaming")
+                )
+                plt.legend()
+
+                ax = df.loc[:, ["sin"]].plot()
+
+                for i, p in enumerate(predict_fulldmd):
+                    ax.plot(
+                        p.time_values(),
+                        p.to_numpy(),
+                        c="orange",
+                        linewidth=3,
+                        label=f"{dmd_full=}" if i == 0 else None,
+                    )
+
+                for i, p in enumerate(train):
+                    ax.plot(
+                        p.time_values(),
+                        p.to_numpy(),
+                        "-",
+                        c="green",
+                        label=f"{dmd=} train" if i == 0 else None,
+                    )
+
+                for i, p in enumerate(predict):
+                    ax.plot(
+                        p.time_values(),
+                        p.to_numpy(),
+                        "--",
+                        c="red",
+                        label=f"{dmd=} test" if i == 0 else None,
+                    )
+
+                plt.legend()
+
+        if plot:
+            plt.show()
+
+    def test_pod_compression(self):
+        df = self._generate_delayed_sine_wave()
+
+        dmd = StreamingDMD(max_rank=1)
+        dmd.partial_fit(df)
+
+        self.assertEqual(len(dmd.eigenvalues_), 1)
+
+    def test_compare_methods(self, plot=False):
+
+        n_samples = 500
+        n_states = 1000
+        noise_cov = 10  # measurement noise covariance
+
+        X = self._snapshots(n_states, n_samples, noise_cov)
+
+        dmd_full = DMDFull()
+        dmd_full.fit(X)
+
+        dmd_partial = StreamingDMD(max_rank=None)
+        dmd_partial.partial_fit(X)
+
+        # actual does not necessarily compute all possible eigenvalues
+        # -> compare only leading eigenvalues from DMDFull
+        ev_actual = dmd_partial.eigenvalues_
+        ev_expected = dmd_full.eigenvalues_[: len(ev_actual)]
+
+        nptest.assert_allclose(ev_expected, ev_actual, rtol=1e-14, atol=1e-15)
+
+        if plot:
+            print("standard:")
+            print(ev_expected)
+            print("\nstreaming:")
+            print(ev_actual)
+
+            ax = plot_eigenvalues(
+                ev_expected,
+                plot_unit_circle=True,
+                plot_kwargs=dict(marker="+", markersize=10, c="red", label="streaming"),
+            )
+            ax = plot_eigenvalues(
+                ev_actual,
+                ax=ax,
+                plot_kwargs=dict(marker="o", markersize=3, c="blue", label="full"),
+            )
+
+            ax.set_title("DMD eigenvalues")
+            ax.set_xlabel(r"$\Re(\lambda)$")
+            ax.set_ylabel(r"$\Im(\lambda)$")
+            plt.legend()
+
+            plt.show()
+
+
+class TestOnlineDMD(unittest.TestCase):
+    def test_online_dmd(self):
+        """Test taken and adapted from
+        https://github.com/haozhg/odmd/blob/master/tests/test_online.py. For license from
+        "odmd" see LICENSE_bundeled file in datafold repository."""
+
+        for n in range(2, 10):  # n -> state dimension
+            T = 100 * n  # number of measurements
+
+            # linear system matrix
+            A = np.random.default_rng(2).normal(size=(n, n))
+
+            now = np.random.default_rng(3).normal(size=(n, T))
+            next = A.dot(now)
+
+            X = TSCDataFrame.from_shift_matrices(now, next, snapshot_orientation="col")
+            X.is_validate = False  # speeds up the iteration
+
+            dmd = OnlineDMD(weighting=0.9)
+
+            for tsc in X.itertimeseries(valid_tsc=True):
+                dmd = dmd.partial_fit(tsc)
+                if dmd.ready_:
+                    self.assertLess(np.linalg.norm(dmd.A - A), 1e-6)
+
+            actual = dmd.reconstruct(X)  # calls predict within
+            pdtest.assert_frame_equal(X, actual, rtol=1e-13, atol=1e-10)
+
+    def test_online_init_vs_full(self):
+        X = DMDTest._create_harmonic_tsc(n_samples=500, dim=4)
+
+        expected = DMDFull().fit(X)
+        actual = OnlineDMD(weighting=1.0).partial_fit(X, batch_initialize=True)
+
+        nptest.assert_allclose(
+            expected.eigenvalues_, actual.eigenvalues_, rtol=1e-14, atol=1e-14
+        )
+        nptest.assert_allclose(
+            expected.eigenvectors_right_,
+            actual.eigenvectors_right_,
+            rtol=1e-15,
+            atol=1e-12,
+        )
+
+        # The weighing != 1.0 triggers a differen if case
+        # (but should have essentially no effect)
+        actual = OnlineDMD(weighting=1.0 - 1e-15).partial_fit(X, batch_initialize=True)
+
+        nptest.assert_allclose(
+            expected.eigenvectors_right_,
+            actual.eigenvectors_right_,
+            rtol=1e-15,
+            atol=1e-12,
+        )
+        nptest.assert_allclose(
+            expected.eigenvectors_right_,
+            actual.eigenvectors_right_,
+            rtol=1e-15,
+            atol=1e-12,
+        )
 
 
 class DMDControlTest(unittest.TestCase):

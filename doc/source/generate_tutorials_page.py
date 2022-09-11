@@ -63,7 +63,7 @@ Jupyter notebook in a web browser, run
 DESCRIPTIVE_TUTORIALS = dict()
 # prefix required as a file pattern in .gitignore (change also there!)
 PREFIX_DOC_FILES = "tutorial_"
-# Indentation for to easier format .rst file
+# Indentation to easier format the .rst file
 INDENT = "    "
 
 
@@ -232,14 +232,14 @@ def get_tutorial_text_doc(filename, target):
 
 def init_tutorials():
     add_tutorial(
-        "01_basic_datastructures.ipynb",
+        "01_datastructures.ipynb",
         "We introduce *datafold*'s basic data structures for time series collection data and "
         "kernel-based algorithms. They are both used internally in model implementations and "
         "for input/output.",
     )
 
     add_tutorial(
-        "02_basic_pcm_subsampling.ipynb",
+        "02_pcm_subsampling.ipynb",
         "We show how the ``PCManifold`` data structure can be used to subsample a "
         "manifold point cloud uniformly.",
         warning="The tutorial generates a large dataset with 10 Mio. samples by default. "
@@ -247,22 +247,45 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "03_basic_dmap_scurve.ipynb",
+        "03_dmap_scurve.ipynb",
         "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
         "S-curved point cloud manifold. We also select the best combination of intrinsic "
         "parameters automatically with an optimization routine.",
     )
 
     add_tutorial(
-        "04_basic_dmap_digitclustering.ipynb",
+        "04_dmap_digitclustering.ipynb",
         "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
         "perform an out-of-sample embedding. This example is taken from the scikit-learn "
         "project and can be compared against other manifold learning algorithms.",
     )
 
     add_tutorial(
-        filename="05_basic_gh_oos.ipynb",
-        description="We showcase the out-of-sample extension for manifold learning "
+        "05_roseland_scurve_digits.ipynb",
+        "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
+        "S-curved point cloud manifold and to cluster data from handwritten digit. We also "
+        "select the best combination of intrinsic parameters automatically with an "
+        "optimization routine and demonstrate how to do include this in an scikit-learn "
+        "pipeline. Based on the Diffusion Maps tutorials.",
+    )
+
+    add_tutorial(
+        "06_dmap_mahalanobis_kernel.ipynb",
+        "We highlight how to use the Mahalanobis kernel within Diffusion Maps. With "
+        "this we can obtain embeddings that are invariant to the observation function.",
+        warning="The implementation of the Mahalanobis kernel is still experimental and "
+        "should be used with care. Contributions are welcome!",
+    )
+
+    add_tutorial(
+        "07_jsf_common_eigensystem.ipynb",
+        "We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
+        "from multimodal data. We also demonstrate the out-of-sample extension.",
+    )
+
+    add_tutorial(
+        "08_gh_oos.ipynb",
+        "We showcase the out-of-sample extension for manifold learning "
         "models such as the ``DiffusionMaps`` model. For this we use the "
         "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
         warning="The tutorial requires also the Python package "
@@ -271,29 +294,11 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "06_basic_edmd_limitcycle.ipynb",
+        "09_edmd_limitcycle.ipynb",
         "We generate data from a dynamical system (Hopf system) and compare different "
         "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
         "out-of-sample predictions with time ranges exceeding the time horizon of the "
         "training data.",
-    )
-
-    add_tutorial(
-        filename="07_basic_jsf_common_eigensystem.ipynb",
-        description="We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
-        "from multimodal data. Also, we introduce ``JsfDataset``, which is used to make "
-        "``JointlySmoothFunctions`` consistent with scikit-learn's estimator and transformer "
-        "APIs. Finally, we demonstrate the out-of-sample extension.",
-        warning="The code for jointly smooth functions inside this notebook is experimental.",
-    )
-
-    add_tutorial(
-        "08_basic_roseland_scurve_digits.ipynb",
-        "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
-        "S-curved point cloud manifold and to cluster data from handwritten digit. "
-        "We also select the best combination of intrinsic parameters automatically "
-        "with an optimization routine and demonstrate how to do include this in an "
-        "scikit-learn pipeline. Based on the Diffusion Maps tutorials.",
     )
 
     add_tutorial(
@@ -302,6 +307,14 @@ def init_tutorials():
         "operator. We apply MPC using an EDMD predictor to a toy model: the "
         "inverted pendulum, sometimes referred to as a cartpole.",
         archive=True,
+    )
+
+    add_tutorial(
+        "11_online_dmd.ipynb",
+        "We highlight ``OnlineDMD`` at the example of a simple system. The dynamic "
+        "mode decomposition is updated once new data becomes available. This is particularly "
+        "useful for time-varying systems. The notebook is taken from the original work by "
+        "Zhang and Rowley, 2019; for reference see notebook.",
     )
 
 

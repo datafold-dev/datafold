@@ -9,7 +9,7 @@ VENV_DIR = .venv
 OS ?= Linux
 HTML_DOC_PATH = $(CURRENT_PATH)doc/build/html/
 
-#help: @ List available targets and options in the Makefile with a short description.
+#help: @ List the available targets and options in this Makefile with a short description.
 help:
 	@echo 'Execute with "make [target] [arguments]"'.
 	@echo 'Example: "make docs OPEN_BROWSER=false"'
@@ -143,7 +143,7 @@ install_devdeps: venv
     python -m pip install --upgrade pip wheel setuptools twine; \
 	python -m pip install -r requirements-dev.txt
 
-#install_docdeps: @ Install non-Python dependencies to build datafold's documentation (may require 'sudo' rights).
+#install_docdeps: @ Install non-Python dependencies to build datafold's documentation (requires admin rights).
 install_docdeps:
 ifeq ($(OS),Linux)
 ifeq ($(IS_DOCKER),) # no docker
@@ -158,10 +158,10 @@ else # OS = Windows
 	choco install $(_DOCDEPS)
 endif
 
-#devenv: @ Set up development environment (executing targets 'install_devdeps' and 'install_docdeps')
-devenv: install_devdeps install_docdeps
+#devenv: @ Setup full development environment by executing targets 'install_devdeps' and 'install_docdeps'.
+devenv: install_devdeps install_docdeps precommit
 
-#versions: @ Show current datafold version and of the essential dependencies.
+#versions: @ Show current version of datafold and its essential dependencies.
 versions:
 	@$(ACTIVATE_VENV); \
 	python datafold/_version.py
@@ -186,12 +186,15 @@ docs_linkcheck:
 	cd doc/; \
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
-#unittest: @ Run all unittests with pytest in datafold.
+#unittest: @ Run all unittests with pytest.
 unittest:
 	@$(ACTIVATE_VENV); \
 	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/; \
+	@ # use EXIT_CODE from the actual tests (and not return exit code from the last coverage statement) \
+	EXIT_CODE=$$?; \
 	python -m coverage html -d ./coverage/; \
-	python -m coverage report;
+	python -m coverage report; \
+	@exit EXIT_CODE
 
 #tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
@@ -201,16 +204,23 @@ tutorialtest:
 
 test: unittest tutorialtest
 
-#tutorial: @ Open tutorials in Jupyter notebook (opens a window in the default browser).
+#tutorial: @ Open tutorials in Jupyter notebook in a new tab of the default web browser.
 tutorial:
 	@$(ACTIVATE_VENV); \
 	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
 	python -m notebook $(CURRENT_PATH)/tutorials/
 
-#precommit: @ Run git hooks to check and analyze the code. Manged by pre-commit.
+#precommit: @ Run git hooks managed by precommit to check and analyze the code.
 precommit:
 	@$(ACTIVATE_VENV); \
 	python -m pre_commit run $(GITHOOK);
+
+#gitamend: @ Amend a commit to the last commit (already pushed).
+gitamend:
+	@$(ACTIVATE_VENV);\
+	git commit --amend;\
+	git push --force-with-lease
+
 
 #ci: @ Run continuous integration pipeline.
 ci: install_devdeps test precommit test_install
@@ -223,9 +233,9 @@ build:
 #install: @ Install datafold in virtual environment.
 install:
 	@$(ACTIVATE_VENV); \
-	python setup.py install
+	python -m pip install .
 
-#test_install: @ Install and subsequently uninstall datafold for testing purposes (all created files are removed).
+#test_install: @ Install and subsequently uninstall datafold (for testing purposes all created files are removed).
 test_install: install clean_install
 	@echo 'Successful'
 
@@ -268,6 +278,11 @@ clean_test:
 	rm -f .coverage;
 	rm -fr coverage/;
 
+#clean_install: @ Remove all files that are created for the target "install".
+clean_install: clean_build
+	@$(ACTIVATE_VENV); \
+	yes | pip uninstall datafold
+
 #clean_cache: @ Remove all cache files from the repository.
 clean_cache:
 	rm -rf .mypy_cache;
@@ -278,11 +293,6 @@ clean_cache:
 #clean_docker: @ Remove all unused docker images in docker (not just dangling ones).
 clean_docker:
 	docker system prune -a
-
-#uninstall: @ Remove all files for the target "install".
-clean_install: clean_build
-	@$(ACTIVATE_VENV); \
-	yes | pip uninstall datafold
 
 #clean_venv: @ Remove the virtual environment folder which is created for the target "venv".
 clean_venv:
