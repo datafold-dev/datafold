@@ -33,28 +33,31 @@ This section describes all steps to set up *datafold* for code development.
 
     in the shell to view the available targets with a short description.
 
-    .. tabbed:: Linux
+    .. tab-set::
 
-        In Linux ``make`` is a standard tool and pre-installed.
+        .. tab-item:: Linux
 
-    .. tabbed:: Windows
+            In Linux ``make`` is a standard tool and pre-installed.
 
-        .. warning::
+        .. tab-item:: Windows
 
-            The targets are not fully tested for Windows yet. Please file an issue if you
-            encounter problems.
+            .. warning::
 
-        In Windows the recommended way is to use ``make`` in the `git bash <https://gitforwindows.org/>`__.
-        For this you may `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__
-        first (with administrator rights) and then use the ``choco`` software manger tool to
-        install ``make`` with
+                The ``make`` targets are not fully tested for Windows. Please file an issue if you
+                encounter problems.
 
-        .. code-block:: bash
+            In Windows the recommended way is to use ``make`` in the
+            `git bash <https://gitforwindows.org/>`__. For this you may
+            `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__ first
+            (with administrator rights) and then use the ``choco`` software manger tool to install
+            ``make`` with
 
-            choco install make
+            .. code-block:: bash
 
-        Chocolatey is also suitable to install non-Python dependencies required for building
-        the *datafold*'s html documentation.
+                choco install make
+
+            Chocolatey is also suitable to install non-Python dependencies required for building
+            the *datafold*'s html documentation.
 
 .. note::
 
@@ -88,38 +91,39 @@ Quick set up
 
 The bash script includes all steps that are detailed below.
 
-.. tabbed:: pip
+.. tab-set::
+    .. tab-item:: pip
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-       # Clone repository (replace [NAMESPACE] with your fork or "datafold-dev")
-       git clone git@gitlab.com:[NAMESPACE]/datafold.git
-       cd ./datafold/
+           # Clone repository (replace [NAMESPACE] with your fork or "datafold-dev")
+           git clone git@gitlab.com:[NAMESPACE]/datafold.git
+           cd ./datafold/
 
-       # Set up Python virtual environment
-       python -m venv .venv
-       source .venv/bin/activate
-       python -m pip install --upgrade pip
+           # Set up Python virtual environment
+           python -m venv .venv
+           source .venv/bin/activate
+           python -m pip install --upgrade pip
 
-       # Install package and development dependencies
-       python -m pip install -r requirements-dev.txt
+           # Install package and development dependencies
+           python -m pip install -r requirements-dev.txt
 
-       # Install and run git hooks managed by pre-commit
-       python -m pre_commit run --all-files
+           # Install and run git hooks managed by pre-commit
+           python -m pre_commit run --all-files
 
-       # Run tests with coverage and pytest
-       python -m coverage run -m pytest datafold/
-       python -m coverage html -d coverage/
-       python -m coverage report
+           # Run tests with coverage and pytest
+           python -m coverage run -m pytest datafold/
+           python -m coverage html -d coverage/
+           python -m coverage report
 
-       # Test if tutorials run without error
-       python -m pytest tutorials/
+           # Test if tutorials run without error
+           python -m pytest tutorials/
 
-       # Build documentation (writes to "docs/build/")
-       # Note that this requires additional third-party dependencies
-       python setup.py build_docs
+           # Build documentation (writes to "docs/build/")
+           # Note that this requires additional third-party dependencies
+           python setup.py build_docs
 
-.. tabbed:: conda
+    .. tab-item:: conda
 
         **datafold is not available from the conda package manager**. If you run
         Python with Anaconda's package manager, the recommended way is to set up
@@ -190,42 +194,43 @@ Install development dependencies
 The file ``requirements-dev.txt`` in the root directory of the repository contains all
 developing dependencies and is readable with :code:`pip`.
 
-.. tabbed:: pip
+.. tab-set::
+    .. tab-item:: pip
 
-    The recommended (but optional) way is to install all dependencies into a
-    `virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
-    with other installed packages.
+        The recommended (but optional) way is to install all dependencies into a
+        `virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
+        with other installed packages.
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-        # Create and activate new virtual environment
-        python -m venv .venv
-        source .venv/bin/activate
-        pip install --upgrade pip
+            # Create and activate new virtual environment
+            python -m venv .venv
+            source .venv/bin/activate
+            pip install --upgrade pip
 
-        # Install package and extra dependencies
-        pip install -r requirements-dev.txt
+            # Install package and extra dependencies
+            pip install -r requirements-dev.txt
 
-    To install the dependencies without a virtual environment only run the last statement.
+        To install the dependencies without a virtual environment only run the last statement.
 
-.. tabbed:: conda
+    .. tab-item:: conda
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-           # Create new conda environment with pip installed
-           conda create -n .venv
-           conda activate .venv
-           conda install pip  # use pip from within the conda environment
+               # Create new conda environment with pip installed
+               conda create -n .venv
+               conda activate .venv
+               conda install pip  # use pip from within the conda environment
 
-           # Install package and extra dependencies
-           pip install -r requirements-dev.txt
+               # Install package and extra dependencies
+               pip install -r requirements-dev.txt
 
-    .. note::
-        While the above procedure works, you may also want to follow the best practices
-        from `Anaconda <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
-        more strictly. In particular, it is recommended to install package dependencies
-        listed in ``requirements-dev.txt`` separately with
-        :code:`conda install package_name`, if the package is hosted on ``conda``.
+        .. note::
+            While the above procedure works, you may also want to follow the best practices
+            from `Anaconda <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
+            more strictly. In particular, it is recommended to install package dependencies
+            listed in ``requirements-dev.txt`` separately with
+            :code:`conda install package_name`, if the package is hosted on ``conda``.
 
 
 Install git pre-commit hooks
@@ -316,30 +321,31 @@ development dependencies:
   `Jupyter tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
   to the web page).
 
+.. tab-set::
 
-.. tabbed:: Linux (Debian-based)
+    .. tab-item:: Linux (Debian-based)
 
-    Install the non-Python software with (preferably with `sudo`)
+        Install the non-Python software with (preferably with `sudo`)
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-        apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
+            apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
 
-.. tabbed:: Windows
+    .. tab-item:: Windows
 
-    Install the non-Python software with (preferably with administrator rights in the bash)
+        Install the non-Python software with (preferably with administrator rights in the bash)
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-        choco install pandoc miktex graphviz
+            choco install pandoc miktex graphviz
 
-.. tabbed:: make
+    .. tab-item:: make
 
-    Install the non-Python software with (best with administrator rights)
+        Install the non-Python software with (best with administrator rights)
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-        make install_docdeps
+            make install_docdeps
 
 To build the documentation run:
 

@@ -79,7 +79,7 @@ def estimate_cutoff(
             pcm,
             metric="euclidean",
             backend="brute",
-            kmin=k,
+            k=k,
             # for estimation it is okay to be not exact and compute faster
             **dict(exact_numeric=False)
         )
@@ -117,7 +117,10 @@ def estimate_scale(
         Parameters to handle to method :py:meth:`estimate_cutoff` if ``cut_off is None``.
     """
 
-    _warn_if_not_gaussian_kernel(pcm.kernel)
+    try:
+        _warn_if_not_gaussian_kernel(pcm.kernel)
+    except AttributeError:
+        pass
 
     if cut_off is None:
         cut_off = estimate_cutoff(pcm, **estimate_cutoff_params)

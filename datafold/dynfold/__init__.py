@@ -43,7 +43,9 @@ from datafold.dynfold.dmd import (
     DMDEco,
     DMDFull,
     DynamicalSystemBase,
+    OnlineDMD,
     PyDMDWrapper,
+    StreamingDMD,
     gDMDAffine,
     gDMDFull,
 )

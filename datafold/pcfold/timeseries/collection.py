@@ -1,3 +1,4 @@
+from functools import partial
 from numbers import Number
 from typing import Generator, List, Optional, Tuple, Union
 
@@ -15,7 +16,7 @@ from datafold.utils.general import (
     is_integer,
 )
 
-ColumnType = Union[pd.Index, List[str]]
+ColumnType = Union[pd.Index, List[str], np.ndarray]
 NumericalTimeType = Union[int, float, np.datetime64]
 
 
@@ -94,8 +95,8 @@ class TSCException(Exception):
     @classmethod
     def not_n_timesteps(cls, required: int):
         return cls(
-            f"Invalid format: The time series collection has the requirement of"
-            f" {required} samples per time series."
+            f"Invalid TSCDataFrame format. Each time series in the collection must have "
+            f"exactly {required} samples."
         )
 
     @classmethod
@@ -123,8 +124,7 @@ def _is_numeric_dtype(obj):
 
 
 class _LocTSCIndexer(_LocIndexer):
-    """Required for overwriting the behavior of :meth:`TSCDataFrame.loc`.
-    `iloc` is currently not supported, see #61"""
+    """Required for overwriting the behavior of :meth:`TSCDataFrame.loc`."""
 
     def __getitem__(self, item):
         sliced = super(_LocTSCIndexer, self).__getitem__(item)
@@ -134,10 +134,8 @@ class _LocTSCIndexer(_LocIndexer):
             # there is no "TSCSeries", so always use TSCDataFrame, even when
             # sliced has only 1 column and is a pd.Series.
             if isinstance(sliced, pd.Series):
-                # raises attribute error if not possible
+                # raises attribute error if this does not work
                 sliced = TSCDataFrame(sliced)
-            else:
-                sliced._validate()
 
         except AttributeError:
             # Fallback if the sliced is not a valid TSC anymore
@@ -161,13 +159,11 @@ class _iLocTSCIndexer(_iLocIndexer):
 
         try:
             # NOTE: this is different to loc -- here a pd.Series remains a pd.Series!
-            # This is because pandas internal testing requires this
+            # This is because pandas' internal testing routines require this
             if isinstance(sliced, pd.Series):
                 # TODO: see issue #61
                 #  https://gitlab.com/datafold-dev/datafold/-/issues/61
                 raise AttributeError
-            else:
-                sliced._validate()
 
         except AttributeError:
             # Fallback if the sliced is not a valid TSC anymore
@@ -291,25 +287,17 @@ class TSCDataFrame(pd.DataFrame):
     tsc_time_idx_name = "time"
     tsc_feature_col_name = "feature"
 
-    def __init__(self, *args, **kwargs):
-
-        # remove specific attributes from kwargs first into local attributes
-        kernel = kwargs.pop("kernel", None)
-        dist_kwargs = kwargs.pop("dist_kwargs", dict())
+    def __init__(self, *args, validate=True, **kwargs):
 
         # NOTE: do not move this call after other setters "self.attribute = ...".
         # Otherwise, there is an infinite recursion because pandas handles the
         # __getattr__ magic function.
         super(TSCDataFrame, self).__init__(*args, **kwargs)
 
-        self.kernel = kernel
-
-        dist_kwargs.setdefault("cut_off", np.inf)
-        dist_kwargs.setdefault("kmin", 0)
-        dist_kwargs.setdefault("backend", "guess_optimal")
-        self.attrs["dist_kwargs"] = dist_kwargs
-
         self.flags.allows_duplicate_labels = False
+
+        if not hasattr(self, "is_validate"):
+            self.is_validate = validate
 
         # This is a special case of input, where the fallback is a cast to
         # pd.DataFrame.
@@ -329,12 +317,13 @@ class TSCDataFrame(pd.DataFrame):
             #  with this?
             self = pd.DataFrame(self)
         else:
-            self._validate()
+            if self.is_validate:
+                self._validate()
 
     def __setattr__(self, key, value):
-        if key == "index":
+        if key == "index" and self.is_validate:
             value = self._validate_index(value)
-        elif key == "columns":
+        elif key == "columns" and self.is_validate:
             value = self._validate_columns(value)
 
         # Note: validation of data is not necessary here because this is done
@@ -486,9 +475,7 @@ class TSCDataFrame(pd.DataFrame):
         time_values = np.array([0, 1] * n_timeseries)
         index = pd.MultiIndex.from_arrays([id_idx, time_values])
 
-        tsc = cls(data=zipped_values, index=index, columns=columns)
-        tsc._validate()
-        return tsc
+        return cls(data=zipped_values, index=index, columns=columns)
 
     @classmethod
     def from_same_indices_as(
@@ -578,6 +565,28 @@ class TSCDataFrame(pd.DataFrame):
         return cls(df)
 
     @classmethod
+    def from_array(cls, array, time_values=None, feature_names=None, ts_id=None):
+        """Create ``TSCDataFrame`` from an array (describing a single time series).
+
+        Parameters
+        ----------
+        data
+            Time series data (2-dim. array) with snapshots in rows.
+
+        ts_id
+            ID of time series.
+
+        Returns
+        -------
+        TSCDataFrame
+            new instance
+        """
+        df = pd.DataFrame(
+            np.atleast_2d(array), index=time_values, columns=feature_names
+        )
+        return cls.from_single_timeseries(df, ts_id=ts_id)
+
+    @classmethod
     def from_frame_list(
         cls,
         frame_list: List[pd.DataFrame],
@@ -664,7 +673,10 @@ class TSCDataFrame(pd.DataFrame):
 
         tsc_list = list()
         for _id, df in zip(ts_ids, final_list):
-            # TODO: can be done without loop and would be more efficient
+            # TODO: could be done without loop and would be more efficient
+            df = df.copy(
+                deep=True
+            )  # there can be dfs in the list that are actually the same
             df.index = pd.MultiIndex.from_product([[_id], df.index.to_numpy()])
             tsc_list.append(TSCDataFrame(df))
 
@@ -742,8 +754,7 @@ class TSCDataFrame(pd.DataFrame):
         ----------
         **kwargs
             All keyword arguments are passed to the super class. See
-            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.
-            DataFrame.to_csv.html>`__.
+            `docu <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_csv.html>`__.
 
         Returns
         -------
@@ -751,7 +762,7 @@ class TSCDataFrame(pd.DataFrame):
             If path is None, returns the resulting csv format as a
             string. Otherwise returns None.
 
-        """
+        """  # noqa E501
 
         return pd.DataFrame(self).to_csv(*args, **kwargs)
 
@@ -766,14 +777,13 @@ class TSCDataFrame(pd.DataFrame):
 
         **kwargs
             keyword arguments handled to
-            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/
-            pandas.read_csv.html>`__
+            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`__
 
         Returns
         -------
         TSCDataFrame
             new instance
-        """
+        """  # noqa E501
         # NOTE: Overwrites the super class method (which is deprecated since version 0.21
         # Here the csv is read from a csv file that was a
         # TSCDataFrame, i.e. tscdf.to_csv("filename.csv") and therefore should be valid.
@@ -782,7 +792,7 @@ class TSCDataFrame(pd.DataFrame):
 
     @property
     def _constructor(self):
-        return TSCDataFrame
+        return partial(TSCDataFrame, validate=self.is_validate)
 
     @property
     def _constructor_expanddim(self):
@@ -876,7 +886,6 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError(
                 "The time values of each time series in the collection must be sorted."
             )
-
         return index
 
     def _validate_columns(self, columns: pd.Index) -> pd.Index:
@@ -885,15 +894,22 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError("columns must be of type pd.Index")
 
         if columns.nlevels != 1:
-            # must exactly have two levels [ID, time]
             raise AttributeError(
                 f"Columns must be single level (columns.nlevels == 1).  "
                 f"Got: columns.nlevels={columns.nlevels}"
             )
 
+        col_types = sorted(t.__qualname__ for t in set(type(v) for v in columns))
+
+        if len(col_types) > 1:
+            raise AttributeError(
+                f"There are mixed types in the columns {col_types}. "
+                f"Use a consistent type over all column names."
+            )
+
         if columns.duplicated().any():
             raise AttributeError(
-                f"Duplicated columns found: "
+                f"Duplicated column names found: "
                 f"{columns[columns.duplicated()].to_numpy()}"
             )
 
@@ -905,14 +921,14 @@ class TSCDataFrame(pd.DataFrame):
             raise AttributeError("All feature columns must have a numeric dtype")
 
     def _validate(self) -> bool:
+        if self.is_validate:
+            # just for security remove unused levels --
+            # disable validate to avoid infinite recursion
+            self.index: pd.Index = self._validate_index(self.index)
+            self.index = self.index.remove_unused_levels()
 
-        # just for security remove unused levels --
-        # disable validate to avoid infinite recursion
-        self.index: pd.Index = self._validate_index(self.index)
-        self.index = self.index.remove_unused_levels()
-
-        self.columns: pd.Index = self._validate_columns(self.columns)
-        self._validate_data()
+            self.columns: pd.Index = self._validate_columns(self.columns)
+            self._validate_data()
         return True
 
     @property
@@ -955,7 +971,7 @@ class TSCDataFrame(pd.DataFrame):
             )
             dt_result_series = dt_result_series.astype("timedelta64[ns]")
         else:
-            # initialize all with nan values (which essentially is np.floag64.
+            # initialize all with nan values (which essentially is np.float64.
             # return back to same dtype than time_values if all values are finite,
             # otherwise the type stays as float.
             dt_result_series = pd.Series(
@@ -983,7 +999,7 @@ class TSCDataFrame(pd.DataFrame):
             if not np.isnan(dt_result_series).any():
                 # TODO: here it may be interesting to check the new "Null" types of
                 #  pandas. They allow to also have nan by still keeping other dtypes
-                #  than float (--> only float has a nan representation in Numpy types)
+                #  than float (--> only float has a nan representation in Numpy dtypes)
                 dt_result_series = dt_result_series.astype(diff_times.dtype)
 
         else:
@@ -1013,17 +1029,17 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         """
-        n_time_elements = self.index.get_level_values(0).value_counts()
-        n_unique_elements = len(np.unique(n_time_elements))
 
-        if self.n_timeseries == 1 or n_unique_elements == 1:
-            return int(n_time_elements.iloc[0])
+        vals, counts = np.unique(
+            self.index.get_level_values(self.tsc_id_idx_name), return_counts=True
+        )
+
+        if self.n_timeseries == 1 or len(np.unique(counts)) == 1:
+            return int(counts[0])
         else:
-            n_time_elements.index.name = self.tsc_id_idx_name
-            # seems not to be sorted in the first place.
-            n_time_elements = n_time_elements.sort_index()
-            n_time_elements.name = "counts"
-            return n_time_elements
+            return pd.Series(
+                counts, index=pd.Index(vals, name=self.tsc_id_idx_name), name="counts"
+            )
 
     def transpose(self, *args, copy: bool = False) -> pd.DataFrame:
         """Overwrite transpose of super class.
@@ -1045,89 +1061,6 @@ class TSCDataFrame(pd.DataFrame):
             the transposed data structure
         """
         return pd.DataFrame(self).transpose(*args, copy=copy)
-
-    @property
-    def kernel(self):
-        """The kernel to describe the proximity between samples.
-
-        Returns
-        -------
-
-        :py:class:`.BaseManifoldKernel`
-        """
-        if "kernel" not in self.attrs:
-            self.attrs["kernel"] = None
-
-        return self.attrs["kernel"]
-
-    @kernel.setter
-    def kernel(self, kernel) -> None:
-        """Set a new kernel.
-
-        Parameters
-        ----------
-        kernel
-            The new kernel to be set.
-
-        Returns
-        -------
-
-        """
-
-        from datafold.pcfold.kernels import BaseManifoldKernel
-
-        if kernel is not None and not isinstance(kernel, BaseManifoldKernel):
-            raise TypeError(
-                f"Kernel must be a subclass of type BaseManifoldKernel. Got "
-                f"type {type(kernel)}."
-            )
-        self.attrs["kernel"] = kernel
-
-    @property
-    def dist_kwargs(self) -> dict:
-        """Keyword arguments passed to the internal distance matrix computation.
-
-        See :py:meth:`datafold.pcfold.compute_distance_matrix` for parameter arguments.
-
-        Returns
-        -------
-
-        """
-        if "dist_kwargs" not in self.attrs:
-            self.attrs["dist_kwargs"] = dict()
-
-        return self.attrs["dist_kwargs"]
-
-    @dist_kwargs.setter
-    def dist_kwargs(self, dist_kwargs: Optional[dict]) -> None:
-        """Set new keyword arguments for the distance matrix computation.
-
-        Parameters
-        ----------
-        dist_kwargs
-            The new arguments passed to the distance matrix backend. To set the default
-            keywords pass ``None``.
-
-        Returns
-        -------
-
-        """
-
-        if dist_kwargs is not None and not isinstance(dist_kwargs, dict):
-            raise TypeError(
-                f"Keyword arguments for distance computation must be a dictionary or "
-                f"None. Got type {type(dist_kwargs)}."
-            )
-
-        dist_kwargs = {} or dist_kwargs
-
-        assert dist_kwargs is not None  # for mypy
-
-        dist_kwargs.setdefault("cut_off", np.inf)
-        dist_kwargs.setdefault("kmin", 0)
-        dist_kwargs.setdefault("backend", "guess_optimal")
-
-        self.attrs["dist_kwargs"] = dist_kwargs
 
     @property
     def loc(self):
@@ -1214,7 +1147,7 @@ class TSCDataFrame(pd.DataFrame):
         )
 
         try:
-            _slice = TSCDataFrame(_slice)
+            _slice = TSCDataFrame(_slice, validate=self.is_validate)
         except AttributeError:
             pass
 
@@ -1240,20 +1173,31 @@ class TSCDataFrame(pd.DataFrame):
         """Indicates whether 'time' index is datetime format."""
         return is_datetime64_dtype(self.index.get_level_values(self.tsc_time_idx_name))
 
-    def itertimeseries(self) -> Generator[Tuple[int, pd.DataFrame], None, None]:
+    def itertimeseries(
+        self, valid_tsc=False
+    ) -> Generator[Tuple[int, pd.DataFrame], None, None]:
         """Generator of contained time series.
 
         Each iteration returns the time series ID and the corresponding
         time series (a :class:`pd.DataFrame` instead of a ``TSCDataFrame``).
 
+        Parameters
+        ----------
+        valid_tsc
+            If True return a valid format of ``TSCDataFrame`` (i.e. the time series ID is
+            element in the index).
+
         Yields
         ------
-        Tuple[int, pandas.DataFrame]
-            Time series ID and corresponding time series.
+        Tuple[int, pandas.DataFrame] or TSCDataFrame
+            Time series ID and corresponding time series or time series
         """
         for i, ts in self.groupby(level=self.tsc_id_idx_name):
-            # cast single time series back to DataFrame
-            yield i, pd.DataFrame(ts.loc[i, :])
+            if valid_tsc:
+                yield ts
+            else:
+                # cast single time series back to DataFrame
+                yield i, pd.DataFrame(ts.loc[i, :])
 
     def is_equal_length(self) -> bool:
         """Indicates if all time series in the collection have the same number of
@@ -1261,18 +1205,25 @@ class TSCDataFrame(pd.DataFrame):
         """
         return len(np.unique(self.n_timesteps)) == 1
 
-    def is_const_delta_time(self) -> bool:
-        """Indicates if all time series in the collection have the same time delta."""
+    def is_const_delta_time(self, delta_time=None) -> bool:
+        """Indicates if all time series in the collection have the same time delta.
 
-        # If dt is a Series it means it shows "dt per ID" (because it is not constant).
-        _dt = self.delta_time
+        Parameters
+        ----------
+        delta_time
+            Pass ``delta_time`` if it is already available.
+        """
 
-        if isinstance(_dt, pd.Series):
+        if delta_time is None:
+            # If dt is a Series it means it shows "dt per ID" (because it is not constant).
+            delta_time = self.delta_time
+
+        if isinstance(delta_time, pd.Series):
             return False
 
         # pd.isnull is better than np.finite because it also checks for
         # NaT (Not a Time[-delta])
-        return not pd.isnull(_dt)
+        return not pd.isnull(delta_time)
 
     def is_same_time_values(self) -> bool:
         """Indicates if all time series in the collection share the same time values."""
@@ -1395,75 +1346,6 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         return distance_matrix
-
-    def compute_kernel_matrix(
-        self, Y: Optional[Union[np.ndarray, "TSCDataFrame"]] = None, **kernel_kwargs
-    ) -> pd.DataFrame:
-        """Compute the kernel matrix with the specified kernel.
-
-        Parameters
-        ----------
-        Y
-            Query point cloud or other time series collection of shape
-            `(n_samples_Y, n_features)`. If provided, it computes
-            the kernel matrix component-wise, else `Y=self` for a pair-wise kernel
-            matrix.
-
-        kernel_kwargs
-            Keyword arguments passed passed to the kernel.
-
-        Returns
-        -------
-        Union[numpy.ndarray, pandas.DataFrame, TSCDataFrame]
-            If the kernel is of type :class:`PCManifoldKernel` (i.e. acts on
-            point clouds), the time information is added in this routine. If the time
-            information. For :class:`.TSCManifoldKernel` (i.e. kernels natively act on
-            time series data), the result is directly returned from the kernel.
-
-        Optional
-            The specified kernel can return further objects, which are all forwarded
-            by this function. See :meth:`PCManifoldKernel.__call__`,
-            :meth:`TSCManifoldKernel.__call__` or the respective kernel for details.
-        """
-
-        if self.kernel is None:
-            raise TSCException.no_kernel()
-
-        if Y is not None:
-            is_attach_time = isinstance(Y, pd.DataFrame)
-        else:
-            is_attach_time = True
-
-        kernel_output = self.kernel(
-            X=self,
-            Y=Y,
-            dist_kwargs=self.dist_kwargs,
-            **kernel_kwargs,
-        )
-
-        if isinstance(kernel_output, (tuple, list)):
-            ty_kernel_matrix = type(kernel_output[0])
-        else:
-            ty_kernel_matrix = type(kernel_output)
-
-        def _pcmkernel2tsc(kernel_matrix, indices_from):
-            return df_type_and_indices_from(
-                indices_from,
-                kernel_matrix,
-                except_columns=[f"X{i}" for i in np.arange(self.shape[0])],
-            )
-
-        if is_attach_time and ty_kernel_matrix == np.ndarray:
-            time_idx_from = self if Y is None else Y
-
-            if isinstance(kernel_output, (tuple, list)):
-                kernel_output = list(kernel_output)
-                kernel_output[0] = _pcmkernel2tsc(kernel_output[0], time_idx_from)
-                kernel_output = tuple(kernel_output)
-            else:
-                kernel_output = _pcmkernel2tsc(kernel_output, time_idx_from)
-
-        return kernel_output
 
     def insert_ts(
         self, df: pd.DataFrame, ts_id: Optional[int] = None
@@ -1615,7 +1497,7 @@ class TSCDataFrame(pd.DataFrame):
 
         if feature is None and self.shape[1] > 1:
             raise ValueError(
-                "parameter 'feature' must be provided if there are " "multiple features"
+                "parameter 'feature' must be provided if there are multiple features"
             )
         elif feature is None:
             feature = self.columns[0]
@@ -1736,6 +1618,8 @@ class TSCDataFrame(pd.DataFrame):
             )
         elif c is not None:
             color = c
+        else:
+            color = "black"
 
         first = True
 
@@ -1852,7 +1736,7 @@ class InitialCondition(object):
         """Extract and iterate over initial conditions over groups of time series that
         have identical time values.
 
-        This iterator is particulary usefule to reconstruct time series.
+        This iterator is useful for reconstructing time series.
 
         Parameters
         ----------

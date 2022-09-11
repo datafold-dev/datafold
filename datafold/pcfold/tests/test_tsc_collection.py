@@ -1,11 +1,11 @@
 import unittest
+import warnings
 
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.pcfold import GaussianKernel, PCManifold
 from datafold.pcfold.timeseries.collection import (
     InitialCondition,
     TSCDataFrame,
@@ -129,78 +129,6 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_shape(self):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))
-
-    def test_set_kernel(self):
-
-        actual = TSCDataFrame(self.simple_df)
-        self.assertEqual(actual.kernel, None)
-
-        actual = TSCDataFrame(self.simple_df, kernel=GaussianKernel(1))
-        self.assertEqual(actual.kernel, GaussianKernel(1))
-
-        actual.kernel = GaussianKernel(999)
-        self.assertEqual(actual.kernel, GaussianKernel(999))
-
-    def test_compute_kernel_matrix(self):
-        kernel = GaussianKernel(1)
-        actual = TSCDataFrame(self.simple_df, kernel=kernel)
-
-        actual_kernel = actual.compute_kernel_matrix()
-
-        expected = PCManifold(actual.to_numpy(), kernel=kernel)
-        expected_kernel = expected.compute_kernel_matrix()
-
-        # the time information is not lost when computing a kernel matrix
-        self.assertIsInstance(actual_kernel, TSCDataFrame)
-        self.assertIsInstance(expected_kernel, np.ndarray)
-
-        # the two kernels matrices must be identical
-        nptest.assert_array_equal(actual_kernel.to_numpy(), expected_kernel)
-
-        actual_kernel.kernel = None
-        with self.assertRaises(TSCException):
-            # no kernel available
-            actual_kernel.compute_kernel_matrix()
-
-    def test_set_dist_kwargs(self):
-
-        from copy import deepcopy
-
-        actual = TSCDataFrame(self.simple_df)
-        default_kwargs = dict(cut_off=np.inf, kmin=0, backend="guess_optimal")
-
-        # needs to be changed if the default dist_kwargs is changed
-        self.assertEqual(actual.dist_kwargs, default_kwargs)
-
-        other_kwargs = deepcopy(default_kwargs)
-        other_kwargs["cut_off"] = 2
-        other_kwargs["kmin"] = 100
-
-        actual = TSCDataFrame(self.simple_df, dist_kwargs=other_kwargs)
-        self.assertEqual(actual.dist_kwargs, other_kwargs)
-
-        other_kwargs["cut_off"] = 100
-        other_kwargs["kmin"] = 20
-
-        actual.dist_kwargs = other_kwargs
-        self.assertEqual(actual.dist_kwargs, other_kwargs)
-
-        actual.dist_kwargs = default_kwargs
-        self.assertEqual(actual.dist_kwargs, default_kwargs)
-
-    def test_compute_distance_matrix(self):
-        actual = TSCDataFrame(self.simple_df)
-        actual_distance = actual.compute_distance_matrix()
-
-        expected = PCManifold(actual.to_numpy())
-        expected_distance = expected.compute_distance_matrix()
-
-        # the time information is not lost when computing a kernel matrix
-        self.assertIsInstance(actual_distance, TSCDataFrame)
-        self.assertIsInstance(expected_distance, np.ndarray)
-
-        # the two kernels matrices must be identical
-        nptest.assert_array_equal(actual_distance.to_numpy(), expected_distance)
 
     def test_set_index1(self):
         tsc_df = TSCDataFrame(self.simple_df)
@@ -340,6 +268,37 @@ class TestTSCDataFrame(unittest.TestCase):
                 tc, matrix, except_columns=pd.Index(["A", "B"]), except_index=new_index
             )
 
+    def test_from_array1(self):
+        data = np.random.default_rng(None).uniform(size=(10, 2))
+
+        actual = TSCDataFrame.from_array(data)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        nptest.assert_array_equal(
+            actual.index.get_level_values(TSCDataFrame.tsc_time_idx_name), np.arange(10)
+        )
+        self.assertEqual(len(actual.ids), 1)
+        self.assertEqual(actual.ids[0], 0)
+
+    def test_from_array2(self):
+        data = np.random.default_rng(None).uniform(size=(10, 2))
+
+        expected_time_values = np.arange(10, 20)
+        expected_id = 2
+        actual = TSCDataFrame.from_array(
+            data, time_values=expected_time_values, ts_id=2
+        )
+
+        self.assertIsInstance(actual, TSCDataFrame)
+
+        nptest.assert_array_equal(
+            actual.index.get_level_values(TSCDataFrame.tsc_time_idx_name),
+            expected_time_values,
+        )
+        self.assertEqual(len(actual.ids), 1)
+        self.assertEqual(actual.ids[0], expected_id)
+
     def test_from_frame_list0(self):
 
         frame_list = [self.simple_df.loc[i, :] for i in self.simple_df.index.levels[0]]
@@ -355,7 +314,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         pdtest.assert_frame_equal(actual, expected)
 
-    def test_from_frame_list1(self):
+    def test_from_frame_list01(self):
         # include ts_ids
 
         frame_list = [self.simple_df.loc[i, :] for i in self.simple_df.index.levels[0]]
@@ -371,7 +330,7 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         pdtest.assert_frame_equal(actual, expected)
 
-    def test_from_frame_list2(self):
+    def test_from_frame_list02(self):
         df1 = self.simple_df.copy().loc[[0], :]  # pd.DataFrame but possible to transfer
         df2 = TSCDataFrame(self.simple_df.copy().loc[[1], :])
 
@@ -396,6 +355,21 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual.to_numpy(), expected_values)
 
         self.assertIsInstance(actual, TSCDataFrame)
+
+    def test_from_frame_list03(self):
+        df = pd.DataFrame(np.arange(6).reshape([3, 2]))
+
+        # use identical frame:
+        actual = TSCDataFrame.from_frame_list([df, df])
+
+        expected = pd.concat([df, df])
+        expected.index = pd.MultiIndex.from_arrays(
+            [np.array([0, 0, 0, 1, 1, 1]), expected.index]
+        )
+
+        pdtest.assert_frame_equal(
+            actual, expected, check_names=False, check_flags=False
+        )
 
     def test_feature_to_array1(self):
 
@@ -913,8 +887,10 @@ class TestTSCDataFrame(unittest.TestCase):
         # behaviour if not all time points are present
         ts = TSCDataFrame(self.simple_df)
 
-        # -1 is even an illegal
-        new_ts = ts.select_time_values(time_values=np.array([0, 1, -1]))
+        with warnings.catch_warnings():
+            # -1 is even an illegal but this will raise an error in future
+            warnings.simplefilter(action="ignore", category=FutureWarning)
+            new_ts = ts.select_time_values(time_values=np.array([0, 1, -1]))
 
         self.assertTrue(np.in1d(new_ts.time_values(), (0, 1)).all())
         self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
@@ -1097,7 +1073,7 @@ class TestTSCDataFrame(unittest.TestCase):
         insert = pd.Series(["a", "b"], index=tsc.columns, name=(999, 0))
 
         with self.assertRaises(AttributeError):
-            tsc.append(insert)
+            tsc.concat(insert, axis=1)
 
         with self.assertRaises(AttributeError):
             pd.concat([tsc, insert], axis=0)
@@ -1323,6 +1299,30 @@ class TestTSCDataFrame(unittest.TestCase):
 
         initial_states = tsc.initial_states()
         self.assertTrue(TSCDataFrame.tsc_time_idx_name in initial_states.columns)
+
+    def test_column_dtypes(self):
+
+        d = np.array([[1, 2], [3, 4]])
+
+        tsc_int = TSCDataFrame.from_single_timeseries(pd.DataFrame(d, columns=[1, 2]))
+        tsc_str = TSCDataFrame.from_single_timeseries(
+            pd.DataFrame(d, columns=["1", "2"])
+        )
+
+        def _get_col_types(cols):
+            types = list(set([type(v) for v in cols]))
+            return types[0] if len(types) == 1 else types
+
+        self.assertEqual(_get_col_types(tsc_int.columns), int)
+        self.assertEqual(_get_col_types(tsc_str.columns), str)
+
+        with self.assertRaises(AttributeError):
+            # mixed dtypes are not supported
+            TSCDataFrame.from_single_timeseries(pd.DataFrame(d, columns=[1, "2"]))
+
+        with self.assertRaises(AttributeError):
+            # explicitly setting a mixed index also raises error
+            tsc_int.columns = pd.Index([1, "2"])
 
     def test_str_time_indices(self):
         simple_df = self.simple_df.copy(deep=True)

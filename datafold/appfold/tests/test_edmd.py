@@ -12,14 +12,18 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 import pytest
+import scipy.sparse
+from sklearn.compose import make_column_selector
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
 from datafold.appfold.edmd import EDMD, EDMDCV, EDMDControl, EDMDWindowPrediction
-from datafold.dynfold import DMDControl, DMDFull, gDMDFull
+from datafold.dynfold import DMDControl, DMDFull, TSCColumnTransformer, gDMDFull
+from datafold.dynfold.dmd import OnlineDMD, StreamingDMD
 from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
     TSCIdentity,
+    TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCTakensEmbedding,
 )
@@ -31,13 +35,13 @@ from datafold.utils.plot import plot_eigenvalues
 
 class EDMDTest(unittest.TestCase):
     @staticmethod
-    def _setup_sine_wave_data() -> TSCDataFrame:
-        time = np.linspace(0, 2 * np.pi, 100)
+    def _setup_sine_wave_data(end=2 * np.pi) -> TSCDataFrame:
+        time = np.linspace(0, end, 100)
         df = pd.DataFrame(np.sin(time) + 10, index=time, columns=["sin"])
         return TSCDataFrame.from_single_timeseries(df)
 
-    def _setup_multi_sine_wave_data(self) -> TSCDataFrame:
-        time = np.linspace(0, 4 * np.pi, 100)
+    def _setup_multi_sine_wave_data(self, n_samples=100) -> TSCDataFrame:
+        time = np.linspace(0, 4 * np.pi, n_samples)
 
         omega = 1.5
 
@@ -138,7 +142,7 @@ class EDMDTest(unittest.TestCase):
         is_df_same_index(expected, self.sine_wave_tsc)
 
         self.assertEqual(_edmd.feature_names_in_, self.sine_wave_tsc.columns)
-        self.assertEqual(_edmd.feature_names_out_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.get_feature_names_out(), self.sine_wave_tsc.columns)
         self.assertEqual(_edmd.n_features_in_, self.sine_wave_tsc.shape[1])
         self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1])
 
@@ -162,7 +166,7 @@ class EDMDTest(unittest.TestCase):
         is_df_same_index(expected, self.sine_wave_tsc)
 
         self.assertEqual(_edmd.feature_names_in_, self.sine_wave_tsc.columns)
-        self.assertEqual(_edmd.feature_names_out_, self.sine_wave_tsc.columns)
+        self.assertEqual(_edmd.get_feature_names_out(), self.sine_wave_tsc.columns)
         self.assertEqual(_edmd.n_features_in_, self.sine_wave_tsc.shape[1])
         self.assertEqual(_edmd.n_features_out_, self.sine_wave_tsc.shape[1])
 
@@ -488,9 +492,10 @@ class EDMDTest(unittest.TestCase):
             InverseMultiquadricKernel(epsilon=0.5),
         ]
 
-        f, ax = plt.subplots(nrows=len(kernels) + 1, ncols=1, sharex=True)
-        X.plot(ax=ax[0])
-        ax[0].set_title("original data")
+        if plot:
+            f, ax = plt.subplots(nrows=len(kernels) + 1, ncols=1, sharex=True)
+            X.plot(ax=ax[0])
+            ax[0].set_title("original data")
 
         for i, kernel in enumerate(kernels):
             try:
@@ -500,26 +505,68 @@ class EDMDTest(unittest.TestCase):
                         ("dmap", DiffusionMaps(kernel, n_eigenpairs=100)),
                     ]
                 ).fit_predict(X)
-                X_predict.plot(ax=ax[i + 1])
-                ax[i + 1].set_title(f"kernel={kernel}")
+
+                if plot:
+                    X_predict.plot(ax=ax[i + 1])
+                    ax[i + 1].set_title(f"kernel={kernel}")
 
             except Exception as e:
                 print(f"kernel={kernel} failed")
                 raise e
 
-        if plot:
-            plt.show()
+        plt.show()
 
-    def test_attach_illegal_id(self):
-        _edmd = EDMD(
+    def test_preserve_id_states(self):
+
+        edmd1 = EDMD(
             dict_steps=[
-                ("id", TSCIdentity()),
+                ("id", TSCIdentity(rename_features=True)),
             ],
-            include_id_state=True,  # cannot be attached to identity (same feature names)
+            include_id_state=False,
         )
 
-        with self.assertRaises(ValueError):
-            _edmd.fit(X=self.sine_wave_tsc)
+        edmd2 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=False)),
+            ],
+            include_id_state=True,
+        )
+
+        edmd3 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=False)),
+            ],
+            include_id_state=False,
+        )
+
+        edmd4 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=True)),
+            ],
+            include_id_state=True,
+        )
+
+        data = self.sine_wave_tsc
+
+        actual1 = edmd1.fit_transform(data)
+        actual2 = edmd2.fit_transform(data)
+        actual3 = edmd3.fit_transform(data)
+        actual4 = edmd4.fit_transform(data)
+
+        # for the first a linear regression is solved, for the others a projection onto the ID
+        # states is set up
+        self.assertIsInstance(edmd1._inverse_map, np.ndarray)
+        self.assertIsInstance(edmd2._inverse_map, scipy.sparse.csr_matrix)
+        self.assertIsInstance(edmd3._inverse_map, scipy.sparse.csr_matrix)
+        self.assertIsInstance(edmd4._inverse_map, scipy.sparse.csr_matrix)
+
+        def _sin_column_is_in(sol):
+            return np.any(np.isin("sin", sol.columns))
+
+        self.assertFalse(_sin_column_is_in(actual1))
+        self.assertTrue(_sin_column_is_in(actual2))
+        self.assertTrue(_sin_column_is_in(actual3))
+        self.assertTrue(_sin_column_is_in(actual4))
 
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd = EDMD(
@@ -549,8 +596,6 @@ class EDMDTest(unittest.TestCase):
         if plot:
             ax = self.sine_wave_tsc.plot()
             inverse_dict.plot(ax=ax)
-
-            from datafold.utils.plot import plot_eigenvalues
 
             f, ax = plt.subplots()
             plot_eigenvalues(eigenvalues=_edmd.dmd_model.eigenvalues_, ax=ax)
@@ -638,10 +683,6 @@ class EDMDTest(unittest.TestCase):
         # Ignore warning, because none of the other configurations results in a
         # satisfying reconstruction result.
 
-        from sklearn.compose import make_column_selector
-
-        from datafold.dynfold import TSCColumnTransformer
-
         selector_sin = make_column_selector(pattern="sin")
         selector_cos = make_column_selector(pattern="cos")
 
@@ -667,11 +708,11 @@ class EDMDTest(unittest.TestCase):
                 webbrowser.open_new_tab(fp.name)
                 input("Press Enter to continue...")
 
-        f, ax = plt.subplots(nrows=2, sharex=True)
-        self.multi_waves.plot(ax=ax[0])
-        edmd.reconstruct(self.multi_waves).plot(ax=ax[1])
-
         if plot:
+            f, ax = plt.subplots(nrows=2, sharex=True)
+            self.multi_waves.plot(ax=ax[0])
+            edmd.reconstruct(self.multi_waves).plot(ax=ax[1])
+
             plt.show()
 
     def test_edmd_sine_wave(self):
@@ -851,6 +892,97 @@ class EDMDTest(unittest.TestCase):
 
         self.assertIsInstance(edmdcv.cv_results_, dict)
 
+    def test_streaming_dmd_multi_sine(self, plot=False):
+
+        data = self._setup_multi_sine_wave_data(3000)
+
+        _tse = TSCTakensEmbedding(delays=150)
+
+        edmd = EDMD(
+            dict_steps=[("delay", _tse)],
+            dmd_model=StreamingDMD(),
+        )
+
+        test_batches = []
+        test_batches_dmd = []
+
+        tv_batches = np.array_split(data.time_values(), 10)
+
+        apply_dmd = True
+        for i in range(len(tv_batches) - 1):
+
+            current_time_values = tv_batches[i]
+            next_time_values = tv_batches[i + 1]
+            X_train = data.loc[pd.IndexSlice[:, current_time_values], :]
+            X_test = data.loc[pd.IndexSlice[:, next_time_values], :]
+
+            if apply_dmd:
+                dmd = DMDFull().fit(_tse.fit_transform(X_train))
+                test_batches_dmd.append(
+                    dmd.reconstruct(_tse.fit_transform(X_test)).loc[:, "sin"]
+                )
+
+            edmd = edmd.partial_fit(X_train)
+            test_batches.append(edmd.reconstruct(X_test))
+
+        # test that eigenvalues are either close to zero or one
+        # (values can be adapted if only slightly adaptations are necessary)
+        idx_close_one = np.abs(np.abs(edmd.koopman_eigenvalues) - 1) < 3.5e-4
+        idx_close_zero = np.abs(edmd.koopman_eigenvalues) < 1e-15
+
+        self.assertTrue(np.all(np.logical_or(idx_close_one, idx_close_zero)))
+
+        if plot:
+
+            plot_eigenvalues(edmd.dmd_model.eigenvalues_, plot_unit_circle=True)
+
+            ax = data.plot()
+            for b in test_batches:
+                b.plot(ax=ax, c="red")
+
+            if apply_dmd:
+                ax = data.plot()
+                for b in test_batches_dmd:
+                    b.plot(ax=ax, c="green")
+
+            plt.show()
+
+    def test_streaming_dmd(self, plot=False):
+
+        data = self._setup_sine_wave_data(end=4 * np.pi)
+
+        for dmd_model in [StreamingDMD(), OnlineDMD()]:
+
+            edmd = EDMD(
+                dict_steps=[("delay", TSCTakensEmbedding(delays=2))],
+                dmd_model=dmd_model,
+            )
+
+            batches = np.array_split(data, 2)
+
+            predicts_train = []
+            predicts_test = []
+
+            for i in range(len(batches) - 1):
+                fit_batch = batches[i]
+                reconstruct_batch = batches[i + 1]
+
+                edmd = edmd.partial_fit(fit_batch)
+
+                predicts_train.append(edmd.reconstruct(fit_batch))
+                predicts_test.append(edmd.reconstruct(reconstruct_batch))
+
+            if plot:
+                ax = data.plot()
+                ax.set_title(f"{dmd_model=}")
+                for b in predicts_train:
+                    b.plot(ax=ax, c="green")
+
+                for b in predicts_test:
+                    b.plot(ax=ax, c="red")
+
+        plt.show()
+
     def test_edmdcontrol_pipe(self):
         n_delays = 2
         n_degrees = 2
@@ -861,8 +993,6 @@ class EDMDTest(unittest.TestCase):
         X_tsc = self._setup_inverted_pendulum(sim_num_steps=sim_num_steps)
 
         from scipy.special import comb
-
-        from datafold.dynfold.transform import TSCPolynomialFeatures, TSCTakensEmbedding
 
         dict_steps = [
             ("takens", TSCTakensEmbedding(delays=n_delays, lag=lag)),
@@ -897,7 +1027,6 @@ class EDMDTest(unittest.TestCase):
         edmdid.fit(X_tsc[state_columns], X_tsc[control_columns])
 
         expected = dmdc.predict(X=ic, U=control_input)
-
         actual = edmdid.predict(X=ic, U=control_input)
 
         pdtest.assert_frame_equal(expected, actual)

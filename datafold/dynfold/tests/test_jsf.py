@@ -2,14 +2,14 @@
 
 """
 import unittest
-from typing import List, Optional
 
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
+import pandas.testing as pdtest
 
 from datafold.dynfold.base import TransformType
-from datafold.dynfold.jsf import JointlySmoothFunctions, JsfDataset, _ColumnSplitter
+from datafold.dynfold.jsf import JointlySmoothFunctions
 from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.kernels import GaussianKernel
 
@@ -48,26 +48,6 @@ def generate_points(n_samples):
     return parameters, observations, effective_parameter
 
 
-class ColumnSplittingTest(unittest.TestCase):
-    def test_splitting(self):
-        observations = [np.random.rand(1000, i + 1) for i in range(3)]
-
-        columns_splitter = _ColumnSplitter(
-            [
-                JsfDataset("observation0", slice(0, 1)),
-                JsfDataset("observation1", slice(1, 3)),
-                JsfDataset("observation2", slice(3, 6)),
-            ]
-        )
-
-        X = np.column_stack(observations)
-
-        split_X = columns_splitter.split(X)
-
-        for expected_observation, actual_observation in zip(observations, split_X):
-            nptest.assert_array_equal(expected_observation, actual_observation)
-
-
 class JointlySmoothFunctionsTest(unittest.TestCase):
     def setUp(self):
         self.parameters, self.observations, self.effective_parameter = generate_points(
@@ -75,10 +55,9 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
         )
 
         self.X = np.column_stack([self.parameters, self.observations])
-
-        self.datasets = [
-            JsfDataset("parameters", slice(0, 2)),
-            JsfDataset("observations", slice(2, 4)),
+        self.data_splits = [
+            ("parameters", GaussianKernel(), slice(0, 2)),
+            ("observations", GaussianKernel(), slice(2, 4)),
         ]
 
     @staticmethod
@@ -94,31 +73,38 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
 
     def _test_accuracy(
         self,
-        datasets: List[JsfDataset],
         X: TransformType,
+        data_splits,
         n_kernel_eigenvectors=100,
         n_jointly_smooth_functions=10,
     ):
         jsf = JointlySmoothFunctions(
+            data_splits=data_splits,
             n_kernel_eigenvectors=n_kernel_eigenvectors,
             n_jointly_smooth_functions=n_jointly_smooth_functions,
-            datasets=datasets,
             eigenvector_tolerance=1e-10,
-        ).fit(X)
+        ).fit(X, store_kernel_matrix=True)
 
-        actual_kernel_eigvals = jsf.kernel_eigenvalues_
-        expected_kernel_eigvals = [
-            self._compute_rayleigh_quotients(kernel_matrix, eigenvectors)
-            for kernel_matrix, eigenvectors in zip(
-                jsf.kernel_matrices_, jsf.kernel_eigenvectors_
+        for name in jsf.kernel_content_:
+            actual_kernel_eigvals = jsf.kernel_eigenvalues_[name]
+
+            kernel_matrix = jsf.kernel_content_[name]["kernel_matrix"]
+            evec = jsf.kernel_eigenvectors_[name]
+            expected_kernel_eigvals = self._compute_rayleigh_quotients(
+                kernel_matrix, evec
             )
-        ]
+            nptest.assert_allclose(
+                np.abs(actual_kernel_eigvals),
+                np.abs(expected_kernel_eigvals),
+                atol=1e-9,
+            )
 
-        for a, e in zip(actual_kernel_eigvals, expected_kernel_eigvals):
-            nptest.assert_allclose(np.abs(a), np.abs(e), atol=1e-9)
+        # nptest.assert_allclose(
+        #     jsf.transform(X), jsf.jointly_smooth_vectors_, atol=1e-2, rtol=1e-3
+        # )
 
     def test_accuracy(self):
-        self._test_accuracy(self.datasets, self.X)
+        self._test_accuracy(self.X, self.data_splits)
 
     def test_set_param(self):
         jsf = JointlySmoothFunctions([])
@@ -130,48 +116,49 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
         X = np.column_stack(
             [self.parameters, self.observations, self.effective_parameter]
         )
-        datasets = [
-            JsfDataset("parameters", slice(0, 2)),
-            JsfDataset("observations", slice(2, 4)),
-            JsfDataset("effective_parameter", slice(4, 5)),
+
+        data_splits = [
+            ("parameters", GaussianKernel(), slice(0, 2)),
+            ("observations", GaussianKernel(), slice(2, 4)),
+            ("effective_parameter", GaussianKernel(), slice(2, 4)),
         ]
 
-        self._test_accuracy(datasets, X)
+        self._test_accuracy(X, data_splits)
 
     def test_is_valid_sklearn_estimator(self):
         from sklearn.utils.estimator_checks import check_estimator
 
-        for estimator, check in check_estimator(
-            JointlySmoothFunctions(
-                n_kernel_eigenvectors=5,
-                n_jointly_smooth_functions=3,
-                datasets=[JsfDataset(kernel=GaussianKernel(epsilon=1.0))],
-            ),
-            generate_only=True,
-        ):
+        estimator = JointlySmoothFunctions(
+            data_splits=[
+                ("one", GaussianKernel(), slice(0, 2)),
+                ("two", GaussianKernel(), slice(0, 3)),
+            ],
+            n_kernel_eigenvectors=5,
+            n_jointly_smooth_functions=3,
+        )
+
+        for estimator, check in check_estimator(estimator, generate_only=True):
             check(estimator)
 
-    def _test_tsc_data(
-        self, tsc_data: TSCDataFrame, datasets: Optional[List[JsfDataset]] = None
-    ):
+    def _test_tsc_data(self, tsc_data: TSCDataFrame, data_splits):
         jsf = JointlySmoothFunctions(
-            n_kernel_eigenvectors=10, n_jointly_smooth_functions=2, datasets=datasets
+            data_splits=data_splits,
+            n_kernel_eigenvectors=10,
+            n_jointly_smooth_functions=2,
         ).fit(tsc_data)
 
-        for kernel_eigenvectors in jsf.kernel_eigenvectors_:
-            self.assertIsInstance(kernel_eigenvectors, TSCDataFrame)
+        for name in jsf.kernel_eigenvectors_:
+            self.assertIsInstance(jsf.kernel_eigenvectors_[name], TSCDataFrame)
 
-        self.assertIsInstance(jsf.jointly_smooth_functions, TSCDataFrame)
+        self.assertIsInstance(jsf.jointly_smooth_vectors_, TSCDataFrame)
         self.assertIsInstance(jsf.transform(tsc_data), TSCDataFrame)
+        self.assertIsInstance(jsf.fit_transform(tsc_data), TSCDataFrame)
 
-    def test_tsc_data_no_datasets(self):
-        _x = np.linspace(0, 2 * np.pi, 200)
-        df = pd.DataFrame(
-            np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
+        pdtest.assert_frame_equal(
+            jsf.fit(tsc_data).transform(tsc_data),
+            jsf.fit_transform(tsc_data),
+            atol=1e-2,
         )
-        tsc_data = TSCDataFrame.from_single_timeseries(df=df)
-
-        self._test_tsc_data(tsc_data)
 
     def test_tsc_data_two_datasets(self):
         _x = np.linspace(0, 2 * np.pi, 200)
@@ -179,10 +166,62 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
             np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
         )
         tsc_data = TSCDataFrame.from_single_timeseries(df=df)
-        dataset1 = JsfDataset(columns=slice(0, 1), kernel=GaussianKernel(epsilon=0.1))
-        dataset2 = JsfDataset(columns=slice(1, 2), kernel=GaussianKernel(epsilon=0.1))
 
-        self._test_tsc_data(tsc_data, [dataset1, dataset2])
+        data_splits = [
+            ("one", GaussianKernel(epsilon=0.1), slice(0, 1)),
+            ("two", GaussianKernel(epsilon=0.1), slice(1, 2)),
+        ]
+
+        self._test_tsc_data(tsc_data, data_splits=data_splits)
+
+    def test_data_splits(self):
+        _x = np.linspace(0, 2 * np.pi, 200)
+        df = pd.DataFrame(
+            np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
+        )
+        tsc_data = TSCDataFrame.from_single_timeseries(df=df)
+        data = tsc_data.copy().to_numpy()
+
+        data_split1 = [
+            ("one", GaussianKernel(epsilon=0.1), slice(0, 1)),
+            ("two", GaussianKernel(epsilon=0.1), slice(1, 2)),
+        ]
+
+        data_split2 = [
+            ("one", GaussianKernel(epsilon=0.1), np.array([0])),
+            ("two", GaussianKernel(epsilon=0.1), np.array([1])),
+        ]
+
+        data_split3 = [
+            ("one", GaussianKernel(epsilon=0.1), [0]),
+            ("two", GaussianKernel(epsilon=0.1), [1]),
+        ]
+
+        data_split4 = [
+            ("one", GaussianKernel(epsilon=0.1), np.array([True, False])),
+            ("two", GaussianKernel(epsilon=0.1), np.array([False, True])),
+        ]
+
+        data_split5 = [
+            ("one", GaussianKernel(epsilon=0.1), np.array([0, 100])),
+            ("two", GaussianKernel(epsilon=0.1), np.array([1, 200])),
+        ]
+
+        self._test_tsc_data(tsc_data, data_splits=data_split1)
+        self._test_tsc_data(tsc_data, data_splits=data_split2)
+        self._test_tsc_data(tsc_data, data_splits=data_split3)
+        self._test_tsc_data(tsc_data, data_splits=data_split4)
+
+        with self.assertRaises(IndexError):
+            self._test_tsc_data(tsc_data, data_splits=data_split5)
+
+        self._test_accuracy(data, data_split1)
+        self._test_accuracy(data, data_split2)
+        self._test_accuracy(data, data_split3)
+        self._test_accuracy(data, data_split4)
+
+        with self.assertRaises(IndexError):
+            self._test_accuracy(tsc_data, data_splits=data_split5)
 
     def test_tsc_data_more_than_two_datasets(self):
         _x = np.linspace(0, 2 * np.pi, 200)
@@ -191,11 +230,13 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
             columns=["sin", "cos", "tan"],
         )
         tsc_data = TSCDataFrame.from_single_timeseries(df=df)
-        dataset1 = JsfDataset(columns=slice(0, 1), kernel=GaussianKernel())
-        dataset2 = JsfDataset(columns=slice(1, 2), kernel=GaussianKernel())
-        dataset3 = JsfDataset(columns=slice(2, 3), kernel=GaussianKernel())
 
-        self._test_tsc_data(tsc_data, [dataset1, dataset2, dataset3])
+        data_splits = [
+            ("one", GaussianKernel(), slice(0, 1)),
+            ("two", GaussianKernel(), slice(1, 2)),
+            ("three", GaussianKernel(), slice(2, 3)),
+        ]
+        self._test_tsc_data(tsc_data, data_splits)
 
     def test_tsc_data_multiple_time_series(self):
         _x_1 = np.linspace(0, 2 * np.pi, 200)
@@ -204,8 +245,14 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
         df2 = pd.DataFrame(np.column_stack([np.sin(_x_2), np.cos(_x_2)]))
 
         tsc_data = TSCDataFrame.from_frame_list([df1, df2])
+        tsc_data.columns = tsc_data.columns.astype(str)
 
-        self._test_tsc_data(tsc_data)
+        kernel_split = [
+            ("one", GaussianKernel(), slice(0, 1)),
+            ("two", GaussianKernel(), slice(1, 2)),
+        ]
+
+        self._test_tsc_data(tsc_data, data_splits=kernel_split)
 
 
 if __name__ == "__main__":

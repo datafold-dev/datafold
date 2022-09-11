@@ -174,7 +174,7 @@ def if1dim_rowvec(vec: np.ndarray) -> np.ndarray:
 def projection_matrix_from_features(
     features_all: pd.Index, features_select: pd.Index
 ) -> scipy.sparse.csr_matrix:
-    r"""Compute a sparse projection matrix that maps that selects columns from a matrix.
+    r"""Compute a sparse projection matrix which maps to selected columns from a matrix.
 
     .. math::
         A \cdot P = A^*
@@ -194,7 +194,7 @@ def projection_matrix_from_features(
     Returns
     -------
     scipy.sparse.csr_matrix
-        The projection matrix.
+        projection matrix
     """
     project_indices = np.where(np.isin(features_all, features_select))[0]
 

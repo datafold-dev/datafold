@@ -1,9 +1,11 @@
 repos:
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.3.0
+    rev: v4.2.0
     hooks:
     -   id: end-of-file-fixer
+        exclude: .ipynb
+    -   id: check-merge-conflict
     -   id: trailing-whitespace
     -   id: requirements-txt-fixer
     -   id: check-yaml
@@ -47,7 +49,7 @@ repos:
       args: [ --nbqa-mutate ]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.930
+    rev: v0.961
     hooks:
     -   id: mypy
         args: [--ignore-missing-imports, --no-implicit-optional]

@@ -170,8 +170,8 @@ class TSCAccessor(object):
     def check_const_time_delta(self) -> Union[pd.Series, float]:
         """Check if all time series have the same time-delta."""
         delta_time = self._tsc_df.delta_time
-        if not self._tsc_df.is_const_delta_time():
-            raise TSCException.not_const_delta_time(self._tsc_df.delta_time)
+        if not self._tsc_df.is_const_delta_time(delta_time):
+            raise TSCException.not_const_delta_time(delta_time)
         return delta_time
 
     def check_equal_timevalues(self) -> None:
@@ -950,7 +950,7 @@ class TSCAccessor(object):
             return None
 
     def shift_matrices(
-        self, snapshot_orientation: str = "col"
+        self, snapshot_orientation: str = "col", validate: bool = True
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes shift matrices from time series data.
 
@@ -962,6 +962,10 @@ class TSCAccessor(object):
         snapshot_orientation
             Orientation of snapshots (system states at time) either in rows ("row") or
             column-wise ("col")
+
+        validate
+            If True, validation steps (constant sampling and that each time series has at
+            least two samples) are performed.
 
         Returns
         -------
@@ -983,60 +987,53 @@ class TSCAccessor(object):
 
         """
 
-        self.check_const_time_delta()
+        if validate:
+            self.check_required_min_timesteps(required_min_timesteps=2)
+            self.check_const_time_delta()
 
-        # can be implemented if required:
-        self.check_required_min_timesteps(required_min_timesteps=2)
+        # Note that the copy() operations are important here to avoid that the data within the
+        # shift matrices do not point to the original memory (not having the copies led to
+        # incorrect results in other tests
+        if self._tsc_df.n_timeseries == 1:
+            # fast return for a single time series
+            values = self._tsc_df.to_numpy()
+            left, right = values[:-1].copy(), values[1:].copy()
+        else:
+            ts_counts = self._tsc_df.n_timesteps
+            values = self._tsc_df.to_numpy()
+            if isinstance(ts_counts, int):
+                # single snapshot pairs case
+                # this improves computational performance for streaming settings
+                if ts_counts == 2:
+                    left, right = values[0::2, :].copy(), values[1::2, :].copy()
+                else:
+                    idx = np.arange(values.shape[0])
+                    idx_del_left = idx[ts_counts - 1 :: ts_counts]
+                    left = np.delete(values.copy(), idx_del_left, axis=0)
 
-        ts_counts = self._tsc_df.n_timesteps
+                    idx_del_right = idx[::ts_counts]
+                    right = np.delete(values.copy(), idx_del_right, axis=0)
 
-        if is_integer(ts_counts):
-            ts_counts = pd.Series(
-                np.ones(self._tsc_df.n_timeseries, dtype=int) * ts_counts,
-                index=self._tsc_df.ids,
-            )
+            elif isinstance(ts_counts, pd.Series):
+                idx = np.append(0, ts_counts.to_numpy()).cumsum()
+                idx_del_left = (idx - 1)[1:]
+                idx_del_right = idx[:-1]
 
-        assert isinstance(ts_counts, pd.Series)  # for mypy
-
-        n_shift_snapshots = (ts_counts.subtract(1)).sum()
-        insert_indices = np.append(0, (ts_counts.subtract(1)).cumsum().to_numpy())
-
-        assert len(insert_indices) == self._tsc_df.n_timeseries + 1
+                left = np.delete(values.copy(), idx_del_left, axis=0)
+                right = np.delete(values.copy(), idx_del_right, axis=0)
+            else:
+                raise TypeError(
+                    f"{type(ts_counts)} is not understood -- please report bug"
+                )
 
         if snapshot_orientation == "col":
-            shift_left = np.zeros([self._tsc_df.n_features, n_shift_snapshots])
+            return left.T, right.T
         elif snapshot_orientation == "row":
-            shift_left = np.zeros([n_shift_snapshots, self._tsc_df.n_features])
+            return left, right
         else:
-            raise ValueError(f"snapshot_orientation={snapshot_orientation} not known")
-
-        shift_right = np.zeros_like(shift_left)
-
-        # NOTE: if this has performance issues or memory issues, then it may be beneficial
-        # to do the whole thing with boolean indexing
-
-        # TODO: maybe three is a better readable code using pandas' functionatlity?
-        #  e.g. shift https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.shift.html # noqa
-        #  could also be more efficient than cmp to itertimeseries()
-        for i, (id_, ts_df) in enumerate(self._tsc_df.itertimeseries()):
-            if snapshot_orientation == "col":
-                # start from 0 and exclude last snapshot
-                shift_left[:, insert_indices[i] : insert_indices[i + 1]] = ts_df.iloc[
-                    :-1, :
-                ].T
-                # exclude 0 and go to last snapshot
-                shift_right[:, insert_indices[i] : insert_indices[i + 1]] = ts_df.iloc[
-                    1:, :
-                ].T
-            else:  # "row"
-                shift_left[insert_indices[i] : insert_indices[i + 1], :] = ts_df.iloc[
-                    :-1, :
-                ]
-                shift_right[insert_indices[i] : insert_indices[i + 1], :] = ts_df.iloc[
-                    1:, :
-                ]
-
-        return shift_left, shift_right
+            raise ValueError(
+                f"{snapshot_orientation=} not known (choose either 'row' or 'col')"
+            )
 
     def time_values_overview(self) -> pd.DataFrame:
         """Generate table with overview of time values.

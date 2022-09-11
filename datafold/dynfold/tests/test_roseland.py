@@ -26,10 +26,9 @@ class RoselandTest(unittest.TestCase):
             GaussianKernel(epsilon=1.25), landmarks=data_landmark, n_svdtriplet=11
         ).fit(data, store_kernel_matrix=True)
         sparse_case = Roseland(
-            GaussianKernel(epsilon=1.25),
+            GaussianKernel(epsilon=1.25, distance=dict(cut_off=1e100)),
             landmarks=data_landmark,
             n_svdtriplet=11,
-            dist_kwargs=dict(cut_off=1e100),
         ).fit(data, store_kernel_matrix=True)
 
         nptest.assert_allclose(
@@ -100,10 +99,13 @@ class RoselandTest(unittest.TestCase):
         )
 
         self.assertEqual(actual_rose.n_features_out_, 2)
-        self.assertEqual(actual_rose.feature_names_out_, None)
-
         self.assertEqual(actual_rose2.n_features_out_, 2)
-        self.assertEqual(actual_rose2.feature_names_out_, None)
+        nptest.assert_equal(
+            actual_rose.get_feature_names_out(), np.array(["rose1", "rose5"])
+        )
+        nptest.assert_equal(
+            actual_rose2.get_feature_names_out(), np.array(["rose1", "rose5"])
+        )
 
     def test_set_target_coords2(self):
         X_swiss_all, _ = make_swiss_roll(n_samples=500, noise=0, random_state=5)
@@ -221,17 +223,16 @@ class RoselandTest(unittest.TestCase):
 
             plt.show()
 
-    def test_dist_kwargs(self):
+    def test_distance(self):
         X_swiss_all, _ = make_swiss_roll(n_samples=4000, noise=0, random_state=5)
         data_landmark, _ = random_subsample(X_swiss_all, 1000)
 
         rose = Roseland(
-            kernel=GaussianKernel(),
+            kernel=GaussianKernel(distance=dict(cut_off=2)),
             landmarks=data_landmark,
-            dist_kwargs=dict(cut_off=2),
         ).fit(X_swiss_all, store_kernel_matrix=True)
 
-        self.assertEqual(rose.landmarks_.dist_kwargs["cut_off"], 2)
+        self.assertEqual(rose.kernel.distance.cut_off, 4)
         self.assertTrue(scipy.sparse.issparse(rose.kernel_matrix_))
 
     @pytest.mark.skip("too expensive")
@@ -302,6 +303,10 @@ class RoselandTest(unittest.TestCase):
             given_array_case.svdvec_left_, given_float_case.svdvec_left_
         )
 
+    @pytest.mark.filterwarnings(
+        "ignore:X does not have valid feature names, but Roseland was "
+        "fitted with feature names"
+    )
     def test_types_tsc(self):
 
         # fit=TSCDataFrame
@@ -317,24 +322,21 @@ class RoselandTest(unittest.TestCase):
         )
 
         self.assertIsInstance(rose.svdvec_left_, TSCDataFrame)
-        # Change to sparse matrix behaviour wrt DMAP:
-        # DiffusionMaps computes only a sparse matrix if a cut-off is specified
-        # Roseland always specifies a cut-off for the landmark set
-        # TODO: IMHO this behavior goes against the Roseland algorithm. As far as I can
-        #  tell, the paper only considers a dense kernel matrix
-        # self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
 
         # insert TSCDataFrame -> output TSCDataFrame
         actual_tsc = rose.transform(tsc_data.iloc[:10, :])
         self.assertIsInstance(actual_tsc, TSCDataFrame)
 
-        # insert np.ndarray -> output np.ndarray
+        # insert np.ndarray -> output np.ndarray  -- raises warning from sklearn
         actual_nd = rose.transform(tsc_data.iloc[:10, :].to_numpy())
         self.assertIsInstance(actual_nd, np.ndarray)
 
-        # check that compuation it exactly the same
+        # check that computation it exactly the same
         nptest.assert_array_equal(actual_tsc.to_numpy(), actual_nd)
 
+    @pytest.mark.filterwarnings(
+        "ignore:X has feature names, but Roseland was fitted without " "feature names"
+    )
     def test_types_pcm(self):
         # fit=TSCDataFrame
         _x = np.linspace(0, 2 * np.pi, 20)
@@ -348,9 +350,6 @@ class RoselandTest(unittest.TestCase):
         )
 
         self.assertIsInstance(rose.svdvec_left_, np.ndarray)
-
-        # TODO: Why MUST the kernel matrix be sparse?
-        # self.assertIsInstance(rose.kernel_matrix_, scipy.sparse.spmatrix)
 
         # insert np.ndarray -> output np.ndarray
         actual_nd = rose.transform(pcm_data[:10, :])
@@ -374,17 +373,15 @@ class RoselandTest(unittest.TestCase):
         X = TSCDataFrame.from_frame_list([X1, X2])
 
         actual_rose = Roseland(
-            kernel=GaussianKernel(epsilon=1.25),
+            kernel=GaussianKernel(epsilon=1.25, distance=dict(cut_off=10)),
             n_svdtriplet=6,
-            dist_kwargs=dict(cut_off=10),
             random_state=42,
         )
         actual_result = actual_rose.fit_transform(X, store_kernel_matrix=True)
 
         expected_rose = Roseland(
-            kernel=GaussianKernel(epsilon=1.25),
+            kernel=GaussianKernel(epsilon=1.25, distance=dict(cut_off=10)),
             n_svdtriplet=6,
-            dist_kwargs=dict(cut_off=10),
             random_state=42,
         )
 
