@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation
-
+from scipy.interpolate import interp1d
 from scipy.io import loadmat
 from sklearn.base import BaseEstimator
 
@@ -16,7 +16,7 @@ from datafold import (
     TSCTransformerMixin,
 )
 from datafold.appfold.kmpc import LinearKMPC
-from datafold.utils._systems import Burger
+from datafold.utils._systems import Burger1DPeriodicBoundary
 
 # simulates the setting from https://arxiv.org/pdf/1804.05291.pdf
 
@@ -41,17 +41,32 @@ umin, umax = (-0.1, 0.1)
 
 time_values = np.arange(0, dt * sim_length + 1e-12, dt)
 
-sys = Burger(nu=0.01)
+sys = Burger1DPeriodicBoundary(nu=0.01)
 
-f1 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.25)) ** 2)))
-f2 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.75)) ** 2)))
+# f1 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.25)) ** 2)))
+# f2 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.75)) ** 2)))
 
-ic1 = np.exp(-(((sys.x_nodes - 0.5) * 5) ** 2))
-ic2 = np.sin(4 * np.pi * sys.x_nodes) ** 2
+f1 = np.atleast_2d(np.exp(-((15/(2*np.pi) * (sys.x_nodes - 2*np.pi*0.25)) ** 2)))
+f2 = np.atleast_2d(np.exp(-((15/(2*np.pi) * (sys.x_nodes - 2*np.pi*0.75)) ** 2)))
+
+# f1 = np.atleast_2d(np.exp(-((15 * (np.linspace(0,1, 100) - 0.25)) ** 2)))
+# f2 = np.atleast_2d(np.exp(-((15 * (np.linspace(0,1, 100) - 0.75)) ** 2)))
+
+# plt.figure()
+# plt.plot(sys.x_nodes, f1.flatten())
+# plt.plot(sys.x_nodes, f2.flatten())
+# # plt.plot(np.linspace(0,1, 100), f1.flatten())
+# # plt.plot(np.linspace(0,1, 100), f2.flatten())
+# plt.xlim(0, 2*np.pi)
+# # plt.xlim(0, 1)
+# plt.show()
+# exit()
+
+ic1 = np.exp(-(((sys.x_nodes - 2*np.pi*0.5) * 5/(2*np.pi)) ** 2))
+ic2 = np.sin(2 * sys.x_nodes) ** 2
 icfunc = lambda a: a * ic1 + (1 - a) * ic2
 
-# sys.predict(icfunc(1), U=np.zeros((3, 100)), time_values=np.array([0, dt, 2*dt]))
-
+sys.predict(np.row_stack([icfunc(0), icfunc(1)]), U=np.zeros((2, 100)), time_values=np.array([dt]))
 
 X_tsc = []
 U_tsc = []
@@ -67,15 +82,8 @@ if MODE_DATA == "generate_save":
         rand_vals = rng.uniform(umin, umax, size=(len(time_values), 2))
         # rand_vals = np.zeros((len(time_values), 2))
 
-        from scipy.interpolate import interp1d
-        # U1rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 0])).T
-        # U2rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 1])).T
-
         U1rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 0], kind="previous")(t)).T
         U2rand = lambda t: np.atleast_2d(interp1d(time_values, rand_vals[:, 1], kind="previous")(t)).T
-
-        # U1rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
-        # U2rand = lambda t: np.atleast_2d(interp1d(time_values, np.zeros(len(time_values)), kind="previous")(t)).T
 
         def U(t, x):
             return U1rand(t) * f1 + U2rand(t) * f2
@@ -282,16 +290,14 @@ print(f"{X_dict.columns=}")
 print(f"{len(X_dict.columns)=}")
 print(X_dict.head(5))
 
-# TODO: fix the grid [0,1] or [0,2pi]
-# TODO: update the controllable ODE to remove distinguish between one step or multi-step
 # TODO: optimize LinearKMPC for speed
-# TODO: optimize the Burger equatio for speed (Provide the Jacobian in a fast way)
-# TODO: Use (optional?) the upwind finite difference?
 # TODO: In KMPC "self.account_initial = False" needs to be set, otherwise it fails, do I need this option
 # TODO: need to align -- is the reference solution "on time" with what is returned by the optimization
 # TODO: work with initvals to fasten up solutions of convex optimization
-# TODO: make the upper/lower bound on control variable better!
+# TODO: make the upper/lower bound on control variable configurable-
 # TODO: include state bounds properly (they are essentially ignored currently)?
+# TODO: include the cost / error evaluation.
+# TODO: make plotting right and perform transfer this to jupyter notebook
 # TODO: continue with Pendulum tutorial!
 
 
@@ -309,7 +315,7 @@ kmpc = LinearKMPC(
 # perform simulation for the initial time embedding
 X_init, _ = sys.predict(
     icfunc(0.2),
-    U=np.zeros((5, sys.n_control_in_)),
+    U=np.zeros((4, sys.n_control_in_)),
     time_values=np.arange(0, 5 * dt, dt),
     require_last_control_state=True,
 )

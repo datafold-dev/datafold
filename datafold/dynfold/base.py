@@ -568,10 +568,12 @@ class TSCPredictMixin(TSCBase):
 
             if is_controlled:
                 if isinstance(U, np.ndarray):
-                    if len(time_values) != U.shape[0]:
+                    if len(time_values) != U.shape[0] + int(not req_last_control_state):
+                        str_req_control_states = f"{U.shape[0]-1=}" if int(not req_last_control_state) else f"{U.shape[0]=}"
+
                         raise ValueError(
                             f"The length of time values ({len(time_values)=}) does not match "
-                            f"the required number of control states ({U.shape[0]+1=})."
+                            f"the number of control states (required: {str_req_control_states}, got: {U.shape[0]=})."
                         )
                 elif isinstance(U, TSCDataFrame):
 

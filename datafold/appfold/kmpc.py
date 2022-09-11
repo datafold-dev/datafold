@@ -389,7 +389,7 @@ class LinearKMPC:
             ub=0.1* np.ones(38),
             solver="quadprog",
             verbose=False,
-            initvals=None, # TODO: can set after first iteration!
+            initvals=initvals,
         )
 
         if U is None:

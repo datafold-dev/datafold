@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+from scipy.interpolate import interp1d
 import abc
 from typing import Callable, Optional, Union
 
@@ -277,17 +277,16 @@ class Pendulum(DynamicalSystem):
 class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
     def __init__(
         self,
-        n_features_in,
         feature_names_in,
-        n_control_in,
         control_names_in,
         **ivp_kwargs,
     ):
         # TODO: possibly move one up to DynamicalSystem
-        self.n_features_in_ = n_features_in
+
         self.feature_names_in_ = feature_names_in
-        self.n_control_in_ = n_control_in
+        self.n_features_in_ = len(self.feature_names_in_)
         self.control_names_in_ = control_names_in
+        self.n_control_in_ = len(self.control_names_in_)
         self._default_step_size = 0.01
 
         self.ivp_kwargs = ivp_kwargs
@@ -296,7 +295,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def _f(self, t, X, U):
-        """Right hand side of the ODE.
+        """Right-hand side of the ODE.
 
         The return of the function must match the 'fun' parameter in Scipy's 'solve_ivp'
         function.
@@ -316,8 +315,9 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
     ):
         # TODO: need to support if X is TSCDataFrame!
 
-        # TODO: make U really optional (do not apply any control) -- this needs to be covered
-        #  also in _f
+        # TODO: make U really optional (do not apply any control if U is None) --
+        #  this needs to be addressed in _f, where U is ignored (or set to zero, but this
+        #  needs computations.
 
         # some validation
         if isinstance(U, np.ndarray) and U.ndim == 1:
@@ -338,202 +338,100 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         # TODO: cast time_values only containing a float/int to np.array([value])
         #   then check for one_step_sim
 
-        one_step_sim = (
-            isinstance(U, (np.ndarray, TSCDataFrame)) and X.shape[0] == U.shape[0]
-        ) or isinstance(time_values, (float, int))
-
         if time_values is None:
             self.dt_ = self._default_step_size
-
-            if one_step_sim:
-                self._requires_last_control_state = False  # no interpolation
-            else:
-                self._requires_last_control_state = True  # interpolation
-            time_values = self._validate_and_set_time_values_predict(
-                time_values=time_values, X=X, U=U
-            )
-        elif isinstance(time_values, (float, int)) or (
-            len(np.asarray(time_values)) == 1 and one_step_sim
-        ):
-            self.dt_ = (
-                time_values if isinstance(time_values, (float, int)) else time_values[0]
-            )
-            time_values = np.array([0, self.dt_])
-        elif len(time_values) == 2 and time_values[0] == 0:
-            self.dt_ = time_values[1] - time_values[0]
-            self._requires_last_control_state = False
-            time_values = self._validate_and_set_time_values_predict(
-                time_values=time_values, X=X, U=U
-            )
         else:
             self.dt_ = time_values[1] - time_values[0]
-            self._requires_last_control_state = True  # for interpolation
-            time_values = self._validate_and_set_time_values_predict(
-                time_values=time_values, X=X, U=U
-            )
 
-        # solve ODE
-        if one_step_sim:
-            if isinstance(U, TSCDataFrame):
-                # for one step, each state must have a corresponding control input
-                U = U.to_numpy()
-            elif not isinstance(U, np.ndarray):
-                raise TypeError(
-                    f"For one-step predictions `U` must be of type TSCDataFrame "
-                    f"or np.ndarray. Got {type(U)=}"
+        self._requires_last_control_state = False
+        time_values = self._validate_and_set_time_values_predict(
+            time_values=time_values, X=X, U=U
+        )
+
+        if not isinstance(U, Callable):
+
+            if X.shape[0] == U.shape[0] and isinstance(U, np.ndarray):
+                # Interpret as one step prediction of multiple initial conditions
+                idx = pd.MultiIndex.from_arrays([np.arange(U.shape[0]), np.ones(U.shape[0])*time_values[0]])
+                U = TSCDataFrame(U, index=idx, columns=self.control_names_in_)
+            if X.shape[0] > 1 and not isinstance(U, TSCDataFrame):
+                raise ValueError(
+                    "To solve for multiple initial conditions `U` must be of type "
+                    f"TSCDataFrame. Got {type(U)}"
+                )
+            elif isinstance(U, TSCDataFrame):
+                U.tsc.check_equal_timevalues()
+                U.tsc.check_required_n_timesteps(len(time_values)-1)
+            elif isinstance(U, np.ndarray):
+                U = TSCDataFrame.from_array(
+                    U, time_values=time_values[:-1], feature_names=self.control_names_in_
                 )
 
-            if U.shape[0] != X.shape[0]:
-                raise TypeError(
-                    f"For one-step predictions {U.shape[0]=} must match {X.shape[0]=}."
-                )
+        if isinstance(X, pd.DataFrame):
+            X = X.to_numpy()
 
-            # make one RK45 step
-            t = time_values[0]
+        X_sol = list()
 
-            # work on column-major data to match SciPy's definition in the "fun" method of
-            # solve_ivp
-            Xt = X.T
-            Ut = U.T
+        for i in range(X.shape[0]):
+            ic = X[i]
 
-            k1 = self._f(t, Xt, Ut) * self.dt_
-            k2 = self._f(t, Xt + k1 / 2.0, Ut) * self.dt_
-            k3 = self._f(t, Xt + k2 / 2.0, Ut) * self.dt_
-            k4 = self._f(t, Xt + k3, Ut) * self.dt_
-            X_next = Xt + (k1 + 2 * (k2 + k3) + k4) / 6
+            if isinstance(U, Callable):
+                # user specified input
+                Ufunc = U
+            elif len(time_values) == 2:
+                Ufunc = lambda t, x: U.iloc[[i], :]
+            else:
+                # interpolates control input from data
+                U_interp = U.loc[[U.ids[i]], :].to_numpy()
 
-            # make one Euler step
-            # X_next = X + (self.dt_ * self._f(None, X, U)).T
+                interp_control = []
 
-            ivpsol = solve_ivp(
-                fun=lambda t, x: self._f(t, x, Ut),
+                for i in range(self.n_control_in_):
+                    func = lambda t, x: interp1d(time_values[:-1], U_interp[:, i], kind='previous', fill_value="extrapolate")(t)
+                    interp_control.append(func)
+
+                Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
+
+            sol = solve_ivp(
+                # U should be a row-major mapping in datafold
+                # to align with Scipy's ODE solver (column-major), the control mapping is
+                # transposed
+                fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
                 t_span=(time_values[0], time_values[-1]),
-                y0=Xt.ravel(),
+                y0=ic,
                 t_eval=time_values,
                 **self.ivp_kwargs,
             )
 
-            X_next = ivpsol.y[:, [1]]
+            if not sol.success:
+                raise RuntimeError(
+                    f"The prediction was not successful \n Reason: \n"
+                    f" {sol.message=}"
+                )
 
-            # this turns the data orientation back to row-major
-            X_sol = TSCDataFrame.from_shift_matrices(
-                left_matrix=Xt,
-                right_matrix=X_next,
-                time_values=time_values,
-                snapshot_orientation="col",
-                columns=self.feature_names_in_,
+            X_sol.append(
+                TSCDataFrame.from_array(
+                    sol.y.T,
+                    time_values=time_values,
+                    feature_names=self.feature_names_in_,
+                )
             )
 
-
-            # sol = self.solve_ivp(Xt, Ut, time_values=time_values)
-            # X_next = sol[[1], :].T
-
-            # X_sol = TSCDataFrame.from_shift_matrices(
-            #     left_matrix=Xt,
-            #     right_matrix=X_next,
-            #     time_values=time_values,
-            #     snapshot_orientation="col",
-            #     columns=self.feature_names_in_,
-            # )
-
-
-
-
-            index = pd.MultiIndex.from_product([np.arange(U.shape[0]), [0]])
-            U = TSCDataFrame(U, index=index, columns=self.control_names_in_)
-
-        else:
-
-            if not isinstance(U, Callable):
-                if X.shape[0] > 1 and not isinstance(U, TSCDataFrame):
-                    raise ValueError(
-                        "For multiple initial conditions `U` must be of type TSCDataFrame."
-                    )
-                elif isinstance(U, TSCDataFrame):
-                    U.tsc.check_equal_timevalues()
-                elif isinstance(U, np.ndarray):
-                    U = TSCDataFrame.from_array(
-                        U, time_values=time_values, feature_names=self.control_names_in_
-                    )
-
-            if isinstance(X, pd.DataFrame):
-                X = X.to_numpy()
-
-            X_sol = list()
-
-            for i in range(X.shape[0]):
-                ic = X[i]
-
-                if isinstance(U, Callable):
-                    # user specified input
-                    Ufunc = U
-                else:
-                    # interpolates control input from data
-                    U_interp = U.loc[[U.ids[i]], :].to_numpy()
-
-                    interp_control = []
-
-                    for i in range(self.n_control_in_):
-
-                        from scipy.interpolate import interp1d
-                        func = lambda t, x: interp1d(time_values, U_interp[:, i], kind='previous')(t)
-                        interp_control.append(func)
-
-                    Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
-
-                sol = solve_ivp(
-                    # U should be a row-major mapping in datafold
-                    # to align with Scipy's ODE solver (column-major), the control mapping is transposed
-                    fun=lambda t, x: self._f(t, x, Ufunc(t, x).T),
-                    t_span=(time_values[0], time_values[-1]),
-                    y0=ic,
-                    # jac=self._jac,
-                    t_eval=time_values,
-                    **self.ivp_kwargs,
-                )
-
-                # sol = self.solve_ivp(ic, U, time_values)
-
-
-                if not sol.success:
-                    raise RuntimeError(
-                        f"The prediction was not successful \n Reason: \n"
-                        f" {sol.message=}"
-                    )
-
-                X_sol.append(
-                    TSCDataFrame.from_array(
-                        sol.y.T,
-                        time_values=time_values,
-                        feature_names=self.feature_names_in_,
-                    )
-                )
-
-                # X_sol.append(
-                #     TSCDataFrame.from_array(
-                #         sol,
-                #         time_values=time_values,
-                #         feature_names=self.feature_names_in_,
-                #     )
-                # )
-
-            X_sol = TSCDataFrame.from_frame_list(X_sol)
+        X_sol = TSCDataFrame.from_frame_list(X_sol)
 
         if isinstance(U, Callable):
-            tv = X_sol.index.get_level_values(TSCDataFrame.tsc_time_idx_name).to_numpy()
+            X_sol_but_last = X_sol.tsc.drop_last_n_samples(1)
+
+            tv = X_sol_but_last.index.get_level_values(TSCDataFrame.tsc_time_idx_name).to_numpy()
 
             # turn callable into actual data -- needs to be re-computed as I do not see a way
             # to access this from the scipy ODE solver
 
             # TODO: this only works if U is vectorized, maybe need an element-by-element way too...
-            U = U(tv, X_sol.to_numpy())
+            U = U(tv, X_sol_but_last.to_numpy())
             U = TSCDataFrame.from_same_indices_as(
-                X_sol, values=U, except_columns=self.control_names_in_
+                X_sol_but_last, values=U, except_columns=self.control_names_in_
             )
-
-        if not require_last_control_state and not one_step_sim:
-            # for the last state there is no control input
-            U = U.tsc.drop_last_n_samples(1)
 
         return X_sol, U
 
@@ -712,47 +610,36 @@ class InvertedPendulum(ControllableODE):
         return anim
 
 
-class Burger(ControllableODE):
+class Burger1DPeriodicBoundary(ControllableODE):
     def __init__(self, n_spatial_points: int = 100, nu=0.01):
         self.nu = nu
-        self.x_nodes = np.linspace(0,1,n_spatial_points)
+        self.x_nodes = np.linspace(0, 2 * np.pi, n_spatial_points)
         self.dx = self.x_nodes[1] - self.x_nodes[0]
 
-        use_template = True
-        if use_template:
-            self.x_nodes_internal = np.arange(0, (n_spatial_points - 1) * 2 * np.pi / n_spatial_points + 1E-15,2 * np.pi / n_spatial_points)
-            self.dx_internal = self.x_nodes_internal[1] - self.x_nodes_internal[0]
-        else:
-            self.x_nodes_internal = self.x_nodes
-            self.dx_internal = self.dx
-
-
-        self.d_dx = fd.coefficients(deriv=1, acc=2)["backward"]
+        self.d_dx = fd.coefficients(deriv=1, acc=2)["forward"]
         self.d2_dx2 = fd.coefficients(deriv=2, acc=2)["center"]
 
-        super(Burger, self).__init__(
-            n_features_in=n_spatial_points,
+        super(Burger1DPeriodicBoundary, self).__init__(
             feature_names_in=[f"x{i}" for i in range(n_spatial_points)],
-            n_control_in=n_spatial_points,
             control_names_in=[f"u{i}" for i in range(n_spatial_points)],
-            **{"method": "Radau", "vectorized": True},
+            **{"method": "RK23", "vectorized": True},
         )
 
-
     def _f(self, t, x, u):
-        c = self.d_dx["coefficients"]
-        c2 = self.d2_dx2["coefficients"]
-
+        # TODO: should use an upwind scheme? But waves where more "averaged" on the top.
         # x_pad = np.concatenate([x[-3:-1], x])
-        # advection_upwind = (c[0] * x_pad[:-2] + c[1] * x_pad[1:-1] + c[2] * x_pad[2:]) / (2 * self.dx_internal)
+        # advection = (-1.5 * x_pad[:-2] + 2 * x_pad[1:-1] - 0.5 * x_pad[2:]) / (2 * self.dx)
 
+        # use central scheme as the advection seems
         x_pad = np.concatenate([x[[-1]], x, x[[0]]])
-        advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx_internal)
+        advection = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx)
 
+        # central finite difference scheme
         x_pad = np.concatenate([x[[-1]], x, x[[0]]])
-        convection = (c2[0] * x_pad[:-2] + c2[1] * x_pad[1:-1] + c2[2] * x_pad[2:]) / (self.dx_internal**2)
+        convection = (x_pad[:-2] - 2 * x_pad[1:-1] + x_pad[2:]) / (self.dx ** 2)
 
-        x_dot = -advection_central * x + self.nu * convection
+        x_dot = -np.multiply(advection, x, out=advection)
+        x_dot += np.multiply(self.nu, convection, out=convection)
         x_dot += u
 
         return x_dot
@@ -773,7 +660,7 @@ class Burger(ControllableODE):
         first = np.zeros((n_nodes, n_nodes))
 
         for i in range(xdiag.shape[1]-2):
-            first[:, i] = (c[0] * xdiag[:-2, i+1] + c[1] * xdiag[1:-1, i+1] + c[2] * xdiag[2:, i+1]) / (2 * self.dx_internal)
+            first[:, i] = (c[0] * xdiag[:-2, i+1] + c[1] * xdiag[1:-1, i+1] + c[2] * xdiag[2:, i+1]) / (2 * self.dx)
 
         first *= 2
 
@@ -781,13 +668,13 @@ class Burger(ControllableODE):
         off_diagonal = np.diag(np.ones(n_nodes-1), 1)
 
         second = main_diagonal + off_diagonal + off_diagonal.T
-        second /= (self.dx_internal**2)
+        second /= (self.dx ** 2)
 
         return -first - (np.eye(n_nodes) - self.nu * second)
 
 
     def _step(self, x, dt, u):
-
+        # TODO: remove when finished
         if x.ndim == 1:
             x = x[:, np.newaxis]
 
@@ -802,12 +689,12 @@ class Burger(ControllableODE):
         for j in range(1, 20):
 
             x_pad = np.concatenate([x[[-1]], x, x[[0]]])
-            advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx_internal)
+            advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx)
             advection_central *= dt
             advection_central = advection_central*x
 
 
-            dxsq = (self.dx_internal ** 2)
+            dxsq = (self.dx ** 2)
             factor = - (dt * self.nu) / dxsq
 
             convection = factor * x_pad[:-2] + (1 + (2 * dt * self.nu)/dxsq) * x_pad[1:-1] + factor * x_pad[2:]
@@ -823,7 +710,7 @@ class Burger(ControllableODE):
             first = np.zeros((n_nodes, n_nodes))
 
             for i in range(xdiag.shape[1]-2):
-                first[:, i] = (-xdiag[:-2, i+1] + xdiag[2:, i+1]) / (2 * self.dx_internal)
+                first[:, i] = (-xdiag[:-2, i+1] + xdiag[2:, i+1]) / (2 * self.dx)
 
             first *= dt*2
 
@@ -840,7 +727,7 @@ class Burger(ControllableODE):
 
 
     def solve_ivp(self, X_ic, U, time_values):
-
+        # TODO: remove when finished
         x = X_ic
 
         ts = np.zeros((len(time_values), len(x)))
@@ -913,7 +800,7 @@ if __name__ == "__main__":
 
     X = np.array(100)
 
-    Burger().predict()
+    Burger1DPeriodicBoundary().predict()
 
     exit()
 

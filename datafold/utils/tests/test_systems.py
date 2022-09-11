@@ -5,7 +5,7 @@ import pandas as pd
 import pandas.testing as pdtest
 import numpy.testing as nptest
 
-from datafold.utils._systems import VanDerPol, Duffing1D, InvertedPendulum, Burger
+from datafold.utils._systems import VanDerPol, Duffing1D, InvertedPendulum, Burger1DPeriodicBoundary
 from datafold import TSCDataFrame
 import matplotlib.pyplot as plt
 
@@ -99,7 +99,7 @@ class TestSystems(unittest.TestCase):
                 x = x.T
             return U1rand(t) * f1(x) + U2rand(t) * f2(x)
 
-        sys = Burger()
+        sys = Burger1DPeriodicBoundary()
 
         a = rng.uniform(0, 1)
         ic1 = np.exp(-(((sys.x_nodes) - .5) * 5) ** 2)
@@ -135,8 +135,8 @@ class TestSystems(unittest.TestCase):
         actual_unstable, _ = sys.predict(X_stable, U=U)
         actual_stable, _ = sys.predict(X_unstable, U=U)
 
-        expected_unstable = np.tile(X_stable, (U.shape[0],1))
-        expected_stable = np.tile(X_unstable, (U.shape[0],1))
+        expected_unstable = np.tile(X_stable, (U.shape[0]+1, 1))
+        expected_stable = np.tile(X_unstable, (U.shape[0]+1, 1))
 
         nptest.assert_array_equal(expected_unstable, actual_unstable.to_numpy())
         nptest.assert_allclose(expected_stable, actual_stable.to_numpy(), rtol=0, atol=1E-15)
@@ -169,10 +169,10 @@ class TestSystems(unittest.TestCase):
 
     def test_duffing01(self, plot=True):
 
-        X1, U1 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((1000, 1)))
-        X2, U2 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((1000, 1)), time_values=np.arange(0, 10, 0.01))
+        X1, U1 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)))
+        X2, U2 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)), time_values=np.arange(0, 10, 0.01))
 
-        U = TSCDataFrame.from_array(np.zeros((1000, 1)), time_values=np.arange(0, 10, 0.01))
+        U = TSCDataFrame.from_array(np.zeros((999, 1)), time_values=np.arange(0, 10-0.01, 0.01))
         X3, U3 = Duffing1D().predict(np.array([1, 2]), U=U, time_values=np.arange(0, 10, 0.01))
         X4, U4 = Duffing1D().predict(np.array([1, 2]), U=U)
 
