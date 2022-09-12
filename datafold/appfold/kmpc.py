@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import scipy.sparse
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
@@ -10,7 +11,7 @@ import matplotlib.pyplot as plt
 from datafold.appfold import EDMD
 from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec, if1dim_rowvec
-
+from datafold.utils.general import projection_matrix_from_feature_names
 try:
     import quadprog  # noqa: F401
     from qpsolvers import solve_qp
@@ -40,7 +41,7 @@ class LinearKMPC:
 
     Parameters
     ----------
-    predictor : EDMD
+    edmd : EDMD
         Prediction model to use, must be already fitted.
         The underlying DMD model in :py:class:`EDMD` must support control, such as
         :py:class:`.DMDControl`.
@@ -115,7 +116,7 @@ class LinearKMPC:
 
     def __init__(
         self,
-        predictor: EDMD,
+        edmd: EDMD,
         horizon: int,
         state_bounds: np.ndarray,
         input_bounds: np.ndarray,
@@ -124,17 +125,16 @@ class LinearKMPC:
         cost_terminal: Optional[Union[float, np.ndarray]] = 100,
         cost_input: Optional[Union[float, np.ndarray]] = 0.01,
     ) -> None:
+
         if solve_qp is None:
             raise ImportError(
-                "The optional dependencies `qpsolvers` and `quadprog` are required "
-                "for `LinearKMPC`. These need to be installed separately with \n"
-                "`pip install qpsolvers quadprog`"
+                "The optional dependencies `qpsolvers` and `cvxpy` are required. These can "
+                "be installed separately with `pip install qpsolvers cvxpy`"
             )
 
-        self.predictor = predictor
+        self.edmd = edmd
 
         # define default values of properties
-        # TODO: horizon could / should? be replaced with time_values
         self.horizon = horizon
 
         self.cost_running = cost_running
@@ -143,32 +143,15 @@ class LinearKMPC:
 
         self.account_initial = False
 
-        try:
-            # Note that these are defined on the lifted space:
-            self.A = predictor.dmd_model.sys_matrix_
-            self.B = predictor.dmd_model.control_matrix_
-            self.lifted_state_size, self.input_size = self.B.shape  # type: ignore
-        except ValueError:
-            raise TypeError(
-                "The shape of the control matrix is not as expected. "
-                "This is likely due to an incompatible dmd_model type of the predictor. "
-                "The predictor.dmd_model should support control (e.g. DMDControl)."
-            )
-        self.state_size = len(predictor.feature_names_in_)
-
-        # setup conversion from lifted state to output quantities of interest
-
-        from datafold.utils.general import projection_matrix_from_feature_names
-
-        self.Cb = projection_matrix_from_feature_names(features_all=predictor.feature_names_out_, features_select=qois)
-        self.Cb = self.Cb.T.toarray()
-        self.output_size = len(qois)
-
-        # if input_bounds.shape != (self.input_size, 2):
-        #     raise ValueError("")
-        #
-        # if state_bounds.shape != (self.output_size, 2):
-        #     raise ValueError("")
+        # use only some conversion from  state to output quantities of interest
+        # TODO: avoid stroing Cb (not needed, move into setup_optimizer)
+        if qois is not None:
+            self.Cb = projection_matrix_from_feature_names(features_all=edmd.feature_names_out_, features_select=qois)
+            self.Cb = self.Cb.T.toarray()
+            self.output_size = len(qois)
+        else:
+            self.Cb = None
+            self.output_size = edmd.dmd_model.n_features_in_
 
         self.input_bounds = input_bounds
         self.state_bounds = state_bounds
@@ -179,14 +162,14 @@ class LinearKMPC:
     def _setup_optimizer(self):
         # implements relevant part of :cite:`korda-2018` to set up the optimization problem
 
-        self.Ab, self.Bb = self._create_evolution_matrices()
+        Ab, Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
         F, E, c = self._create_constraint_matrices()
 
-        H = 2 * (self.Bb.T @ Q @ self.Bb + R)
-        h = r + self.Bb.T @ q  # TODO: currently h is always zero
-        G = 2 * self.Bb.T @ Q @ self.Ab
-        Y = (-2 * Q @ self.Bb).T
+        H = 2 * (Bb.T @ Q @ Bb + R)
+        h = r + Bb.T @ q  # TODO: currently h is always zero
+        G = 2 * Bb.T @ Q @ Ab
+        Y = (-2 * Q @ Bb).T
 
         L = None
         M = None
@@ -197,39 +180,41 @@ class LinearKMPC:
         # appendix from :cite:`korda-2018`
         # same as Sabin 2.44
         Np = self.horizon
-        N = self.lifted_state_size
-        m = self.input_size
+        N = self.edmd.dmd_model.n_features_in_
+        m = self.edmd.dmd_model.n_control_in_
 
-        A = self.A
-        B = self.B
-        # TODO: C is here a projection matrix, and applied after Ab and Bb are set up.
-        #  -- as of my understanding it is unnecessary to store the full Ab, we can apply the
-        #  projection already (we only need to store the last "full A") -- similarily Bb
+        A = self.edmd.dmd_model.sys_matrix_
+        B = self.edmd.dmd_model.control_matrix_
+
         Ab = np.eye((Np + 1) * self.output_size, N)
-        Bb = np.zeros(((Np+1) * self.output_size, Np * m))
+        Bb = np.zeros(((Np + 1) * self.output_size, Np * m))
 
         A_last = A.copy()
 
         # set up A
         for i in range(1, Np + 1):
-            s = i * self.output_size
-            e = (i + 1) * self.output_size
-            Ab[s:e, :] = self.Cb @ A_last
-            A_last = A @ A_last
+            s = i * self.output_size # start index
+            e = (i + 1) * self.output_size  # end index
+            Ab[s:e, :] = self.Cb.dot(A_last, out=Ab[s:e, :])
+            A_last = A.dot(A_last, out=A_last)
 
-        B_current = B
+        B_current = B.copy()
 
         # set up B
         for i in range(1, Np+1):
+            _B_tmp = self.Cb @ B_current
+
+            # Copy along diagonal blocks of matrix
             for k, j in enumerate(range(i, Np+1)):
-                sr = j * self.output_size
-                er = (j + 1) * self.output_size
-                sc = k * m
-                ec = (k+1) * m
+                sr = j * self.output_size  # start row
+                er = (j + 1) * self.output_size  # end row
+                sc = k * m  # start columns
+                ec = (k+1) * m  # end column
+                Bb[sr:er, sc:ec] = _B_tmp
 
-                Bb[sr:er, sc:ec] = self.Cb @ B_current
-
-            B_current = A @ B_current  # TODO: the last can be saved!
+            if i != Np+1:
+                # avoid unnecessary matrix-matrix multiplication for last iteration
+                B_current = A.dot(B_current, out=B_current)
 
         if not self.account_initial:
             Ab = Ab[self.output_size:]
@@ -242,15 +227,15 @@ class LinearKMPC:
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
         Np = self.horizon
-        N = self.output_size
-        m = self.input_size
+        N = self.edmd.dmd_model.n_features_in_
+        m = self.edmd.dmd_model.n_control_in_
 
         # TODO: Eb and Fb are very sparse matrices (~ 99 %)
         # constraint equations
         # E = np.vstack([np.eye(N), -np.eye(N), np.zeros((2 * m, N))])
         # Eb = np.kron(np.eye(Np+1), E) # TODO Np+1 if not ignoring initial
 
-        rc = (Np + 1) * self.lifted_state_size
+        rc = (Np + 1) * N
         Eb = np.zeros((rc, rc))
 
         # from scipy.sparse import block_diag
@@ -260,10 +245,10 @@ class LinearKMPC:
         # F = np.vstack([np.zeros((2 * N, m)), np.eye(m), -np.eye(m)])
         # Fb = np.vstack([np.kron(np.eye(Np), F), np.zeros((2 * (N + m), m * Np))])
 
-        Fb = np.zeros(((Np+1)*self.lifted_state_size, Np*m))
+        Fb = np.zeros(((Np+1)*N, Np*m))
 
         # constraint
-        cb = np.zeros(((Np+1)*self.lifted_state_size, 1))
+        cb = np.zeros(((Np+1)*N, 1))
 
 
         # c[:, :N] = self.state_bounds[:, 0]
@@ -299,11 +284,13 @@ class LinearKMPC:
         # same as Sabin 2.44
         Np = self.horizon
         N = self.output_size
-        m = self.input_size
+        m = self.edmd.dmd_model.n_control_in_
 
         # optimization - linear
         # assume linear optimization term is 0
         # TODO: improve or set h = 0
+
+        # TODO: q and r are always zero -- either ignore completely or need a user parameter
         q = np.zeros((N * (Np+int(self.account_initial)), 1))  # TODO: Np-1 to not account for initial state -- q is always zero!
         r = np.zeros((m * Np, 1))  # TODO: r is always zero currently...
 
@@ -323,9 +310,11 @@ class LinearKMPC:
         # quadratic matrix for state cost
         # TODO: -1 because initial state is not accounted!
         # TODO: include vec_terminal again
+        # TODO: use sparse matrix
         Qb = np.diag(np.hstack([np.tile(vec_running, Np-1 + int(self.account_initial)), vec_terminal]))
 
         # quadratic matrix for input cost
+        # TODO: use sparse matrix
         Rb = np.diag(np.tile(vec_input, Np))
 
         return Qb, q, Rb, r
@@ -365,7 +354,7 @@ class LinearKMPC:
 
         # TODO: need validation here
         # TODO: work more with native TSCDataFrame here
-        X_dict = self.predictor.transform(X).to_numpy().T
+        X_dict = self.edmd.transform(X).to_numpy().T
 
         try:
             yr = np.asarray(reference)
@@ -387,7 +376,7 @@ class LinearKMPC:
             b=None,
             lb=-0.1 * np.ones(38), #,
             ub=0.1* np.ones(38),
-            solver="quadprog",
+            solver="cvxpy",
             verbose=False,
             initvals=initvals,
         )
@@ -400,7 +389,7 @@ class LinearKMPC:
 
         # TODO: U should be a TSCDataFrame -- use the columns from edmd
         # TODO: There should be a parameter time_values to set the time values in U
-        return U.reshape((-1, self.input_size))
+        return U.reshape((-1, self.edmd.dmd_model.n_control_in_))
 
     def compute_cost(self, U, reference, initial_conditions):
         z0 = self.lifting_function(initial_conditions)

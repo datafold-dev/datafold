@@ -66,7 +66,7 @@ ic1 = np.exp(-(((sys.x_nodes - 2*np.pi*0.5) * 5/(2*np.pi)) ** 2))
 ic2 = np.sin(2 * sys.x_nodes) ** 2
 icfunc = lambda a: a * ic1 + (1 - a) * ic2
 
-sys.predict(np.row_stack([icfunc(0), icfunc(1)]), U=np.zeros((2, 100)), time_values=np.array([dt]))
+# sys.predict(np.row_stack([icfunc(0), icfunc(1)]), U=np.zeros((2, 100)), time_values=np.array([0, dt]))
 
 X_tsc = []
 U_tsc = []
@@ -293,7 +293,6 @@ print(X_dict.head(5))
 # TODO: optimize LinearKMPC for speed
 # TODO: In KMPC "self.account_initial = False" needs to be set, otherwise it fails, do I need this option
 # TODO: need to align -- is the reference solution "on time" with what is returned by the optimization
-# TODO: work with initvals to fasten up solutions of convex optimization
 # TODO: make the upper/lower bound on control variable configurable-
 # TODO: include state bounds properly (they are essentially ignored currently)?
 # TODO: include the cost / error evaluation.
@@ -302,7 +301,7 @@ print(X_dict.head(5))
 
 
 kmpc = LinearKMPC(
-    predictor=edmd,
+    edmd=edmd,
     horizon=horizon,
     state_bounds=np.array([[-np.inf, np.inf]]),
     input_bounds=np.array([[-0.1, 0.1], [-0.1, 0.1]]),
@@ -352,19 +351,20 @@ for i in range(Nsim):
     t = X_model_evolution.time_values()[-1]
     t_new = X_model_evolution.time_values()[-1] + dt
 
-    if ref.shape[0] != int(kmpc.Bb.shape[1] / kmpc.input_size):
+    # TODO: can I also predict shorter trajectories easily? (maybe by setting costs differently??)
+    if ref.shape[0]*2 != int(kmpc.H.shape[0]):
         break
 
     U = kmpc.generate_control_signal(edmd_state, reference=ref, initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None)
 
     Ufull = U[0, 0] * f1 + U[0, 1] * f2
 
-    X_model, _ = sys.predict(X_model_evolution.iloc[[-1], :].to_numpy(), U=Ufull, time_values=dt)
+    X_model, _ = sys.predict(X_model_evolution.iloc[[-1], :].to_numpy(), U=Ufull, time_values=np.array([0, dt]))
     X_model = X_model.iloc[[1], :]
     X_model.index = pd.MultiIndex.from_arrays([[0], [t_new]])
     X_model_evolution = pd.concat([X_model_evolution, X_model], axis=0)
 
-    X_model_unctr, _ = sys.predict(X_model_unctr_evolution.iloc[[-1], :].to_numpy(), U=np.zeros_like(sys.x_nodes)[np.newaxis, :], time_values=dt)
+    X_model_unctr, _ = sys.predict(X_model_unctr_evolution.iloc[[-1], :].to_numpy(), U=np.zeros_like(sys.x_nodes)[np.newaxis, :], time_values=np.array([0, dt]))
     X_model_unctr = X_model_unctr.iloc[[1], :]
     X_model_unctr.index = pd.MultiIndex.from_arrays([[0], [t_new]])
     X_model_unctr_evolution = pd.concat([X_model_unctr_evolution, X_model_unctr], axis=0)

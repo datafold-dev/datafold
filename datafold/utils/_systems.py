@@ -341,33 +341,44 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         if time_values is None:
             self.dt_ = self._default_step_size
         else:
+            time_values = np.asarray(time_values)
+            if len(time_values) < 2:
+                raise ValueError(f"Parameter time_values must include at least two elements. Got {len(time_values)=}")
+
             self.dt_ = time_values[1] - time_values[0]
+
+        if not isinstance(U, Callable):
+
+            if isinstance(U, np.ndarray) and X.shape[0] == U.shape[0]:
+                if time_values is None:
+                    raise ValueError("For multiple one-step predictions, the parameter "
+                                     "'time_values' cannot be None")
+
+                # Interpret as one-step prediction of multiple initial conditions
+                idx = pd.MultiIndex.from_arrays(
+                    [np.arange(U.shape[0]), np.ones(U.shape[0]) * time_values[0]])
+                U = TSCDataFrame(U, index=idx, columns=self.control_names_in_)
+
+            elif X.shape[0] > 1 and not isinstance(U, TSCDataFrame):
+                raise ValueError(
+                    "To solve for multiple initial conditions `U` must be of type "
+                    f"TSCDataFrame. Got {type(U)}"
+                )
 
         self._requires_last_control_state = False
         time_values = self._validate_and_set_time_values_predict(
             time_values=time_values, X=X, U=U
         )
 
-        if not isinstance(U, Callable):
+        if isinstance(U, TSCDataFrame):
+            U.tsc.check_equal_timevalues()
+            U.tsc.check_required_n_timesteps(len(time_values) - 1)
+        elif isinstance(U, np.ndarray):
+            U = TSCDataFrame.from_array(
+                U, time_values=time_values[:-1], feature_names=self.control_names_in_
+            )
 
-            if X.shape[0] == U.shape[0] and isinstance(U, np.ndarray):
-                # Interpret as one step prediction of multiple initial conditions
-                idx = pd.MultiIndex.from_arrays([np.arange(U.shape[0]), np.ones(U.shape[0])*time_values[0]])
-                U = TSCDataFrame(U, index=idx, columns=self.control_names_in_)
-            if X.shape[0] > 1 and not isinstance(U, TSCDataFrame):
-                raise ValueError(
-                    "To solve for multiple initial conditions `U` must be of type "
-                    f"TSCDataFrame. Got {type(U)}"
-                )
-            elif isinstance(U, TSCDataFrame):
-                U.tsc.check_equal_timevalues()
-                U.tsc.check_required_n_timesteps(len(time_values)-1)
-            elif isinstance(U, np.ndarray):
-                U = TSCDataFrame.from_array(
-                    U, time_values=time_values[:-1], feature_names=self.control_names_in_
-                )
-
-        if isinstance(X, pd.DataFrame):
+        if isinstance(X, pd.DataFrame): # TODO: work with TSCDataFrame instead and cast to it if X is np.ndarray
             X = X.to_numpy()
 
         X_sol = list()
@@ -379,7 +390,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 # user specified input
                 Ufunc = U
             elif len(time_values) == 2:
-                Ufunc = lambda t, x: U.iloc[[i], :]
+                Ufunc = lambda t, x: U.iloc[[i], :].to_numpy()
             else:
                 # interpolates control input from data
                 U_interp = U.loc[[U.ids[i]], :].to_numpy()

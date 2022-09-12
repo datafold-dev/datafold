@@ -80,7 +80,7 @@ class EDMDTest(unittest.TestCase):
         sim_time_step=0.1,
         sim_num_steps=10,
         training_size=5,
-        include_last_control_state=False,
+        require_last_control_state=False,
         seed=42,
     ):
 
@@ -97,13 +97,13 @@ class EDMDTest(unittest.TestCase):
             )
 
             time_values = np.arange(0, sim_time_step * sim_num_steps, sim_time_step)
-            X_ic = np.array([[0, 0, np.pi, 0]]).T
+            X_ic = np.array([[0, 0, np.pi, 0]])
 
             X, U = InvertedPendulum().predict(
                 X=X_ic,
                 U=Ufunc,
                 time_values=time_values,
-                include_last_control_state=include_last_control_state,
+                require_last_control_state=require_last_control_state,
             )
 
             X_tsc.append(X)

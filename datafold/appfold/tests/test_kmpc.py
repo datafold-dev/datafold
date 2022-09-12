@@ -41,11 +41,19 @@ class LinearKMPCTest(unittest.TestCase):
         edmdmock = Mock()
         edmdmock.dmd_model.sys_matrix_ = A
         edmdmock.dmd_model.control_matrix_ = B
-        edmdmock.feature_names_in_ = [f"x{i}" for i in range(state_size)]
+
+        # mock ID dictionary
+        edmdmock.dmd_model.feature_names_in_ = [f"x{i}" for i in range(state_size)]
+        edmdmock.dmd_model.n_features_in_ = len(edmdmock.dmd_model.feature_names_in_)
+        edmdmock.dmd_model.feature_names_out_ = edmdmock.dmd_model.feature_names_in_
+
+        edmdmock.dmd_model.control_names_in_ = [f"u{i}" for i in range(input_size)]
+        edmdmock.dmd_model.n_control_in_ = len(edmdmock.dmd_model.control_names_in_)
+
         edmdmock.transform = lambda x: x
 
         kmpcperfect = LinearKMPC(
-            predictor=edmdmock,
+            edmd=edmdmock,
             horizon=n_timesteps,
             state_bounds=np.array([[5, -5]] * state_size),
             input_bounds=np.array([[5, -5]] * input_size),
