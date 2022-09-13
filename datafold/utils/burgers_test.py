@@ -303,7 +303,7 @@ print(X_dict.head(5))
 kmpc = LinearKMPC(
     edmd=edmd,
     horizon=horizon,
-    state_bounds=np.array([[-np.inf, np.inf]]),
+    state_bounds=None,
     input_bounds=np.array([[-0.1, 0.1], [-0.1, 0.1]]),
     qois=X_tsc_reduced.columns[X_tsc_reduced.columns.str.startswith("x")],
     cost_running=1,
@@ -346,7 +346,7 @@ X_model_unctr_evolution = X_init.copy()
 
 for i in range(Nsim):
     print(i)
-    ref = X_ref_reduced.iloc[i + int(not kmpc.account_initial):i+horizon+1, :]
+    ref = X_ref_reduced.iloc[i:i+horizon-int(kmpc.account_initial), :]
 
     t = X_model_evolution.time_values()[-1]
     t_new = X_model_evolution.time_values()[-1] + dt
@@ -357,19 +357,15 @@ for i in range(Nsim):
 
     U = kmpc.generate_control_signal(edmd_state, reference=ref, initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None)
 
-    Ufull = U[0, 0] * f1 + U[0, 1] * f2
+    Ufull = U.iloc[0, 0] * f1 + U.iloc[0, 1] * f2
 
-    X_model, _ = sys.predict(X_model_evolution.iloc[[-1], :].to_numpy(), U=Ufull, time_values=np.array([0, dt]))
-    X_model = X_model.iloc[[1], :]
-    X_model.index = pd.MultiIndex.from_arrays([[0], [t_new]])
-    X_model_evolution = pd.concat([X_model_evolution, X_model], axis=0)
+    X_model, _ = sys.predict(X_model_evolution.iloc[[-1], :], U=Ufull, time_values=np.array([t, t_new]))
+    X_model_evolution = pd.concat([X_model_evolution, X_model.iloc[[1], :]], axis=0)
 
-    X_model_unctr, _ = sys.predict(X_model_unctr_evolution.iloc[[-1], :].to_numpy(), U=np.zeros_like(sys.x_nodes)[np.newaxis, :], time_values=np.array([0, dt]))
-    X_model_unctr = X_model_unctr.iloc[[1], :]
-    X_model_unctr.index = pd.MultiIndex.from_arrays([[0], [t_new]])
-    X_model_unctr_evolution = pd.concat([X_model_unctr_evolution, X_model_unctr], axis=0)
+    X_model_unctr, _ = sys.predict(X_model_unctr_evolution.iloc[[-1], :], U=np.zeros_like(sys.x_nodes)[np.newaxis, :], time_values=np.array([t, t_new]))
+    X_model_unctr_evolution = pd.concat([X_model_unctr_evolution, X_model_unctr.iloc[[1], :]], axis=0)
 
-    U_evolution = pd.concat([U_evolution, TSCDataFrame.from_array(U[0, :], time_values=[t], feature_names=U_evolution.columns)], axis=0)
+    U_evolution = pd.concat([U_evolution, U.iloc[[0], :]], axis=0)
 
     # prepare new edmd state
     X_model_last = subselect_measurements(X_model_evolution.iloc[-edmd.n_samples_ic_ :, :])
@@ -377,7 +373,7 @@ for i in range(Nsim):
     U_last_shifted = shift_index_U(X_model_last, shift_index_U(X_model_last, U_last))
     edmd_state = pd.concat([X_model_last, U_last_shifted], axis=1).fillna(0)
 
-if True:
+if False:
 
     f, ax = plt.subplots(nrows=2)
 

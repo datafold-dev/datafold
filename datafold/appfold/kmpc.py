@@ -8,7 +8,8 @@ from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-from datafold.appfold import EDMD
+
+from datafold import EDMD, TSCDataFrame
 from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec, if1dim_rowvec
 from datafold.utils.general import projection_matrix_from_feature_names
@@ -118,12 +119,12 @@ class LinearKMPC:
         self,
         edmd: EDMD,
         horizon: int,
-        state_bounds: np.ndarray,
-        input_bounds: np.ndarray,
+        state_bounds: Optional[np.ndarray],
+        input_bounds: Optional[np.ndarray],
         qois: Optional[Union[List[str], List[int]]] = None,
-        cost_running: Optional[Union[float, np.ndarray]] = 0.1,
-        cost_terminal: Optional[Union[float, np.ndarray]] = 100,
-        cost_input: Optional[Union[float, np.ndarray]] = 0.01,
+        cost_running: Union[float, np.ndarray] = 1,
+        cost_terminal: Optional[Union[float, np.ndarray]] = 1,
+        cost_input: Optional[Union[float, np.ndarray]] = 1,
     ) -> None:
 
         if solve_qp is None:
@@ -143,28 +144,26 @@ class LinearKMPC:
 
         self.account_initial = False
 
-        # use only some conversion from  state to output quantities of interest
-        # TODO: avoid stroing Cb (not needed, move into setup_optimizer)
-        if qois is not None:
-            self.Cb = projection_matrix_from_feature_names(features_all=edmd.feature_names_out_, features_select=qois)
-            self.Cb = self.Cb.T.toarray()
-            self.output_size = len(qois)
-        else:
-            self.Cb = None
+        self.qois = qois
+
+        if self.qois is None:
             self.output_size = edmd.dmd_model.n_features_in_
+        else:
+            self.output_size = len(qois)
+
+        self.n_control_input = self.edmd.dmd_model.n_control_in_
+        self.n_features = self.edmd.dmd_model.n_features_in_
 
         self.input_bounds = input_bounds
         self.state_bounds = state_bounds
 
-        self.H, self.h, self.G, self.Y, self.L, self.M, self.c = self._setup_optimizer()
-
+        self.H, self.h, self.G, self.Y, self.L, self.M, self.c, self.lb, self.ub = self._setup_optimizer()
 
     def _setup_optimizer(self):
         # implements relevant part of :cite:`korda-2018` to set up the optimization problem
-
         Ab, Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
-        F, E, c = self._create_constraint_matrices()
+        F, E, c, lb, ub = self._create_constraint_matrices()
 
         H = 2 * (Bb.T @ Q @ Bb + R)
         h = r + Bb.T @ q  # TODO: currently h is always zero
@@ -174,46 +173,61 @@ class LinearKMPC:
         L = None
         M = None
 
-        return H, h, G, Y, L, M, c
+        return H, h, G, Y, L, M, c, lb, ub
 
     def _create_evolution_matrices(self):
         # appendix from :cite:`korda-2018`
         # same as Sabin 2.44
-        Np = self.horizon
         N = self.edmd.dmd_model.n_features_in_
         m = self.edmd.dmd_model.n_control_in_
 
         A = self.edmd.dmd_model.sys_matrix_
         B = self.edmd.dmd_model.control_matrix_
 
-        Ab = np.eye((Np + 1) * self.output_size, N)
-        Bb = np.zeros(((Np + 1) * self.output_size, Np * m))
+        Ab = np.eye((self.horizon + 1) * self.output_size, N)
+        Bb = np.zeros(((self.horizon + 1) * self.output_size, self.horizon * m))
+
+        is_project_coordinates = self.qois is not None
+
+        if is_project_coordinates:
+            Cb = projection_matrix_from_feature_names(
+                features_all=self.edmd.feature_names_out_, features_select=self.qois).T
+        else:
+            Cb = None
 
         A_last = A.copy()
 
-        # set up A
-        for i in range(1, Np + 1):
+        # set up Ab
+        for i in range(1, self.horizon + 1):
             s = i * self.output_size # start index
             e = (i + 1) * self.output_size  # end index
-            Ab[s:e, :] = self.Cb.dot(A_last, out=Ab[s:e, :])
+
+            if is_project_coordinates:
+                Ab[s:e, :] = Cb @ A_last
+            else:
+                Ab[s:e, :] = A_last
             A_last = A.dot(A_last, out=A_last)
 
         B_current = B.copy()
 
-        # set up B
-        for i in range(1, Np+1):
-            _B_tmp = self.Cb @ B_current
+        # set up Bb
+        for i in range(1, self.horizon+1):
+
+            if is_project_coordinates:
+                _B_tmp = Cb @ B_current
+            else:
+                _B_tmp = B_current.view()
 
             # Copy along diagonal blocks of matrix
-            for k, j in enumerate(range(i, Np+1)):
+            for k, j in enumerate(range(i, self.horizon+1)):
                 sr = j * self.output_size  # start row
                 er = (j + 1) * self.output_size  # end row
                 sc = k * m  # start columns
                 ec = (k+1) * m  # end column
                 Bb[sr:er, sc:ec] = _B_tmp
 
-            if i != Np+1:
-                # avoid unnecessary matrix-matrix multiplication for last iteration
+            if i != self.horizon+1:
+                # avoid unnecessary matrix-matrix multiplication in last iteration
                 B_current = A.dot(B_current, out=B_current)
 
         if not self.account_initial:
@@ -222,34 +236,81 @@ class LinearKMPC:
 
         return Ab, Bb
 
+    def _create_cost_matrices(self):
+        # implements appendix from :cite:`korda-2018`
+        # same as Sabin 2.44
+
+        def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
+            if isinstance(cost, np.ndarray):
+                if cost.ndim != 1 or cost.shape[0] != N:
+                    raise ValueError(f"The cost vector must be 1-dim. with {n_elements} elements. Got {cost.ndim=} and {cost.shape=}")
+                if (cost < 0).any():
+                    raise ValueError(f"All cost values must be non-negative. Found {(cost < 0).sum()} negative values.")
+
+                return cost
+            elif isinstance(cost, (float, int)):
+                cost = float(cost)
+
+                if cost < 0:
+                    raise ValueError(f"Cost must be a non-negative numeric value. Got {cost=}")
+                return np.ones(n_elements) * cost
+            else:
+                raise TypeError(f"{type(cost)=} not understood, use numeric value (float/int) or 1-dim. array with {n_elements} elements.")
+
+        # optimization - linear
+        # TODO: q and r are always zero -- either remove completely or need a user parameter
+        q = np.zeros((self.output_size * (self.horizon+int(self.account_initial)), 1))
+
+        # optimization - quadratic diagonal matrix
+        # quadratic matrix for state cost and terminal cost
+        vec_running = _cost_to_array(self.cost_running, self.output_size)
+
+        if self.cost_terminal == 0 or self.cost_terminal is None:
+            # add the running cost for the last iteration...
+            vec_terminal = _cost_to_array(self.cost_running, self.output_size)
+        else:
+            vec_terminal = _cost_to_array(self.cost_terminal, self.output_size)
+
+        diag = np.hstack([np.tile(vec_running, self.horizon-1 + int(self.account_initial)), vec_terminal])
+        Qb = scipy.sparse.spdiags(diag, 0, diag.size, diag.size)
+
+        # linear part input cost  # TODO: currently always zero
+        r = np.zeros((self.n_control_input * self.horizon, 1))
+
+        # quadratic matrix for input cost
+        vec_input = _cost_to_array(self.cost_input, self.n_control_input)
+
+        diag = np.tile(vec_input, self.horizon)
+        Rb = scipy.sparse.spdiags(diag, 0, diag.size, diag.size)
+
+        return Qb, q, Rb, r
+
     def _create_constraint_matrices(self):
         # implements appendix from :cite:`korda-2018`
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
-        Np = self.horizon
-        N = self.edmd.dmd_model.n_features_in_
-        m = self.edmd.dmd_model.n_control_in_
+
+        if self.state_bounds is not None:
+            raise NotImplementedError("Currently state bounds are not properly implemented.")
 
         # TODO: Eb and Fb are very sparse matrices (~ 99 %)
         # constraint equations
         # E = np.vstack([np.eye(N), -np.eye(N), np.zeros((2 * m, N))])
         # Eb = np.kron(np.eye(Np+1), E) # TODO Np+1 if not ignoring initial
 
-        rc = (Np + 1) * N
+        rc = (self.horizon + 1) * self.n_features
         Eb = np.zeros((rc, rc))
 
         # from scipy.sparse import block_diag
         # block_diag([np.eye(Np+1) for _ in range(self.lifted_state_size)]).to_array()
 
-
         # F = np.vstack([np.zeros((2 * N, m)), np.eye(m), -np.eye(m)])
         # Fb = np.vstack([np.kron(np.eye(Np), F), np.zeros((2 * (N + m), m * Np))])
 
-        Fb = np.zeros(((Np+1)*N, Np*m))
+        Fb = np.zeros(((self.horizon+1)*self.n_features, self.horizon*self.n_control_input))
 
         # constraint
-        cb = np.zeros(((Np+1)*N, 1))
-
+        cb = np.zeros(((self.horizon+1)*self.n_features, 1))
 
         # c[:, :N] = self.state_bounds[:, 0]
         # c[:, N : 2 * N] = -self.state_bounds[:, 1]  # TODO: does it make any sense to negate here??
@@ -258,70 +319,17 @@ class LinearKMPC:
         # c = c.T
         # cb = np.tile(c, (Np, 1))  # Np+1 if initial state is accounted
 
-        return Eb, Fb, cb
-
-    def _cost_to_array(self, cost: Union[float, np.ndarray], N: int):
-        if isinstance(cost, np.ndarray):
-            try:
-                cost = cost.flatten()
-                assert len(cost) == N
-            except AssertionError:
-                raise ValueError(
-                    f"Cost should have length {N=}, received {len(cost)=}."
-                )
-            return cost
+        if self.input_bounds is not None:
+            lb = np.tile(self.input_bounds[:, 0], self.horizon)
+            ub = np.tile(self.input_bounds[:, 1], self.horizon)
         else:
-            try:
-                cost = float(cost)
-            except:
-                raise ValueError(
-                    f"Cost must be numeric value or array, received {cost}."
-                )
-            return np.ones(N) * cost
+            lb, ub = [None, None]
 
-    def _create_cost_matrices(self):
-        # implements appendix from :cite:`korda-2018`
-        # same as Sabin 2.44
-        Np = self.horizon
-        N = self.output_size
-        m = self.edmd.dmd_model.n_control_in_
-
-        # optimization - linear
-        # assume linear optimization term is 0
-        # TODO: improve or set h = 0
-
-        # TODO: q and r are always zero -- either ignore completely or need a user parameter
-        q = np.zeros((N * (Np+int(self.account_initial)), 1))  # TODO: Np-1 to not account for initial state -- q is always zero!
-        r = np.zeros((m * Np, 1))  # TODO: r is always zero currently...
-
-        # optimization - quadratic
-        # assuming only autocorrelation
-        vec_running = self._cost_to_array(self.cost_running, N)
-
-        if self.cost_terminal == 0 or self.cost_terminal is None:
-            # add the running cost for the last iteration...
-            vec_terminal = self._cost_to_array(self.cost_running, N)
-        else:
-            vec_terminal = self._cost_to_array(self.cost_terminal, N)
-
-        vec_input = self._cost_to_array(self.cost_input, m)
-
-        # TODO: do not store the diagonal matrices explicitly (or use sparse matrices).
-        # quadratic matrix for state cost
-        # TODO: -1 because initial state is not accounted!
-        # TODO: include vec_terminal again
-        # TODO: use sparse matrix
-        Qb = np.diag(np.hstack([np.tile(vec_running, Np-1 + int(self.account_initial)), vec_terminal]))
-
-        # quadratic matrix for input cost
-        # TODO: use sparse matrix
-        Rb = np.diag(np.tile(vec_input, Np))
-
-        return Qb, q, Rb, r
+        return Eb, Fb, cb, lb, ub
 
     def generate_control_signal(
         self, X: InitialConditionType, reference: TransformType, initvals=None
-    ) -> np.ndarray:
+    ) -> TSCDataFrame:
         r"""Method to generate a control sequence, given some initial conditions and
         a reference trajectory, as in :cite:`korda-2018` Algorithm 1. This method solves the
         following optimization problem (:cite:`korda-2018`, Equation 24).
@@ -343,7 +351,7 @@ class LinearKMPC:
 
         Returns
         -------
-        U : np.ndarray(shape=(horizon,m))
+        U : TSCDataFrame
             Sequence of control inputs.
 
         Raises
@@ -352,33 +360,27 @@ class LinearKMPC:
             In case of mis-shaped input
         """
 
-        # TODO: need validation here
-        # TODO: work more with native TSCDataFrame here
-        X_dict = self.edmd.transform(X).to_numpy().T
+        X_dict = self.edmd.transform(X) # .to_numpy().T
 
-        try:
-            yr = np.asarray(reference)
-            assert yr.shape[1] == self.output_size  # TODO: make error and validation
-            # TODO reference signal should contain horizon (and not horizon+1, as this is confusing!)
-            yr = yr.reshape(((self.horizon + int(self.account_initial)) * self.output_size, 1))
-        except:
-            raise ValueError(
-                "The reference signal should be a frame or array with n (output_size) "
-                "columns and Np (prediction horizon) rows."
-            )
+        if reference.shape != (self.horizon + int(self.account_initial), self.output_size):
+            horizon = self.horizon + int(self.account_initial)
+            raise ValueError(f"reference time series must have {horizon=} rows and {self.output_size=} feature columns.")
+
+        np_reference = reference.to_numpy()
+        np_reference = np_reference.reshape(((self.horizon + int(self.account_initial)) * self.output_size, 1))
 
         U = solve_qp(
             P=self.H,
-            q=(self.G @ X_dict + self.Y @ yr).flatten(),
+            q=(self.G @ X_dict.to_numpy().T + self.Y @ np_reference).flatten(),
             G=None, # , self.L
             h=None, # (self.c - self.M @ X_dict).flatten(),  # (,
             A=None,
             b=None,
-            lb=-0.1 * np.ones(38), #,
-            ub=0.1* np.ones(38),
+            lb=self.lb,
+            ub=self.ub,
             solver="cvxpy",
             verbose=False,
-            initvals=initvals,
+            initvals=None,
         )
 
         if U is None:
@@ -386,10 +388,8 @@ class LinearKMPC:
 
         # y = self.Cb @ X_dict # TODO: comment from source % Should be y - yr, but yr adds just a constant term
 
-
-        # TODO: U should be a TSCDataFrame -- use the columns from edmd
-        # TODO: There should be a parameter time_values to set the time values in U
-        return U.reshape((-1, self.edmd.dmd_model.n_control_in_))
+        U = TSCDataFrame.from_array(U.reshape((self.horizon, self.n_control_input)), time_values=reference.time_values(), feature_names=self.edmd.control_names_in_)
+        return U
 
     def compute_cost(self, U, reference, initial_conditions):
         z0 = self.lifting_function(initial_conditions)
