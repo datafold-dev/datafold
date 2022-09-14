@@ -290,10 +290,8 @@ print(f"{X_dict.columns=}")
 print(f"{len(X_dict.columns)=}")
 print(X_dict.head(5))
 
-# TODO: optimize LinearKMPC for speed
 # TODO: In KMPC "self.account_initial = False" needs to be set, otherwise it fails, do I need this option
 # TODO: need to align -- is the reference solution "on time" with what is returned by the optimization
-# TODO: make the upper/lower bound on control variable configurable-
 # TODO: include state bounds properly (they are essentially ignored currently)?
 # TODO: include the cost / error evaluation.
 # TODO: make plotting right and perform transfer this to jupyter notebook

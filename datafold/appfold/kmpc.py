@@ -151,11 +151,17 @@ class LinearKMPC:
         else:
             self.output_size = len(qois)
 
-        self.n_control_input = self.edmd.dmd_model.n_control_in_
         self.n_features = self.edmd.dmd_model.n_features_in_
+        self.n_control_input = self.edmd.dmd_model.n_control_in_
 
         self.input_bounds = input_bounds
         self.state_bounds = state_bounds
+
+        if isinstance(self.state_bounds, np.ndarray) and self.state_bounds.shape != (self.n_features, 2):
+            raise ValueError(f"state_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}")
+
+        if isinstance(self.input_bounds, np.ndarray) and self.input_bounds.shape != (self.n_control_input, 2):
+            raise ValueError(f"input_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}")
 
         self.H, self.h, self.G, self.Y, self.L, self.M, self.c, self.lb, self.ub = self._setup_optimizer()
 
