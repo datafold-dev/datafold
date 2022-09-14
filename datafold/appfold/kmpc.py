@@ -13,6 +13,7 @@ from datafold import EDMD, TSCDataFrame
 from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec, if1dim_rowvec
 from datafold.utils.general import projection_matrix_from_feature_names
+from sklearn.utils.validation import check_is_fitted
 try:
     import quadprog  # noqa: F401
     from qpsolvers import solve_qp
@@ -43,12 +44,11 @@ class LinearKMPC:
     Parameters
     ----------
     edmd : EDMD
-        Prediction model to use, must be already fitted.
-        The underlying DMD model in :py:class:`EDMD` must support control, such as
-        :py:class:`.DMDControl`.
+        Model to use, must be already fitted. The underlying DMD model in :py:class:`EDMD`
+        must support control, such as :py:class:`.DMDControl`.
 
     horizon : int
-        prediction horizon, number of time steps to predict, :math:`N_p`.
+        Prediction horizon in number of time steps to predict, :math:`N_p`.
 
     state_bounds : np.ndarray(shape=(n,2))
         The min/max bounds of the system states:
@@ -127,6 +127,8 @@ class LinearKMPC:
         cost_input: Optional[Union[float, np.ndarray]] = 1,
     ) -> None:
 
+        # TODO: option to set multiple horizons? E.g. setting horizon = np.arange(5)
+
         if solve_qp is None:
             raise ImportError(
                 "The optional dependencies `qpsolvers` and `cvxpy` are required. These can "
@@ -134,6 +136,7 @@ class LinearKMPC:
             )
 
         self.edmd = edmd
+        check_is_fitted(self.edmd)
 
         # define default values of properties
         self.horizon = horizon
@@ -184,14 +187,12 @@ class LinearKMPC:
     def _create_evolution_matrices(self):
         # appendix from :cite:`korda-2018`
         # same as Sabin 2.44
-        N = self.edmd.dmd_model.n_features_in_
-        m = self.edmd.dmd_model.n_control_in_
 
         A = self.edmd.dmd_model.sys_matrix_
         B = self.edmd.dmd_model.control_matrix_
 
-        Ab = np.eye((self.horizon + 1) * self.output_size, N)
-        Bb = np.zeros(((self.horizon + 1) * self.output_size, self.horizon * m))
+        Ab = np.zeros((self.horizon * self.output_size, self.n_features))
+        Bb = np.zeros((self.horizon * self.output_size, self.horizon * self.n_control_input))
 
         is_project_coordinates = self.qois is not None
 
@@ -204,7 +205,7 @@ class LinearKMPC:
         A_last = A.copy()
 
         # set up Ab
-        for i in range(1, self.horizon + 1):
+        for i in range(self.horizon):
             s = i * self.output_size # start index
             e = (i + 1) * self.output_size  # end index
 
@@ -217,7 +218,7 @@ class LinearKMPC:
         B_current = B.copy()
 
         # set up Bb
-        for i in range(1, self.horizon+1):
+        for i in range(self.horizon):
 
             if is_project_coordinates:
                 _B_tmp = Cb @ B_current
@@ -225,20 +226,16 @@ class LinearKMPC:
                 _B_tmp = B_current.view()
 
             # Copy along diagonal blocks of matrix
-            for k, j in enumerate(range(i, self.horizon+1)):
+            for k, j in enumerate(range(i, self.horizon)):
                 sr = j * self.output_size  # start row
                 er = (j + 1) * self.output_size  # end row
-                sc = k * m  # start columns
-                ec = (k+1) * m  # end column
+                sc = k * self.n_control_input  # start columns
+                ec = (k+1) * self.n_control_input  # end column
                 Bb[sr:er, sc:ec] = _B_tmp
 
-            if i != self.horizon+1:
+            if i != self.horizon:
                 # avoid unnecessary matrix-matrix multiplication in last iteration
                 B_current = A.dot(B_current, out=B_current)
-
-        if not self.account_initial:
-            Ab = Ab[self.output_size:]
-            Bb = Bb[self.output_size:]
 
         return Ab, Bb
 
@@ -265,7 +262,7 @@ class LinearKMPC:
 
         # optimization - linear
         # TODO: q and r are always zero -- either remove completely or need a user parameter
-        q = np.zeros((self.output_size * (self.horizon+int(self.account_initial)), 1))
+        q = np.zeros((self.output_size * self.horizon, 1))
 
         # optimization - quadratic diagonal matrix
         # quadratic matrix for state cost and terminal cost
@@ -277,7 +274,7 @@ class LinearKMPC:
         else:
             vec_terminal = _cost_to_array(self.cost_terminal, self.output_size)
 
-        diag = np.hstack([np.tile(vec_running, self.horizon-1 + int(self.account_initial)), vec_terminal])
+        diag = np.hstack([np.tile(vec_running, self.horizon-1), vec_terminal])
         Qb = scipy.sparse.spdiags(diag, 0, diag.size, diag.size)
 
         # linear part input cost  # TODO: currently always zero
@@ -333,27 +330,40 @@ class LinearKMPC:
 
         return Eb, Fb, cb, lb, ub
 
-    def generate_control_signal(
-        self, X: InitialConditionType, reference: TransformType, initvals=None
+    def control_sequence(
+        self, X: InitialConditionType, reference: TransformType
     ) -> TSCDataFrame:
-        r"""Method to generate a control sequence, given some initial conditions and
-        a reference trajectory, as in :cite:`korda-2018` Algorithm 1. This method solves the
-        following optimization problem (:cite:`korda-2018`, Equation 24).
+        r"""Generate a control sequence, given some initial condition and
+        a reference time series (target trajectory).
+
+        This method solves the following optimization problem (from :cite:t:`korda-2018`,
+        Eq. 24):
 
         .. math::
-            \text{minimize : } U^{T} H U^{T} + h^{T} U + z_0^{T} GU - y_{r}^{T} U
-            \text{subject to : } LU + Mz_{0} \leq c
-            \text{parameter : } z_{0} = \Psi(x_{k})
+            \text{minimize : } U^{T} H U^{T} + (G \mathbf{z}_0 - Y^{T}) U \\
+            \text{subject to : } U_{lb} <= U_i <= U_{ub} \\
+            \text{parameter: } z_{0} = \Psi(x_{k})
 
-        Here, :math:`U` is the optimal control sequence to be estimated.
+        # TODO: linear part h^{T} U is currently not set, LU + Mz_{0} \leq c not set
+
+        where :math:`U` is the optimal control sequence to be estimated (represented as a time
+        series of shape `(horizon, n_control_input)`), `Y` the reference time series,
+        :math:`\mathbf{z}_0` the initial condition in EDMD dictionary coordinates,
+        :math:`U_{lb}` and :math:`U_{ub}` the control bounds.
+
+        If successful, performing a prediction with the internal model leads to a state
+        evolution that steers towards the reference.
+        I.e. ``edmd.predict(X, U)``, with ``U`` being the control sequence.
 
         Parameters
         ----------
-        X : TSCDataFrame or np.ndarray
-            Initial conditions for the model
+        X: TSCDataFrame
+            Initial conditions for the model. Passed to :code:`edmd.transform(X)`. The result
+            of this transformation must be a single state. This means `X` must have
+            `edmd.n_samples_ic_`.
 
-        reference : np.ndarray
-            Reference trajectory. Required to optimize the control sequence
+        reference: TSCDataFrame
+            Target time series over the prediction horizon with shape `(horizon, n_qois)`.
 
         Returns
         -------
@@ -366,14 +376,13 @@ class LinearKMPC:
             In case of mis-shaped input
         """
 
-        X_dict = self.edmd.transform(X) # .to_numpy().T
+        X_dict = self.edmd.transform(X)
 
-        if reference.shape != (self.horizon + int(self.account_initial), self.output_size):
-            horizon = self.horizon + int(self.account_initial)
-            raise ValueError(f"reference time series must have {horizon=} rows and {self.output_size=} feature columns.")
+        if reference.shape != (self.horizon, self.output_size):
+            raise ValueError(f"reference time series must have {self.horizon=} rows and {self.output_size=} feature columns.")
 
         np_reference = reference.to_numpy()
-        np_reference = np_reference.reshape(((self.horizon + int(self.account_initial)) * self.output_size, 1))
+        np_reference = np_reference.reshape((self.horizon * self.output_size, 1))
 
         U = solve_qp(
             P=self.H,
@@ -397,36 +406,36 @@ class LinearKMPC:
         U = TSCDataFrame.from_array(U.reshape((self.horizon, self.n_control_input)), time_values=reference.time_values(), feature_names=self.edmd.control_names_in_)
         return U
 
-    def compute_cost(self, U, reference, initial_conditions):
-        z0 = self.lifting_function(initial_conditions)
-        z0 = if1dim_colvec(z0)
-
-        try:
-            z0 = z0.to_numpy().reshape(self.lifted_state_size, 1)
-        except ValueError as e:
-            raise ValueError(
-                "The initial state should match the shape of "
-                "the system state before the lifting."
-            ) from e
-
-        try:
-            yr = np.array(reference)
-            assert yr.shape[1] == self.output_size
-            yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
-        except:
-            raise ValueError(
-                "The reference signal should be a frame or array with n (output_size) "
-                "columns and  Np (prediction horizon) rows."
-            )
-
-        U = U.reshape(-1, 1)
-        e1 = U.T @ self.H @ U
-        e2 = self.h.T @ U
-        e3 = z0.T @ self.G @ U
-        e4 = -yr.T @ self.Y @ U
-
-        # TODO: Need to return a TSCDataFrame
-        return (e1 + e2 + e3 + e4)[0, 0]
+    # def compute_cost(self, U, reference, initial_conditions):
+    #     z0 = self.lifting_function(initial_conditions)
+    #     z0 = if1dim_colvec(z0)
+    #
+    #     try:
+    #         z0 = z0.to_numpy().reshape(self.lifted_state_size, 1)
+    #     except ValueError as e:
+    #         raise ValueError(
+    #             "The initial state should match the shape of "
+    #             "the system state before the lifting."
+    #         ) from e
+    #
+    #     try:
+    #         yr = np.array(reference)
+    #         assert yr.shape[1] == self.output_size
+    #         yr = yr.reshape(((self.horizon + 1) * self.output_size, 1))
+    #     except:
+    #         raise ValueError(
+    #             "The reference signal should be a frame or array with n (output_size) "
+    #             "columns and  Np (prediction horizon) rows."
+    #         )
+    #
+    #     U = U.reshape(-1, 1)
+    #     e1 = U.T @ self.H @ U
+    #     e2 = self.h.T @ U
+    #     e3 = z0.T @ self.G @ U
+    #     e4 = -yr.T @ self.Y @ U
+    #
+    #     # TODO: Need to return a TSCDataFrame
+    #     return (e1 + e2 + e3 + e4)[0, 0]
 
 
 class AffineKgMPC(object):

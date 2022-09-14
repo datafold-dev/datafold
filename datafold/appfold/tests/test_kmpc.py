@@ -61,7 +61,7 @@ class LinearKMPCTest(unittest.TestCase):
             cost_terminal=1,
             cost_input=0,
         )
-        pred = kmpcperfect.generate_control_signal(x0, df)
+        pred = kmpcperfect.optimal_control_sequence(x0, df)
         nptest.assert_allclose(pred, u)
 
     def test_kmpc_mock_edmd_1d(self):
@@ -101,7 +101,7 @@ class LinearKMPCTest(unittest.TestCase):
             time_value=0,
             feature_names=["x", "xdot", "theta", "thetadot"],
         )
-        U = kmpc.generate_control_signal(X=initial_conditions, reference=reference)
+        U = kmpc.optimal_control_sequence(X=initial_conditions, reference=reference)
 
         self.assertEqual(U.shape, (horizon, self.U_tsc.shape[1]))
 

@@ -46,8 +46,8 @@ sys = Burger1DPeriodicBoundary(nu=0.01)
 # f1 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.25)) ** 2)))
 # f2 = np.atleast_2d(np.exp(-((15 * (sys.x_nodes - 0.75)) ** 2)))
 
-f1 = np.atleast_2d(np.exp(-((15/(2*np.pi) * (sys.x_nodes - 2*np.pi*0.25)) ** 2)))
-f2 = np.atleast_2d(np.exp(-((15/(2*np.pi) * (sys.x_nodes - 2*np.pi*0.75)) ** 2)))
+f1 = np.atleast_2d(np.exp(-((15/(2*np.pi) * (sys.x_nodes - 0.5*np.pi)) ** 2)))
+f2 = np.atleast_2d(np.exp(-((15/(2*np.pi) * (sys.x_nodes - 1.5*np.pi)) ** 2)))
 
 # f1 = np.atleast_2d(np.exp(-((15 * (np.linspace(0,1, 100) - 0.25)) ** 2)))
 # f2 = np.atleast_2d(np.exp(-((15 * (np.linspace(0,1, 100) - 0.75)) ** 2)))
@@ -158,7 +158,6 @@ elif MODE_DATA == "matlab":
 print(f"{X_tsc.head(5)}")
 print(f"{U_tsc.head(5)}")
 
-
 plt_trajectory = False
 if plt_trajectory:
     f, ax = plt.subplots(nrows=2)
@@ -196,13 +195,13 @@ assert isinstance(X_tsc_reduced, TSCDataFrame)
 # move time values in U_tsc
 
 
-def shift_index_U(_X, _U):
+def shift_time_index_U(_X, _U):
     new_index = _X.groupby("ID").tail(_X.n_timesteps - 1).index
     return _U.set_index(new_index)
 
 
 X_tsc_reduced = pd.concat(
-    [X_tsc_reduced, shift_index_U(X_tsc_reduced, U_tsc)], axis=1
+    [X_tsc_reduced, shift_time_index_U(X_tsc_reduced, U_tsc)], axis=1
 ).fillna(0)
 
 
@@ -222,22 +221,22 @@ class L2Norm(BaseEstimator, TSCTransformerMixin):
         )
 
 
-class ReorderColumns(BaseEstimator, TSCTransformerMixin):
-    def fit(self, X):
-        return self
-
-    def get_feature_names_out(self, input_features=None):
-        firsts = np.logical_and(input_features.str.contains("x"), input_features.str.contains("d"))
-        second = np.logical_and(input_features.str.contains("x"), ~input_features.str.contains("d"))
-        third = input_features.str.contains("u")
-        fourth = input_features.str.contains("l2norm")
-        fifth = input_features.str.contains("const")
-
-        return input_features[firsts].append(input_features[second]).append(input_features[third]).append(input_features[fourth]).append(input_features[fifth])
-
-
-    def transform(self, X):
-        return X.loc[:, self.get_feature_names_out(X.columns)]
+# class ReorderColumns(BaseEstimator, TSCTransformerMixin):
+#     def fit(self, X):
+#         return self
+#
+#     def get_feature_names_out(self, input_features=None):
+#         firsts = np.logical_and(input_features.str.contains("x"), input_features.str.contains("d"))
+#         second = np.logical_and(input_features.str.contains("x"), ~input_features.str.contains("d"))
+#         third = input_features.str.contains("u")
+#         fourth = input_features.str.contains("l2norm")
+#         fifth = input_features.str.contains("const")
+#
+#         return input_features[firsts].append(input_features[second]).append(input_features[third]).append(input_features[fourth]).append(input_features[fifth])
+#
+#
+#     def transform(self, X):
+#         return X.loc[:, self.get_feature_names_out(X.columns)]
 
 
 l2norm = ("l2", L2Norm(), lambda df: df.columns.str.startswith("x"))
@@ -265,9 +264,9 @@ tde = (
 
 _id = ("_id", TSCIdentity(include_const=True))
 
-_reorder = ("reorder", ReorderColumns())
+# _reorder = ("reorder", ReorderColumns())
 
-edmd = EDMD([l2norm, tde, _id, _reorder], dmd_model=DMDControl(), include_id_state=False)
+edmd = EDMD([l2norm, tde, _id], dmd_model=DMDControl(), include_id_state=False)
 
 # import tempfile
 # from sklearn.utils import estimator_html_repr
@@ -290,14 +289,6 @@ print(f"{X_dict.columns=}")
 print(f"{len(X_dict.columns)=}")
 print(X_dict.head(5))
 
-# TODO: In KMPC "self.account_initial = False" needs to be set, otherwise it fails, do I need this option
-# TODO: need to align -- is the reference solution "on time" with what is returned by the optimization
-# TODO: include state bounds properly (they are essentially ignored currently)?
-# TODO: include the cost / error evaluation.
-# TODO: make plotting right and perform transfer this to jupyter notebook
-# TODO: continue with Pendulum tutorial!
-
-
 kmpc = LinearKMPC(
     edmd=edmd,
     horizon=horizon,
@@ -313,15 +304,15 @@ kmpc = LinearKMPC(
 X_init, _ = sys.predict(
     icfunc(0.2),
     U=np.zeros((4, sys.n_control_in_)),
-    time_values=np.arange(0, 5 * dt, dt),
+    time_values=np.arange(0, edmd.n_samples_ic_ * dt, dt),
     require_last_control_state=True,
 )
 
 start_time = X_init.time_values()[-1]
-time_values_ref = np.arange(start_time, start_time + Tend, dt)
+time_values_ref = np.arange(0, start_time + Tend, dt)
 X_ref = np.zeros(len(time_values_ref))
 X_ref[time_values_ref <= 20] = 0.5
-X_ref[np.logical_and(time_values_ref > 20, time_values_ref < 40)] = 1
+X_ref[np.logical_and(time_values_ref > 20, time_values_ref < 40)] = 0.6
 X_ref[time_values_ref > 40] = 0.5
 X_ref = np.outer(X_ref, np.ones(X_tsc.shape[1]))
 X_ref = TSCDataFrame.from_array(
@@ -338,27 +329,36 @@ edmd_state = pd.concat([subselect_measurements(X_init), U_ic], axis=1)
 model_state = X_init.iloc[[-1], :]
 
 X_model_evolution = X_init
-U_evolution = U_ic.tsc.drop_last_n_samples(1)
+U_evolution = U_ic
 
 X_model_unctr_evolution = X_init.copy()
 
-for i in range(Nsim):
+X_error_evolution = X_init - X_ref.iloc[[0], :].to_numpy()
+
+for i in range(X_init.shape[0], Nsim):
     print(i)
-    ref = X_ref_reduced.iloc[i:i+horizon-int(kmpc.account_initial), :]
+
+    # start horizon from next state (we can't change the current state)
+    reference = X_ref_reduced.iloc[i:i + horizon, :]
 
     t = X_model_evolution.time_values()[-1]
     t_new = X_model_evolution.time_values()[-1] + dt
 
-    # TODO: can I also predict shorter trajectories easily? (maybe by setting costs differently??)
-    if ref.shape[0]*2 != int(kmpc.H.shape[0]):
+    if reference.shape[0] != kmpc.horizon:
+        # stop if the rest of reference signal is smaller than horizon
         break
 
-    U = kmpc.generate_control_signal(edmd_state, reference=ref, initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None)
+    # initvals=U_evolution.iloc[-1, :].to_numpy() if i > 1 else None
+    U = kmpc.control_sequence(edmd_state, reference=reference)
 
+    # use only the first control input and optimize again for the next window
     Ufull = U.iloc[0, 0] * f1 + U.iloc[0, 1] * f2
 
     X_model, _ = sys.predict(X_model_evolution.iloc[[-1], :], U=Ufull, time_values=np.array([t, t_new]))
     X_model_evolution = pd.concat([X_model_evolution, X_model.iloc[[1], :]], axis=0)
+
+    diff = X_model.iloc[[1], :] - X_ref.iloc[[i], :].to_numpy()
+    X_error_evolution = pd.concat([X_error_evolution, diff])
 
     X_model_unctr, _ = sys.predict(X_model_unctr_evolution.iloc[[-1], :], U=np.zeros_like(sys.x_nodes)[np.newaxis, :], time_values=np.array([t, t_new]))
     X_model_unctr_evolution = pd.concat([X_model_unctr_evolution, X_model_unctr.iloc[[1], :]], axis=0)
@@ -368,16 +368,17 @@ for i in range(Nsim):
     # prepare new edmd state
     X_model_last = subselect_measurements(X_model_evolution.iloc[-edmd.n_samples_ic_ :, :])
     U_last = U_evolution.iloc[-edmd.n_samples_ic_ :-1, :]
-    U_last_shifted = shift_index_U(X_model_last, shift_index_U(X_model_last, U_last))
+    U_last_shifted = shift_time_index_U(X_model_last, shift_time_index_U(X_model_last, U_last))
     edmd_state = pd.concat([X_model_last, U_last_shifted], axis=1).fillna(0)
 
-if False:
+if True:
 
-    f, ax = plt.subplots(nrows=2)
+    f, ax = plt.subplots(nrows=3, sharex=True)
 
     (model_line,) = ax[0].plot(sys.x_nodes, X_model_evolution.iloc[0], label="model")
     (model_uctr_line,) = ax[0].plot(sys.x_nodes, X_model_unctr_evolution.iloc[0], label="model uncontrolled")
     (ref_line,) = ax[0].plot(sys.x_nodes, X_ref.iloc[0], label="reference")
+    plt.legend()
 
     Ufunc = lambda u, x: (u[0] * f1 + u[1] * f2).ravel()
     (control_line,) = ax[1].plot(
@@ -385,22 +386,23 @@ if False:
         Ufunc(U_evolution.iloc[0, :].to_numpy(), None),
         label="control",
     )
+    plt.legend()
 
+    (error_line,) = ax[2].plot(sys.x_nodes, X_error_evolution.iloc[0, :].to_numpy(), label="difference")
     plt.legend()
 
     def func(i):
-        model_line.set_ydata(X_model_evolution.iloc[i, :])
-        model_uctr_line.set_ydata(X_model_unctr_evolution.iloc[i, :])
-        ref_line.set_ydata(X_ref.iloc[i, :])
-        control_line.set_ydata(
-            Ufunc(
-                U_evolution.iloc[i].to_numpy(), None
-            )
-        )
+        model_line.set_ydata(X_model_evolution.iloc[i, :].to_numpy())
+        model_uctr_line.set_ydata(X_model_unctr_evolution.iloc[i, :].to_numpy())
+        ref_line.set_ydata(X_ref.iloc[i, :].to_numpy())
+        control_line.set_ydata(Ufunc(U_evolution.iloc[i].to_numpy(), None))
+        error_line.set_ydata(X_error_evolution.iloc[i, :].to_numpy())
+
         return (
             model_line,
             model_uctr_line,
             ref_line,
+            error_line
         )
 
     anim = FuncAnimation(f, func=func, frames=U_evolution.shape[0])

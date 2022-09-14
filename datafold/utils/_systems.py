@@ -294,7 +294,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         self.ivp_kwargs.setdefault("vectorized", True)
 
     @abc.abstractmethod
-    def _f(self, t, X, U):
+    def _f(self, t, Y, U):
         """Right-hand side of the ODE.
 
         The return of the function must match the 'fun' parameter in Scipy's 'solve_ivp'
@@ -499,8 +499,8 @@ class InvertedPendulum(ControllableODE):
             control_names_in=["u"],
         )
 
-    def _f(self, t, x, u):
-        _, xdot, theta, thetadot = x
+    def _f(self, t, y, u):
+        _, xdot, theta, thetadot = y
 
         m = self.pendulum_mass
         M = self.cart_mass
@@ -622,13 +622,11 @@ class InvertedPendulum(ControllableODE):
 
 
 class Burger1DPeriodicBoundary(ControllableODE):
+
     def __init__(self, n_spatial_points: int = 100, nu=0.01):
         self.nu = nu
         self.x_nodes = np.linspace(0, 2 * np.pi, n_spatial_points)
         self.dx = self.x_nodes[1] - self.x_nodes[0]
-
-        self.d_dx = fd.coefficients(deriv=1, acc=2)["forward"]
-        self.d2_dx2 = fd.coefficients(deriv=2, acc=2)["center"]
 
         super(Burger1DPeriodicBoundary, self).__init__(
             feature_names_in=[f"x{i}" for i in range(n_spatial_points)],
@@ -636,20 +634,20 @@ class Burger1DPeriodicBoundary(ControllableODE):
             **{"method": "RK23", "vectorized": True},
         )
 
-    def _f(self, t, x, u):
+    def _f(self, t, y, u):
         # TODO: should use an upwind scheme? But waves where more "averaged" on the top.
-        # x_pad = np.concatenate([x[-3:-1], x])
-        # advection = (-1.5 * x_pad[:-2] + 2 * x_pad[1:-1] - 0.5 * x_pad[2:]) / (2 * self.dx)
+        # y_pad = np.concatenate([x[-3:-1], x])
+        # advection = (-1.5 * y_pad[:-2] + 2 * y_pad[1:-1] - 0.5 * y_pad[2:]) / (2 * self.dx)
 
         # use central scheme as the advection seems
-        x_pad = np.concatenate([x[[-1]], x, x[[0]]])
-        advection = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx)
+        y_pad = np.concatenate([y[[-1]], y, y[[0]]])
+        advection = (-y_pad[:-2] + y_pad[2:]) / (2 * self.dx)
 
         # central finite difference scheme
-        x_pad = np.concatenate([x[[-1]], x, x[[0]]])
-        convection = (x_pad[:-2] - 2 * x_pad[1:-1] + x_pad[2:]) / (self.dx ** 2)
+        y_pad = np.concatenate([y[[-1]], y, y[[0]]])
+        convection = (y_pad[:-2] - 2 * y_pad[1:-1] + y_pad[2:]) / (self.dx ** 2)
 
-        x_dot = -np.multiply(advection, x, out=advection)
+        x_dot = -np.multiply(advection, y, out=advection)
         x_dot += np.multiply(self.nu, convection, out=convection)
         x_dot += u
 
@@ -772,12 +770,12 @@ class VanDerPol(ControllableODE):
         )
         self.eps = eps
 
-    def _f(self, t, x, u):
+    def _f(self, t, y, u):
 
-        x1, x2 = x
+        y1, y2 = y
         u1, u2 = u
 
-        xdot = np.row_stack([x2 + u1, -x1 + self.eps * (1 - x1**2) * x2 + u2])
+        xdot = np.row_stack([y2 + u1, -y1 + self.eps * (1 - y1**2) * y2 + u2])
         return xdot
 
 
@@ -794,9 +792,9 @@ class Duffing1D(ControllableODE):
             control_names_in=["u"],
         )
 
-    def _f(self, t, X, U):
+    def _f(self, t, Y, U):
 
-        x1, x2 = X.ravel()
+        x1, x2 = Y.ravel()
 
         f1 = x2
         f2 = -self.delta * x2 - self.alpha * x1 - self.beta * x1**3 + U

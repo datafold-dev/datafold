@@ -18,6 +18,8 @@ from datafold.utils._systems import InvertedPendulum
 
 include_dmdcontrol = False
 
+# TODO: include state bounds of CART properly in KMPC (they are essentially ignored currently)
+
 # Data generation parameters
 training_size = 5
 time_values = np.arange(0, 10, 0.02)
@@ -268,7 +270,7 @@ reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + ho
 const_values = np.tile(np.array([0, np.pi]), (reference.shape[0], 1))
 reference = TSCDataFrame.from_same_indices_as(reference, values=const_values)
 
-ukmpc = kmpc.generate_control_signal(
+ukmpc = kmpc.optimal_control_sequence(
     X_oos.initial_states(edmd.n_samples_ic_), reference
 )
 

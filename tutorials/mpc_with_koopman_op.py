@@ -39,12 +39,12 @@
 
 # In[2]:
 
-
 import autograd.numpy as np
 import pandas as pd
 from autograd import jacobian
 from scipy.linalg import logm
 import scipy.linalg
+from datafold.utils._systems import VanDerPol
 
 rng = np.random.default_rng(2)
 
@@ -100,7 +100,6 @@ def z(x, u):
 
 # zdu = jacobian(z, argnum=1) ## needed for functions where the control is not seperable
 vdp = VanDerPol() # create the dynamic system
-
 
 # Provided a data set $\mathcal{D} = \{(x(t_m), u(t_m), x(t_{m+1}), u(t_{m+1})) \}_{m=0}^{M-1}$, we can compute the approximate Koopman operator $\mathfrak{K}$ using least-squares minimization over the matrix $\mathfrak{K}$:
 # $$
@@ -179,6 +178,7 @@ squared = [("squared", TSCApplyLambdas(lambdas=[lambda x: x ** 2]))]
 
 # return np.array([x[0], x[1], x[0]**2, (x[0]**2)*x[1], u[0]])
 
+# TODO: need to make this a dictionary!
 X_tsc["d1"] = np.square(X_tsc.loc[:, "x1"])
 X_tsc["d2"] = X_tsc["d1"].to_numpy() * X_tsc["x2"].to_numpy()
 
@@ -302,5 +302,3 @@ plt.axhline(np.linalg.norm(target_z[:2]), c="red")
 plt.xlabel('t')
 plt.ylabel('norm (discrete')
 plt.show()
-
-

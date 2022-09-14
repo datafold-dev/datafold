@@ -12,10 +12,10 @@ import matplotlib.pyplot as plt
 
 class TestSystems(unittest.TestCase):
 
-    def test_vanderpol01(self, plot=True):
+    def test_vanderpol01(self, plot=False):
 
-        x = np.linspace(-3, 3, 20)
-        y = np.linspace(-3, 3, 20)
+        x = np.linspace(-3, 3, 10)
+        y = np.linspace(-3, 3, 10)
         xv, yv = np.meshgrid(x, y)
 
         sys = VanDerPol()
@@ -42,7 +42,7 @@ class TestSystems(unittest.TestCase):
             ax.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
             plt.show()
 
-    def test_vanderpol02(self, plot=True):
+    def test_vanderpol02(self, plot=False):
         # a single longer time series
         n_timesteps = 500
         state = np.random.uniform(-3., 3., size=(1, 2))
@@ -57,7 +57,7 @@ class TestSystems(unittest.TestCase):
             plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
             plt.show()
 
-    def test_vanderpol03(self, plot=True):
+    def test_vanderpol03(self, plot=False):
         # multiple time series
         n_timesteps = 500
 
@@ -78,7 +78,7 @@ class TestSystems(unittest.TestCase):
                 ax.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
             plt.show()
 
-    def test_burger01(self, plot=True):
+    def test_burger01(self, plot=False):
         # simulates the setting from https://arxiv.org/pdf/1804.05291.pdf
 
         rng = np.random.default_rng(1)
@@ -167,7 +167,7 @@ class TestSystems(unittest.TestCase):
         pdtest.assert_frame_equal(actual_theta, X_predict)
 
 
-    def test_duffing01(self, plot=True):
+    def test_duffing01(self, plot=False):
 
         X1, U1 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)))
         X2, U2 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)), time_values=np.arange(0, 10, 0.01))

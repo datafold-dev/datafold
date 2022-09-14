@@ -84,7 +84,7 @@ class MPC:
 
         t = reference["t"].iloc[: horizon + 1].values
 
-        mpc_control_a = self._mpc.generate_control_signal(ic_a, ref_a).reshape(-1)
+        mpc_control_a = self._mpc.optimal_control_sequence(ic_a, ref_a).reshape(-1)
         mpc_pred = self.predictor.predict(ic_a, mpc_control_a, None)
         mpc_cost = self._mpc.compute_cost(mpc_control_a, ref_a, ic_a)
 

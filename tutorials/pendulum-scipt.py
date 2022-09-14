@@ -244,7 +244,7 @@ reference = X_oos[["x", "theta"]].iloc[
 reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon]
 # reference = TSCDataFrame.from_same_indices_as(reference, values=np.zeros_like(reference.to_numpy()))
 
-ukmpc = kmpc.generate_control_signal(
+ukmpc = kmpc.optimal_control_sequence(
     X_oos.initial_states(edmd.n_samples_ic_), reference
 )
 
