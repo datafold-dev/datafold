@@ -758,22 +758,30 @@ class Burger1DPeriodicBoundary(ControllableODE):
         return ts
 
 
-
-
 class VanDerPol(ControllableODE):
-    def __init__(self, eps=1.0):
+    def __init__(self, eps=1.0, n_control=2, **solver_kwargs):
+
+        solver_kwargs.setdefault("method", "RK45")
+        solver_kwargs.setdefault("vectorized", True)
+
+
+        if n_control not in [1,2]:
+            raise ValueError(f"{n_control=} must be an integer in [1,2]. ")
+
         super(VanDerPol, self).__init__(
-            n_features_in=2,
             feature_names_in=["x1", "x2"],
-            n_control_in=2,
-            control_names_in=["u1", "u2"],
+            control_names_in=[f"u{i}" for i in range(1, n_control+1)],
+            **solver_kwargs
         )
         self.eps = eps
 
     def _f(self, t, y, u):
-
         y1, y2 = y
-        u1, u2 = u
+
+        if self.n_control_in_ == 1:
+            u1, u2 = u, 0
+        else:
+            u1, u2 = u
 
         xdot = np.row_stack([y2 + u1, -y1 + self.eps * (1 - y1**2) * y2 + u2])
         return xdot

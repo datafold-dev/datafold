@@ -335,7 +335,7 @@ class TSCDataFrame(pd.DataFrame):
     def from_tensor(
         cls,
         tensor: np.ndarray,
-        time_series_ids: Optional[np.ndarray] = None,
+        time_series_ids: Optional[Union[np.ndarray, pd.Index]] = None,
         columns: Optional[Union[pd.Index, list]] = None,
         time_values: Optional[np.ndarray] = None,
     ) -> "TSCDataFrame":
@@ -401,6 +401,11 @@ class TSCDataFrame(pd.DataFrame):
 
         if time_values is None:
             time_values = np.arange(n_timesteps)
+        elif len(time_values) != tensor.shape[1]:
+            raise ValueError(
+                f"{len(time_values)=} does not match the time series length "
+                f"in {tensor.shape[1]=}"
+            )
 
         # entire column, repeating for every time series
         col_time_values = np.resize(time_values, n_timeseries * n_timesteps)
@@ -581,8 +586,12 @@ class TSCDataFrame(pd.DataFrame):
         data
             Time series data (2-dim. array) with snapshots in rows.
 
-        ts_id
-            ID of time series.
+        time_values
+            Time values to apply. Must have :code:`data.shape[0]` elements.
+            Defaults to `0, 1, 2, ...`.
+
+        ts_ids
+            An integer of for The ID of a single time series (if timesteps is None). Or the
 
         Returns
         -------
@@ -1757,7 +1766,7 @@ class InitialCondition(object):
             time_values = np.arange(0, U.shape[0] * dt, dt)
 
         U = TSCDataFrame.from_array(
-            U, time_values=time_values, feature_names=control_names, ts_id=ts_id
+            U, time_values=time_values, feature_names=control_names, ts_ids=ts_id
         )
 
         return U

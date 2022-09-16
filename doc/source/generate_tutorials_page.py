@@ -314,6 +314,13 @@ def init_tutorials():
     )
 
     add_tutorial(
+        "10_kmpc_flowcontrol.ipynb",
+        "We showcase how Model Predictive Control (MPC) based on the Koopman operator can be "
+        "used to control a flow system (here 1D Burger equation with periodic boundary "
+        "condition).",
+    )
+
+    add_tutorial(
         "11_koopman_mpc/koopman_mpc.ipynb",
         "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
         "operator. We apply MPC using an EDMD predictor to a toy model: the "

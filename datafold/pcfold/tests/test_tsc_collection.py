@@ -288,7 +288,7 @@ class TestTSCDataFrame(unittest.TestCase):
         expected_time_values = np.arange(10, 20)
         expected_id = 2
         actual = TSCDataFrame.from_array(
-            data, time_values=expected_time_values, ts_id=2
+            data, time_values=expected_time_values, ts_ids=2
         )
 
         self.assertIsInstance(actual, TSCDataFrame)

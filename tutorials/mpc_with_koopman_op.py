@@ -44,47 +44,12 @@ import pandas as pd
 from autograd import jacobian
 from scipy.linalg import logm
 import scipy.linalg
-from datafold.utils._systems import VanDerPol
+from datafold.utils._systems import VanDerPol as VDP2
+from datafold import TSCDataFrame, EDMD
+from datafold.dynfold.dmd import DMDControl
+rng = np.random.default_rng(5)
 
-rng = np.random.default_rng(2)
 
-class VanDerPol(object):
-    def __init__(self, eps=1.0, dt=0.01):
-        self.eps = eps
-        self.dt = dt
-        self.dfdx = jacobian(self.f, argnum=0)
-        self.dfdu = jacobian(self.f, argnum=1)
-        self.num_states = 2
-        self.num_actions = 2
-        self.reset()
-
-    def reset(self):
-        self.state = rng.uniform(-3., 3.,
-                                       size=(self.num_states,))
-        return self.state.copy() # return a copy
-
-    def sample_action(self):
-        return rng.uniform(-3., 3.,
-                                size=(self.num_actions,))
-
-    def f(self, x, u):
-        xdot = np.array([
-            x[1],
-            -x[0] + self.eps * (1 - x[0]**2) * x[1] + u[0]
-        ])
-        return xdot
-
-    def get_linearization(self, x, u):
-        return self.dfdx(x, u), self.dfdu(x, u)
-
-    def step(self, u): ## RK4 step
-        k1 = self.f(self.state, u) * self.dt
-        k2 = self.f(self.state + k1/2.0, u) * self.dt
-        k3 = self.f(self.state + k2/2.0, u) * self.dt
-        k4 = self.f(self.state + k3, u) * self.dt
-        self.state = self.state + (k1 + 2 * (k2 + k3) + k4)/6
-#         self.state = self.state + self.f(self.state, u) * self.dt # euler integration
-        return self.state.copy()
 
 
 # For the Koopman operator system, we are going to use the following basis functions:
@@ -92,76 +57,32 @@ class VanDerPol(object):
 # In[3]:
 
 
-num_x_obs = 4
-num_u_obs = 1
-num_obs = num_x_obs + num_u_obs
-def z(x, u):
-    return np.array([x[0], x[1], x[0]**2, (x[0]**2)*x[1], u[0]])
 
-# zdu = jacobian(z, argnum=1) ## needed for functions where the control is not seperable
-vdp = VanDerPol() # create the dynamic system
 
-# Provided a data set $\mathcal{D} = \{(x(t_m), u(t_m), x(t_{m+1}), u(t_{m+1})) \}_{m=0}^{M-1}$, we can compute the approximate Koopman operator $\mathfrak{K}$ using least-squares minimization over the matrix $\mathfrak{K}$:
-# $$
-#     \min_{\mathfrak{K}} \frac{1}{2 M} \sum_{m=0}^{M-1} \Vert z(x(t_{m+1}), u(t_{m+1})) - \mathfrak{K} z(x(t_m), u(t_m)) \Vert^2.
-# $$
-# Since this optimization is convex in $\mathfrak{K}$, the solution is given by
-# $$
-#     \mathfrak{K} = A G^\dagger
-# $$        
-# where $\dagger$ denotes the Moore-Penrose pseudoinverse and
-# $$
-# A = \frac{1}{M} \sum_{m=0}^{M-1} z(x(t_{m+1}), u(t_{m+1})) z(x(t_m), u(t_m))^\top, \\
-#             G = \frac{1}{M} \sum_{m=0}^{M-1} z(x(t_m), u(t_m)) z(x(t_m), u(t_m))^\top .
-# $$
-# The continuous time operator is then given by $\log(\mathfrak{K})/t_s$.
-# Note that we can solve the optimization using gradient descent methods or other
-# optimization methods.
-# 
-# In the next cell, we will collect some data and learn a Koopman operator for the functions of state described previously.
+num_trials = 10  ## number of resets
+horizon = 200  ## how long we simulate the system for
+M = num_trials * horizon  ## M sized data
 
-# In[4]:
 
-num_trials = 10 ## number of resets
-horizon = 200 ## how long we simulate the system for
-M = num_trials * horizon ## M sized data
+vdp2 = VDP2(n_control=1)
 
-A = np.zeros((num_obs, num_obs))
-G = np.zeros((num_obs, num_obs))
+time_values = np.arange(0, horizon*0.01, 0.01)
 
-states = np.zeros((num_trials, horizon+1, 2))
-control = np.zeros((num_trials, horizon+1, 2))
+X = rng.uniform(-3., 3., size=(num_trials, 2))
 
-## loop to collect data
-for k in range(num_trials):
-    x_t = vdp.reset() # reset the state
-    u_t = vdp.sample_action()
-    # u_t = np.array([0, 0])
+idx = pd.MultiIndex.from_arrays([np.arange(num_trials), np.zeros(num_trials)])
+X_ic = TSCDataFrame(X, index=idx, columns=["x1", "x2"])
 
-    states[k, 0, :] = x_t
-    control[k, 0, :] = u_t
+U_tsc = rng.uniform(-3., 3., size=(num_trials, 1, 1))
+U_tsc = np.tile(U_tsc, (1, horizon-1, 1))
+U_tsc = TSCDataFrame.from_tensor(U_tsc, time_series_ids=X_ic.ids, columns=vdp2.control_names_in_, time_values=time_values[:-1])
 
-    for t in range(1, horizon+1):
-        x_tpo = vdp.step(u_t)
-        u_tpo = u_t
-        
-        A += np.outer(z(x_tpo, u_tpo), z(x_t, u_t))
-        G += np.outer(z(x_t, u_t), z(x_t, u_t))
+X_tsc, U_tsc = vdp2.predict(X_ic, U=U_tsc)
 
-        states[k, t, :] = x_t
-        control[k, t, :] = u_t
-
-        # reset for next loop
-        x_t = x_tpo
-        u_t = u_tpo
-
-from datafold import TSCDataFrame, EDMD, TSCApplyLambdas, TSCIdentity, TSCColumnTransformer
-from datafold.dynfold.dmd import DMDControl
-
-time_values = np.arange(0, 1E-15+horizon*0.01, 0.01)
-X_tsc = TSCDataFrame.from_tensor(states, columns=["x1", "x2"], time_values=time_values)
-U_tsc = TSCDataFrame.from_tensor(control, columns=["u1", "u2"], time_values=time_values)
-U_tsc = U_tsc.loc[:, ["u1"]].tsc.drop_last_n_samples(1)
+# time_values = np.arange(0, 1E-15+horizon*0.01, 0.01)
+# X_tsc = TSCDataFrame.from_tensor(states, columns=["x1", "x2"], time_values=time_values)
+# U_tsc = TSCDataFrame.from_tensor(control, columns=["u1", "u2"], time_values=time_values)
+# U_tsc = U_tsc.loc[:, ["u1"]].tsc.drop_last_n_samples(1)
 
 import matplotlib.pyplot as plt
 
@@ -169,136 +90,106 @@ for i in X_tsc.ids:
     idx = pd.IndexSlice[i, :]
     plt.plot(X_tsc.loc[idx, "x1"].to_numpy(), X_tsc.loc[idx, "x2"].to_numpy())
 
+
 # dmdc = DMDControl().fit(X_tsc, U=U_tsc)
 
+# dictionary
 # [x[0], x[1], x[0]**2, (x[0]**2)*x[1]
 
-squared = [("squared", TSCApplyLambdas(lambdas=[lambda x: x ** 2]))]
+from sklearn.base import BaseEstimator
+from datafold import TSCTransformerMixin
+
+class VdPDictionary(BaseEstimator, TSCTransformerMixin):
+    def get_feature_names_out(self, input_features=None):
+        return ["x1^2", "x1^2 * x2"]
+
+    def fit(self, X, y=None):
+        self._setup_feature_attrs_fit(X)
+        return self
+
+    def transform(self, X: TSCDataFrame):
+        X = X.copy()
+        X["x1^2"] = np.square(X.loc[:, "x1"].to_numpy())
+        X["x1^2 * x2"] = X["x1^2"].to_numpy() * X["x2"].to_numpy()
+        return X.drop(["x1", "x2"], axis=1)
 
 
-# return np.array([x[0], x[1], x[0]**2, (x[0]**2)*x[1], u[0]])
+vdp_dictionary = ("dict", VdPDictionary())
 
-# TODO: need to make this a dictionary!
-X_tsc["d1"] = np.square(X_tsc.loc[:, "x1"])
-X_tsc["d2"] = X_tsc["d1"].to_numpy() * X_tsc["x2"].to_numpy()
-
-_id = ("id", TSCIdentity())
-
-dict = [_id]
-
-dmd = EDMD(dict_steps=dict, dmd_model=DMDControl(), include_id_state=True)
-dmd.fit(X_tsc, U=U_tsc)
-
-A /= M
-G /= M
-koopman_operator = np.dot(A, np.linalg.pinv(G))
-
-
-# Here we calculate the continuous time Koopman operator.
-
-# In[5]:
-
-cont_koopman_operator = logm(koopman_operator)/vdp.dt
-
-
-# For optimal control with the Koopman operator, we split $\mathfrak{K}$ into the free dynamics $A$ and dynamic actuation matrix $B$. 
-
-# In[6]:
-
-A = cont_koopman_operator[:num_x_obs,:num_x_obs]
-B = cont_koopman_operator[:num_x_obs, num_x_obs:]
-
-# Since the Koopman operator representation of the dynamical system is linear, we can directly apply LQR control.
-
-# In[7]:
-
+edmd = EDMD(dict_steps=[vdp_dictionary], dmd_model=DMDControl(), include_id_state=True)
+edmd.fit(X_tsc, U=U_tsc)
 
 Q = np.diag([1, 1, 0., 0.])
 R = np.diag([1.0]) * 1e-2
-P = scipy.linalg.solve_continuous_are(A, B, Q, R)
-Klqr = np.linalg.inv(R).dot(B.T.dot(P))
 
-Ad = dmd.dmd_model.sys_matrix_
-Bd = dmd.dmd_model.control_matrix_
-Pd = scipy.linalg.solve_discrete_are(Ad, Bd, Q, R) * 0.01
+Ad = edmd.dmd_model.sys_matrix_
+Bd = edmd.dmd_model.control_matrix_
+Pd = scipy.linalg.solve_discrete_are(Ad, Bd, Q, R) * X_tsc.delta_time
 Flqr = np.linalg.inv(R + Bd.T @ Pd @ Bd) @ Bd.T @ Pd @ Ad
 
-# The controller can then be tested on the true actuated dynamical system.
 
 # In[8]:
 
-state = vdp.reset() # reset the state
-u_def = vdp.sample_action() # sample the action to get a dummy input
-target_x = np.array([0, 0])
-target_z = z(target_x, u_def)[:num_x_obs] # transform the target state into the lifted functions
-horizon = 1000 # simulation time
+from datafold import InitialCondition
 
-trajectory_cont = np.zeros((horizon+1, vdp.num_states))
-trajectory_cont[0] = state
-u_cont = np.zeros((trajectory_cont.shape[0], 1))
+X_ic_oos = rng.uniform(-3, 3, size=(1,2))
+X_ic_oos = InitialCondition.from_array(X_ic_oos, feature_names=edmd.feature_names_in_, time_value=0)
 
-trajectory_discrete = np.zeros_like(trajectory_cont)
-u_discrete = np.zeros((trajectory_discrete.shape[0], 1))
-trajectory_discrete[0] = state
+target_point = InitialCondition.from_array(np.array([0, 0]), feature_names=edmd.feature_names_in_, time_value=0)
+target_point = edmd.transform(target_point).to_numpy()
 
-for t in range(1, horizon+1):
-    u = -np.dot(Klqr, z(state, u_def)[:num_x_obs] - target_z)
-    u_cont[t-1] = u
-    state = vdp.step(u)
-    trajectory_cont[t, :] = state
+horizon = 500 # simulation time
 
-state = trajectory_cont[0]
-vdp.state = state
-for t in range(1, horizon+1):
-    u = - Flqr @ (z(state, u_def)[:num_x_obs] - target_z)
-    u_discrete[t-1] = u
-    state = vdp.step(u / vdp.dt)
-    trajectory_discrete[t, :] = state
+time_values_oos = np.arange(0, -1E-15+horizon*X_tsc.delta_time, X_tsc.delta_time)
 
-trajectory_uncontrolled = np.zeros_like(trajectory_discrete)
+# objects to fill in following loop
+trajectory = TSCDataFrame.from_array(np.zeros((horizon, 2)), feature_names=vdp2.feature_names_in_, time_values=time_values_oos)
+u_discrete = TSCDataFrame.from_array(np.zeros((horizon-1, 1)), feature_names=vdp2.control_names_in_, time_values=time_values_oos[:-1])
 
-state = trajectory_cont[0]
-vdp.state = state
+trajectory.iloc[0, :] = X_ic_oos.to_numpy()
 
-for t in range(horizon+1):
-    state = vdp.step(np.array([0, 0]))
-    trajectory_uncontrolled[t, :] = state
+# state = trajectory_cont[0]
+# vdp.state = state
+# for t in range(1, horizon+1):
+#     u = - Flqr @ (z(state, u_def)[:num_x_obs] - target_z)
+#     u_discrete[t-1] = u
+#     state = vdp.step(u / vdp.dt)
+#     trajectory_discrete[t, :] = state
+
+for i in range(1, horizon):
+    print(i)
+    state = trajectory.iloc[[i-1], :]
+    u_discrete.iloc[i-1, :] = - Flqr @ (edmd.transform(state).to_numpy() - target_point).T
+
+    new_state, _ = vdp2.predict(state, U=u_discrete.iloc[[i-1], :], time_values=time_values_oos[i-1:i+1])
+    trajectory.iloc[i, :] = new_state.iloc[[1], :].to_numpy()
+
+print("got here")
+trajectory_uncontrolled, _ = vdp2.predict(X_ic_oos, U=np.zeros((horizon-1)), time_values=time_values_oos)
 
 # Here we visualize the resulting trajectory from applying a model-based controller using the Koopman operator representation of the dynamical system.
 
 # In[9]:
 plt.figure()
-plt.plot(trajectory_cont, c="red", label="cont.")
-plt.plot(trajectory_discrete, c="black", label="discrete")
+plt.plot(trajectory.to_numpy(), c="black", label="discrete")
 plt.xlabel('t')
 plt.legend()
-plt.ylabel('x_1, x_2')
+plt.ylabel('x1, x2')
 
 plt.figure()
-plt.plot(trajectory_cont[:, 0], trajectory_cont[:, 1], c="red")
-plt.plot(trajectory_cont[0, 0], trajectory_cont[0, 1], "o", c="red")
-plt.quiver(*trajectory_cont.T, *np.column_stack([np.zeros_like(u_cont), u_cont]).T, color="blue")
-plt.plot(trajectory_uncontrolled[:, 0], trajectory_uncontrolled[:, 1], c="black")
-plt.plot(trajectory_uncontrolled[0, 0], trajectory_uncontrolled[0, 1], "o", c="black")
-plt.plot(target_x[0], target_x[1], "*", c="black")
-plt.title("continuous case")
-plt.xlabel('x_1')
-plt.ylabel('x_2')
-
-plt.figure()
-plt.plot(trajectory_discrete[:, 0], trajectory_discrete[:, 1], c="red")
-plt.quiver(*trajectory_discrete.T, *np.column_stack([np.zeros_like(u_discrete), u_discrete]).T, color="blue")
-plt.plot(trajectory_discrete[0, 0], trajectory_discrete[0, 1], "o", c="red")
-plt.plot(trajectory_uncontrolled[:, 0], trajectory_uncontrolled[:, 1], c="black")
-plt.plot(trajectory_uncontrolled[0, 0], trajectory_uncontrolled[0, 1], "o", c="black")
-plt.plot(target_x[0], target_x[1], "*", c="black")
+plt.plot(trajectory.loc[:, "x1"].to_numpy(), trajectory.loc[:, "x2"].to_numpy(), c="red")
+plt.quiver(*trajectory.to_numpy()[:-1, :].T, *np.column_stack([np.zeros_like(u_discrete.to_numpy()), u_discrete.to_numpy()]).T, color="blue")
+plt.plot(trajectory.iloc[0, 0], trajectory.iloc[0, 1], "o", c="red")
+plt.plot(trajectory_uncontrolled.loc[:, "x1"].to_numpy(), trajectory_uncontrolled.loc[:, "x2"].to_numpy(), c="black")
+plt.plot(trajectory_uncontrolled.iloc[0, 0], trajectory_uncontrolled.iloc[0, 1], "o", c="black")
+plt.plot(target_point[0, 0], target_point[0, 1], "*", c="black")
 plt.title("discrete case")
-plt.xlabel('x_1')
-plt.ylabel('x_2')
+plt.xlabel('x1')
+plt.ylabel('x2')
 
 plt.figure()
-plt.plot(np.linalg.norm(trajectory_discrete, axis=1))
-plt.axhline(np.linalg.norm(target_z[:2]), c="red")
+plt.plot(np.linalg.norm(trajectory.to_numpy(), axis=1))
+plt.axhline(np.linalg.norm(target_point[:2]), c="red")
 plt.xlabel('t')
 plt.ylabel('norm (discrete')
 plt.show()
