@@ -5,7 +5,7 @@ import numpy as np
 import pandas
 from tqdm import tqdm
 
-from datafold.appfold.kmpc import LinearKMPC
+from datafold.appfold.mpc import LinearKMPC
 from datafold.pcfold import TSCDataFrame
 
 from .model import Augmenter, Model, Predictor

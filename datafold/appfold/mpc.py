@@ -21,6 +21,27 @@ except ImportError:
     solve_qp = None
 
 
+def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
+    if isinstance(cost, np.ndarray):
+        if cost.ndim != 1 or cost.shape[0] != n_elements:
+            raise ValueError(
+                f"The cost vector must be 1-dim. with {n_elements} elements. Got {cost.ndim=} and {cost.shape=}")
+        if (cost < 0).any():
+            raise ValueError(
+                f"All cost values must be non-negative. Found {(cost < 0).sum()} negative values.")
+
+        return cost
+    elif isinstance(cost, (float, int)):
+        cost = float(cost)
+
+        if cost < 0:
+            raise ValueError(f"Cost must be a non-negative numeric value. Got {cost=}")
+        return np.ones(n_elements) * cost
+    else:
+        raise TypeError(
+            f"{type(cost)=} not understood, use numeric value (float/int) or 1-dim. array with {n_elements} elements.")
+
+
 class LinearKMPC:
     r"""Class to implement Lifting based Model Predictive Control.
 
@@ -243,22 +264,6 @@ class LinearKMPC:
         # implements appendix from :cite:`korda-2018`
         # same as Sabin 2.44
 
-        def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
-            if isinstance(cost, np.ndarray):
-                if cost.ndim != 1 or cost.shape[0] != N:
-                    raise ValueError(f"The cost vector must be 1-dim. with {n_elements} elements. Got {cost.ndim=} and {cost.shape=}")
-                if (cost < 0).any():
-                    raise ValueError(f"All cost values must be non-negative. Found {(cost < 0).sum()} negative values.")
-
-                return cost
-            elif isinstance(cost, (float, int)):
-                cost = float(cost)
-
-                if cost < 0:
-                    raise ValueError(f"Cost must be a non-negative numeric value. Got {cost=}")
-                return np.ones(n_elements) * cost
-            else:
-                raise TypeError(f"{type(cost)=} not understood, use numeric value (float/int) or 1-dim. array with {n_elements} elements.")
 
         # optimization - linear
         # TODO: q and r are always zero -- either remove completely or need a user parameter
@@ -436,6 +441,55 @@ class LinearKMPC:
     #
     #     # TODO: Need to return a TSCDataFrame
     #     return (e1 + e2 + e3 + e4)[0, 0]
+
+
+class LQR(object):
+
+    def __init__(self, edmd, cost_running, cost_input):
+        self.edmd = edmd
+
+        self.cost_running = cost_running
+        self.cost_input = cost_input
+
+        self.Flqr = self._setup_optimizer()
+
+    def preset_target_state(self, target_state: TSCDataFrame):
+        self._preset_target_state = self.edmd.transform(target_state)
+
+    def _setup_optimizer(self):
+
+        Q, R = self._create_cost_matrices()
+
+        Ad = self.edmd.dmd_model.sys_matrix_
+        Bd = self.edmd.dmd_model.control_matrix_
+        Pd = scipy.linalg.solve_discrete_are(Ad, Bd, Q, R)
+        Flqr = np.linalg.inv(R + Bd.T @ Pd @ Bd) @ Bd.T @ Pd @ Ad
+
+        return Flqr
+
+    def _create_cost_matrices(self):
+        cost_diagonal = _cost_to_array(self.cost_running, n_elements=self.edmd.n_features_out_)
+        Q = np.diag(cost_diagonal)  # sparse matrices don't work in solve_discrete_are
+
+        cost_input = _cost_to_array(self.cost_input, n_elements=self.edmd.n_control_in_)
+        R = np.diag(cost_input)
+
+        return Q, R
+
+    def control_sequence(self, X: TSCDataFrame, target_state: Optional[TSCDataFrame]=None):
+            X.tsc.check_required_n_timeseries(1)
+
+            if target_state is not None:
+                target_state_dict = self.edmd.transform(target_state).to_numpy()
+            elif hasattr(self, "_preset_target_state"):
+                target_state_dict = self._preset_target_state
+            else:
+                raise ValueError("Target state must be provided either as a parameter or set with 'preset_target_state'")
+
+            u = - self.Flqr @ (self.edmd.transform(X).to_numpy() - target_state_dict).T
+            u = TSCDataFrame.from_array(u, time_values=X.time_values()[-1], feature_names=self.edmd.control_names_in_, ts_id=X.ids[0])
+
+            return u
 
 
 class AffineKgMPC(object):

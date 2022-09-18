@@ -759,27 +759,38 @@ class Burger1DPeriodicBoundary(ControllableODE):
 
 
 class VanDerPol(ControllableODE):
-    def __init__(self, eps=1.0, n_control=2, **solver_kwargs):
+
+    _allowed_control_input = ["x", "y", "both"]
+
+    def __init__(self, eps=1.0, control_coord="both", **solver_kwargs):
 
         solver_kwargs.setdefault("method", "RK45")
         solver_kwargs.setdefault("vectorized", True)
 
+        self.eps = eps
 
-        if n_control not in [1,2]:
-            raise ValueError(f"{n_control=} must be an integer in [1,2]. ")
+        if control_coord in ["x", "y"]:
+            control_names_in = [f"u{control_coord}"]
+        elif control_coord == "both":
+            control_names_in = ["ux", "uy"]
+        else:
+            raise ValueError(
+                f"{control_coord=} invalid. Choose from {self._allowed_control_input}")
 
         super(VanDerPol, self).__init__(
             feature_names_in=["x1", "x2"],
-            control_names_in=[f"u{i}" for i in range(1, n_control+1)],
+            control_names_in=control_names_in,
             **solver_kwargs
         )
-        self.eps = eps
 
     def _f(self, t, y, u):
         y1, y2 = y
 
-        if self.n_control_in_ == 1:
+        partial = len(self.control_names_in_) == 1
+        if partial and "ux" in self.control_names_in_:
             u1, u2 = u, 0
+        elif partial and "uy" in self.control_names_in_:
+            u1, u2 = 0, u
         else:
             u1, u2 = u
 

@@ -15,7 +15,7 @@ from datafold import (
     TSCTakensEmbedding,
     TSCTransformerMixin,
 )
-from datafold.appfold.kmpc import LinearKMPC
+from datafold.appfold.mpc import LinearKMPC
 from datafold.utils._systems import Burger1DPeriodicBoundary
 
 # simulates the setting from https://arxiv.org/pdf/1804.05291.pdf

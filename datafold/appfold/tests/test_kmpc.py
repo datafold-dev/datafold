@@ -5,7 +5,7 @@ import numpy as np
 import numpy.testing as nptest
 
 from datafold.appfold.edmd import EDMD
-from datafold.appfold.kmpc import AffineKgMPC, LinearKMPC
+from datafold.appfold.mpc import AffineKgMPC, LinearKMPC
 from datafold.appfold.tests.test_edmd import EDMDTest
 from datafold.dynfold.dmd import DMDControl, gDMDAffine
 from datafold.dynfold.dynsystem import LinearDynamicalSystem

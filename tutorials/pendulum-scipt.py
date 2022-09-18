@@ -13,7 +13,7 @@ from datafold import (
     TSCRadialBasis,
     TSCTransformerMixin,
 )
-from datafold.appfold.kmpc import LinearKMPC
+from datafold.appfold.mpc import LinearKMPC
 from datafold.utils._systems import InvertedPendulum
 
 include_dmdcontrol = False
