@@ -138,7 +138,27 @@ class EDMD(
         projection and the cost of an increased EDMD-dictionary dimension. The parameter has
         no effect if all elements in the pipeline preserve the original states in their output,
         as this would duplicate data and lead to conflicts in the feature names (see also
-        parameter ``dict_preserves_id_states_``).
+        parameter ``dict_preserves_id_state_``).
+
+    dict_preserves_id_state: str, bool, defaults to "infer"
+        The parameter indicates whether the final dictionary state includes the original full
+        state data. If
+
+        * True, then this simplifies the inverse map to a projection on the full
+          state coordinates. In this case the parameter `include_id_state` is ignored because
+          the full state si already contained. An error is raised if not all features can be
+          matched).
+        * False, then the dictionary does not contain the features of the original full state.
+          If also `include_id_state=False`, then the inverse map from dictionary to full state
+          is performed in a least squares sense.
+        * "infer", then there is a routine that checks the feature names of whether the full
+          state is contained in the dictionary, i.e. ``feature_names_in_`` are contained in
+          ``feature_names_out_``.
+
+           .. warning::
+                If the full state names are contained in the dictionary but are actually
+                altered within the dictionary pipeline, then this leads to a wrong state
+                reconstruction. If unsure it is safer to explicitly set a boolean.
 
     sort_koopman_triplets
         Sort the Koopman triplets by the mean absolute value of the initial
@@ -184,11 +204,10 @@ class EDMD(
     named_steps: :class:`Dict[str, object]`
         Read-only attribute to access the EDMD-dictionary models by given name.
 
-    dict_preserves_id_states_: bool
-        Boolean flag of whether the EDMD dictionary preserves the ID states. If the flag is
-        True, then the parameter `include_id_state` has no effect. The parameter is set during
-        the dictionary validation and uses the "tsc_contains_orig_states" tag in
-        :py:class:`TSCTransformerMixin`).
+    dict_preserves_id_state_: bool
+        Boolean flag of whether the full state is contained in the dictionary state. The
+        attribute depends on the initialization parameters `include_id_state` and
+        `dict_preserves_id_state`.
 
     is_partial_fit_: bool
         Boolean flag to indicate whether the model is fit with `partial_fit`. If True, then
@@ -228,15 +247,16 @@ class EDMD(
         dmd_model: Optional[DMDBase] = None,
         *,
         include_id_state: bool = True,
+        dict_preserves_id_state: Union[str, bool] = "infer",
         use_transform_inverse: bool = False,
         sort_koopman_triplets: bool = False,
         memory: Optional[Union[str, object]] = None,
         verbose: bool = False,
     ):
-
         self.dict_steps = dict_steps
         self.dmd_model = dmd_model if dmd_model is not None else DMDFull()
         self.include_id_state = include_id_state
+        self.dict_preserves_id_state = dict_preserves_id_state
         self.use_transform_inverse = use_transform_inverse
         self.sort_koopman_triplets = sort_koopman_triplets
 
@@ -341,39 +361,6 @@ class EDMD(
 
         return eval_eigenfunction
 
-    def _validate_dictionary(self) -> bool:
-        """Validates that all elements in the EDMD dictionary.
-
-        During the validation the methods evaluates a flag to indicate whether the original
-        states are still the dictionary transformation.
-
-        Returns
-        -------
-        bool
-            boolean flag if dictionary preserves the original states
-        """
-
-        # set to False as soon as one transformer in the pipeline is detected to not preserve
-        # the original time series states
-        dict_preserves_orig_states = True
-
-        for (_, trans_str, transformer) in self._iter(with_final=False):
-
-            transformer_preserves_orig_states = transformer._get_tags()[
-                "tsc_contains_orig_states"
-            ]
-
-            if dict_preserves_orig_states and not transformer_preserves_orig_states:
-                dict_preserves_orig_states = False
-
-            if not isinstance(transformer, TSCTransformerMixin):
-                raise TypeError(
-                    "The EDMD dictionary only supports datafold transformers that handle the "
-                    "data structure 'TSCDataFrame'."
-                )
-
-        return dict_preserves_orig_states
-
     @property
     def n_features_out_(self):
         # Note: this returns the number of features by the dictionary transformation,
@@ -406,6 +393,39 @@ class EDMD(
     def feature_names_pred_(self):
         # TODO: should TSCPredictMixin include feature names for prediction?
         return self._feature_names_pred
+
+    def _validate_dictionary(self) -> bool:
+        """Validates that all elements in the EDMD dictionary.
+
+        During the validation the methods evaluates a flag to indicate whether the original
+        states are still the dictionary transformation.
+
+        Returns
+        -------
+        bool
+            boolean flag if dictionary preserves the original states
+        """
+
+        for (_, trans_str, transformer) in self._iter(with_final=False):
+            if not isinstance(transformer, TSCTransformerMixin):
+                raise TypeError(
+                    "The EDMD dictionary only supports datafold transformers that handle the "
+                    "data structure 'TSCDataFrame'."
+                )
+
+        return True
+
+    def _set_dict_preserves_id_state(self, X_dict: TSCDataFrame) -> bool:
+        if self.dict_preserves_id_state == "infer":
+            return np.isin(self.feature_names_in_, X_dict.columns).all()
+        elif isinstance(self.dict_preserves_id_state, bool):
+            if self.dict_preserves_id_state and self.include_id_state:
+                warnings.warn(f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} duplicates ")
+
+            return self.dict_preserves_id_state
+        else:
+            raise ValueError(f"Could not read {self.dict_preserves_id_state=}. Set to string "
+                             f"'infer' or bool")
 
     def _compute_n_samples_ic(self, X, X_dict):
         diff = X.n_timesteps - X_dict.n_timesteps
@@ -483,12 +503,18 @@ class EDMD(
 
         """
 
-        if self.include_id_state or self.dict_preserves_id_states_:
+        if self.include_id_state or self.dict_preserves_id_state_:
             # trivial case: we just need a projection matrix to select the
             # original full-states from the dictionary functions
-            inverse_map = projection_matrix_from_feature_names(
-                X_dict.columns, self.feature_names_in_
-            )
+            try:
+                inverse_map = projection_matrix_from_feature_names(
+                    X_dict.columns, self.feature_names_in_
+                )
+            except ValueError as e:
+                # here it is assumed that the the error is not raised if
+                # self.include_id_state=True because we have the control over it
+                raise ValueError(f"{self.dict_preserves_id_state_=} but not all features "
+                                 f"names could be found in the dictionary's feature names") from e
         else:
             # Compute the matrix in a least squares sense
             # inverse_map = "B" in Williams et al., Eq. 16
@@ -780,15 +806,6 @@ class EDMD(
             ``s`` has key ``s__p``. To add parameters for the internal DMD model use
             ``s=dmd``, e.g. ``dmd__param``.
 
-            The following EDMD options are available (do not prepend ``edmd__``):
-
-            * dict_preserves_id_states: bool, defaults to False
-              If True, the inverse map from dictionary to full state is performed with a
-              simple matrix projection. For some dictionary choices this can also be detected
-              by EDMD (see internal function `_validate_dictionary`), but with the flag set to
-              True this can also be enforced if the detection fails. The feature names in the
-              dictionary must contain names in attribute `feature_names_in_`.
-
         Returns
         -------
         EDMD
@@ -818,13 +835,11 @@ class EDMD(
         self.is_controlled_ = False if U is None else True
 
         # 1) first get the EDMD fit_params, 2) validate the fit_params for the pipeline,
-        # 3) separate the DMD fit_params to treat them separately
-        dict_preserves_id_states = fit_params.pop("dict_preserves_id_states", False)
+        # 2) separate the DMD fit_params as the dmd is called later
         fit_params = self._check_fit_params(**fit_params or {})
         dmd_fit_params = fit_params.pop("dmd", None)
 
-        # Either automatically detected of enforced in dict_preserves_id_states
-        self.dict_preserves_id_states_ = self._validate_dictionary() or dict_preserves_id_states
+        self._validate_dictionary()
 
         # NOTE: self._setup_features_and_time_fit(X) is not called here, because the
         # n_features_in_ and n_feature_names_in_ is delegated to the first instance in
@@ -838,7 +853,10 @@ class EDMD(
         X_dict = self._fit(X, y, **fit_params)
         self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 
-        if self.include_id_state and not self.dict_preserves_id_states_:
+        # Either automatically detected of enforced in dict_preserves_id_states
+        self.dict_preserves_id_state_ = self._set_dict_preserves_id_state(X_dict)
+
+        if self.include_id_state and not self.dict_preserves_id_state_:
             # only attach original states if they are not preserved
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
@@ -1116,7 +1134,7 @@ class EDMD(
                 self.is_partial_fit_ = True
             self.dt_ = X.delta_time
             self._feature_names_pred = X.columns
-            self.dict_preserves_id_states_ = self._validate_dictionary()
+
 
         # '_fit' calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu):
@@ -1126,11 +1144,15 @@ class EDMD(
         X_dict = self._partial_fit(X, y, **fit_params)
 
         if initial_fit:
+            self.dict_preserves_id_state_ = self._validate_dictionary()
+
+
+        if initial_fit:
             self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 
-        if self.include_id_state and not self.dict_preserves_id_states_:
+        if self.include_id_state and not self.dict_preserves_id_state_:
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
-        elif not self.include_id_state and not not self.dict_preserves_id_states_:
+        elif not self.include_id_state and not not self.dict_preserves_id_state_:
             raise NotImplementedError(
                 "Currently, there is no implementation to partial_fit non-trivial update of "
                 "the modes. Either the dictionary must preserve the id states or "
@@ -1145,7 +1167,7 @@ class EDMD(
         ):  # TODO: avoid duplicated code with fit() here!
 
             if not self.use_transform_inverse:
-                self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict)
+                self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict, U=U)
 
             if self.dmd_model.is_spectral_mode:
                 self._koopman_modes = self._compute_koopman_modes(
@@ -1192,7 +1214,7 @@ class EDMD(
         for _, name, tsc_transform in self._iter(with_final=False):
             X_dict = tsc_transform.transform(X_dict)
 
-        if self.include_id_state and not self.dict_preserves_id_states_:
+        if self.include_id_state and not self.dict_preserves_id_state_:
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         return X_dict

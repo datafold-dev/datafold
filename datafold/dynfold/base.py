@@ -308,14 +308,6 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
                         f"Required: {should_features}."
                     )
 
-    def _more_tags(self):
-        """Add tag to scikit-learn tags to indicate whether the original states in `X` are
-        preserved during the transformation.
-
-        Defaults to False and can be overwritten by transformers.
-        """
-        return dict(tsc_contains_orig_states=False)
-
     def _same_type_X(
         self,
         X: TransformType,
@@ -544,7 +536,9 @@ class TSCPredictMixin(TSCBase):
                     if not req_last_control_state:
                         time_values = np.append(time_values, time_values[-1] + self.dt_)
 
-                    time_values = time_values[time_values >= reference]
+                    # the -1E-14 is needed to avoid that numerical noise removes the actual
+                    # reference point from the time values
+                    time_values = time_values[time_values >= reference-1E-14]
 
                     if time_values.size == 0:
                         raise ValueError(
@@ -580,7 +574,7 @@ class TSCPredictMixin(TSCBase):
                     req_time_values = U.time_values()
                     req_time_values = req_time_values[req_time_values >= reference]
 
-                    if not req_last_control_state:
+                    if req_last_control_state:
                         req_time_values = np.append(
                             req_time_values, req_time_values[-1] + self.dt_
                         )

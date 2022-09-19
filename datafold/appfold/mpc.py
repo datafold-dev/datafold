@@ -182,10 +182,10 @@ class LinearKMPC:
         self.state_bounds = state_bounds
 
         if isinstance(self.state_bounds, np.ndarray) and self.state_bounds.shape != (self.n_features, 2):
-            raise ValueError(f"state_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}")
+            raise ValueError(f"state_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.state_bounds.shape=}.")
 
         if isinstance(self.input_bounds, np.ndarray) and self.input_bounds.shape != (self.n_control_input, 2):
-            raise ValueError(f"input_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}")
+            raise ValueError(f"input_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.input_bounds.shape=}.")
 
         self.H, self.h, self.G, self.Y, self.L, self.M, self.c, self.lb, self.ub = self._setup_optimizer()
 
@@ -381,10 +381,23 @@ class LinearKMPC:
             In case of mis-shaped input
         """
 
+        # currently only the control of a single time series is supported
+        X.tsc.check_required_n_timeseries(1)
+        X.tsc.check_required_n_timesteps(self.edmd.n_samples_ic_)
+
         X_dict = self.edmd.transform(X)
 
+        if X_dict.shape[0] != 1:
+            raise ValueError(f"The transformed dictionary state must consist of a single sample only (i.e. X.shape[0] == 0). Got {X.shape[0]=}.")
+
+        t_ic = X_dict.time_values()[0]
+        t_ref = reference.time_values()[0]
+
+        if np.abs(t_ic + self.edmd.dt_ - t_ref) > 1E-14:
+            raise ValueError(f"The reference time value of the initial state is at time {t_ic=}. The reference must start one time step in the future at t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead.")
+
         if reference.shape != (self.horizon, self.output_size):
-            raise ValueError(f"reference time series must have {self.horizon=} rows and {self.output_size=} feature columns.")
+            raise ValueError(f"Reference time series must have shape ({self.horizon=}, {self.output_size=}). Got {reference.shape=} instead.")
 
         np_reference = reference.to_numpy()
         np_reference = np_reference.reshape((self.horizon * self.output_size, 1))
@@ -399,7 +412,7 @@ class LinearKMPC:
             lb=self.lb,
             ub=self.ub,
             solver="cvxpy",
-            verbose=False,
+            verbose=True,
             initvals=None,
         )
 
@@ -408,7 +421,11 @@ class LinearKMPC:
 
         # y = self.Cb @ X_dict # TODO: comment from source % Should be y - yr, but yr adds just a constant term
 
-        U = TSCDataFrame.from_array(U.reshape((self.horizon, self.n_control_input)), time_values=reference.time_values(), feature_names=self.edmd.control_names_in_)
+
+        # the actual control input is acting from previous state to get to the future reference state (by one step)
+        # therefore, the delta time is subtracted
+        control_time_values = reference.time_values() - self.edmd.dt_
+        U = TSCDataFrame.from_array(U.reshape((self.horizon, self.n_control_input)), time_values=control_time_values, feature_names=self.edmd.control_names_in_)
         return U
 
     # def compute_cost(self, U, reference, initial_conditions):

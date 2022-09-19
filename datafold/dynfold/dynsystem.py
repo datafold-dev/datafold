@@ -478,10 +478,10 @@ class LinearDynamicalSystem(object):
             )
 
         req_last_control_state = getattr(self, "_requires_last_control_state", False)
-        req_control_input = control_input.shape[1] + int(not req_last_control_state)
+        req_control_input = control_input.shape[1] + int(req_last_control_state)
 
         if req_control_input != n_time_values:
-            raise ValueError(f"{req_control_input=} does not match (={n_time_values})")
+            raise ValueError(f"{req_control_input=} does not match number of time values {n_time_values=}")
 
         if control_input.shape[2] != self.control_matrix_.shape[-1]:
             raise ValueError(

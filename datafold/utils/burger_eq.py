@@ -266,7 +266,7 @@ _id = ("_id", TSCIdentity(include_const=True))
 
 # _reorder = ("reorder", ReorderColumns())
 
-edmd = EDMD([l2norm, tde, _id], dmd_model=DMDControl(), include_id_state=False)
+edmd = EDMD([l2norm, tde, _id], dmd_model=DMDControl(), include_id_state=False, dict_preserves_id_state=True)
 
 # import tempfile
 # from sklearn.utils import estimator_html_repr
@@ -281,7 +281,7 @@ edmd = EDMD([l2norm, tde, _id], dmd_model=DMDControl(), include_id_state=False)
 # The last sample is not required (as there is no prediction from the last state)
 # U_tsc = U_tsc.tsc.drop_last_n_samples(1)
 
-edmd.fit(X_tsc_reduced, U=U_tsc, dict_preserves_id_states=True)
+edmd.fit(X_tsc_reduced, U=U_tsc)
 
 X_dict = edmd.transform(X_tsc_reduced.head(10))
 

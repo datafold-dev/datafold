@@ -204,9 +204,6 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         self.include_const = include_const
         self.rename_features = rename_features
 
-    def _more_tags(self):
-        return dict(tsc_contains_orig_states=not self.rename_features)
-
     def get_feature_names_out(self, input_features=None):
 
         if input_features is None and hasattr(self, "feature_names_in_"):
@@ -521,9 +518,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         self.delays = delays
         self.frequency = frequency
         self.kappa = kappa
-
-    def _more_tags(self):
-        return dict(tsc_contains_orig_states=True)
 
     def _validate_parameter(self):
 
@@ -1118,9 +1112,6 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
             return powers
         else:
             return powers[powers.sum(axis=1) != 1, :]
-
-    def _more_tags(self):
-        return dict(tsc_contains_orig_states=self.include_first_order)
 
     def _get_poly_feature_names(self, X, input_features=None):
         # Note: get_feature_names function is already provided by super class

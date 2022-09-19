@@ -493,9 +493,7 @@ class InvertedPendulum(ControllableODE):
         self.cart_friction = cart_friction
 
         super(InvertedPendulum, self).__init__(
-            n_features_in=4,
             feature_names_in=["x", "xdot", "theta", "thetadot"],
-            n_control_in=1,
             control_names_in=["u"],
         )
 

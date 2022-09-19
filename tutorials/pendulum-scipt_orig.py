@@ -13,6 +13,7 @@ from datafold import (
     TSCRadialBasis,
     TSCTransformerMixin,
 )
+from tqdm import tqdm
 from datafold.appfold.mpc import LinearKMPC
 from datafold.utils._systems import InvertedPendulum
 
@@ -31,19 +32,19 @@ invertedPendulum = InvertedPendulum(pendulum_mass=1)
 
 def generate_data(n_timeseries, ics):
     X_tsc, U_tsc = [], []  # lists to collect sampled time series
-    for ic in range(ics.shape[0]):
+    for ic in tqdm(range(ics.shape[0])):
         for i in range(n_timeseries):
-            # control_fraction = 1
-            # control_amplitude = rng.uniform(0.1, 1)
-            # control_frequency = rng.uniform(np.pi / 2, 2 * np.pi)
-            # control_phase = rng.uniform(0, 2 * np.pi)
-            # Ufunc = lambda t, y: control_fraction * (
-            #     control_amplitude * np.sin(control_frequency * t + control_phase)
-            # )
+            control_fraction = 1
+            control_amplitude = rng.uniform(0.1, 1)
+            control_frequency = rng.uniform(np.pi / 2, 2 * np.pi)
+            control_phase = rng.uniform(0, 2 * np.pi)
+            Ufunc = lambda t, y: control_fraction * (
+                control_amplitude * np.sin(control_frequency * t + control_phase)
+            )
 
             # vals = rng.uniform(-1, 1, size=(len(time_values)))
-            vals = rng.normal(0, 1, size=(len(time_values)))
-            Ufunc = lambda t, y: np.interp(t, time_values, vals)
+            # vals = rng.normal(0, 1, size=(len(time_values)))
+            # Ufunc = lambda t, y: np.interp(t, time_values, vals)
 
             # X are the states and U is the control input acting on the state's evolution
             X, U = invertedPendulum.predict(
@@ -166,7 +167,7 @@ rbf = (
     ),
 )
 
-delays = 10
+delays = 20
 delay = ("delay", TSCTakensEmbedding(delays=delays))
 transform_U = TSCIdentity()
 
@@ -245,33 +246,32 @@ plt.legend()
 # anim4 = InvertedPendulum().animate(rbfprediction, U_last)
 
 
-horizon = 200  # in time steps
+horizon = 20  # in time steps
 
 kmpc = LinearKMPC(
-    predictor=edmd,
+    edmd=edmd,
     horizon=horizon,
-    state_bounds=np.array([[-5, 5], [0, 6.28]]),
-    input_bounds=np.array([[-99, 99]]),
+    state_bounds=None, # np.array([[-5, 5], [0, 6.28]]),
+    input_bounds=None, # np.array([[-99, 99]]),
     qois=["x", "theta"],
-    cost_running=np.array([0.01, 200]),
-    cost_terminal=100,
-    cost_input=10,
+    cost_running=1, #np.array([0.01, 100]),
+    cost_terminal=1,
+    cost_input=0.1,
 )
 
-
 reference = X_oos[["x", "theta"]].iloc[
-    edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon
+    edmd.n_samples_ic_: edmd.n_samples_ic_ + horizon
 ]
 
-reference_no_control, _ = invertedPendulum.predict(X_oos.iloc[edmd.n_samples_ic_ - 1, :].to_numpy(), U=np.zeros((reference.shape[0], 1)), time_values=reference.time_values())
+reference_no_control, _ = invertedPendulum.predict(X_oos.iloc[edmd.n_samples_ic_ - 1, :].to_numpy(), U=np.zeros((reference.shape[0]-1, 1)), time_values=reference.time_values())
 
-reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon]
+reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ : edmd.n_samples_ic_ + horizon- 1]
 
 const_values = np.tile(np.array([0, np.pi]), (reference.shape[0], 1))
 reference = TSCDataFrame.from_same_indices_as(reference, values=const_values)
 
-ukmpc = kmpc.optimal_control_sequence(
-    X_oos.initial_states(edmd.n_samples_ic_), reference
+ukmpc = kmpc.control_sequence(
+    X=X_oos.initial_states(edmd.n_samples_ic_), reference=reference
 )
 
 kmpcpred = edmd.predict(X_oos.initial_states(edmd.n_samples_ic_), U=ukmpc)
@@ -333,6 +333,5 @@ plt.plot(reference_u.time_values(), reference_u.to_numpy(), label="correct")
 plt.plot(reference_u.time_values()[:-1], ukmpc[:, 0], label="controller")
 plt.legend()
 
-plt.show()
-
 print("successful")
+plt.show()

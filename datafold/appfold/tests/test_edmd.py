@@ -512,7 +512,7 @@ class EDMDTest(unittest.TestCase):
 
         plt.show()
 
-    def test_preserve_id_states(self):
+    def test_include_id_states(self):
 
         edmd1 = EDMD(
             dict_steps=[
@@ -563,6 +563,64 @@ class EDMDTest(unittest.TestCase):
         self.assertTrue(_sin_column_is_in(actual2))
         self.assertTrue(_sin_column_is_in(actual3))
         self.assertTrue(_sin_column_is_in(actual4))
+
+    def test_dict_preserved_id_state(self):
+
+        edmd1 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=True)),
+            ],
+            include_id_state=False,
+            dict_preserves_id_state="infer"
+        )
+
+        edmd2 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=False)),
+            ],
+            include_id_state=True,  # has no effect
+            dict_preserves_id_state=True
+        )
+
+        edmd3 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=False)),
+            ],
+            include_id_state=False,
+            dict_preserves_id_state=True,
+        )
+
+        edmd4 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=True)),
+            ],
+            include_id_state=True,
+            dict_preserves_id_state=True,
+        )
+    
+
+        data = self.sine_wave_tsc
+
+        actual1 = edmd1.fit_transform(data)
+        actual2 = edmd2.fit_transform(data)
+        actual3 = edmd3.fit_transform(data)
+
+        with self.assertRaises(ValueError):
+            edmd4.fit_transform(data)
+
+        # for the first a linear regression is solved, for the others a projection onto the ID
+        # states is set up
+        self.assertIsInstance(edmd1._inverse_map, np.ndarray)
+        self.assertIsInstance(edmd2._inverse_map, scipy.sparse.csr_matrix)
+        self.assertIsInstance(edmd3._inverse_map, scipy.sparse.csr_matrix)
+
+        def _sin_column_is_in(sol):
+            return np.any(np.isin("sin", sol.columns))
+
+        self.assertFalse(_sin_column_is_in(actual1))
+        self.assertTrue(_sin_column_is_in(actual2))
+        self.assertTrue(_sin_column_is_in(actual3))
+
 
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd = EDMD(
