@@ -1320,6 +1320,7 @@ class TSCDataFrame(pd.DataFrame):
     def compute_distance_matrix(
         self, Y: Optional[Union["TSCDataFrame", np.ndarray]] = None, metric="euclidean"
     ) -> Union["TSCDataFrame", np.ndarray]:
+        # TODO: this needs to get removed
         """Compute distance matrix on time series collection.
 
         Internally calls :py:meth:`datafold.pcfold.distance.compute_distance_matrix`

@@ -498,6 +498,12 @@ class TSCPredictMixin(TSCBase):
         U: Optional[Union[TSCDataFrame, np.ndarray]],
     ):
 
+        # comparing time values in floating points is sometimes a bit tricky, because two
+        # effectively equal values have a tiny difference -- this parameter is used within
+        # this function as a tolerance value
+        _numerical_tol = 1E-14
+        _numerical_tol = 0
+
         if not hasattr(self, "dt_"):
             raise NotFittedError("The parameter 'dt_' is not set. Please report bug.")
 
@@ -528,7 +534,7 @@ class TSCPredictMixin(TSCBase):
 
                 if isinstance(U, Callable):
                     raise ValueError("If U` is a control input function (Callable), then the "
-                                     "parameter 'time_values' cannot be None")
+                                     f"parameter 'time_values' cannot be None. Got {time_values=}")
 
                 if isinstance(U, TSCDataFrame):
                     time_values = U.time_values()
@@ -538,7 +544,7 @@ class TSCPredictMixin(TSCBase):
 
                     # the -1E-14 is needed to avoid that numerical noise removes the actual
                     # reference point from the time values
-                    time_values = time_values[time_values >= reference-1E-14]
+                    time_values = time_values[time_values >= reference - _numerical_tol]
 
                     if time_values.size == 0:
                         raise ValueError(
@@ -550,7 +556,7 @@ class TSCPredictMixin(TSCBase):
                 else:
                     time_values = np.arange(
                         reference,
-                        -1E-14 + reference  # TODO: need to check...
+                        reference + _numerical_tol
                         + (U.shape[0] + int(not req_last_control_state))  # type: ignore
                         * self.dt_,
                         self.dt_,
@@ -572,16 +578,16 @@ class TSCPredictMixin(TSCBase):
                 elif isinstance(U, TSCDataFrame):
 
                     req_time_values = U.time_values()
-                    req_time_values = req_time_values[req_time_values >= reference]
+                    req_time_values = req_time_values[req_time_values >= reference - _numerical_tol]
 
-                    if req_last_control_state:
+                    if not req_last_control_state:
                         req_time_values = np.append(
                             req_time_values, req_time_values[-1] + self.dt_
                         )
 
                     if (
                         time_values.shape != req_time_values.shape
-                        or not (np.array(time_values - req_time_values) < 1e-14).all()
+                        or not (np.array(time_values - req_time_values) <= _numerical_tol).all()
                     ):
                         raise ValueError(
                             "The two parameters ('U' and 'time_values') provide mismatching "
@@ -596,14 +602,14 @@ class TSCPredictMixin(TSCBase):
                     )
 
             if isinstance(X, TSCDataFrame):
-                if (time_values < reference).any():
+                if (time_values < reference-_numerical_tol).any():
                     raise ValueError(
                         "The time values must not contain any value that is smaller than the "
                         f"time reference of the initial condition ({reference=})\n"
                         f"Invalid values found: {time_values[time_values < reference]=}"
                     )
 
-                if reference != time_values[0]:
+                if np.abs(reference - time_values[0]) > _numerical_tol:
                     time_values = np.append(reference, time_values)
 
         return time_values

@@ -393,8 +393,9 @@ class LinearKMPC:
         t_ic = X_dict.time_values()[0]
         t_ref = reference.time_values()[0]
 
-        if np.abs(t_ic + self.edmd.dt_ - t_ref) > 1E-14:
-            raise ValueError(f"The reference time value of the initial state is at time {t_ic=}. The reference must start one time step in the future at t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead.")
+        if not np.allclose(t_ic + self.edmd.dt_, t_ref, rtol=1e-11, atol=1e-15):
+            raise ValueError(f"The reference time value of the initial state is at time {t_ic=}. "
+                             f"The reference time series must start one time step in the future at t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead (diff={t_ic+self.edmd.dt_ - t_ref}).")
 
         if reference.shape != (self.horizon, self.output_size):
             raise ValueError(f"Reference time series must have shape ({self.horizon=}, {self.output_size=}). Got {reference.shape=} instead.")
@@ -412,19 +413,23 @@ class LinearKMPC:
             lb=self.lb,
             ub=self.ub,
             solver="cvxpy",
-            verbose=True,
+            verbose=False,
             initvals=None,
         )
 
         if U is None:
-            raise ValueError("the solver did not converge")
+            raise ValueError("The quadratic solver did not converge.")
 
         # y = self.Cb @ X_dict # TODO: comment from source % Should be y - yr, but yr adds just a constant term
 
+        # the actual control input is obtained from the previous state the reference time
+        # series, therefore the actual control sequence starts at the initial state (not the
+        # first time value in the reference time series
+        # Note: it is better to use start and np.arange to have the numerical *exact* time value
+        # than in X (reference.time_values() - edmd.dt_ often creates numerical noise)
+        start = X_dict.time_values()[0]
+        control_time_values = np.arange(start, start + self.horizon * self.edmd.dt_ - 1E-14, self.edmd.dt_)
 
-        # the actual control input is acting from previous state to get to the future reference state (by one step)
-        # therefore, the delta time is subtracted
-        control_time_values = reference.time_values() - self.edmd.dt_
         U = TSCDataFrame.from_array(U.reshape((self.horizon, self.n_control_input)), time_values=control_time_values, feature_names=self.edmd.control_names_in_)
         return U
 

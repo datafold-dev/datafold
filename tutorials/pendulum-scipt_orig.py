@@ -22,7 +22,7 @@ include_dmdcontrol = False
 # TODO: include state bounds of CART properly in KMPC (they are essentially ignored currently)
 
 # Data generation parameters
-training_size = 5
+training_size = 20
 time_values = np.arange(0, 10, 0.02)
 
 # specify a seed
@@ -67,7 +67,7 @@ def generate_data(n_timeseries, ics):
 
 # Sample from a single initial condition (but use randomly sampled control signals below)
 
-n_ics = 10
+n_ics = 3
 ics_train = np.zeros((n_ics, 4))
 
 for i in range(n_ics):
@@ -167,7 +167,7 @@ rbf = (
     ),
 )
 
-delays = 20
+delays = 5
 delay = ("delay", TSCTakensEmbedding(delays=delays))
 transform_U = TSCIdentity()
 
@@ -245,7 +245,6 @@ plt.legend()
 # anim3 = InvertedPendulum().animate(X_last, U_last)
 # anim4 = InvertedPendulum().animate(rbfprediction, U_last)
 
-
 horizon = 20  # in time steps
 
 kmpc = LinearKMPC(
@@ -254,7 +253,7 @@ kmpc = LinearKMPC(
     state_bounds=None, # np.array([[-5, 5], [0, 6.28]]),
     input_bounds=None, # np.array([[-99, 99]]),
     qois=["x", "theta"],
-    cost_running=1, #np.array([0.01, 100]),
+    cost_running=np.array([0.01, 1]),
     cost_terminal=1,
     cost_input=0.1,
 )
@@ -279,7 +278,7 @@ kmpcpred = edmd.predict(X_oos.initial_states(edmd.n_samples_ic_), U=ukmpc)
 kmpctraj, _ = invertedPendulum.predict(
     X=X_oos.initial_states(edmd.n_samples_ic_).to_numpy()[-1, :],
     U=ukmpc,
-    time_values=kmpcpred.time_values()[:horizon],
+    time_values=kmpcpred.time_values()[:horizon+1],
 )
 
 anim = invertedPendulum.animate(kmpcpred, None)
@@ -330,7 +329,7 @@ plt.legend()
 plt.subplot(133)
 plt.title(r"Comparison : Control Signal $u$")
 plt.plot(reference_u.time_values(), reference_u.to_numpy(), label="correct")
-plt.plot(reference_u.time_values()[:-1], ukmpc[:, 0], label="controller")
+plt.plot(ukmpc.time_values(), ukmpc.iloc[:, 0], label="controller")
 plt.legend()
 
 print("successful")
