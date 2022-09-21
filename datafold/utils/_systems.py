@@ -338,14 +338,17 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         # TODO: cast time_values only containing a float/int to np.array([value])
         #   then check for one_step_sim
 
-        if time_values is None:
-            self.dt_ = self._default_step_size
-        else:
+        if isinstance(U, TSCDataFrame) and U.shape[0] > 1:
+            U.tsc.check_const_time_delta()
+            self.dt_ = U.delta_time
+        elif time_values is not None:
             time_values = np.asarray(time_values)
             if len(time_values) < 2:
                 raise ValueError(f"Parameter time_values must include at least two elements. Got {len(time_values)=}")
 
             self.dt_ = time_values[1] - time_values[0]
+        else:
+            self.dt_ = self._default_step_size
 
         if not isinstance(U, Callable):
 
@@ -511,16 +514,15 @@ class InvertedPendulum(ControllableODE):
         f1 = xdot
 
         f2 = (
-            self.tension_force_gain * u
+            self.tension_force_gain
             + m * self.g * sin_th * cos_th
             - m * self.pendulum_length * thetadot**2 * sin_th
-            - 2 * self.cart_friction * xdot
-        ) / alpha
+            - 2 * self.cart_friction * xdot + u) / alpha
 
         f3 = thetadot
 
         f4 = (
-            self.tension_force_gain * u * cos_th
+            self.tension_force_gain * cos_th
             - m * self.pendulum_length * thetadot**2 * sin_th * cos_th
             + (M + m) * self.g * sin_th
             - 2 * self.cart_friction * xdot * cos_th
@@ -554,7 +556,7 @@ class InvertedPendulum(ControllableODE):
 
         return X.loc[:, self.feature_names_in_]
 
-    def animate(self, X: TSCDataFrame, U: TSCDataFrame):
+    def animate(self, X: TSCDataFrame, U: Optional[TSCDataFrame]=None):
         assert X.n_timeseries == 1
 
         import matplotlib.animation as animation
@@ -582,6 +584,7 @@ class InvertedPendulum(ControllableODE):
         (pendulum_unstable,) = ax.plot(
             [], [], lw=2, linestyle="--", color="red", label="unstable location"
         )
+        control_arrow = ax.arrow([], [], [], [], label="force")
         plt.legend()
 
         def init():
@@ -593,10 +596,14 @@ class InvertedPendulum(ControllableODE):
             point.set_data(*mounting.T)
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
 
+            if U is not None:
+                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[0, 0]), dy=0)
+
             return (
                 line,
                 point,
                 pendulum_unstable,
+                control_arrow,
             )
 
         def _animate(i):
@@ -607,10 +614,194 @@ class InvertedPendulum(ControllableODE):
             line.set_data(*np.row_stack([mounting, pendulum]).T)
             point.set_data(*mounting.T)
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
+
+            if U is not None:
+                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[i, 0]), dy=0)
+
             return (
                 line,
                 point,
                 pendulum_unstable,
+                control_arrow,
+            )
+
+        anim = animation.FuncAnimation(
+            fig, _animate, init_func=init, frames=X.shape[0], interval=20, blit=True
+        )
+        return anim
+
+
+
+class InvertedPendulum2(ControllableODE):
+    """An inverted pendulum on a cart controlled by an electric motor.
+
+    The system is parametrized with the voltage of the electric motor. The states include
+    four observations: 1) position, 2) velocity, 3) angle from horizon and 4) angular velocity.
+
+    Parameters
+    ----------
+    pendulum_mass: float
+        Mass of pendulum, defaults to 0.0905 kg
+
+    cart_mass: float
+        Mass of the cart, defaults to 1.12 kg
+
+    g: float
+        Gravitational acceleration, defaults to 9.81 m/s^2
+
+    tension_force_gain: float
+        Conversion between electric motor input voltage in V and tension
+        force in N, defaults to 7.5 N/V
+
+    pendulum_length: float
+        Length of the pendulum, defaults to 0.365 m
+
+    cart_friction: float
+        Dynamic damping coefficient on the cart, defaults to 6.65 kg/s
+
+    """
+
+    def __init__(
+        self,
+        pendulum_mass=0.0905,  # kg
+        cart_mass=1.12,  # kg
+        tension_force_gain=7.5,  # N/V
+        pendulum_length=0.365,  # m
+        cart_friction=6.65,  # kg/s
+    ):
+        self.pendulum_mass = pendulum_mass
+        self.cart_mass = cart_mass
+        self.g = 9.81  # m/s^2
+        self.b = 0.1
+        self.tension_force_gain = tension_force_gain
+        self.pendulum_length = pendulum_length
+        self.cart_friction = cart_friction
+        self.l=0.3
+
+        super(InvertedPendulum2, self).__init__(
+            feature_names_in=["x", "xdot", "theta", "thetadot"],
+            control_names_in=["u"],
+        )
+
+    def _f(self, t, y, u):
+        _, xdot, theta, thetadot = y
+
+        M = 0.5
+        m = 0.2
+        b = 0.1
+        ftheta = 0.1
+        l = 0.3
+        g = 9.81
+
+        F = u
+        v = y[1]
+        theta = y[2]
+        omega = y[3]
+        der = np.zeros(4)
+        der[0] = v
+        der[1] = (m * l * np.sin(theta) * omega ** 2 - m * g * np.sin(theta) * np.cos(
+            theta) + m * ftheta * np.cos(theta) * omega + F - b * v) / (
+                             M + m * (1 - np.cos(theta) ** 2))
+        der[2] = omega
+        der[3] = ((M + m) * (g * np.sin(theta) - ftheta * omega) - m * l * omega ** 2 * np.sin(
+            theta) * np.cos(theta) - (F - b * v) * np.cos(theta)) / (
+                             l * (M + m * (1 - np.cos(theta) ** 2)))
+        return der
+
+
+    def theta_to_trigonometric(self, X):
+        theta = X["theta"].to_numpy()
+        trig_values = np.column_stack([np.cos(theta), np.sin(theta)])
+        X = X.drop("theta", axis=1)
+        X[["theta_cos", "theta_sin"]] = trig_values
+
+        thetadot = X["thetadot"].to_numpy()
+        trig_values = np.column_stack([np.cos(thetadot), np.sin(thetadot)])
+        X = X.drop("thetadot", axis=1)
+        X[["thetadot_cos", "thetadot_sin"]] = trig_values
+
+        return X
+
+    def trigonometric_to_theta(self, X):
+        trig_values = X[["theta_sin", "theta_cos"]].to_numpy()
+        theta = np.arctan2(trig_values[:, 0], trig_values[:, 1])
+        X = X.drop(["theta_sin", "theta_cos"], axis=1)
+        X["theta"] = theta
+
+        trig_values = X[["thetadot_sin", "thetadot_cos"]].to_numpy()
+        thetadot = np.arctan2(trig_values[:, 0], trig_values[:, 1])
+        X = X.drop(["thetadot_sin", "thetadot_cos"], axis=1)
+        X["thetadot"] = thetadot
+
+        return X.loc[:, self.feature_names_in_]
+
+    def animate(self, X: TSCDataFrame, *, U: Optional[TSCDataFrame]=None):
+        assert X.n_timeseries == 1
+
+        import matplotlib.animation as animation
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure()
+
+        min_x, max_x = X.iloc[:, 0].min(), X.iloc[:, 0].max()
+
+        ax = plt.axes(
+            xlim=(min_x - self.pendulum_length, max_x + self.pendulum_length),
+            ylim=(-self.pendulum_length * 1.05, self.pendulum_length * 1.05),
+        )
+
+        def pendulum_pos(x_pos, theta):
+            _cos, _sin = np.cos(theta + np.pi / 2), np.sin(theta + np.pi / 2)
+            pos = np.array([_cos, _sin]) * self.pendulum_length
+            pos[0] = pos[0] + x_pos
+            return pos
+
+        ax.set_aspect("equal")
+        ax.plot()
+        (line,) = ax.plot([], [], lw=2, label="pendulum")
+        (point,) = ax.plot([], [], marker="o", lw=2, label="mounting")
+        (pendulum_unstable,) = ax.plot(
+            [], [], lw=2, linestyle="--", color="red", label="unstable location"
+        )
+        control_arrow = ax.arrow([], [], [], [], label="force")
+        plt.legend()
+
+        def init():
+            mounting = np.array([float(X.iloc[0, 0]), 0])
+            pendulum = pendulum_pos(float(X.iloc[0, 0]), float(X.iloc[0].loc["theta"]))
+            unstable = pendulum_pos(mounting[0], 0)
+
+            line.set_data(*np.row_stack([mounting, pendulum]).T)
+            point.set_data(*mounting.T)
+            pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
+
+            if U is not None:
+                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[0, 0]), dy=0)
+
+            return (
+                line,
+                point,
+                pendulum_unstable,
+                control_arrow,
+            )
+
+        def _animate(i):
+            mounting = np.array([float(X.iloc[i, 0]), 0])
+            pendulum = pendulum_pos(float(X.iloc[i, 0]), float(X.iloc[i].loc["theta"]))
+            unstable = pendulum_pos(mounting[0], 0)
+
+            line.set_data(*np.row_stack([mounting, pendulum]).T)
+            point.set_data(*mounting.T)
+            pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
+
+            if U is not None:
+                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[i, 0]), dy=0)
+
+            return (
+                line,
+                point,
+                pendulum_unstable,
+                control_arrow,
             )
 
         anim = animation.FuncAnimation(
@@ -755,6 +946,30 @@ class Burger1DPeriodicBoundary(ControllableODE):
 
         return ts
 
+
+class Motor(ControllableODE):
+
+    # %Model from ([1], Eq. (9))
+    # %   dx1 = -(Ra/La)*x(1) - (km/La)*x(2)*u + ua/La
+    # %   dx2   = -(B/J)*x(2) + (km/J)*x(1)*u - taul/J;
+    # %   y = x1
+    # % Parameters La = 0.314; Ra = 12.345; km = 0.253; J = 0.00441; B = 0.00732; taul = 1.47; ua = 60;
+    # % Constraints (scaled to [-1,1] in the final model)
+    # % x1min = -10; x1max = 10;
+    # % x2min = -100; x2max = 100;
+    # % umin = -4; umax = 4;
+    # % [1] S. Daniel-Berhe and H. Unbehauen. Experimental physical parameter
+    # % estimation of a thyristor driven DC-motor using the HMF-method.
+    # % Control Engineering Practice, 6:615?626, 1998.
+
+    def __init__(self):
+        super(Motor, self).__init__(feature_names_in=["x1", "x2"], control_names_in=["u"], method="RK23")
+
+    def _f(self, t, y, u):
+        dy = np.zeros_like(y)
+        dy[0] = 19.10828025 - 39.3153 * y[0, :] - 32.2293 * y[1, :] * u
+        dy[1] = -3.333333333 - 1.6599 * y[1, :] + 22.9478 * y[0, :] * u
+        return dy
 
 class VanDerPol(ControllableODE):
 

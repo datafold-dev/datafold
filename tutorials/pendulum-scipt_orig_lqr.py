@@ -14,7 +14,7 @@ from datafold import (
     TSCTransformerMixin,
 )
 from tqdm import tqdm
-from datafold.appfold.mpc import LinearKMPC
+from datafold.appfold.mpc import LinearKMPC, LQR
 from datafold.utils._systems import InvertedPendulum, InvertedPendulum2
 
 include_dmdcontrol = False
@@ -34,17 +34,17 @@ def generate_data(n_timeseries, ics):
     X_tsc, U_tsc = [], []  # lists to collect sampled time series
     for ic in tqdm(range(ics.shape[0])):
         for i in range(n_timeseries):
-            # control_fraction = 1
-            # control_amplitude = rng.uniform(0.1, 1)
-            # control_frequency = rng.uniform(np.pi / 2, 2 * np.pi)
-            # control_phase = rng.uniform(0, 2 * np.pi)
-            # Ufunc = lambda t, y: control_fraction * (
-            #     control_amplitude * np.sin(control_frequency * t + control_phase)
-            # )
+            control_fraction = 1
+            control_amplitude = rng.uniform(0.1, 1)
+            control_frequency = rng.uniform(np.pi / 2, 2 * np.pi)
+            control_phase = rng.uniform(0, 2 * np.pi)
+            Ufunc = lambda t, y: control_fraction * (
+                control_amplitude * np.sin(control_frequency * t + control_phase)
+            )
 
-            vals = rng.uniform(-1, 1, size=(len(time_values)))
-            vals = rng.normal(0, 1, size=(len(time_values)))
-            Ufunc = lambda t, y: np.interp(t, time_values, vals)
+            # vals = rng.uniform(-1, 1, size=(len(time_values)))
+            # vals = rng.normal(0, 1, size=(len(time_values)))
+            # Ufunc = lambda t, y: np.interp(t, time_values, vals)
 
             # X are the states and U is the control input acting on the state's evolution
             X, U = invertedPendulum.predict(
@@ -141,7 +141,7 @@ rbf = (
     ),
 )
 
-delays = 2
+delays = 25
 delay = ("delay", TSCTakensEmbedding(delays=delays))
 
 transform_U = TSCIdentity()
@@ -164,7 +164,7 @@ ldas_sindot = ("sin_dot", TSCApplyLambdas(lambdas=[lambda x: np.sin(x)]), ["thet
 _id_ = ("id", TSCIdentity(include_const=True), lambda df: df.columns)
 trigon = ("trigon", TSCColumnTransformer(transformers=[ldas_cos, ldas_sin, ldas_cosdot, ldas_sindot, _id_]))
 
-_dict = [delay, _id]
+_dict = [delay, rbf, _id]
 
 edmd = EDMD(dict_steps=_dict, dmd_model=DMDControl(), include_id_state=False)
 
@@ -219,18 +219,13 @@ plt.legend()
 # anim3 = InvertedPendulum().animate(X_last, U_last)
 # anim4 = InvertedPendulum().animate(rbfprediction, U_last)
 
-horizon = 20  # in time steps
+const_values = np.zeros((edmd.n_samples_ic_, edmd.n_features_in_))
+target_state = TSCDataFrame.from_array(const_values, time_values=np.arange(0, edmd.n_samples_ic_*edmd.dt_, edmd.dt_), feature_names=edmd.feature_names_in_)
 
-kmpc = LinearKMPC(
-    edmd=edmd,
-    horizon=horizon,
-    state_bounds=None,
-    input_bounds=np.array([[-0.1, 0.1]]),
-    qois=["x", "theta"],
-    cost_running=np.array([0.3, 1.0]),
-    cost_terminal=np.array([0.3, 1.0]),
-    cost_input=0,
-)
+horizon = 20
+
+kmpc = LQR(edmd=edmd, cost_running=1, cost_input=0.01)
+kmpc.preset_target_state(target_state=target_state)
 
 X_ic = np.array([0, 0, rng.uniform(-0.1, 0.1), 0])  # TODO: make IC sampling function
 n_mpc_steps = 100
@@ -249,7 +244,6 @@ if edmd.n_samples_ic_ > 1:
     X_warm_up, _ = invertedPendulum.predict(X_ic, U=U.iloc[0:edmd.n_samples_ic_ - 1, :])
     X_controlled.loc[X_warm_up.index] = X_warm_up
 
-const_values = np.zeros((kmpc.horizon, kmpc.n_qois))
 
 for i in tqdm(range(edmd.n_samples_ic_-1, n_mpc_steps)):
     time_values_horizon = time_values_mpc[i+1:i+horizon+1]
@@ -257,13 +251,12 @@ for i in tqdm(range(edmd.n_samples_ic_-1, n_mpc_steps)):
     if len(time_values_horizon) < horizon:
         break
 
-    reference = TSCDataFrame.from_single_timeseries(pd.DataFrame(const_values, index=time_values_horizon, columns=kmpc.qois))
-
     ukmpc = kmpc.control_sequence(
-        X=X_controlled.iloc[i-edmd.n_samples_ic_+1:i+1, :], reference=reference
+        X=X_controlled.iloc[i-edmd.n_samples_ic_+1:i+1, :]
     )
 
     control_action = ukmpc.iloc[[0], :]
+    print(control_action)
     t_now, t_next = time_values_mpc[i:i + 2]
 
     U.loc[control_action.index] = control_action

@@ -339,12 +339,12 @@ class TSCDataFrame(pd.DataFrame):
         columns: Optional[Union[pd.Index, list]] = None,
         time_values: Optional[np.ndarray] = None,
     ) -> "TSCDataFrame":
-        """Create a ``TSCDataFrame`` from a three dimensional tensor.
+        """Create a ``TSCDataFrame`` from a three-dimensional tensor.
 
         Parameters
         ----------
         tensor
-            The time series data of shape `(n_timeseries, n_timesteps, n_feature,)`.
+            The time series data of shape `(n_timeseries, n_timesteps, n_feature)`.
 
         time_series_ids
             The IDs of shape `(n_timeseries,)` to assign for the respective time
@@ -941,7 +941,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def _validate_data(self) -> None:
         if not _is_numeric_dtype(self):
-            raise AttributeError("All feature columns must have a numeric dtype")
+            raise AttributeError(f"All data types must be numeric. Got {self.dtypes=}")
 
     def _validate(self) -> bool:
         if self.is_validate:

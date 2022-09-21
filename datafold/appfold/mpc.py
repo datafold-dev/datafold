@@ -171,9 +171,9 @@ class LinearKMPC:
         self.qois = qois
 
         if self.qois is None:
-            self.output_size = edmd.dmd_model.n_features_in_
+            self.n_qois = edmd.dmd_model.n_features_in_
         else:
-            self.output_size = len(qois)
+            self.n_qois = len(qois)
 
         self.n_features = self.edmd.dmd_model.n_features_in_
         self.n_control_input = self.edmd.dmd_model.n_control_in_
@@ -212,8 +212,8 @@ class LinearKMPC:
         A = self.edmd.dmd_model.sys_matrix_
         B = self.edmd.dmd_model.control_matrix_
 
-        Ab = np.zeros((self.horizon * self.output_size, self.n_features))
-        Bb = np.zeros((self.horizon * self.output_size, self.horizon * self.n_control_input))
+        Ab = np.zeros((self.horizon * self.n_qois, self.n_features))
+        Bb = np.zeros((self.horizon * self.n_qois, self.horizon * self.n_control_input))
 
         is_project_coordinates = self.qois is not None
 
@@ -227,8 +227,8 @@ class LinearKMPC:
 
         # set up Ab
         for i in range(self.horizon):
-            s = i * self.output_size # start index
-            e = (i + 1) * self.output_size  # end index
+            s = i * self.n_qois # start index
+            e = (i + 1) * self.n_qois  # end index
 
             if is_project_coordinates:
                 Ab[s:e, :] = Cb @ A_last
@@ -248,8 +248,8 @@ class LinearKMPC:
 
             # Copy along diagonal blocks of matrix
             for k, j in enumerate(range(i, self.horizon)):
-                sr = j * self.output_size  # start row
-                er = (j + 1) * self.output_size  # end row
+                sr = j * self.n_qois  # start row
+                er = (j + 1) * self.n_qois  # end row
                 sc = k * self.n_control_input  # start columns
                 ec = (k+1) * self.n_control_input  # end column
                 Bb[sr:er, sc:ec] = _B_tmp
@@ -267,17 +267,17 @@ class LinearKMPC:
 
         # optimization - linear
         # TODO: q and r are always zero -- either remove completely or need a user parameter
-        q = np.zeros((self.output_size * self.horizon, 1))
+        q = np.zeros((self.n_qois * self.horizon, 1))
 
         # optimization - quadratic diagonal matrix
         # quadratic matrix for state cost and terminal cost
-        vec_running = _cost_to_array(self.cost_running, self.output_size)
+        vec_running = _cost_to_array(self.cost_running, self.n_qois)
 
-        if self.cost_terminal == 0 or self.cost_terminal is None:
+        if (self.cost_terminal == 0).all() or self.cost_terminal is None:
             # add the running cost for the last iteration...
-            vec_terminal = _cost_to_array(self.cost_running, self.output_size)
+            vec_terminal = _cost_to_array(self.cost_running, self.n_qois)
         else:
-            vec_terminal = _cost_to_array(self.cost_terminal, self.output_size)
+            vec_terminal = _cost_to_array(self.cost_terminal, self.n_qois)
 
         diag = np.hstack([np.tile(vec_running, self.horizon-1), vec_terminal])
         Qb = scipy.sparse.spdiags(diag, 0, diag.size, diag.size)
@@ -397,11 +397,11 @@ class LinearKMPC:
             raise ValueError(f"The reference time value of the initial state is at time {t_ic=}. "
                              f"The reference time series must start one time step in the future at t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead (diff={t_ic+self.edmd.dt_ - t_ref}).")
 
-        if reference.shape != (self.horizon, self.output_size):
-            raise ValueError(f"Reference time series must have shape ({self.horizon=}, {self.output_size=}). Got {reference.shape=} instead.")
+        if reference.shape != (self.horizon, self.n_qois):
+            raise ValueError(f"Reference time series must have shape ({self.horizon=}, {self.n_qois=}). Got {reference.shape=} instead.")
 
         np_reference = reference.to_numpy()
-        np_reference = np_reference.reshape((self.horizon * self.output_size, 1))
+        np_reference = np_reference.reshape((self.horizon * self.n_qois, 1))
 
         U = solve_qp(
             P=self.H,
@@ -477,6 +477,7 @@ class LQR(object):
 
     def preset_target_state(self, target_state: TSCDataFrame):
         self._preset_target_state = self.edmd.transform(target_state)
+        return self
 
     def _setup_optimizer(self):
 
