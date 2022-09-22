@@ -993,6 +993,23 @@ class InverseQuadraticKernel(RadialBasisKernel):
         )
 
 
+class Thinplate(RadialBasisKernel):
+    r"""Thinplate radial basis kernel
+    
+    
+    """
+    def __init__(self, distance=None):
+        super(Thinplate, self).__init__(required_metric="euclidean", distance=distance)
+    
+    def eval(
+        self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
+    ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
+
+        kernel_matrix = _apply_kernel_function_numexpr(distance_matrix, expr="D**2 * log(D)")
+        kernel_matrix[np.isnan(kernel_matrix)] = 0
+        return kernel_matrix
+
+
 class CubicKernel(RadialBasisKernel):
     r"""Cubic radial basis kernel.
 

@@ -61,6 +61,7 @@ class TSCAccessor(object):
         ensure_min_timesteps: Optional[int] = None,
         ensure_n_timesteps: Optional[int] = None,
         ensure_no_degenerate_ts: bool = True,
+        ensure_dtype_time = None
     ) -> TSCDataFrame:
         """Validate time series properties.
 
@@ -104,6 +105,9 @@ class TSCAccessor(object):
             If True, make sure that no degenerate (single sampled) time series are
             present.
 
+        ensure_dtype_time
+            Check the data type of the time index.
+
         Returns
         -------
         TSCDataFrame
@@ -142,6 +146,9 @@ class TSCAccessor(object):
 
         if ensure_no_degenerate_ts:
             self.check_no_degenerate_ts()
+
+        if ensure_dtype_time is not None:
+            self.check_dtype_time(ensure_dtype_time)
 
         return self._tsc_df
 
@@ -266,6 +273,11 @@ class TSCAccessor(object):
     def check_no_degenerate_ts(self):
         if self._tsc_df.has_degenerate():
             raise TSCException.has_degenerate_ts()
+
+    def check_dtype_time(self, dtype):
+        _is = self._tsc_df.index.get_level_values(TSCDataFrame.tsc_time_idx_name).dtype
+        if _is != dtype:
+            raise TSCException.has_wrong_time_dtype(got=_is, expected=dtype)
 
     def check_non_overlapping_timeseries(self) -> None:
         """Check if all time series have disjoint time values (do not overlap).

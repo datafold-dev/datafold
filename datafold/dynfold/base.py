@@ -200,6 +200,9 @@ class TSCBase(object):
                 ensure_no_degenerate_ts=tsc_kwargs.pop(
                     "ensure_no_degenerate_ts", False
                 ),
+                ensure_dtype_time=tsc_kwargs.pop(
+                    "ensure_dtype_time", None
+                ),
             )
 
         if array_kwargs or tsc_kwargs:
@@ -470,7 +473,7 @@ class TSCPredictMixin(TSCBase):
 
             raise ValueError(
                 f"For each system state {msg}in `X`, there must be a matching "
-                "control input in `U` (i.e. corresponding ID and time value). "
+                "control input in `U` (i.e. corresponding ID and time value)."
             )
 
         self.dt_ = X.delta_time

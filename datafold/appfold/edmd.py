@@ -627,14 +627,18 @@ class EDMD(
         X = X.loc[X_dict.index, :]
         try:
             X = pd.concat([X, X_dict], axis=1)
-        except AttributeError:
+        except AttributeError as e:
             all_columns = X_dict.columns.append(X.columns)
             duplicates = all_columns[all_columns.duplicated()]
-            raise ValueError(
-                "The ID state could not be attached, because the columns\n"
-                f"{duplicates}\n"
-                f"are also present in the dictionary."
-            )
+
+            if len(duplicates) > 0:
+                raise ValueError(
+                    "The ID state could not be attached, because the columns\n"
+                    f"{duplicates}\n"
+                    f"are also present in the dictionary."
+                ) from e
+            else:
+                raise e
 
         return X
 

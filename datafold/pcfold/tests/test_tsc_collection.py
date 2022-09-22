@@ -820,6 +820,37 @@ class TestTSCDataFrame(unittest.TestCase):
         # expected to return single nan
         self.assertTrue(np.isnan(actual))
 
+    def test_time_delta03(self):
+        # there is a special (faster) routine to take the delta_time for n_timesteps==2
+        X_left = np.reshape(np.arange(100), (10, 10))
+        X_right = np.reshape(np.arange(100, 200), (10, 10))
+
+        X_tsc = TSCDataFrame.from_shift_matrices(X_left, X_right, snapshot_orientation="col")
+
+        self.assertEqual(X_tsc.delta_time, 1)
+
+    def test_time_delta04(self):
+        # there is a special (faster) routine to take the delta_time for
+        # isinstance(n_timesteps, int)
+
+        idx = pd.MultiIndex.from_product([np.arange(10), np.arange(10)])
+        X_tsc = TSCDataFrame(np.reshape(np.arange(1000), (100,10)), index=idx)
+
+        self.assertEqual(X_tsc.delta_time, 1)
+
+    def test_time_delta05(self):
+        # there is a special (faster) routine to take the delta_time for
+        # isinstance(n_timesteps, int)
+
+        # uneven sampling in the second time series should lead to nan
+        idx = pd.MultiIndex.from_arrays([np.array([0,0,0,1,1,1]), np.array([1,2,3, 1, 5, 99])])
+        X_tsc = TSCDataFrame(np.reshape(np.arange(12), (6,2)), index=idx)
+
+        actual = X_tsc.delta_time
+        self.assertIsInstance(actual, pd.Series)
+        self.assertEqual(actual.iloc[0], 1)
+        self.assertTrue(np.isnan(actual.iloc[1]))
+
     def test_time_array(self):
         actual = TSCDataFrame(self.simple_df).time_values()
         expected = self.simple_df.index.levels[1].to_numpy()
@@ -1271,34 +1302,57 @@ class TestTSCDataFrame(unittest.TestCase):
         # The problem is that np.linspace(...) is often not equally spaced numerically
         # this function tests the tolerances set in the delta_time attribute.
 
-        for n_samples in [10, 1000, 2000, 3000, 3300, 3400, 3500, 10000, 10000]:
+        for n_samples in [10, 1000, 2000, 3000, 3300, 3400, 3500, 10000]:
             for stop in [0.01, 0.1, 10, 40, 50, 100, 1000, 10000, 100000000000]:
-
-                # n_samples = 1000
-                # stop = 10000
+                # n_samples = 10000
+                # stop = 10
 
                 time_values, delta = np.linspace(0, stop, n_samples, retstep=True)
 
-                tsc = TSCDataFrame(
+                tsc_single = TSCDataFrame(
                     np.random.rand(time_values.shape[0], 2),
                     index=pd.MultiIndex.from_product([[0], time_values]),
                 )
 
-                actual_delta = tsc.delta_time
+                idx_two = pd.MultiIndex.from_arrays([np.append(np.zeros(5), np.ones(n_samples-5)), time_values])
+                tsc_two = TSCDataFrame(
+                    np.random.rand(time_values.shape[0], 2),
+                    index=idx_two,
+                )
 
-                # print(n_samples)
-                # print(stop)
-                isinstance(actual_delta, float)
-                self.assertFalse(np.isnan(tsc.delta_time))
+                actual_delta_single = tsc_single.delta_time
+                actual_delta_two = tsc_two.delta_time
+
+                isinstance(actual_delta_single, float)
+                isinstance(actual_delta_two, float)
+
+                # print(f"{n_samples=} {stop=}")
+                self.assertFalse(np.isnan(actual_delta_single))
+                self.assertFalse(np.isnan(actual_delta_two))
 
                 # Check that when increasing the distance in one sample minimally,
                 # then the delta_time is not constant anymore
                 time_values[-1] = time_values[-1] + delta * 1e-9
-                tsc = TSCDataFrame(
+                tsc_single = TSCDataFrame(
                     np.random.rand(time_values.shape[0], 2),
                     index=pd.MultiIndex.from_product([[0], time_values]),
                 )
-                self.assertTrue(np.isnan(tsc.delta_time))
+
+                idx_two = pd.MultiIndex.from_arrays(
+                    [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values])
+                tsc_two = TSCDataFrame(
+                    np.random.rand(time_values.shape[0], 2),
+                    index=idx_two,
+                )
+
+                actual_delta_single = tsc_single.delta_time
+                self.assertTrue(np.isnan(actual_delta_single))
+
+                actual_delta_two = tsc_two.delta_time
+                self.assertIsInstance(actual_delta_two, pd.Series)
+                self.assertTrue(tsc_two.delta_time.iloc[0] - delta < 1E-15)
+                self.assertTrue(np.isnan(tsc_two.delta_time.iloc[1]))
+
 
     def test_build_from_single_timeseries(self):
         df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0, -1), columns=["A"])

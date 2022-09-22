@@ -107,8 +107,8 @@ class TSCException(Exception):
         )
 
     @classmethod
-    def no_kernel(cls):
-        return cls("No kernel is set.")
+    def has_wrong_time_dtype(cls, got, expected):
+        return cls(f"The time index has a wrong dtype={got}. Expected dtype={expected}")
 
 
 def _is_numeric_dtype(obj):
@@ -975,19 +975,26 @@ class TSCDataFrame(pd.DataFrame):
     def delta_time(self) -> Union[pd.Series, float]:
         """Time sampling frequency.
 
-        Collects for each time series the time delta. Irregular frequencies are marked
-        with `nan`. If all time series are consistent (i.e., all have same time delta,
-        including `nan`), then a single float is returned.
+        Collects for each time series the time delta. Unevenly spaced time series have a delta
+        of marked `nan`. If all time series in the collection have the same time delta
+        (including `nan`), then a single value is returned.
+
+        .. warning::
+            If the time value dtype is float, numerical discrepancies in floating point
+            operations can potentially lead to unintended results. While there are careful
+            adjused tolerances set in the function, it is always safer to use integer types in
+            the time values.
 
         Returns
         -------
+        pd.Series, int, float, np.timedelata64
+            single value if the time spacing is identical across all time series, else a
+            pd.Series with the sampling rate for each time series.
         """
 
         _index_name_series = "delta_time"
 
         if self.is_datetime_index():
-            # TODO: are there ways to better deal with timedeltas?
-            #  E.g. could cast internally to float64
             # NaT = Not a Time (cmp. to NaN)
             dt_result_series = pd.Series(
                 np.timedelta64("NaT"), index=self.ids, name=_index_name_series
@@ -1004,20 +1011,69 @@ class TSCDataFrame(pd.DataFrame):
         diff_times = np.diff(self.index.get_level_values(self.tsc_time_idx_name))
         id_indexer = self.index.get_level_values(self.tsc_id_idx_name)
 
-        for timeseries_id in self.ids:
-            _id_dt = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
-            _id_unique_dt = self.unique_delta_times(_id_dt)
+        n_timesteps = self.n_timesteps
 
-            if len(_id_unique_dt) == 1:
-                dt_result_series[timeseries_id] = _id_unique_dt[0]
+        # tolerances at which to consider two delta time vales the same:
+        # this is actually a tricky task to find well-suited tolernaces. The
+        # rtol=5e-12
+        # atol=1e-16
+        # are tested in a wider range of time values however it still may failure for cases
+        # (even if time values are generated with np.linspace)
+        # TODO: this actually calls for a feature in TSCDataFrame to set a global time delta
+        #  and internally work with intergers (which makes everyhting here much easier!)
+        rtol=5e-12
+        atol=1e-16
+
+        from pandas.api.types import is_timedelta64_dtype
+
+        if isinstance(n_timesteps, int):
+            n_timeseries = self.n_timeseries
+
+            # faster evaluation if all time series have the same number of time steps
+            idx_mask = np.ones(n_timesteps, dtype=bool)
+            idx_mask[-1] = 0
+
+            # the :-1 is here because in the np.diff above, there is no diff value for the last
+            diff_times = diff_times[np.tile(idx_mask, n_timeseries)[:-1]]
+            diff_times = np.reshape(diff_times, (n_timeseries, n_timesteps-1))
+
+            if diff_times.shape[1] == 1:
+                # special case when n_timesteps==2
+                dt_result_series[:] = diff_times.flatten()
+            else:
+                # need to check if all values are the same
+
+                if diff_times.dtype == float:
+                    result = np.min(diff_times, axis=1)[:, np.newaxis]
+                    abs_diff = np.all(np.abs(diff_times[:, 1:] - result) < atol, axis=1)
+                    rel_diff = np.all(np.abs(diff_times[:, 1:] - result) / result < rtol, axis=1)
+                    equal_dt = np.logical_or(abs_diff, rel_diff)
+                    result[~equal_dt] = np.nan
+                else:
+                    # turn to float to be able to insert nans if necessary
+                    result = diff_times[:, [0]].astype(float)
+                    equal_dt = np.all(diff_times[:, 1:] == result, axis=1)
+
+                result[~equal_dt] = np.nan
+                dt_result_series[:] = result.flatten()
+        else:
+            for timeseries_id in self.ids:
+                _id_dt = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
+
+                if is_timedelta64_dtype(_id_dt) or _id_dt.dtype == int:
+                    _is_unique_dt = len(np.unique(np.asarray(_id_dt))) == 1
+                else:
+                    _is_unique_dt = np.allclose(np.min(_id_dt), _id_dt, atol=atol, rtol=rtol)
+
+                if _is_unique_dt:
+                    dt_result_series[timeseries_id] = _id_dt[0]
 
         if not np.isnan(dt_result_series).all():
 
-            _unique_result_series = self.unique_delta_times(
-                dt_result_series, rtol=0, atol=1e-15
-            )
-
-            n_different_dts = len(_unique_result_series)
+            if is_timedelta64_dtype(dt_result_series) or dt_result_series.dtype == int:
+                is_global_unique = len(np.unique(dt_result_series))
+            else:
+                is_global_unique = np.allclose(np.min(dt_result_series), dt_result_series, atol=atol, rtol=rtol)
 
             if not np.isnan(dt_result_series).any():
                 # TODO: here it may be interesting to check the new "Null" types of
@@ -1028,9 +1084,9 @@ class TSCDataFrame(pd.DataFrame):
         else:
             # all nan (i.e. irregular sampling), treat as all "identical
             # irregular sampled"
-            n_different_dts = 1
+            is_global_unique = 1
 
-        if self.n_timeseries == 1 or n_different_dts == 1:
+        if self.n_timeseries == 1 or is_global_unique:
             single_value = dt_result_series.iloc[0]
 
             if isinstance(single_value, pd.Timedelta):
