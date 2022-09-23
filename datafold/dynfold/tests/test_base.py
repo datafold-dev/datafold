@@ -89,9 +89,9 @@ class TestTSCBase(unittest.TestCase):
         mixin = TSCPredictMixin()
         mixin.dt_ = 0.1
 
-        expected = np.array([0.0, 0.1, 0.2])
+        expected = np.array([0.0, 0.1, 0.2, 0.3])
 
-        X = np.arange(2)
+        X = TSCDataFrame.from_array(np.arange(2), time_values=[0.0])
         U = np.arange(6).reshape(3, 2)
 
         actual = mixin._validate_and_set_time_values_predict(
@@ -101,8 +101,19 @@ class TestTSCBase(unittest.TestCase):
 
         # no time information in X
         actual = mixin._validate_and_set_time_values_predict(
-            time_values=expected, X=np.array([0, 1]), U=U
+            time_values=expected, X=X.to_numpy(), U=U
         )
+        nptest.assert_array_equal(actual, expected)
+
+        # non-zero start time information in X
+        expected = expected + 99.
+        X = TSCDataFrame.from_array(np.arange(2), time_values=expected[0])
+        U = np.arange(6).reshape(3, 2)
+
+        actual = mixin._validate_and_set_time_values_predict(
+            time_values=expected, X=X, U=U
+        )
+
         nptest.assert_array_equal(actual, expected)
 
     def test_predict_mixin05(self):

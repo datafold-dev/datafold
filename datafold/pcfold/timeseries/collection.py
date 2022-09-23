@@ -2,6 +2,7 @@ from functools import partial
 from numbers import Number
 from typing import Generator, List, Optional, Tuple, Union
 
+from pandas.api.types import is_timedelta64_dtype
 import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
@@ -705,66 +706,6 @@ class TSCDataFrame(pd.DataFrame):
 
         return cls(pd.concat(tsc_list, axis=0))
 
-    @staticmethod
-    def unique_delta_times(
-        delta_times: Union[np.ndarray, pd.Series], rtol=1e-11, atol=1e-15
-    ) -> np.ndarray:
-        """Returns unique (within tolerances) delta time values.
-
-        The tolerances are required for floating point time values. For example,
-
-        .. code::
-
-            np.unique(np.diff(np.linspace(0,2, 4)))
-
-        prints :code:`array([0.6666666666666666, 0.6666666666666667])`.
-
-        The default tolerance values are adjusted in test_linspace_unique_delta_times so
-        that a wide range of time_values generated with ``np.linspace`` are considered
-        equally spaced (despite the numerical noise that breaks the equality).
-
-        Parameters
-        ----------
-        delta_times
-            Array of delta times between samples of a time series.
-
-        rtol
-            Relative tolerance of the largest versus the smallest delta time.
-
-        atol
-            Absolute tolerance between the delta times to be considered unique.
-
-        Returns
-        -------
-        numpy.ndarray
-            Unique (in tolerance levels) delta times.
-        """
-
-        unique_delta_times = np.unique(np.asarray(delta_times))
-
-        if unique_delta_times.dtype == float and len(unique_delta_times) > 1:
-            # Note: unique_delta_times is already sorted by np.unique
-            max_step = np.diff(unique_delta_times)
-            rel_step = max_step / unique_delta_times[1:]
-
-            # print(f"max_step={max_step} | rel_step={rel_step}")
-
-            abs_groups = max_step <= atol
-            rel_groups = rel_step <= rtol
-
-            groups = np.logical_not(np.logical_or(abs_groups, rel_groups)).cumsum()
-            groups = np.append(0, groups)
-
-            n_groups = groups[-1] + 1  # +1 because 0 is also a group
-            _unique_dt = np.zeros(n_groups)
-
-            for group in range(n_groups):
-                _unique_dt[group] = np.mean(unique_delta_times[groups == group])
-
-            unique_delta_times = _unique_dt
-
-        return unique_delta_times
-
     def to_csv(self, *args, **kwargs) -> Optional[str]:
         """Write object to a comma-separated values (csv) file.
 
@@ -972,24 +913,34 @@ class TSCDataFrame(pd.DataFrame):
         return self.index.levels[0]
 
     @property
-    def delta_time(self) -> Union[pd.Series, float]:
-        """Time sampling frequency.
+    def delta_time(self) -> Union[pd.Series, int, float, np.timedelta64]:
+        """Time deltas (i.e. sampling frequency) for each time series or the entire collection.
 
-        Collects for each time series the time delta. Unevenly spaced time series have a delta
-        of marked `nan`. If all time series in the collection have the same time delta
-        (including `nan`), then a single value is returned.
+        Unevenly spaced time series have a ``delta_time=nan``. If all time series in the
+        collection have the same time delta (including `nan`), then a single value is returned.
 
         .. warning::
-            If the time value dtype is float, numerical discrepancies in floating point
-            operations can potentially lead to unintended results. While there are careful
-            adjused tolerances set in the function, it is always safer to use integer types in
-            the time values.
+
+            If the time values type are floating points, then there are typically
+            numerical discrepancies in time differences that can lead to unintended results
+            (i.e. wrongly considered as equal or unequal).
+
+            For example,
+
+            .. code::
+                np.unique(np.diff(np.linspace(0, 2, 4)))
+
+            prints :code:`array([0.6666666666666666, 0.6666666666666667])`. The discrepancies
+            can vary depending on the order and range of time values in a time series.
+            While there are carefully adjusted tolerances set in this function within which
+            time deltas are considered equal, it is always safer to use integers as time
+            values if time values are multiples of a fixed time delta.
 
         Returns
         -------
         pd.Series, int, float, np.timedelata64
-            single value if the time spacing is identical across all time series, else a
-            pd.Series with the sampling rate for each time series.
+            Single value if `delta_time` is identical in all time series, else a
+            pd.Series with `delta_time` for each time series.
         """
 
         _index_name_series = "delta_time"
@@ -1020,11 +971,9 @@ class TSCDataFrame(pd.DataFrame):
         # are tested in a wider range of time values however it still may failure for cases
         # (even if time values are generated with np.linspace)
         # TODO: this actually calls for a feature in TSCDataFrame to set a global time delta
-        #  and internally work with intergers (which makes everyhting here much easier!)
-        rtol=5e-12
+        #  and internally work with integers (which makes everything much easier here!)
+        rtol=3e-12
         atol=1e-16
-
-        from pandas.api.types import is_timedelta64_dtype
 
         if isinstance(n_timesteps, int):
             n_timeseries = self.n_timeseries
@@ -1042,15 +991,16 @@ class TSCDataFrame(pd.DataFrame):
                 dt_result_series[:] = diff_times.flatten()
             else:
                 # need to check if all values are the same
-
                 if diff_times.dtype == float:
                     result = np.min(diff_times, axis=1)[:, np.newaxis]
-                    abs_diff = np.all(np.abs(diff_times[:, 1:] - result) < atol, axis=1)
-                    rel_diff = np.all(np.abs(diff_times[:, 1:] - result) / result < rtol, axis=1)
-                    equal_dt = np.logical_or(abs_diff, rel_diff)
+                    abs_diff = np.abs(diff_times[:, 1:] - result)
+
+                    within_atol = np.all(abs_diff < atol, axis=1)
+                    within_rtol = np.all(np.divide(abs_diff, result, out=abs_diff) < rtol, axis=1)
+                    equal_dt = np.logical_or(within_atol, within_rtol)
                     result[~equal_dt] = np.nan
                 else:
-                    # turn to float to be able to insert nans if necessary
+                    # as float to be able to insert nans if necessary
                     result = diff_times[:, [0]].astype(float)
                     equal_dt = np.all(diff_times[:, 1:] == result, axis=1)
 
@@ -1058,6 +1008,8 @@ class TSCDataFrame(pd.DataFrame):
                 dt_result_series[:] = result.flatten()
         else:
             for timeseries_id in self.ids:
+                # TODO: this can be potentially faster by using views on the diff_times
+                #  instead of using get indexer for
                 _id_dt = diff_times[id_indexer.get_indexer_for([timeseries_id])[:-1]]
 
                 if is_timedelta64_dtype(_id_dt) or _id_dt.dtype == int:

@@ -1304,7 +1304,11 @@ class TestTSCDataFrame(unittest.TestCase):
 
         for n_samples in [10, 1000, 2000, 3000, 3300, 3400, 3500, 10000]:
             for stop in [0.01, 0.1, 10, 40, 50, 100, 1000, 10000, 100000000000]:
-                # n_samples = 10000
+                # putting higher order of n_samples (next 100000) fails the pipeline -- for
+                # these cases ajdusted tolerances would be necessary
+
+                # useful to set a specific setting for debugging:
+                # n_samples = 100000
                 # stop = 10
 
                 time_values, delta = np.linspace(0, stop, n_samples, retstep=True)
@@ -1352,7 +1356,6 @@ class TestTSCDataFrame(unittest.TestCase):
                 self.assertIsInstance(actual_delta_two, pd.Series)
                 self.assertTrue(tsc_two.delta_time.iloc[0] - delta < 1E-15)
                 self.assertTrue(np.isnan(tsc_two.delta_time.iloc[1]))
-
 
     def test_build_from_single_timeseries(self):
         df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0, -1), columns=["A"])
