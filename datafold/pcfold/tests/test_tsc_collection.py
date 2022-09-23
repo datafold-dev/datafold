@@ -1086,7 +1086,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
         self.assertIsInstance(actual, TSCDataFrame)
 
-    def test_slice04(self):
+    def test_slice03(self):
         tsc = TSCDataFrame(self.simple_df)
         actual = tsc[tsc < 0.5]
 
@@ -1438,6 +1438,14 @@ class TestTSCDataFrame(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             actual.insert_ts(new_ts_wo_datetime_index)
+
+    def test_fixed_delta(self):
+
+        tscdf = TSCDataFrame(np.arange(6).reshape(3,2), index=pd.MultiIndex.from_product([[0], [1,2,3]]), fixed_delta=0.1)
+
+        print(tscdf)
+        print(tscdf.index)
+
 
 
 class TestInitialCondition(unittest.TestCase):

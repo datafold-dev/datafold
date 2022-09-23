@@ -289,7 +289,7 @@ class TSCDataFrame(pd.DataFrame):
     tsc_time_idx_name = "time"
     tsc_feature_col_name = "feature"
 
-    def __init__(self, *args, validate=True, **kwargs):
+    def __init__(self, *args, fixed_delta=None, validate=True, **kwargs):
 
         # NOTE: do not move this call after other setters "self.attribute = ...".
         # Otherwise, there is an infinite recursion because pandas handles the
@@ -301,14 +301,17 @@ class TSCDataFrame(pd.DataFrame):
         if not hasattr(self, "is_validate"):
             self.is_validate = validate
 
+        if not hasattr(self, "fixed_delta"):
+            self.fixed_delta = fixed_delta
+
         # This is a special case of input, where the fallback is a cast to
         # pd.DataFrame.
-        # Internally of pandas the __init__ is called like this:
+        # In pandas the __init__ is called like this:
         # df._constructor(res)
         # --> df._constructor is TSCDataFrame
         # --> res is a BlockManager (pandas internal type)
         # If a BlockManager slices the index, then no AttributeError is raised,
-        # but instead self casted to DataFrame
+        # but is instead cast to DataFrame
         # (case was necessary with changes introduced in pandas==1.2.0)
         _is_blockmanager_input = len(args) > 0 and isinstance(
             args[0], pd.core.internals.managers.BlockManager
@@ -331,6 +334,13 @@ class TSCDataFrame(pd.DataFrame):
         # Note: validation of data is not necessary here because this is done
         # in _LocTSCIndexer and _iLocTSCIndexer
         return super(TSCDataFrame, self).__setattr__(key, value)
+
+    def __repr__(self):
+        if self.fixed_delta is not None:
+            _repr_index = self.index.set_levels(self.index.get_level_values("time") * self.fixed_delta,"time")
+            return pd.DataFrame(self.to_numpy(), index=_repr_index, columns=self.columns).__repr__()
+        else:
+            return super(TSCDataFrame, self).__repr__()
 
     @classmethod
     def from_tensor(
@@ -797,28 +807,32 @@ class TSCDataFrame(pd.DataFrame):
                 )
             else:
                 raise AttributeError(
-                    "Time series IDs must be of type integer. "
-                    f"Got dtype={ids_index.dtype}"
+                    f"Time series IDs must be integers. Got dtype={ids_index.dtype}"
                 )
 
         if (ids_index < 0).any():
-            unique_negative_ids = np.unique(ids_index < 0)
+            unique_negative_ids = np.unique(ids_index[ids_index < 0])
             raise AttributeError(
-                f"All time series IDs have to be non-negative integer values. "
-                f"Got invalid time series IDs: {unique_negative_ids}"
+                f"All time series IDs have to be non-negative unique integers. "
+                f"Got invalid negative time series IDs: {unique_negative_ids}"
             )
 
-        if time_index.dtype.kind in "bcmOSUV":
+        if self.fixed_delta is not None:
+            _allowed_dtypes = "iu"
+        else:
+            _allowed_dtypes = "iufM"
+
+        if time_index.dtype.kind not in _allowed_dtypes:
             # See further info for 'kind'-codes:
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
             raise AttributeError(
                 f"Time values have to be numeric and real-valued. "
-                f"Got dtype={time_index.dtype}"
+                f"Got {time_index.dtype=} with {time_index.dtype.kind=}"
             )
         else:
             assert (
                 time_index.dtype.kind in "uifM"
-            ), f"Numpy dtype.kind={time_index.dtype.kind} not handled, please report bug."
+            ), f"Numpy dtype.kind={time_index.dtype.kind} not allowed in TSCDataFrame."
 
         # u - unsigned integer | i - signed integer | f - floating point
         # do not perform this check for:
@@ -826,7 +840,7 @@ class TSCDataFrame(pd.DataFrame):
         if time_index.dtype.kind in "uif" and (time_index < 0).any():
             raise AttributeError(
                 "Time values have to be non-negative. "
-                f"Found invalid time values {(time_index[time_index < 0])}"
+                f"Found invalid time values {time_index[time_index < 0]}"
             )
 
         # bool index to the start of new IDs
@@ -834,12 +848,12 @@ class TSCDataFrame(pd.DataFrame):
         _ids = ids_index[bool_new_id]
 
         if len(np.unique(_ids)) != len(_ids):
-            raise AttributeError("Time series IDs appear multiple times.")
+            raise AttributeError("Time series that have the same ID.")
 
         if is_datetime64_dtype(time_index):
             _time_index_num = time_index.view(np.int64)
         else:
-            _time_index_num = time_index
+            _time_index_num = time_index.view()
 
         cond_not_sorted = np.logical_and(
             ~np.diff(ids_index).astype(bool),
