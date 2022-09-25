@@ -825,7 +825,9 @@ class TestTSCDataFrame(unittest.TestCase):
         X_left = np.reshape(np.arange(100), (10, 10))
         X_right = np.reshape(np.arange(100, 200), (10, 10))
 
-        X_tsc = TSCDataFrame.from_shift_matrices(X_left, X_right, snapshot_orientation="col")
+        X_tsc = TSCDataFrame.from_shift_matrices(
+            X_left, X_right, snapshot_orientation="col"
+        )
 
         self.assertEqual(X_tsc.delta_time, 1)
 
@@ -834,7 +836,7 @@ class TestTSCDataFrame(unittest.TestCase):
         # isinstance(n_timesteps, int)
 
         idx = pd.MultiIndex.from_product([np.arange(10), np.arange(10)])
-        X_tsc = TSCDataFrame(np.reshape(np.arange(1000), (100,10)), index=idx)
+        X_tsc = TSCDataFrame(np.reshape(np.arange(1000), (100, 10)), index=idx)
 
         self.assertEqual(X_tsc.delta_time, 1)
 
@@ -843,8 +845,10 @@ class TestTSCDataFrame(unittest.TestCase):
         # isinstance(n_timesteps, int)
 
         # uneven sampling in the second time series should lead to nan
-        idx = pd.MultiIndex.from_arrays([np.array([0,0,0,1,1,1]), np.array([1,2,3, 1, 5, 99])])
-        X_tsc = TSCDataFrame(np.reshape(np.arange(12), (6,2)), index=idx)
+        idx = pd.MultiIndex.from_arrays(
+            [np.array([0, 0, 0, 1, 1, 1]), np.array([1, 2, 3, 1, 5, 99])]
+        )
+        X_tsc = TSCDataFrame(np.reshape(np.arange(12), (6, 2)), index=idx)
 
         actual = X_tsc.delta_time
         self.assertIsInstance(actual, pd.Series)
@@ -869,7 +873,7 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
     def test_time_array_fill(self):
-        actual = TSCDataFrame(self.simple_df).time_values_delta_time()
+        actual = TSCDataFrame(self.simple_df).const_sampled_time_values()
         expected = np.arange(0, 19 + 1, 1)
         nptest.assert_equal(actual, expected)
 
@@ -880,7 +884,7 @@ class TestTSCDataFrame(unittest.TestCase):
         ]  # include non-const time delta
         # ... should raise error
         with self.assertRaises(TSCException):
-            TSCDataFrame(simple_df).time_values_delta_time()
+            TSCDataFrame(simple_df).const_sampled_time_values()
 
     def test_single_time_df(self):
         tsc = TSCDataFrame(self.simple_df)
@@ -1318,7 +1322,9 @@ class TestTSCDataFrame(unittest.TestCase):
                     index=pd.MultiIndex.from_product([[0], time_values]),
                 )
 
-                idx_two = pd.MultiIndex.from_arrays([np.append(np.zeros(5), np.ones(n_samples-5)), time_values])
+                idx_two = pd.MultiIndex.from_arrays(
+                    [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values]
+                )
                 tsc_two = TSCDataFrame(
                     np.random.rand(time_values.shape[0], 2),
                     index=idx_two,
@@ -1343,7 +1349,8 @@ class TestTSCDataFrame(unittest.TestCase):
                 )
 
                 idx_two = pd.MultiIndex.from_arrays(
-                    [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values])
+                    [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values]
+                )
                 tsc_two = TSCDataFrame(
                     np.random.rand(time_values.shape[0], 2),
                     index=idx_two,
@@ -1354,7 +1361,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
                 actual_delta_two = tsc_two.delta_time
                 self.assertIsInstance(actual_delta_two, pd.Series)
-                self.assertTrue(tsc_two.delta_time.iloc[0] - delta < 1E-15)
+                self.assertTrue(tsc_two.delta_time.iloc[0] - delta < 1e-15)
                 self.assertTrue(np.isnan(tsc_two.delta_time.iloc[1]))
 
     def test_build_from_single_timeseries(self):
@@ -1439,12 +1446,67 @@ class TestTSCDataFrame(unittest.TestCase):
         with self.assertRaises(ValueError):
             actual.insert_ts(new_ts_wo_datetime_index)
 
-    def test_fixed_delta(self):
+    def test_fixed_delta01(self):
 
-        tscdf = TSCDataFrame(np.arange(6).reshape(3,2), index=pd.MultiIndex.from_product([[0], [1,2,3]]), fixed_delta=0.1)
+        tscdf = TSCDataFrame(
+            np.zeros((3, 2)),
+            index=pd.MultiIndex.from_product([[0], [1, 2, 3]]),
+            columns=["a", "b"],
+            fixed_delta=0.1,
+        )
 
-        print(tscdf)
-        print(tscdf.index)
+        actual = tscdf.__repr__(with_fixed_delta=False)
+        for expected_num_str in ["0.1", "0.2", "0.3"]:
+            self.assertIn(expected_num_str, actual)
+
+        self.assertEqual(tscdf.index.get_level_values("time").dtype, int)
+
+        actual = tscdf.__repr__(with_fixed_delta=False)
+        for expected_num_str in ["1", "2", "3"]:
+            self.assertIn(expected_num_str, actual)
+
+    def test_fixed_delta02(self):
+
+        tscdf = TSCDataFrame(
+            np.arange(6).reshape(3, 2),
+            index=pd.MultiIndex.from_product([[0], [1, 2, 3]]),
+            fixed_delta=0.1,
+        )
+
+        expected_dt = np.array([0.1, 0.2, 0.3])
+        expected_int = np.array([1, 2, 3])
+
+        actual_time_values_dt = tscdf.time_values(with_fixed_delta=True)
+        actual_time_values_int = tscdf.time_values(with_fixed_delta=False)
+
+        nptest.assert_allclose(
+            actual_time_values_dt, expected_dt, rtol=1e-16, atol=1e-16
+        )
+        nptest.assert_equal(actual_time_values_int, expected_int)
+
+    def test_fixed_delta03(self):
+        tscdf = TSCDataFrame(self.simple_df, fixed_delta=1.0)
+        self.assertEqual(tscdf.delta_time, 1.0)
+        self.assertEqual(tscdf.fixed_delta, 1.0)
+        self.assertTrue(tscdf.time_values().dtype == float)
+
+    def test_fixed_delta04(self):
+        tscdf = TSCDataFrame(self.simple_df, fixed_delta=1.0)
+
+        tscdf_attach = TSCDataFrame.from_array(np.zeros((3, 2)), time_values=[99, 100, 101], feature_names=tscdf.columns, ts_id=101)
+        actual = pd.concat([tscdf, tscdf_attach], axis=0)
+
+        self.assertIn(101, actual.ids)
+        self.assertEqual(actual.fixed_delta, 1.0)
+
+        # only support integer values
+        tscdf_attach = TSCDataFrame.from_array(
+            np.zeros((3, 2)), time_values=[0.1, 0.2, 0.3]
+        )
+
+        with self.assertRaises(AttributeError):
+            pd.concat([tscdf, tscdf_attach])
+
 
 
 
