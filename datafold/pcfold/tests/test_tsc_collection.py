@@ -1493,7 +1493,12 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_fixed_delta04(self):
         tscdf = TSCDataFrame(self.simple_df, fixed_delta=1.0)
 
-        tscdf_attach = TSCDataFrame.from_array(np.zeros((3, 2)), time_values=[99, 100, 101], feature_names=tscdf.columns, ts_id=101)
+        tscdf_attach = TSCDataFrame.from_array(
+            np.zeros((3, 2)),
+            time_values=[99, 100, 101],
+            feature_names=tscdf.columns,
+            ts_id=101,
+        )
         actual = pd.concat([tscdf, tscdf_attach], axis=0)
 
         self.assertIn(101, actual.ids)
@@ -1506,8 +1511,6 @@ class TestTSCDataFrame(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             pd.concat([tscdf, tscdf_attach])
-
-
 
 
 class TestInitialCondition(unittest.TestCase):
