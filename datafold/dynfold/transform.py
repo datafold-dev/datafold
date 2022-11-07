@@ -183,6 +183,64 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         )
 
 
+class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
+    """A simple class to select features by name or index.
+
+    Parameters
+    ----------
+    features
+
+
+    """
+
+    def __init__(self, features: np.ndarray):
+        self.features = features
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None and not hasattr(self, "feature_names_in_"):
+            return self.features
+        else:
+            return self.features
+
+    def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeatureSelect":
+        """
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data of shape `(n_samples, n_features)`.
+
+        y: None
+            ignored
+
+        **fit_params: Dict[str, object]
+            `None`
+        """
+
+        if (
+            not isinstance(self.features, np.ndarray)
+            or self.features.ndim != 1
+            or not self.features.dtype.type is np.str_
+        ):
+            raise ValueError(
+                "parameter 'features' must be a 1-dim. array with feature names"
+            )
+        self._validate_datafold_data(X, ensure_tsc=True)
+        self._setup_feature_attrs_fit(X, n_features_out=self.features.shape[0])
+
+        try:
+            X.loc[:, self.features]
+        except KeyError:
+            raise ValueError("all features must be contained in X")
+
+        return self
+
+    def transform(self, X):
+        X = self._validate_datafold_data(X, ensure_tsc=True)
+        self._validate_feature_input(X, direction="transform")
+
+        return X.loc[:, self.features]
+
+
 class TSCIdentity(BaseEstimator, TSCTransformerMixin):
     """Transformer as a "passthrough" placeholder and/or attaching a constant feature.
 

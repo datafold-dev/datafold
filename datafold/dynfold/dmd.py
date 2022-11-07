@@ -1179,8 +1179,8 @@ class DMDControl(DMDBase):
 
        * "spectral" to decompose the system matrix (`A`) into spectral components. The
          evaluation of the linear system is cheap and it provides valuable information about
-         the identified system. On the downside this mode has numerical issues if the
-         system matrix is badly conditioned.
+         the identified system. If the system matrix is badly conditioned this can lead to
+         numerical issues.
        * "matrix" to use system matrix (`A`) directly. The evaluation of the system is more
          robust, but the system evaluation is computationally more expensive.
 
@@ -1209,12 +1209,9 @@ class DMDControl(DMDBase):
         self,
         *,  # keyword-only
         sys_mode: str = "matrix",
-        is_diagonalize=False,
         rcond: Optional[float] = None,
         **kwargs,
     ):
-
-        self.is_diagonalize = is_diagonalize
         self.rcond = rcond
         super().__init__(
             sys_type="flowmap",
@@ -1292,7 +1289,11 @@ class DMDControl(DMDBase):
         self._validate_datafold_data(
             X=U,
             # need same dtype in time axis in U as in X
-            tsc_kwargs=dict(ensure_dtype_time=X.index.get_level_values(TSCDataFrame.tsc_time_idx_name).dtype),
+            tsc_kwargs=dict(
+                ensure_dtype_time=X.index.get_level_values(
+                    TSCDataFrame.tsc_time_idx_name
+                ).dtype
+            ),
             ensure_tsc=True,
         )
 
@@ -1306,9 +1307,7 @@ class DMDControl(DMDBase):
                 eigenvectors_right_,
                 eigenvalues_,
                 eigenvectors_left_,
-            ) = compute_spectal_components(
-                sys_matrix, is_diagonalize=self.is_diagonalize
-            )
+            ) = compute_spectal_components(sys_matrix, is_diagonalize=True)
 
             self.setup_spectral_system(
                 eigenvectors_right=eigenvectors_right_,

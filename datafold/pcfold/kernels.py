@@ -993,19 +993,21 @@ class InverseQuadraticKernel(RadialBasisKernel):
         )
 
 
-class Thinplate(RadialBasisKernel):
-    r"""Thinplate radial basis kernel
-    
-    
-    """
+class ThinplateKernel(RadialBasisKernel):
+    r"""Thinplate radial basis kernel"""
+
     def __init__(self, distance=None):
-        super(Thinplate, self).__init__(required_metric="euclidean", distance=distance)
-    
+        super(ThinplateKernel, self).__init__(
+            required_metric="euclidean", distance=distance
+        )
+
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
 
-        kernel_matrix = _apply_kernel_function_numexpr(distance_matrix, expr="D**2 * log(D)")
+        kernel_matrix = _apply_kernel_function_numexpr(
+            distance_matrix, expr="D**2 * log(D)"
+        )
         kernel_matrix[np.isnan(kernel_matrix)] = 0
         return kernel_matrix
 
@@ -2071,7 +2073,7 @@ class ConeKernel(TSCManifoldKernel):
     ----------
 
     zeta
-        A scalar between :math:`[0, 1)` that controls the angular influence . The
+        A scalar between :math:`[0, 1)` to control the angular influence. The
         weight from one point to a neighboring point is increased if the relative
         displacement vector is aligned with the dynamical flow. The special case of
         `zeta=0`, corresponds to the so-called "Non-Linear Laplacian Spectral

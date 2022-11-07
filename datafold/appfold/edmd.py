@@ -420,12 +420,16 @@ class EDMD(
             return np.isin(self.feature_names_in_, X_dict.columns).all()
         elif isinstance(self.dict_preserves_id_state, bool):
             if self.dict_preserves_id_state and self.include_id_state:
-                warnings.warn(f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} duplicates ")
+                warnings.warn(
+                    f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} duplicates "
+                )
 
             return self.dict_preserves_id_state
         else:
-            raise ValueError(f"Could not read {self.dict_preserves_id_state=}. Set to string "
-                             f"'infer' or bool")
+            raise ValueError(
+                f"Could not read {self.dict_preserves_id_state=}. Set to string "
+                f"'infer' or bool"
+            )
 
     def _compute_n_samples_ic(self, X, X_dict):
         diff = X.n_timesteps - X_dict.n_timesteps
@@ -513,8 +517,10 @@ class EDMD(
             except ValueError as e:
                 # here it is assumed that the the error is not raised if
                 # self.include_id_state=True because we have the control over it
-                raise ValueError(f"{self.dict_preserves_id_state_=} but not all features "
-                                 f"names could be found in the dictionary's feature names") from e
+                raise ValueError(
+                    f"{self.dict_preserves_id_state_=} but not all features "
+                    f"names could be found in the dictionary's feature names"
+                ) from e
         else:
             # Compute the matrix in a least squares sense
             # inverse_map = "B" in Williams et al., Eq. 16
@@ -549,6 +555,8 @@ class EDMD(
         numpy.ndarray
             Koopman modes
         """
+        # TODO: if the system is controlled, then currently the control state is not used to
+        #  possibly improve the reconstruction
         koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
         return koopman_modes
 
@@ -715,7 +723,11 @@ class EDMD(
             feature_columns = qois
 
         if self._inverse_map is not None:
-            if self._koopman_modes is not None:
+            if self._koopman_modes is not None and not self.is_controlled_:
+                # NOTE: if the system is controlled, then the Koopman modes are currently not
+                # used for the reconstruction. This is because the linear system form does not
+                # directly reconstruct
+
                 # The DMD model computed spectral components and the
                 # Koopman modes are available.
 
@@ -781,7 +793,7 @@ class EDMD(
         self,
         X: TimePredictType,
         U: Optional[TimePredictType] = None,
-        y=None,
+        y: Optional[TSCDataFrame] = None,
         **fit_params,
     ) -> "EDMD":
         r"""Fit the model.
@@ -801,7 +813,7 @@ class EDMD(
             Time series with control states acting on the system. The states are passed to the
             DMD model, at which point the time indices must be identical to the states in `X`.
 
-        y : None
+        y
             ignored
 
         **fit_params: Dict[str, object]
@@ -877,15 +889,13 @@ class EDMD(
                 self._dmd_model.fit(X=X_dict, y=y, **dmd_fit_params)
 
         if not self.use_transform_inverse:
-            self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict, U=U)
+
+            if y is None:
+                self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict, U=U)
+            else:
+                self._inverse_map = self._compute_inverse_map(X=y, X_dict=X_dict, U=U)
 
             if self.dmd_model.is_spectral_mode:
-
-                if self.is_controlled_:
-                    raise NotImplementedError(
-                        "currently the inverse mapping from a spectral "
-                        "system representation and control is not captured in datafold."
-                    )
 
                 self._koopman_modes = self._compute_koopman_modes(
                     inverse_map=self._inverse_map,
@@ -1139,7 +1149,6 @@ class EDMD(
             self.dt_ = X.delta_time
             self._feature_names_pred = X.columns
 
-
         # '_fit' calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu):
         fit_params = self._check_fit_params(**fit_params or {})
@@ -1149,7 +1158,6 @@ class EDMD(
 
         if initial_fit:
             self.dict_preserves_id_state_ = self._validate_dictionary()
-
 
         if initial_fit:
             self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)

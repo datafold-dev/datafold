@@ -117,23 +117,34 @@ class DiffusionMapsTest(unittest.TestCase):
         ):
             check(estimator)
 
+    def test_feature_names_out(self):
+        X_swiss, _ = make_swiss_roll(n_samples=100, noise=0, random_state=5)
+        X_swiss = TSCDataFrame.from_array(X_swiss)
+
+        dmap = DiffusionMaps(kernel=GaussianKernel(2), n_eigenpairs=5)
+        dmap.fit(X_swiss)
+        expected = dmap.get_feature_names_out()
+        actual = dmap.transform(X_swiss).columns
+
+        self.assertTrue(np.all(expected == actual))
+
     def test_multiple_epsilon_values(self, plot=False):
 
-        num_samples = 5000
-        num_maps = 10
-        num_eigenpairs = 10
+        n_samples = 5000
+        n_maps = 10
+        n_eigenpairs = 10
         epsilon_min, epsilon_max = 1e-1, 1e1
-        epsilons = np.logspace(np.log10(epsilon_min), np.log10(epsilon_max), num_maps)
+        epsilons = np.logspace(np.log10(epsilon_min), np.log10(epsilon_max), n_maps)
 
-        downsampled_data, _ = random_subsample(self.data, num_samples)
+        downsampled_data, _ = random_subsample(self.data, n_samples)
 
-        eigvects = np.zeros((num_maps, downsampled_data.shape[0], num_eigenpairs))
-        eigvals = np.zeros((num_maps, num_eigenpairs))
+        eigvects = np.zeros((n_maps, downsampled_data.shape[0], n_eigenpairs))
+        eigvals = np.zeros((n_maps, n_eigenpairs))
 
         for i, epsilon in enumerate(reversed(epsilons)):
             dm = DiffusionMaps(
                 GaussianKernel(epsilon),
-                n_eigenpairs=num_eigenpairs,
+                n_eigenpairs=n_eigenpairs,
                 symmetrize_kernel=False,
             ).fit(downsampled_data, store_kernel_matrix=True)
 

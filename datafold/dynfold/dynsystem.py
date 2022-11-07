@@ -266,7 +266,6 @@ class SystemSolveStrategy:
         time_series_tensor,
         initial_conditions,
         sys_matrix,
-        eigenvectors_right,
         eigenvectors_left,
         eigenvalues,
         control_matrix,
@@ -274,30 +273,22 @@ class SystemSolveStrategy:
         time_values,
         **ignored,
     ):
+        time_series_tensor[:, 0, :] = np.real((sys_matrix @ initial_conditions)).T
 
-        last_state = initial_conditions
+        # because of the structure it is not possible to directly make use of the spectral
+        # representation. It is therefore more efficient to reconstruct the matrix form. While
+        # it seems unnecessary to compute the spectral components in the first place, the
+        # components can still be used for analysis and the reconstruction
+        reconstruct_system_matrix = sys_matrix @ diagmat_dot_mat(
+            eigenvalues, eigenvectors_left
+        )
 
-        def _compute_spectral_state(state):
-            if eigenvectors_left is not None:
-                return eigenvectors_left @ state
-            else:
-                return np.linalg.lstsq(eigenvectors_right, state, rcond=None)[0]
-
-        # TODO: warning, if time_fraction is not 1, because control matrix needs to be adapted.
-        for idx, time in enumerate(time_values):
-            # x_n+1 = \Psi \Lambda^t * x_n + B * u_n
-
-            if idx != 0:
-                eigvals = np.power(eigenvalues, time)
-                current_state = (
-                    sys_matrix @ eigvals @ _compute_spectral_state(last_state)
-                    + control_matrix @ control_input[:, idx, :].T
-                )
-            else:
-                current_state = sys_matrix @ last_state
-
-            last_state = current_state
-            time_series_tensor[:, idx + 1, :] = current_state.real.T
+        for idx, time in enumerate(time_values[1:]):
+            next_state = (
+                reconstruct_system_matrix @ time_series_tensor[:, idx, :].T
+                + control_matrix @ control_input[:, idx, :].T
+            )
+            time_series_tensor[:, idx + 1, :] = np.real(next_state).T
 
         return time_series_tensor
 
@@ -440,7 +431,7 @@ class LinearDynamicalSystem(object):
                 f"Choose from {self._cls_valid_sys_mode}"
             )
 
-    def _check_sys_matrix(self, sys_matrix: Optional[np.ndarray]):
+    def _set_sys_matrix(self, sys_matrix: Optional[np.ndarray]):
         if sys_matrix is None:
             # The system matrix can be overwritten from outside
             # (if sys_matrix is not None).
@@ -481,7 +472,9 @@ class LinearDynamicalSystem(object):
         req_control_input = control_input.shape[1] + int(not req_last_control_state)
 
         if req_control_input != n_time_values:
-            raise ValueError(f"{req_control_input=} does not match number of time values {n_time_values=}")
+            raise ValueError(
+                f"{req_control_input=} does not match number of time values {n_time_values=}"
+            )
 
         if control_input.shape[2] != self.control_matrix_.shape[-1]:
             raise ValueError(
@@ -558,7 +551,7 @@ class LinearDynamicalSystem(object):
                 raise ValueError(f"{time_delta=} must be a positive number.")
         return time_delta
 
-    def _check_and_set_system_params(
+    def _set_and_check_system_params(
         self,
         initial_conditions: np.ndarray,
         sys_matrix: Optional[np.ndarray],
@@ -569,7 +562,7 @@ class LinearDynamicalSystem(object):
         feature_names_out,
     ):
         # SYSTEM MATRIX
-        sys_matrix = self._check_sys_matrix(sys_matrix)
+        sys_matrix = self._set_sys_matrix(sys_matrix)
         n_features, state_length = sys_matrix.shape
 
         # INITIAL CONDITION
@@ -926,7 +919,7 @@ class LinearDynamicalSystem(object):
             state_length,
             time_series_ids,
             feature_names_out,
-        ) = self._check_and_set_system_params(
+        ) = self._set_and_check_system_params(
             initial_conditions=initial_conditions,
             sys_matrix=overwrite_sys_matrix,
             control_input=control_input,
@@ -951,6 +944,9 @@ class LinearDynamicalSystem(object):
             control_input=control_input,
             time_values=time_values,
             eigenvalues=self.eigenvalues_ if self.is_spectral_mode else None,
+            eigenvectors_left=self.eigenvectors_left_
+            if hasattr(self, "eigenvectors_left_")
+            else None,
             time_delta=time_delta,
         )
 

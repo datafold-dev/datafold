@@ -197,9 +197,10 @@ def plot_pairwise_eigenvector(
     eigenvectors: np.ndarray,
     n: int,
     idx_start=0,
+    label=r"\Psi",
     scatter_params: Optional[Dict] = None,
     fig_params: Optional[Dict] = None,
-) -> None:
+):
     """Plot scatter plot of n-th eigenvector on x-axis and remaining eigenvectors on
     y-axis.
 
@@ -215,9 +216,6 @@ def plot_pairwise_eigenvector(
     idx_start
         is the eigenvector index of the first columns (useful when trivial constant
         eigenvectors are removed before, then set `idx_start=1`).
-
-    colors
-        visualize the points
 
     scatter_params
         keyword arguments handled to  `matplotlib.pyplot.scatter()`
@@ -269,10 +267,10 @@ def plot_pairwise_eigenvector(
         )
 
         _ax.set_title(
-            r"$\Psi_{{{}}}$ vs. $\Psi_{{{}}}$".format(
-                n + idx_start, idx_eigvec + idx_start
-            )
+            rf"${label}_{{{n + idx_start}}}$ vs. ${label}_{{{idx_eigvec + idx_start}}}$"
         )
+
+    return f, ax
 
 
 @warn_experimental_function
