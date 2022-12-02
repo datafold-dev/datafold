@@ -118,6 +118,34 @@ class EDMDTest(unittest.TestCase):
         self.multi_sine_wave_tsc = self._setup_multi_sine_wave_data()
         self.multi_waves = self._setup_multi_sine_wave_data2()
 
+    def test_slicing(self):
+        _edmd = EDMD(
+            dict_steps=[("id1", TSCIdentity()), ("id2", TSCIdentity()), ("id3", TSCIdentity())],
+            include_id_state=False,
+            use_transform_inverse=False,
+        ).fit(self.sine_wave_tsc)
+
+        from sklearn.pipeline import Pipeline
+
+        self.assertIsInstance(_edmd[0], TSCIdentity)
+        self.assertIsInstance(_edmd[:1], Pipeline)
+        self.assertIsInstance(_edmd[:2], Pipeline)
+        self.assertIsInstance(_edmd[1:3], Pipeline)
+
+        # the slices over transform are Pipelines, but no EDMD anymore
+        self.assertFalse(isinstance(_edmd[:1], EDMD))
+        self.assertFalse(isinstance(_edmd[:2], EDMD))
+        self.assertFalse(isinstance(_edmd[1:3], EDMD))
+
+        # If everything is sliced however, they are still EDMD models
+        self.assertIsInstance(_edmd[:], EDMD)
+        self.assertIsInstance(_edmd[:4], EDMD)
+
+        self.assertEqual(list(_edmd[:2].named_steps.keys()), ["id1", "id2"])
+
+        with self.assertRaises(ValueError):
+            _edmd[2:]
+
     def test_id_dict1(self):
         _edmd = EDMD(
             dict_steps=[("id", TSCIdentity())],
@@ -563,6 +591,46 @@ class EDMDTest(unittest.TestCase):
         self.assertTrue(_sin_column_is_in(actual2))
         self.assertTrue(_sin_column_is_in(actual3))
         self.assertTrue(_sin_column_is_in(actual4))
+
+    def test_separate_target_data01(self):
+
+        edmd1 = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=True)),
+            ],
+            include_id_state=False,
+        )
+
+        edmd2 = deepcopy(edmd1)
+
+        expected = edmd2.fit_transform(self.sine_wave_tsc)
+        actual = edmd1.fit_transform(self.sine_wave_tsc, y=self.sine_wave_tsc)
+        pdtest.assert_frame_equal(expected, actual)
+
+    def test_separate_target_data02(self, plot=False):
+
+        edmd1 = EDMD(
+            dict_steps=[
+                ("delay", TSCTakensEmbedding(delays=2)),
+            ],
+            include_id_state=False,
+        )
+
+        target = TSCDataFrame.from_same_indices_as(self.sine_wave_tsc, values=np.cos(self.sine_wave_tsc.time_values()), except_columns=["cos"])
+
+        edmd1.fit(self.sine_wave_tsc, y=target)
+        actual_predict = edmd1.predict(self.sine_wave_tsc.head(3), time_values=self.sine_wave_tsc.time_values()[2:])
+
+        self.assertLessEqual(np.sum(actual_predict - target)[0], 2.4e-6)
+        self.assertTrue(actual_predict.columns[0] == "cos")
+
+        if plot:
+            plt.plot(actual_predict.time_values(), actual_predict.iloc[:, 0],
+                     label="predict (cos)")
+            plt.plot(target.time_values(), target.iloc[:, 0], label="target (cos)")
+            plt.plot(self.sine_wave_tsc.time_values(), self.sine_wave_tsc.iloc[:, 0],
+                     "input (sin)")
+            plt.show()
 
     def test_dict_preserved_id_state(self):
 

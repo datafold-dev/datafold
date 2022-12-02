@@ -400,8 +400,8 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
                 interp_control = []
 
-                for i in range(self.n_control_in_):
-                    func = lambda t, x: interp1d(time_values[:-1], U_interp[:, i], kind='previous', fill_value="extrapolate")(t)
+                for j in range(self.n_control_in_):
+                    func = lambda t, x: interp1d(time_values[:-1], U_interp[:, j], kind='previous', fill_value="extrapolate")(t)
                     interp_control.append(func)
 
                 Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
@@ -416,6 +416,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 t_eval=time_values,
                 **self.ivp_kwargs,
             )
+            print(i)
 
             if not sol.success:
                 raise RuntimeError(
@@ -962,8 +963,30 @@ class Motor(ControllableODE):
     # % estimation of a thyristor driven DC-motor using the HMF-method.
     # % Control Engineering Practice, 6:615?626, 1998.
 
-    def __init__(self):
-        super(Motor, self).__init__(feature_names_in=["x1", "x2"], control_names_in=["u"], method="RK23")
+    def __init__(self, ivp_kwargs=None):
+
+        ivp_kwargs = ivp_kwargs or {}
+        ivp_kwargs.setdefault("method", "RK23")
+        super(Motor, self).__init__(feature_names_in=["x1", "x2"], control_names_in=["u"], **ivp_kwargs)
+
+    def _runge_kutta(self, X, U, dt):
+        k1 = self._f(None, X.T, U)
+        k2 = self._f(None, X.T + k1*dt/2, U)
+        k3 = self._f(None, X.T + k2 * dt / 2, U)
+        k4 = self._f(None, X.T + k1 * dt, U)
+        X_next = X.T + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+        return X_next.T
+
+    def predict_vectorize(self, X, U, nsim, dt):
+
+        X_all = np.zeros([X.shape[0], nsim, X.shape[1]])
+        X_all[:, 0, :] = X
+
+        for i in range(1, nsim):
+            X_all[:, i, :] = self._runge_kutta(X_all[:, i-1, :], U.iloc[i-1][0], dt)
+
+        X_all = TSCDataFrame.from_tensor(tensor=X_all, columns=self.feature_names_in_, time_values=np.arange(0, dt*nsim-1E-15, dt))
+        return X_all, U
 
     def _f(self, t, y, u):
         dy = np.zeros_like(y)

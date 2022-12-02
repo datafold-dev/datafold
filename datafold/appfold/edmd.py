@@ -470,7 +470,7 @@ class EDMD(
             return scipy.linalg.lstsq(X_dict, X, cond=None)[0]
 
     def _compute_inverse_map(
-        self, X: TSCDataFrame, X_dict: TSCDataFrame, U
+        self, X: TSCDataFrame, y, X_dict: TSCDataFrame, U
     ) -> Optional[Union[scipy.sparse.csr_matrix, np.ndarray]]:
         """Compute matrix that linearly maps from dictionary space to original feature
         space.
@@ -507,7 +507,7 @@ class EDMD(
 
         """
 
-        if self.include_id_state or self.dict_preserves_id_state_:
+        if (self.include_id_state or self.dict_preserves_id_state_) and y is None:
             # trivial case: we just need a projection matrix to select the
             # original full-states from the dictionary functions
             try:
@@ -515,7 +515,7 @@ class EDMD(
                     X_dict.columns, self.feature_names_in_
                 )
             except ValueError as e:
-                # here it is assumed that the the error is not raised if
+                # here it is assumed that the error is not raised if
                 # self.include_id_state=True because we have the control over it
                 raise ValueError(
                     f"{self.dict_preserves_id_state_=} but not all features "
@@ -524,8 +524,13 @@ class EDMD(
         else:
             # Compute the matrix in a least squares sense
             # inverse_map = "B" in Williams et al., Eq. 16
+            if y is None:
+                target = X.loc[X_dict.index, :]
+            else:
+                target = y.loc[X_dict.index, :]
+
             inverse_map = self._least_squares_inverse_map(
-                X=X.loc[X_dict.index, :], X_dict=X_dict, U=U
+                X=target, X_dict=X_dict, U=U
             )
 
         return inverse_map
@@ -814,7 +819,7 @@ class EDMD(
             DMD model, at which point the time indices must be identical to the states in `X`.
 
         y
-            ignored
+            TODO target values
 
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
@@ -841,6 +846,9 @@ class EDMD(
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
 
+        if y is not None:
+            pass # TODO: perform validation
+
         if hasattr(self, "is_partial_fit_") and self.is_partial_fit_:
             raise ValueError(
                 f"Fit cannot be called if the model was set up with {self.is_partial_fit_=}"
@@ -862,14 +870,18 @@ class EDMD(
         # the pipeline. The time values are set separately here:
         self._validate_time_values_format(time_values=X.time_values())
         self.dt_ = X.delta_time
-        self._feature_names_pred = X.columns
 
-        # '_fit' calls internally fit_transform (!!), and stores results into cache if
+        if y is None:
+            self._feature_names_pred = X.columns
+        else:
+            self._feature_names_pred = y.columns
+
+        # '_fit' calls internally fit_transform (!), and stores results into cache if
         # "self.memory is not None" (see docu):
         X_dict = self._fit(X, y, **fit_params)
         self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)
 
-        # Either automatically detected of enforced in dict_preserves_id_states
+        # Either automatically detected or enforced in dict_preserves_id_states
         self.dict_preserves_id_state_ = self._set_dict_preserves_id_state(X_dict)
 
         if self.include_id_state and not self.dict_preserves_id_state_:
@@ -877,8 +889,8 @@ class EDMD(
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
 
         if self.is_controlled_ and self.n_samples_ic_ > 1:
-            # intersection of indices, because often U does not require *all* indices in X
-            # (mainly the last control state should not be included)
+            # align index of control input with intersection of indices
+            # Some keys may be dropped here (e.g. when using time delay embedding)
             inters_keys = X_dict.index.intersection(U.index)
             U = U.loc[inters_keys, :]  # type: ignore
 
@@ -890,10 +902,7 @@ class EDMD(
 
         if not self.use_transform_inverse:
 
-            if y is None:
-                self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict, U=U)
-            else:
-                self._inverse_map = self._compute_inverse_map(X=y, X_dict=X_dict, U=U)
+            self._inverse_map = self._compute_inverse_map(X=X, y=y, X_dict=X_dict, U=U)
 
             if self.dmd_model.is_spectral_mode:
 
@@ -1090,6 +1099,30 @@ class EDMD(
             (2) all values must be finite (no `NaN` or `inf`)
         """
         return self.fit(X=X, U=U, y=y, **fit_params).reconstruct(X=X, U=U, qois=qois)
+
+    def __getitem__(self, ind):
+        # Overwrite the super class to distinguish the
+        if isinstance(ind, slice):
+            if ind.step not in (1, None):
+                raise ValueError("Pipeline slicing only supports a step of 1")
+
+            steps = self.steps[ind]
+
+            if len(steps) == len(self.steps):
+                return self
+            elif isinstance(steps[-1][1], TSCPredictMixin):
+                # actually it is possible to return EDMD if the DMD is included in the slice,
+                # however, then we must copy all EDMD specific attributes (also ones set
+                # during fit). This can be implemented when needed.
+                raise ValueError("Can only slice transformers of the pipeline and not the "
+                                 "final DMD estimator model")
+            else:
+                return Pipeline(
+                    steps=steps, memory=self.memory, verbose=self.verbose
+                )
+        else:
+            return super(EDMD, self).__getitem__(ind)
+
 
     def partial_fit(self, X: TimePredictType, U=None, y=None, **fit_params) -> "EDMD":
         """Incremental fit of the model.

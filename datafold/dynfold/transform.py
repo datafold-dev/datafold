@@ -1027,8 +1027,8 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
             if self.centers_.ndim != 2 or self.centers_.shape[1] != X.shape[1]:
                 raise ValueError(
-                    "The center points must be a matrix with same point "
-                    "dimension than 'X'."
+                    f"The center points (={self.centers_.shape[1]}) must be a two dimensional "
+                    f"array with the same point dimension in 'X' (={X.shape[1]})."
                 )
         elif self.center_type == "initial_condition":
             if not isinstance(X, TSCDataFrame):

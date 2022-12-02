@@ -452,7 +452,7 @@ class TestTscAccessor(unittest.TestCase):
     def test_shift_time1(self):
         tsc_df = TSCDataFrame(self.simple_df).copy()
 
-        tsc_df.tsc.shift_time(5)
+        tsc_df.tsc.shift_time_by_delta(5)
         nptest.assert_array_equal(
             tsc_df.index.get_level_values(1),
             self.simple_df.index.get_level_values(1) + 5,
@@ -463,7 +463,7 @@ class TestTscAccessor(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             # time is not allowed to be negative
-            tsc_df.tsc.shift_time(-5)
+            tsc_df.tsc.shift_time_by_delta(-5)
 
     def test_drop_last_n_samples(self):
         tsc_df = TSCDataFrame(self.simple_df)

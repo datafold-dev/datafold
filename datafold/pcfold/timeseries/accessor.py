@@ -456,7 +456,7 @@ class TSCAccessor(object):
                 else:
                     yield _ret
 
-    def shift_time(self, shift_t: float):
+    def shift_time_by_delta(self, shift_t: float):
         """Shift all time values from the time series by a constant value.
 
         Parameters
@@ -484,6 +484,27 @@ class TSCAccessor(object):
         self._tsc_df._validate()
 
         return self._tsc_df
+
+    # def shift_time_by_index(self, idx):
+    #     """Shift the time index for samples.
+    #
+    #     For example, if idx=1 then the second row gets the first index, the third the second
+    #     and so on. The first index is dropped.
+    #
+    #
+    #     Parameters
+    #     ----------
+    #     idx
+    #         Positive or negative integer value by how much to shift the time index.
+    #
+    #     Returns
+    #     -------
+    #     TSCDataFrame
+    #         data with shifted time index
+    #     """
+    #
+    #     new_index = self._tsc_df.groupby(TSCDataFrame.tsc_id_idx_name).tail(self._tsc_df.n_timesteps - idx).index
+    #     return self._tsc_df.set_index(new_index)
 
     def normalize_time(self):
         """Normalize time in time series collection.

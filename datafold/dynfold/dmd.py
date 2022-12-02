@@ -268,11 +268,11 @@ class DMDBase(
 
         if time_values.dtype == float:
             assert (
-                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values < 1e-14
+                    tsc_df.tsc.shift_time_by_delta(shift_t=shift).time_values() - time_values < 1e-14
             ).all()
         elif time_values.dtype == int:
             assert (
-                tsc_df.tsc.shift_time(shift_t=shift).time_values() - time_values == 0
+                    tsc_df.tsc.shift_time_by_delta(shift_t=shift).time_values() - time_values == 0
             ).all()
 
         # Set time_values from user input
