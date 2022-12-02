@@ -1594,8 +1594,9 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         if not np.isinf(self.n_subsample):
+            X_numpy = X.to_numpy() if isinstance(X, TSCDataFrame) else X
             eigvec = resample(
-                X,
+                X_numpy,
                 replace=False,
                 n_samples=self.n_subsample,
                 random_state=self.random_state,
@@ -1614,7 +1615,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             )
 
         self._set_indices()
-
         self._setup_feature_attrs_fit(X)
 
         return self

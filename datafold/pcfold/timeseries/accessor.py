@@ -61,7 +61,7 @@ class TSCAccessor(object):
         ensure_min_timesteps: Optional[int] = None,
         ensure_n_timesteps: Optional[int] = None,
         ensure_no_degenerate_ts: bool = True,
-        ensure_dtype_time = None
+        ensure_dtype_time=None,
     ) -> TSCDataFrame:
         """Validate time series properties.
 

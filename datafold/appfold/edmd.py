@@ -421,14 +421,15 @@ class EDMD(
         elif isinstance(self.dict_preserves_id_state, bool):
             if self.dict_preserves_id_state and self.include_id_state:
                 warnings.warn(
-                    f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} duplicates "
+                    f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} "
+                    f"duplicates the original features in the dictionary"
                 )
 
             return self.dict_preserves_id_state
         else:
             raise ValueError(
                 f"Could not read {self.dict_preserves_id_state=}. Set to string "
-                f"'infer' or bool"
+                f"'infer' or a boolean value"
             )
 
     def _compute_n_samples_ic(self, X, X_dict):

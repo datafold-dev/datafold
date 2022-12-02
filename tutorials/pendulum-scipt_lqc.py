@@ -2,19 +2,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 from datafold import (
     EDMD,
     DMDControl,
     InverseQuadraticKernel,
+    TSCApplyLambdas,
+    TSCColumnTransformer,
     TSCDataFrame,
     TSCIdentity,
     TSCPrincipalComponent,
     TSCRadialBasis,
-    TSCApplyLambdas,
-    TSCColumnTransformer,
 )
-
 from datafold.utils._systems import InvertedPendulum
 
 include_dmdcontrol = False
@@ -28,6 +26,7 @@ time_values = np.arange(0, 13, dt)
 rng = np.random.default_rng(1)
 invertedPendulum = InvertedPendulum(pendulum_mass=1)
 
+
 def generate_data(n_timeseries, ics):
     X_tsc, U_tsc = [], []  # lists to collect sampled time series
     for ic in range(ics.shape[0]):
@@ -40,7 +39,9 @@ def generate_data(n_timeseries, ics):
                 control_amplitude * np.sin(control_frequency * t + control_phase)
             )
 
-            U = lambda t, y: np.interp(t, time_values, rng.uniform(-0.1, 0.1, size=(len(time_values))))
+            U = lambda t, y: np.interp(
+                t, time_values, rng.uniform(-0.1, 0.1, size=(len(time_values)))
+            )
 
             # X are the states and U is the control input acting on the state's evolution
             X, U = invertedPendulum.predict(
@@ -67,7 +68,7 @@ def generate_data(n_timeseries, ics):
 ics_train = np.zeros((4, 4))
 
 for i in range(4):
-    ics_train[i] = [0, 0, 0+rng.uniform(-1, 1), 0]
+    ics_train[i] = [0, 0, 0 + rng.uniform(-1, 1), 0]
 # ics_train = np.array([[0, 0, np.pi + 0.1, 0], [0, 0, np.pi + 1.0, 0], [0, 0, 0.1, 0]])
 
 ics_test = np.array([[0, 0, rng.uniform(-1, 1), 0]])
@@ -265,26 +266,37 @@ R = np.eye(Bd.shape[1]) * 0.00001
 Pd = scipy.linalg.solve_discrete_are(Ad, Bd, Q, R) * dt
 Flqr = np.linalg.inv(R + Bd.T @ Pd @ Bd) @ Bd.T @ Pd @ Ad
 
-trajectory = np.zeros((horizon+1, X_tsc.shape[1]))
+trajectory = np.zeros((horizon + 1, X_tsc.shape[1]))
 
 X_controlled = X_oos.copy()
-target_x = TSCDataFrame.from_same_indices_as(X_oos.iloc[[0], :], values=np.array([[0, 0, 0, 0]]))
+target_x = TSCDataFrame.from_same_indices_as(
+    X_oos.iloc[[0], :], values=np.array([[0, 0, 0, 0]])
+)
 target_dict = edmd.transform(target_x)
 
 trajectory_u = np.zeros((horizon, 1))
 
 for i in range(horizon):
-    u = -Flqr @ (edmd.transform(X_controlled.iloc[[i], :]).to_numpy().T - target_dict.to_numpy().T)
-    next_state = invertedPendulum.predict(X_controlled.iloc[[i], :].to_numpy(), U=u, time_values=0.01)[0]
+    u = -Flqr @ (
+        edmd.transform(X_controlled.iloc[[i], :]).to_numpy().T
+        - target_dict.to_numpy().T
+    )
+    next_state = invertedPendulum.predict(
+        X_controlled.iloc[[i], :].to_numpy(), U=u, time_values=0.01
+    )[0]
     # TODO: this can be improved - later the idea would be to simply pass the feedback law as
     #  a function (U as Callable) to the inverted pendulum!
     trajectory_u[i] = u
-    X_controlled.iloc[i+1, :] = next_state.to_numpy()[-1, :]
+    X_controlled.iloc[i + 1, :] = next_state.to_numpy()[-1, :]
 
-U_lq = TSCDataFrame.from_array(trajectory_u, time_values=np.arange(0, horizon * dt, dt), feature_names=invertedPendulum.control_names_in_)
+U_lq = TSCDataFrame.from_array(
+    trajectory_u,
+    time_values=np.arange(0, horizon * dt, dt),
+    feature_names=invertedPendulum.control_names_in_,
+)
 
 reference = X_oos[["x", "theta"]].iloc[
-    edmd.n_samples_ic_ - 1: edmd.n_samples_ic_ + horizon
+    edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon
 ]
 reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ - 1 : edmd.n_samples_ic_ + horizon]
 

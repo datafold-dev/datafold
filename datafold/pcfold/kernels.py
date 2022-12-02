@@ -825,6 +825,7 @@ class GaussianKernel(RadialBasisKernel):
                 self.epsilon = self.epsilon(distance_matrix.data)
             elif isinstance(distance_matrix, np.ndarray):
                 self.epsilon = self.epsilon(distance_matrix)
+                print(self.epsilon)
             else:
                 raise TypeError(
                     f"Invalid type: type(distance_matrix)={type(distance_matrix)}."

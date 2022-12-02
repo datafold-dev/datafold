@@ -639,7 +639,7 @@ class EDMDTest(unittest.TestCase):
                 ("id", TSCIdentity(rename_features=True)),
             ],
             include_id_state=False,
-            dict_preserves_id_state="infer"
+            dict_preserves_id_state="infer",
         )
 
         edmd2 = EDMD(
@@ -647,7 +647,7 @@ class EDMDTest(unittest.TestCase):
                 ("id", TSCIdentity(rename_features=False)),
             ],
             include_id_state=True,  # has no effect
-            dict_preserves_id_state=True
+            dict_preserves_id_state=True,
         )
 
         edmd3 = EDMD(
@@ -665,7 +665,6 @@ class EDMDTest(unittest.TestCase):
             include_id_state=True,
             dict_preserves_id_state=True,
         )
-    
 
         data = self.sine_wave_tsc
 
@@ -688,7 +687,6 @@ class EDMDTest(unittest.TestCase):
         self.assertFalse(_sin_column_is_in(actual1))
         self.assertTrue(_sin_column_is_in(actual2))
         self.assertTrue(_sin_column_is_in(actual3))
-
 
     def test_edmd_dict_sine_wave(self, plot=False):
         _edmd = EDMD(

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from scipy.interpolate import interp1d
 import abc
 from typing import Callable, Optional, Union
 
@@ -7,6 +6,7 @@ import findiff as fd
 import numpy as np
 import pandas as pd
 from scipy.integrate import odeint, solve_ivp
+from scipy.interpolate import interp1d
 
 from datafold.dynfold.base import TSCPredictMixin
 from datafold.pcfold import TSCDataFrame
@@ -344,7 +344,9 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         elif time_values is not None:
             time_values = np.asarray(time_values)
             if len(time_values) < 2:
-                raise ValueError(f"Parameter time_values must include at least two elements. Got {len(time_values)=}")
+                raise ValueError(
+                    f"Parameter time_values must include at least two elements. Got {len(time_values)=}"
+                )
 
             self.dt_ = time_values[1] - time_values[0]
         else:
@@ -354,12 +356,15 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
             if isinstance(U, np.ndarray) and X.shape[0] == U.shape[0]:
                 if time_values is None:
-                    raise ValueError("For multiple one-step predictions, the parameter "
-                                     "'time_values' cannot be None")
+                    raise ValueError(
+                        "For multiple one-step predictions, the parameter "
+                        "'time_values' cannot be None"
+                    )
 
                 # Interpret as one-step prediction of multiple initial conditions
                 idx = pd.MultiIndex.from_arrays(
-                    [np.arange(U.shape[0]), np.ones(U.shape[0]) * time_values[0]])
+                    [np.arange(U.shape[0]), np.ones(U.shape[0]) * time_values[0]]
+                )
                 U = TSCDataFrame(U, index=idx, columns=self.control_names_in_)
 
             elif X.shape[0] > 1 and not isinstance(U, TSCDataFrame):
@@ -381,7 +386,9 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 U, time_values=time_values[:-1], feature_names=self.control_names_in_
             )
 
-        if isinstance(X, pd.DataFrame): # TODO: work with TSCDataFrame instead and cast to it if X is np.ndarray
+        if isinstance(
+            X, pd.DataFrame
+        ):  # TODO: work with TSCDataFrame instead and cast to it if X is np.ndarray
             X = X.to_numpy()
 
         X_sol = list()
@@ -401,7 +408,12 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 interp_control = []
 
                 for j in range(self.n_control_in_):
-                    func = lambda t, x: interp1d(time_values[:-1], U_interp[:, j], kind='previous', fill_value="extrapolate")(t)
+                    func = lambda t, x: interp1d(
+                        time_values[:-1],
+                        U_interp[:, j],
+                        kind="previous",
+                        fill_value="extrapolate",
+                    )(t)
                     interp_control.append(func)
 
                 Ufunc = lambda t, x: np.array([[u(t, x) for u in interp_control]])
@@ -437,7 +449,9 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         if isinstance(U, Callable):
             X_sol_but_last = X_sol.tsc.drop_last_n_samples(1)
 
-            tv = X_sol_but_last.index.get_level_values(TSCDataFrame.tsc_time_idx_name).to_numpy()
+            tv = X_sol_but_last.index.get_level_values(
+                TSCDataFrame.tsc_time_idx_name
+            ).to_numpy()
 
             # turn callable into actual data -- needs to be re-computed as I do not see a way
             # to access this from the scipy ODE solver
@@ -518,7 +532,9 @@ class InvertedPendulum(ControllableODE):
             self.tension_force_gain
             + m * self.g * sin_th * cos_th
             - m * self.pendulum_length * thetadot**2 * sin_th
-            - 2 * self.cart_friction * xdot + u) / alpha
+            - 2 * self.cart_friction * xdot
+            + u
+        ) / alpha
 
         f3 = thetadot
 
@@ -557,7 +573,7 @@ class InvertedPendulum(ControllableODE):
 
         return X.loc[:, self.feature_names_in_]
 
-    def animate(self, X: TSCDataFrame, U: Optional[TSCDataFrame]=None):
+    def animate(self, X: TSCDataFrame, U: Optional[TSCDataFrame] = None):
         assert X.n_timeseries == 1
 
         import matplotlib.animation as animation
@@ -598,7 +614,9 @@ class InvertedPendulum(ControllableODE):
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
 
             if U is not None:
-                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[0, 0]), dy=0)
+                control_arrow.set_data(
+                    x=mounting[0], y=mounting[1], dx=float(U.iloc[0, 0]), dy=0
+                )
 
             return (
                 line,
@@ -617,7 +635,9 @@ class InvertedPendulum(ControllableODE):
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
 
             if U is not None:
-                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[i, 0]), dy=0)
+                control_arrow.set_data(
+                    x=mounting[0], y=mounting[1], dx=float(U.iloc[i, 0]), dy=0
+                )
 
             return (
                 line,
@@ -630,7 +650,6 @@ class InvertedPendulum(ControllableODE):
             fig, _animate, init_func=init, frames=X.shape[0], interval=20, blit=True
         )
         return anim
-
 
 
 class InvertedPendulum2(ControllableODE):
@@ -677,7 +696,7 @@ class InvertedPendulum2(ControllableODE):
         self.tension_force_gain = tension_force_gain
         self.pendulum_length = pendulum_length
         self.cart_friction = cart_friction
-        self.l=0.3
+        self.l = 0.3
 
         super(InvertedPendulum2, self).__init__(
             feature_names_in=["x", "xdot", "theta", "thetadot"],
@@ -700,15 +719,20 @@ class InvertedPendulum2(ControllableODE):
         omega = y[3]
         der = np.zeros(4)
         der[0] = v
-        der[1] = (m * l * np.sin(theta) * omega ** 2 - m * g * np.sin(theta) * np.cos(
-            theta) + m * ftheta * np.cos(theta) * omega + F - b * v) / (
-                             M + m * (1 - np.cos(theta) ** 2))
+        der[1] = (
+            m * l * np.sin(theta) * omega**2
+            - m * g * np.sin(theta) * np.cos(theta)
+            + m * ftheta * np.cos(theta) * omega
+            + F
+            - b * v
+        ) / (M + m * (1 - np.cos(theta) ** 2))
         der[2] = omega
-        der[3] = ((M + m) * (g * np.sin(theta) - ftheta * omega) - m * l * omega ** 2 * np.sin(
-            theta) * np.cos(theta) - (F - b * v) * np.cos(theta)) / (
-                             l * (M + m * (1 - np.cos(theta) ** 2)))
+        der[3] = (
+            (M + m) * (g * np.sin(theta) - ftheta * omega)
+            - m * l * omega**2 * np.sin(theta) * np.cos(theta)
+            - (F - b * v) * np.cos(theta)
+        ) / (l * (M + m * (1 - np.cos(theta) ** 2)))
         return der
-
 
     def theta_to_trigonometric(self, X):
         theta = X["theta"].to_numpy()
@@ -736,7 +760,7 @@ class InvertedPendulum2(ControllableODE):
 
         return X.loc[:, self.feature_names_in_]
 
-    def animate(self, X: TSCDataFrame, *, U: Optional[TSCDataFrame]=None):
+    def animate(self, X: TSCDataFrame, *, U: Optional[TSCDataFrame] = None):
         assert X.n_timeseries == 1
 
         import matplotlib.animation as animation
@@ -777,7 +801,9 @@ class InvertedPendulum2(ControllableODE):
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
 
             if U is not None:
-                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[0, 0]), dy=0)
+                control_arrow.set_data(
+                    x=mounting[0], y=mounting[1], dx=float(U.iloc[0, 0]), dy=0
+                )
 
             return (
                 line,
@@ -796,7 +822,9 @@ class InvertedPendulum2(ControllableODE):
             pendulum_unstable.set_data(*np.row_stack([mounting, unstable]).T)
 
             if U is not None:
-                control_arrow.set_data(x=mounting[0], y=mounting[1], dx=float(U.iloc[i, 0]), dy=0)
+                control_arrow.set_data(
+                    x=mounting[0], y=mounting[1], dx=float(U.iloc[i, 0]), dy=0
+                )
 
             return (
                 line,
@@ -812,7 +840,6 @@ class InvertedPendulum2(ControllableODE):
 
 
 class Burger1DPeriodicBoundary(ControllableODE):
-
     def __init__(self, n_spatial_points: int = 100, nu=0.01):
         self.nu = nu
         self.x_nodes = np.linspace(0, 2 * np.pi, n_spatial_points)
@@ -835,7 +862,7 @@ class Burger1DPeriodicBoundary(ControllableODE):
 
         # central finite difference scheme
         y_pad = np.concatenate([y[[-1]], y, y[[0]]])
-        convection = (y_pad[:-2] - 2 * y_pad[1:-1] + y_pad[2:]) / (self.dx ** 2)
+        convection = (y_pad[:-2] - 2 * y_pad[1:-1] + y_pad[2:]) / (self.dx**2)
 
         x_dot = -np.multiply(advection, y, out=advection)
         x_dot += np.multiply(self.nu, convection, out=convection)
@@ -858,19 +885,22 @@ class Burger1DPeriodicBoundary(ControllableODE):
 
         first = np.zeros((n_nodes, n_nodes))
 
-        for i in range(xdiag.shape[1]-2):
-            first[:, i] = (c[0] * xdiag[:-2, i+1] + c[1] * xdiag[1:-1, i+1] + c[2] * xdiag[2:, i+1]) / (2 * self.dx)
+        for i in range(xdiag.shape[1] - 2):
+            first[:, i] = (
+                c[0] * xdiag[:-2, i + 1]
+                + c[1] * xdiag[1:-1, i + 1]
+                + c[2] * xdiag[2:, i + 1]
+            ) / (2 * self.dx)
 
         first *= 2
 
-        main_diagonal = np.diag(np.ones(n_nodes)*(-2))
-        off_diagonal = np.diag(np.ones(n_nodes-1), 1)
+        main_diagonal = np.diag(np.ones(n_nodes) * (-2))
+        off_diagonal = np.diag(np.ones(n_nodes - 1), 1)
 
         second = main_diagonal + off_diagonal + off_diagonal.T
-        second /= (self.dx ** 2)
+        second /= self.dx**2
 
         return -first - (np.eye(n_nodes) - self.nu * second)
-
 
     def _step(self, x, dt, u):
         # TODO: remove when finished
@@ -890,31 +920,32 @@ class Burger1DPeriodicBoundary(ControllableODE):
             x_pad = np.concatenate([x[[-1]], x, x[[0]]])
             advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx)
             advection_central *= dt
-            advection_central = advection_central*x
+            advection_central = advection_central * x
 
+            dxsq = self.dx**2
+            factor = -(dt * self.nu) / dxsq
 
-            dxsq = (self.dx ** 2)
-            factor = - (dt * self.nu) / dxsq
+            convection = (
+                factor * x_pad[:-2]
+                + (1 + (2 * dt * self.nu) / dxsq) * x_pad[1:-1]
+                + factor * x_pad[2:]
+            )
 
-            convection = factor * x_pad[:-2] + (1 + (2 * dt * self.nu)/dxsq) * x_pad[1:-1] + factor * x_pad[2:]
-
-            R = advection_central + convection - x - dt*u.T
+            R = advection_central + convection - x - dt * u.T
 
             x_pad = np.concatenate([x[[-1]], x, x[[0]]])
             # x_pad = np.concatenate([x[-3:-1], x])
             xdiag = np.diag(x_pad.flatten())
 
-
-
             first = np.zeros((n_nodes, n_nodes))
 
-            for i in range(xdiag.shape[1]-2):
-                first[:, i] = (-xdiag[:-2, i+1] + xdiag[2:, i+1]) / (2 * self.dx)
+            for i in range(xdiag.shape[1] - 2):
+                first[:, i] = (-xdiag[:-2, i + 1] + xdiag[2:, i + 1]) / (2 * self.dx)
 
-            first *= dt*2
+            first *= dt * 2
 
-            main_diagonal = np.diag(np.ones(n_nodes)*(-2))
-            off_diagonal = np.diag(np.ones(n_nodes-1), 1)
+            main_diagonal = np.diag(np.ones(n_nodes) * (-2))
+            off_diagonal = np.diag(np.ones(n_nodes - 1), 1)
             off_diagonal[0, -1] = 1
 
             second = main_diagonal + off_diagonal + off_diagonal.T
@@ -923,7 +954,6 @@ class Burger1DPeriodicBoundary(ControllableODE):
             J = first + (np.eye(n_nodes) - dt * self.nu * second)
             x = x - np.linalg.solve(J, R)
         return x
-
 
     def solve_ivp(self, X_ic, U, time_values):
         # TODO: remove when finished
@@ -937,13 +967,13 @@ class Burger1DPeriodicBoundary(ControllableODE):
         for i in range(1, len(time_values)):
 
             if isinstance(U, Callable):
-                Ut =  U(time_values[i], x)
+                Ut = U(time_values[i], x)
             elif isinstance(U, pd.DataFrame):
-                Ut = U.iloc[[i-1]].to_numpy()
+                Ut = U.iloc[[i - 1]].to_numpy()
             else:
-                Ut = U[[i-1]]
+                Ut = U[[i - 1]]
 
-            ts[i, :] = self._step(ts[i-1], dts[i], Ut).flatten()
+            ts[i, :] = self._step(ts[i - 1], dts[i], Ut).flatten()
 
         return ts
 
@@ -994,6 +1024,7 @@ class Motor(ControllableODE):
         dy[1] = -3.333333333 - 1.6599 * y[1, :] + 22.9478 * y[0, :] * u
         return dy
 
+
 class VanDerPol(ControllableODE):
 
     _allowed_control_input = ["x", "y", "both"]
@@ -1011,12 +1042,13 @@ class VanDerPol(ControllableODE):
             control_names_in = ["ux", "uy"]
         else:
             raise ValueError(
-                f"{control_coord=} invalid. Choose from {self._allowed_control_input}")
+                f"{control_coord=} invalid. Choose from {self._allowed_control_input}"
+            )
 
         super(VanDerPol, self).__init__(
             feature_names_in=["x1", "x2"],
             control_names_in=control_names_in,
-            **solver_kwargs
+            **solver_kwargs,
         )
 
     def _f(self, t, y, u):

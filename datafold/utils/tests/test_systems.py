@@ -1,17 +1,22 @@
 import unittest
-from matplotlib.animation import FuncAnimation
+
+import matplotlib.pyplot as plt
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
-import numpy.testing as nptest
+from matplotlib.animation import FuncAnimation
 
-from datafold.utils._systems import VanDerPol, Duffing1D, InvertedPendulum, Burger1DPeriodicBoundary
 from datafold import TSCDataFrame
-import matplotlib.pyplot as plt
+from datafold.utils._systems import (
+    Burger1DPeriodicBoundary,
+    Duffing1D,
+    InvertedPendulum,
+    VanDerPol,
+)
 
 
 class TestSystems(unittest.TestCase):
-
     def test_vanderpol01(self, plot=False):
 
         x = np.linspace(-3, 3, 10)
@@ -31,12 +36,16 @@ class TestSystems(unittest.TestCase):
             f, ax = plt.subplots()
 
             for i in range(start.shape[0]):
-                ax.plot(np.array([start[i, 0], end[i, 0]]), np.array([start[i, 1], end[i, 1]]), c="black")
+                ax.plot(
+                    np.array([start[i, 0], end[i, 0]]),
+                    np.array([start[i, 1], end[i, 1]]),
+                    c="black",
+                )
 
             # also include a longer example trajectory
             n_timesteps = 500
-            state = np.random.uniform(-3., 3., size=(1, 2))
-            control = np.zeros((n_timesteps-1, 2))
+            state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+            control = np.zeros((n_timesteps - 1, 2))
             timevals = np.linspace(0, 10, n_timesteps)
             trajectory, _ = sys.predict(X=state, U=control, time_values=timevals)
             ax.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
@@ -45,8 +54,8 @@ class TestSystems(unittest.TestCase):
     def test_vanderpol02(self, plot=False):
         # a single longer time series
         n_timesteps = 500
-        state = np.random.uniform(-3., 3., size=(1, 2))
-        control = np.zeros((n_timesteps-1, 2))
+        state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+        control = np.zeros((n_timesteps - 1, 2))
 
         timevals = np.linspace(0, 10, n_timesteps)
 
@@ -62,14 +71,18 @@ class TestSystems(unittest.TestCase):
         n_timesteps = 500
 
         # simulate 3 timeseries
-        state = np.random.uniform(-3., 3., size=(3, 2))
+        state = np.random.uniform(-3.0, 3.0, size=(3, 2))
 
         timevals = np.linspace(0, 10, n_timesteps)
 
-        df = pd.DataFrame(np.zeros((n_timesteps-1, 2)), index=timevals[:-1], columns=["u1", "u2"])
+        df = pd.DataFrame(
+            np.zeros((n_timesteps - 1, 2)), index=timevals[:-1], columns=["u1", "u2"]
+        )
 
         control = TSCDataFrame.from_frame_list([df, df, df])
-        X_predict, U = VanDerPol(eps=1).predict(X=state, U=control, time_values=timevals)
+        X_predict, U = VanDerPol(eps=1).predict(
+            X=state, U=control, time_values=timevals
+        )
 
         if plot:
             f, ax = plt.subplots()
@@ -87,8 +100,8 @@ class TestSystems(unittest.TestCase):
 
         umin, umax = (-0.1, 0.1)
 
-        f1 = lambda x: np.atleast_2d(np.exp(-(15 * (x - 0.25)) ** 2))
-        f2 = lambda x: np.atleast_2d(np.exp(-(15 * (x - 0.75)) ** 2))
+        f1 = lambda x: np.atleast_2d(np.exp(-((15 * (x - 0.25)) ** 2)))
+        f2 = lambda x: np.atleast_2d(np.exp(-((15 * (x - 0.75)) ** 2)))
 
         rand_vals = rng.uniform(umin, umax, size=(len(time_values), 2))
         U1rand = lambda t: np.atleast_2d(np.interp(t, time_values, rand_vals[:, 0])).T
@@ -102,7 +115,7 @@ class TestSystems(unittest.TestCase):
         sys = Burger1DPeriodicBoundary()
 
         a = rng.uniform(0, 1)
-        ic1 = np.exp(-(((sys.x_nodes) - .5) * 5) ** 2)
+        ic1 = np.exp(-((((sys.x_nodes) - 0.5) * 5) ** 2))
         ic2 = np.square(np.sin(4 * np.pi * sys.x_nodes))
         ic = a * ic1 + (1 - a) * ic2
 
@@ -129,17 +142,19 @@ class TestSystems(unittest.TestCase):
         # stable equilibrium
         X_unstable = np.array([0, 0, np.pi, 0])
 
-        U = np.zeros((20,1))
+        U = np.zeros((20, 1))
 
         sys = InvertedPendulum()
         actual_unstable, _ = sys.predict(X_stable, U=U)
         actual_stable, _ = sys.predict(X_unstable, U=U)
 
-        expected_unstable = np.tile(X_stable, (U.shape[0]+1, 1))
-        expected_stable = np.tile(X_unstable, (U.shape[0]+1, 1))
+        expected_unstable = np.tile(X_stable, (U.shape[0] + 1, 1))
+        expected_stable = np.tile(X_unstable, (U.shape[0] + 1, 1))
 
         nptest.assert_array_equal(expected_unstable, actual_unstable.to_numpy())
-        nptest.assert_allclose(expected_stable, actual_stable.to_numpy(), rtol=0, atol=1E-15)
+        nptest.assert_allclose(
+            expected_stable, actual_stable.to_numpy(), rtol=0, atol=1e-15
+        )
 
         self.assertIsInstance(actual_unstable, TSCDataFrame)
         self.assertIsInstance(actual_stable, TSCDataFrame)
@@ -148,7 +163,7 @@ class TestSystems(unittest.TestCase):
 
     def test_inverted_pendulum02(self):
         # unstable equilibrium
-        X = np.array([0,0,0.1,0])
+        X = np.array([0, 0, 0.1, 0])
         U = np.zeros((20, 1))
 
         sys = InvertedPendulum()
@@ -166,14 +181,19 @@ class TestSystems(unittest.TestCase):
 
         pdtest.assert_frame_equal(actual_theta, X_predict)
 
-
     def test_duffing01(self, plot=False):
 
         X1, U1 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)))
-        X2, U2 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)), time_values=np.arange(0, 10, 0.01))
+        X2, U2 = Duffing1D().predict(
+            np.array([1, 2]), U=np.zeros((999, 1)), time_values=np.arange(0, 10, 0.01)
+        )
 
-        U = TSCDataFrame.from_array(np.zeros((999, 1)), time_values=np.arange(0, 10-0.01, 0.01))
-        X3, U3 = Duffing1D().predict(np.array([1, 2]), U=U, time_values=np.arange(0, 10, 0.01))
+        U = TSCDataFrame.from_array(
+            np.zeros((999, 1)), time_values=np.arange(0, 10 - 0.01, 0.01)
+        )
+        X3, U3 = Duffing1D().predict(
+            np.array([1, 2]), U=U, time_values=np.arange(0, 10, 0.01)
+        )
         X4, U4 = Duffing1D().predict(np.array([1, 2]), U=U)
 
         pdtest.assert_frame_equal(X1, X2)
