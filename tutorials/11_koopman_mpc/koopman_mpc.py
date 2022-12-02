@@ -2,17 +2,17 @@
 # coding: utf-8
 
 # # Koopman MPC Tutorial
-# 
+#
 # This notebook illustrates how to do use *datafold* to do Koopman-based Model Predictive Control (MPC). We will be using an inverted pendulum, or a cartpole, as a toy model. The first section of this notebook illustrates how to select an EDMD model of our system, as well as possible pitfalls endemic to the data. Then we will use MPC with the trained EDMD model to balance the inverted pendulum in an upright position.
-# 
-# 
+#
+#
 # ![](cartpole2.png)
 
 # In[1]:
 
 
-get_ipython().run_line_magic('load_ext', 'autoreload')
-get_ipython().run_line_magic('autoreload', '2')
+get_ipython().run_line_magic("load_ext", "autoreload")
+get_ipython().run_line_magic("autoreload", "2")
 
 
 # In[2]:
@@ -47,11 +47,10 @@ from utils.mpc import MPC, MPCConfig
 from datafold import EDMD, DMDControl, TSCDataFrame, TSCIdentity, TSCRadialBasis
 from datafold.pcfold import InitialCondition
 
-
 # ## EDMD
-# 
+#
 # The first step to doing Model Predictive Control (MPC) is to train a good model. Here we will use Extended Dynamic Mode Decomposition (EDMD) to learn the Koopman operator of our model. As a toy model we will use an inverted pendulum, also known as a cartpole in literature.
-# 
+#
 # We start by generating some training and test data using an implentation of a cartpole simulator. The variables of interest for this problem are $x$, $\dot{x} = \frac{d x}{d t}$, $\theta$, and $\dot{\theta} = \frac{d \theta}{d t}$, which are coupled in the nonlinear dynamics of the system. The method for generating data used here is to provide the model a sinusoidal control signal with random amplitude, frequency, and phase.
 
 # First we define a function that randomly generates an initial condition in the state space of the inverted pendulum, sampling from an interval given by `ranges`
@@ -298,9 +297,9 @@ fig.tight_layout()
 
 
 # The predictions appear to be very good for $x$ and $\dot{x}$, but very poor for $\theta$ and $\dot{\theta}$.
-# 
+#
 # We can try to fix this with a number of tools. The first is to rescale all the variables so they have a similar magnitude, and shift them to center on 0. We can also try different functions in the EDMD dictionary. Here we used the identity function, but we can also try for example a polynomial functions or radial basis functions in the dictionary.
-# 
+#
 # Let's try again and rescale all the state variables so they have a mean of zero and a standard deviation of 1.
 
 # In[ ]:
@@ -334,7 +333,7 @@ fig.tight_layout()
 
 
 # The figure above shows what happens when we augment our training data by rescaling and shifting so the mean is zero and the standard deviation is 1.
-# 
+#
 # The next block shows what happens when we train EDMD with an identity dictionary on the rescaled data.
 
 # In[ ]:
@@ -427,7 +426,7 @@ fig.tight_layout()
 
 
 # The figure above shows predictions on the test set using EDMD trained with an identity dictionary and on the special augmentation scheme described above. The predictions on $\sin(\theta)$ and $\frac{d}{dt}\sin(\theta)$ are better than they were for $\theta$ and $\dot{\theta}$, but still not great. Let us try using a dictionary of radial basis functions.
-# 
+#
 # The next cell creates a wrapper on EDMD specifically for the RBF dictionary. The centers of the RBFs are selected as the cluster centers of kmeans trained on the training data.
 
 # In[ ]:
@@ -537,8 +536,8 @@ fig, axes = predictions.plot(n=5)
 fig.tight_layout()
 
 
-# The predictive performance of EDMD with an RBF dictionary is still rather poor on $\sin(\theta)$ and $\frac{d}{dt}\sin(\theta)$. Our next step is to reconsider how the data was generated. It could be that Koopman operator is having difficulty capturing the dynamics of the system along the full domain of the data. 
-# 
+# The predictive performance of EDMD with an RBF dictionary is still rather poor on $\sin(\theta)$ and $\frac{d}{dt}\sin(\theta)$. Our next step is to reconsider how the data was generated. It could be that Koopman operator is having difficulty capturing the dynamics of the system along the full domain of the data.
+#
 # Our intuition tells us that the dynamics of the system are different when the pendulum is above or below the cart. As we are trying to use MPC to balance an inverted pendulum, let us restrict the data used to train EDMD to only the region where the pendulum is "mostly vertical". As before we will start with a randomly generated initial condition based on a set of intervals defined in `ranges`. However, now we will also stop the simulation when the pendulum leaves these bounds. We continue generating simulations until the total number of time steps in our data set exceeds some threshold.
 
 # In[ ]:
@@ -868,8 +867,8 @@ fig.tight_layout()
 
 
 # In the cell above, we start  in an initial state with zero velocity and with the pendulum at an angle of 0.5 radians from the vertical. We run MPC with a target state where the cart is stationary, and the pendulum is vertical and stationary. The blue line in the figure shows that trajectory predicted by the EDMD model given the control signal generated by MPC. The cost parameters given to MPC have a strong impact on how MPC generates a control signal. What we wanted was for MPC to move the system towards the desired target state. In the figure we do see this happening, meaning we selected a good set of cost parameters for our goal.
-# 
-# 
+#
+#
 # Next we can run MPC in a loop. We will run MPC in a feedback loop with the cartpole model. MPC will generate a control signal with a long prediction horizon. Then the state of the system is updated for one time step of the control signal using the cartpole model. The long prediction horizon helps MPC select a better control signal that moves the system towards the reference signal over multiple time steps.
 
 # In[ ]:
@@ -992,4 +991,3 @@ fig.tight_layout()
 
 for ic, df in data:
     display(animate(df))
-

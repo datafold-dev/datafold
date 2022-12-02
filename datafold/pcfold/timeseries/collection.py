@@ -2,12 +2,11 @@ from functools import partial
 from numbers import Number
 from typing import Generator, List, Optional, Tuple, Union
 
-from pandas.api.types import is_timedelta64_dtype
 import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
 import scipy.sparse
-from pandas.api.types import is_datetime64_dtype, is_numeric_dtype
+from pandas.api.types import is_datetime64_dtype, is_numeric_dtype, is_timedelta64_dtype
 from pandas.core.indexing import _iLocIndexer, _LocIndexer
 
 from datafold.pcfold.distance import compute_distance_matrix
@@ -337,8 +336,12 @@ class TSCDataFrame(pd.DataFrame):
 
     def __repr__(self):
         if self.fixed_delta is not None:
-            _repr_index = self.index.set_levels(self.index.get_level_values("time") * self.fixed_delta,"time")
-            return pd.DataFrame(self.to_numpy(), index=_repr_index, columns=self.columns).__repr__()
+            _repr_index = self.index.set_levels(
+                self.index.get_level_values("time") * self.fixed_delta, "time"
+            )
+            return pd.DataFrame(
+                self.to_numpy(), index=_repr_index, columns=self.columns
+            ).__repr__()
         else:
             return super(TSCDataFrame, self).__repr__()
 
@@ -435,7 +438,7 @@ class TSCDataFrame(pd.DataFrame):
         left_matrix,
         right_matrix,
         *,
-        time_values=(0,1),
+        time_values=(0, 1),
         snapshot_orientation: str = "col",
         columns: Optional[Union[pd.Index, list]] = None,
     ) -> "TSCDataFrame":
@@ -481,7 +484,7 @@ class TSCDataFrame(pd.DataFrame):
         if left_matrix.shape != right_matrix.shape:
             raise ValueError(
                 "The matrix shapes are not the same. "
-                f"{left_matrix.shape=} " 
+                f"{left_matrix.shape=} "
                 f"{right_matrix.shape=}."
             )
 
@@ -986,8 +989,8 @@ class TSCDataFrame(pd.DataFrame):
         # (even if time values are generated with np.linspace)
         # TODO: this actually calls for a feature in TSCDataFrame to set a global time delta
         #  and internally work with integers (which makes everything much easier here!)
-        rtol=3e-12
-        atol=1e-16
+        rtol = 3e-12
+        atol = 1e-16
 
         if isinstance(n_timesteps, int):
             n_timeseries = self.n_timeseries
@@ -998,7 +1001,7 @@ class TSCDataFrame(pd.DataFrame):
 
             # the :-1 is here because in the np.diff above, there is no diff value for the last
             diff_times = diff_times[np.tile(idx_mask, n_timeseries)[:-1]]
-            diff_times = np.reshape(diff_times, (n_timeseries, n_timesteps-1))
+            diff_times = np.reshape(diff_times, (n_timeseries, n_timesteps - 1))
 
             if diff_times.shape[1] == 1:
                 # special case when n_timesteps==2
@@ -1010,7 +1013,9 @@ class TSCDataFrame(pd.DataFrame):
                     abs_diff = np.abs(diff_times[:, 1:] - result)
 
                     within_atol = np.all(abs_diff < atol, axis=1)
-                    within_rtol = np.all(np.divide(abs_diff, result, out=abs_diff) < rtol, axis=1)
+                    within_rtol = np.all(
+                        np.divide(abs_diff, result, out=abs_diff) < rtol, axis=1
+                    )
                     equal_dt = np.logical_or(within_atol, within_rtol)
                     result[~equal_dt] = np.nan
                 else:
@@ -1029,7 +1034,9 @@ class TSCDataFrame(pd.DataFrame):
                 if is_timedelta64_dtype(_id_dt) or _id_dt.dtype == int:
                     _is_unique_dt = len(np.unique(np.asarray(_id_dt))) == 1
                 else:
-                    _is_unique_dt = np.allclose(np.min(_id_dt), _id_dt, atol=atol, rtol=rtol)
+                    _is_unique_dt = np.allclose(
+                        np.min(_id_dt), _id_dt, atol=atol, rtol=rtol
+                    )
 
                 if _is_unique_dt:
                     dt_result_series[timeseries_id] = _id_dt[0]
@@ -1039,7 +1046,9 @@ class TSCDataFrame(pd.DataFrame):
             if is_timedelta64_dtype(dt_result_series) or dt_result_series.dtype == int:
                 is_global_unique = len(np.unique(dt_result_series))
             else:
-                is_global_unique = np.allclose(np.min(dt_result_series), dt_result_series, atol=atol, rtol=rtol)
+                is_global_unique = np.allclose(
+                    np.min(dt_result_series), dt_result_series, atol=atol, rtol=rtol
+                )
 
             if not np.isnan(dt_result_series).any():
                 # TODO: here it may be interesting to check the new "Null" types of

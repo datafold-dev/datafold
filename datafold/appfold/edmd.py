@@ -420,12 +420,17 @@ class EDMD(
             return np.isin(self.feature_names_in_, X_dict.columns).all()
         elif isinstance(self.dict_preserves_id_state, bool):
             if self.dict_preserves_id_state and self.include_id_state:
-                warnings.warn(f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} duplicates ")
+                warnings.warn(
+                    f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} "
+                    f"duplicates the original features in the dictionary"
+                )
 
             return self.dict_preserves_id_state
         else:
-            raise ValueError(f"Could not read {self.dict_preserves_id_state=}. Set to string "
-                             f"'infer' or bool")
+            raise ValueError(
+                f"Could not read {self.dict_preserves_id_state=}. Set to string "
+                f"'infer' or a boolean value"
+            )
 
     def _compute_n_samples_ic(self, X, X_dict):
         diff = X.n_timesteps - X_dict.n_timesteps
@@ -513,8 +518,10 @@ class EDMD(
             except ValueError as e:
                 # here it is assumed that the the error is not raised if
                 # self.include_id_state=True because we have the control over it
-                raise ValueError(f"{self.dict_preserves_id_state_=} but not all features "
-                                 f"names could be found in the dictionary's feature names") from e
+                raise ValueError(
+                    f"{self.dict_preserves_id_state_=} but not all features "
+                    f"names could be found in the dictionary's feature names"
+                ) from e
         else:
             # Compute the matrix in a least squares sense
             # inverse_map = "B" in Williams et al., Eq. 16
@@ -1139,7 +1146,6 @@ class EDMD(
             self.dt_ = X.delta_time
             self._feature_names_pred = X.columns
 
-
         # '_fit' calls internally fit_transform (!!), and stores results into cache if
         # "self.memory is not None" (see docu):
         fit_params = self._check_fit_params(**fit_params or {})
@@ -1149,7 +1155,6 @@ class EDMD(
 
         if initial_fit:
             self.dict_preserves_id_state_ = self._validate_dictionary()
-
 
         if initial_fit:
             self.n_samples_ic_ = self._compute_n_samples_ic(X, X_dict)

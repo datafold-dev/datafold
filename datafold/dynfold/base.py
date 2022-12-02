@@ -200,9 +200,7 @@ class TSCBase(object):
                 ensure_no_degenerate_ts=tsc_kwargs.pop(
                     "ensure_no_degenerate_ts", False
                 ),
-                ensure_dtype_time=tsc_kwargs.pop(
-                    "ensure_dtype_time", None
-                ),
+                ensure_dtype_time=tsc_kwargs.pop("ensure_dtype_time", None),
             )
 
         if array_kwargs or tsc_kwargs:
@@ -504,7 +502,7 @@ class TSCPredictMixin(TSCBase):
         # comparing time values in floating points is sometimes a bit tricky, because two
         # effectively equal values have a tiny difference -- this parameter is used within
         # this function as a tolerance value
-        _numerical_tol = 1E-14
+        _numerical_tol = 1e-14
         _numerical_tol = 0
 
         if not hasattr(self, "dt_"):
@@ -536,8 +534,10 @@ class TSCPredictMixin(TSCBase):
             if is_controlled:
 
                 if isinstance(U, Callable):
-                    raise ValueError("If U` is a control input function (Callable), then the "
-                                     f"parameter 'time_values' cannot be None. Got {time_values=}")
+                    raise ValueError(
+                        "If U` is a control input function (Callable), then the "
+                        f"parameter 'time_values' cannot be None. Got {time_values=}"
+                    )
 
                 if isinstance(U, TSCDataFrame):
                     time_values = U.time_values()
@@ -559,7 +559,8 @@ class TSCPredictMixin(TSCBase):
                 else:
                     time_values = np.arange(
                         reference,
-                        reference + _numerical_tol
+                        reference
+                        + _numerical_tol
                         + (U.shape[0] + int(not req_last_control_state))  # type: ignore
                         * self.dt_,
                         self.dt_,
@@ -572,7 +573,11 @@ class TSCPredictMixin(TSCBase):
             if is_controlled:
                 if isinstance(U, np.ndarray):
                     if len(time_values) != U.shape[0] + int(not req_last_control_state):
-                        str_req_control_states = f"{U.shape[0]-1=}" if int(not req_last_control_state) else f"{U.shape[0]=}"
+                        str_req_control_states = (
+                            f"{U.shape[0]-1=}"
+                            if int(not req_last_control_state)
+                            else f"{U.shape[0]=}"
+                        )
 
                         raise ValueError(
                             f"The length of time values ({len(time_values)=}) does not match "
@@ -581,7 +586,9 @@ class TSCPredictMixin(TSCBase):
                 elif isinstance(U, TSCDataFrame):
 
                     req_time_values = U.time_values()
-                    req_time_values = req_time_values[req_time_values >= reference - _numerical_tol]
+                    req_time_values = req_time_values[
+                        req_time_values >= reference - _numerical_tol
+                    ]
 
                     if not req_last_control_state:
                         req_time_values = np.append(
@@ -590,7 +597,9 @@ class TSCPredictMixin(TSCBase):
 
                     if (
                         time_values.shape != req_time_values.shape
-                        or not (np.array(time_values - req_time_values) <= _numerical_tol).all()
+                        or not (
+                            np.array(time_values - req_time_values) <= _numerical_tol
+                        ).all()
                     ):
                         raise ValueError(
                             "The two parameters ('U' and 'time_values') provide mismatching "
@@ -605,7 +614,7 @@ class TSCPredictMixin(TSCBase):
                     )
 
             if isinstance(X, TSCDataFrame):
-                if (time_values < reference-_numerical_tol).any():
+                if (time_values < reference - _numerical_tol).any():
                     raise ValueError(
                         "The time values must not contain any value that is smaller than the "
                         f"time reference of the initial condition ({reference=})\n"

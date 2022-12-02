@@ -1,19 +1,23 @@
 import warnings
 from typing import List, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.sparse
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
-import matplotlib.pyplot as plt
+from sklearn.utils.validation import check_is_fitted
 
 from datafold import EDMD, TSCDataFrame
 from datafold.dynfold.base import InitialConditionType, TransformType
-from datafold.utils.general import if1dim_colvec, if1dim_rowvec
-from datafold.utils.general import projection_matrix_from_feature_names
-from sklearn.utils.validation import check_is_fitted
+from datafold.utils.general import (
+    if1dim_colvec,
+    if1dim_rowvec,
+    projection_matrix_from_feature_names,
+)
+
 try:
     import quadprog  # noqa: F401
     from qpsolvers import solve_qp
@@ -25,10 +29,12 @@ def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
     if isinstance(cost, np.ndarray):
         if cost.ndim != 1 or cost.shape[0] != n_elements:
             raise ValueError(
-                f"The cost vector must be 1-dim. with {n_elements} elements. Got {cost.ndim=} and {cost.shape=}")
+                f"The cost vector must be 1-dim. with {n_elements} elements. Got {cost.ndim=} and {cost.shape=}"
+            )
         if (cost < 0).any():
             raise ValueError(
-                f"All cost values must be non-negative. Found {(cost < 0).sum()} negative values.")
+                f"All cost values must be non-negative. Found {(cost < 0).sum()} negative values."
+            )
 
         return cost
     elif isinstance(cost, (float, int)):
@@ -39,7 +45,8 @@ def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
         return np.ones(n_elements) * cost
     else:
         raise TypeError(
-            f"{type(cost)=} not understood, use numeric value (float/int) or 1-dim. array with {n_elements} elements.")
+            f"{type(cost)=} not understood, use numeric value (float/int) or 1-dim. array with {n_elements} elements."
+        )
 
 
 class LinearKMPC:
@@ -181,13 +188,33 @@ class LinearKMPC:
         self.input_bounds = input_bounds
         self.state_bounds = state_bounds
 
-        if isinstance(self.state_bounds, np.ndarray) and self.state_bounds.shape != (self.n_features, 2):
-            raise ValueError(f"state_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.state_bounds.shape=}.")
+        if isinstance(self.state_bounds, np.ndarray) and self.state_bounds.shape != (
+            self.n_features,
+            2,
+        ):
+            raise ValueError(
+                f"state_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.state_bounds.shape=}."
+            )
 
-        if isinstance(self.input_bounds, np.ndarray) and self.input_bounds.shape != (self.n_control_input, 2):
-            raise ValueError(f"input_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.input_bounds.shape=}.")
+        if isinstance(self.input_bounds, np.ndarray) and self.input_bounds.shape != (
+            self.n_control_input,
+            2,
+        ):
+            raise ValueError(
+                f"input_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.input_bounds.shape=}."
+            )
 
-        self.H, self.h, self.G, self.Y, self.L, self.M, self.c, self.lb, self.ub = self._setup_optimizer()
+        (
+            self.H,
+            self.h,
+            self.G,
+            self.Y,
+            self.L,
+            self.M,
+            self.c,
+            self.lb,
+            self.ub,
+        ) = self._setup_optimizer()
 
     def _setup_optimizer(self):
         # implements relevant part of :cite:`korda-2018` to set up the optimization problem
@@ -219,7 +246,8 @@ class LinearKMPC:
 
         if is_project_coordinates:
             Cb = projection_matrix_from_feature_names(
-                features_all=self.edmd.feature_names_out_, features_select=self.qois).T
+                features_all=self.edmd.feature_names_out_, features_select=self.qois
+            ).T
         else:
             Cb = None
 
@@ -227,7 +255,7 @@ class LinearKMPC:
 
         # set up Ab
         for i in range(self.horizon):
-            s = i * self.n_qois # start index
+            s = i * self.n_qois  # start index
             e = (i + 1) * self.n_qois  # end index
 
             if is_project_coordinates:
@@ -251,7 +279,7 @@ class LinearKMPC:
                 sr = j * self.n_qois  # start row
                 er = (j + 1) * self.n_qois  # end row
                 sc = k * self.n_control_input  # start columns
-                ec = (k+1) * self.n_control_input  # end column
+                ec = (k + 1) * self.n_control_input  # end column
                 Bb[sr:er, sc:ec] = _B_tmp
 
             if i != self.horizon:
@@ -263,7 +291,6 @@ class LinearKMPC:
     def _create_cost_matrices(self):
         # implements appendix from :cite:`korda-2018`
         # same as Sabin 2.44
-
 
         # optimization - linear
         # TODO: q and r are always zero -- either remove completely or need a user parameter
@@ -279,7 +306,7 @@ class LinearKMPC:
         else:
             vec_terminal = _cost_to_array(self.cost_terminal, self.n_qois)
 
-        diag = np.hstack([np.tile(vec_running, self.horizon-1), vec_terminal])
+        diag = np.hstack([np.tile(vec_running, self.horizon - 1), vec_terminal])
         Qb = scipy.sparse.spdiags(diag, 0, diag.size, diag.size)
 
         # linear part input cost  # TODO: currently always zero
@@ -299,7 +326,9 @@ class LinearKMPC:
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
 
         if self.state_bounds is not None:
-            raise NotImplementedError("Currently state bounds are not properly implemented.")
+            raise NotImplementedError(
+                "Currently state bounds are not properly implemented."
+            )
 
         # TODO: Eb and Fb are very sparse matrices (~ 99 %)
         # constraint equations
@@ -315,10 +344,12 @@ class LinearKMPC:
         # F = np.vstack([np.zeros((2 * N, m)), np.eye(m), -np.eye(m)])
         # Fb = np.vstack([np.kron(np.eye(Np), F), np.zeros((2 * (N + m), m * Np))])
 
-        Fb = np.zeros(((self.horizon+1)*self.n_features, self.horizon*self.n_control_input))
+        Fb = np.zeros(
+            ((self.horizon + 1) * self.n_features, self.horizon * self.n_control_input)
+        )
 
         # constraint
-        cb = np.zeros(((self.horizon+1)*self.n_features, 1))
+        cb = np.zeros(((self.horizon + 1) * self.n_features, 1))
 
         # c[:, :N] = self.state_bounds[:, 0]
         # c[:, N : 2 * N] = -self.state_bounds[:, 1]  # TODO: does it make any sense to negate here??
@@ -388,17 +419,23 @@ class LinearKMPC:
         X_dict = self.edmd.transform(X)
 
         if X_dict.shape[0] != 1:
-            raise ValueError(f"The transformed dictionary state must consist of a single sample only (i.e. X.shape[0] == 0). Got {X.shape[0]=}.")
+            raise ValueError(
+                f"The transformed dictionary state must consist of a single sample only (i.e. X.shape[0] == 0). Got {X.shape[0]=}."
+            )
 
         t_ic = X_dict.time_values()[0]
         t_ref = reference.time_values()[0]
 
         if not np.allclose(t_ic + self.edmd.dt_, t_ref, rtol=1e-11, atol=1e-15):
-            raise ValueError(f"The reference time value of the initial state is at time {t_ic=}. "
-                             f"The reference time series must start one time step in the future at t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead (diff={t_ic+self.edmd.dt_ - t_ref}).")
+            raise ValueError(
+                f"The reference time value of the initial state is at time {t_ic=}. "
+                f"The reference time series must start one time step in the future at t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead (diff={t_ic+self.edmd.dt_ - t_ref})."
+            )
 
         if reference.shape != (self.horizon, self.n_qois):
-            raise ValueError(f"Reference time series must have shape ({self.horizon=}, {self.n_qois=}). Got {reference.shape=} instead.")
+            raise ValueError(
+                f"Reference time series must have shape ({self.horizon=}, {self.n_qois=}). Got {reference.shape=} instead."
+            )
 
         np_reference = reference.to_numpy()
         np_reference = np_reference.reshape((self.horizon * self.n_qois, 1))
@@ -406,8 +443,8 @@ class LinearKMPC:
         U = solve_qp(
             P=self.H,
             q=(self.G @ X_dict.to_numpy().T + self.Y @ np_reference).flatten(),
-            G=None, # , self.L
-            h=None, # (self.c - self.M @ X_dict).flatten(),  # (,
+            G=None,  # , self.L
+            h=None,  # (self.c - self.M @ X_dict).flatten(),  # (,
             A=None,
             b=None,
             lb=self.lb,
@@ -428,9 +465,15 @@ class LinearKMPC:
         # Note: it is better to use start and np.arange to have the numerical *exact* time value
         # than in X (reference.time_values() - edmd.dt_ often creates numerical noise)
         start = X_dict.time_values()[0]
-        control_time_values = np.arange(start, start + self.horizon * self.edmd.dt_ - 1E-14, self.edmd.dt_)
+        control_time_values = np.arange(
+            start, start + self.horizon * self.edmd.dt_ - 1e-14, self.edmd.dt_
+        )
 
-        U = TSCDataFrame.from_array(U.reshape((self.horizon, self.n_control_input)), time_values=control_time_values, feature_names=self.edmd.control_names_in_)
+        U = TSCDataFrame.from_array(
+            U.reshape((self.horizon, self.n_control_input)),
+            time_values=control_time_values,
+            feature_names=self.edmd.control_names_in_,
+        )
         return U
 
     # def compute_cost(self, U, reference, initial_conditions):
@@ -466,7 +509,6 @@ class LinearKMPC:
 
 
 class LQR(object):
-
     def __init__(self, edmd, cost_running, cost_input):
         self.edmd = edmd
 
@@ -491,7 +533,9 @@ class LQR(object):
         return Flqr
 
     def _create_cost_matrices(self):
-        cost_diagonal = _cost_to_array(self.cost_running, n_elements=self.edmd.n_features_out_)
+        cost_diagonal = _cost_to_array(
+            self.cost_running, n_elements=self.edmd.n_features_out_
+        )
         Q = np.diag(cost_diagonal)  # sparse matrices don't work in solve_discrete_are
 
         cost_input = _cost_to_array(self.cost_input, n_elements=self.edmd.n_control_in_)
@@ -499,20 +543,29 @@ class LQR(object):
 
         return Q, R
 
-    def control_sequence(self, X: TSCDataFrame, target_state: Optional[TSCDataFrame]=None):
-            X.tsc.check_required_n_timeseries(1)
+    def control_sequence(
+        self, X: TSCDataFrame, target_state: Optional[TSCDataFrame] = None
+    ):
+        X.tsc.check_required_n_timeseries(1)
 
-            if target_state is not None:
-                target_state_dict = self.edmd.transform(target_state).to_numpy()
-            elif hasattr(self, "_preset_target_state"):
-                target_state_dict = self._preset_target_state
-            else:
-                raise ValueError("Target state must be provided either as a parameter or set with 'preset_target_state'")
+        if target_state is not None:
+            target_state_dict = self.edmd.transform(target_state).to_numpy()
+        elif hasattr(self, "_preset_target_state"):
+            target_state_dict = self._preset_target_state
+        else:
+            raise ValueError(
+                "Target state must be provided either as a parameter or set with 'preset_target_state'"
+            )
 
-            u = - self.Flqr @ (self.edmd.transform(X).to_numpy() - target_state_dict).T
-            u = TSCDataFrame.from_array(u, time_values=X.time_values()[-1], feature_names=self.edmd.control_names_in_, ts_id=X.ids[0])
+        u = -self.Flqr @ (self.edmd.transform(X).to_numpy() - target_state_dict).T
+        u = TSCDataFrame.from_array(
+            u,
+            time_values=X.time_values()[-1],
+            feature_names=self.edmd.control_names_in_,
+            ts_id=X.ids[0],
+        )
 
-            return u
+        return u
 
 
 class AffineKgMPC(object):

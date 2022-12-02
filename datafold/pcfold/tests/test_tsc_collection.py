@@ -825,7 +825,9 @@ class TestTSCDataFrame(unittest.TestCase):
         X_left = np.reshape(np.arange(100), (10, 10))
         X_right = np.reshape(np.arange(100, 200), (10, 10))
 
-        X_tsc = TSCDataFrame.from_shift_matrices(X_left, X_right, snapshot_orientation="col")
+        X_tsc = TSCDataFrame.from_shift_matrices(
+            X_left, X_right, snapshot_orientation="col"
+        )
 
         self.assertEqual(X_tsc.delta_time, 1)
 
@@ -834,7 +836,7 @@ class TestTSCDataFrame(unittest.TestCase):
         # isinstance(n_timesteps, int)
 
         idx = pd.MultiIndex.from_product([np.arange(10), np.arange(10)])
-        X_tsc = TSCDataFrame(np.reshape(np.arange(1000), (100,10)), index=idx)
+        X_tsc = TSCDataFrame(np.reshape(np.arange(1000), (100, 10)), index=idx)
 
         self.assertEqual(X_tsc.delta_time, 1)
 
@@ -843,8 +845,10 @@ class TestTSCDataFrame(unittest.TestCase):
         # isinstance(n_timesteps, int)
 
         # uneven sampling in the second time series should lead to nan
-        idx = pd.MultiIndex.from_arrays([np.array([0,0,0,1,1,1]), np.array([1,2,3, 1, 5, 99])])
-        X_tsc = TSCDataFrame(np.reshape(np.arange(12), (6,2)), index=idx)
+        idx = pd.MultiIndex.from_arrays(
+            [np.array([0, 0, 0, 1, 1, 1]), np.array([1, 2, 3, 1, 5, 99])]
+        )
+        X_tsc = TSCDataFrame(np.reshape(np.arange(12), (6, 2)), index=idx)
 
         actual = X_tsc.delta_time
         self.assertIsInstance(actual, pd.Series)
@@ -1318,7 +1322,9 @@ class TestTSCDataFrame(unittest.TestCase):
                     index=pd.MultiIndex.from_product([[0], time_values]),
                 )
 
-                idx_two = pd.MultiIndex.from_arrays([np.append(np.zeros(5), np.ones(n_samples-5)), time_values])
+                idx_two = pd.MultiIndex.from_arrays(
+                    [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values]
+                )
                 tsc_two = TSCDataFrame(
                     np.random.rand(time_values.shape[0], 2),
                     index=idx_two,
@@ -1343,7 +1349,8 @@ class TestTSCDataFrame(unittest.TestCase):
                 )
 
                 idx_two = pd.MultiIndex.from_arrays(
-                    [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values])
+                    [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values]
+                )
                 tsc_two = TSCDataFrame(
                     np.random.rand(time_values.shape[0], 2),
                     index=idx_two,
@@ -1354,7 +1361,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
                 actual_delta_two = tsc_two.delta_time
                 self.assertIsInstance(actual_delta_two, pd.Series)
-                self.assertTrue(tsc_two.delta_time.iloc[0] - delta < 1E-15)
+                self.assertTrue(tsc_two.delta_time.iloc[0] - delta < 1e-15)
                 self.assertTrue(np.isnan(tsc_two.delta_time.iloc[1]))
 
     def test_build_from_single_timeseries(self):
@@ -1441,11 +1448,14 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_fixed_delta(self):
 
-        tscdf = TSCDataFrame(np.arange(6).reshape(3,2), index=pd.MultiIndex.from_product([[0], [1,2,3]]), fixed_delta=0.1)
+        tscdf = TSCDataFrame(
+            np.arange(6).reshape(3, 2),
+            index=pd.MultiIndex.from_product([[0], [1, 2, 3]]),
+            fixed_delta=0.1,
+        )
 
         print(tscdf)
         print(tscdf.index)
-
 
 
 class TestInitialCondition(unittest.TestCase):
