@@ -290,6 +290,13 @@ class TSCDataFrame(pd.DataFrame):
 
     def __init__(self, *args, fixed_delta=None, validate=True, **kwargs):
 
+        # TODO: potential
+        # TODO: write an index extension?
+        # TODO: include fixed_delta in constructors?
+        # TODO: adapt delta_time
+        # TODO: test that delta_time only accepts float and setting integer time values
+        # TODO: test that there can be diverse
+
         # NOTE: do not move this call after other setters "self.attribute = ...".
         # Otherwise, there is an infinite recursion because pandas handles the
         # __getattr__ magic function.
@@ -301,10 +308,17 @@ class TSCDataFrame(pd.DataFrame):
             self.is_validate = validate
 
         if not hasattr(self, "fixed_delta"):
-            self.fixed_delta = fixed_delta
+            if fixed_delta is None or (
+                isinstance(fixed_delta, float) and fixed_delta > 0
+            ):
+                self.fixed_delta = fixed_delta
+            else:
+                raise TypeError(
+                    "Parameter 'fixed_delta' must be None or positive float. "
+                    f"Got: {type(fixed_delta)=} and {fixed_delta=}"
+                )
 
-        # This is a special case of input, where the fallback is a cast to
-        # pd.DataFrame.
+        # This is a special case of input with fallback to cast to pd.DataFrame:
         # In pandas the __init__ is called like this:
         # df._constructor(res)
         # --> df._constructor is TSCDataFrame
@@ -334,10 +348,12 @@ class TSCDataFrame(pd.DataFrame):
         # in _LocTSCIndexer and _iLocTSCIndexer
         return super(TSCDataFrame, self).__setattr__(key, value)
 
-    def __repr__(self):
-        if self.fixed_delta is not None:
+    def __repr__(self, with_fixed_delta=True):
+        if with_fixed_delta and self.fixed_delta is not None:
+            _time = TSCDataFrame.tsc_time_idx_name
+            _adapt_time_values = self.index.get_level_values(_time) * self.fixed_delta
             _repr_index = self.index.set_levels(
-                self.index.get_level_values("time") * self.fixed_delta, "time"
+                _adapt_time_values, level=_time, verify_integrity=False
             )
             return pd.DataFrame(
                 self.to_numpy(), index=_repr_index, columns=self.columns
@@ -851,7 +867,7 @@ class TSCDataFrame(pd.DataFrame):
         _ids = ids_index[bool_new_id]
 
         if len(np.unique(_ids)) != len(_ids):
-            raise AttributeError("Time series that have the same ID.")
+            raise AttributeError("The ime series must have a unique ID.")
 
         if is_datetime64_dtype(time_index):
             _time_index_num = time_index.view(np.int64)
@@ -1068,10 +1084,16 @@ class TSCDataFrame(pd.DataFrame):
                 # Somehow single_value gets turned into pd.Timedelta when calling .iloc[0]
                 single_value = single_value.to_timedelta64()
 
-            return single_value
+            if self.fixed_delta is None:
+                return single_value
+            else:
+                return single_value * self.fixed_delta
         else:
-            # return series listing delta_time per time series
-            return dt_result_series
+            if self.fixed_delta is None:
+                # return series listing delta_time per time series
+                return dt_result_series
+            else:
+                return dt_result_series.astype(float) * self.fixed_delta
 
     @property
     def n_timesteps(self) -> Union[int, pd.Series]:
@@ -1348,73 +1370,19 @@ class TSCDataFrame(pd.DataFrame):
         """
         return self.degenerate_ids() is not None
 
-    def compute_distance_matrix(
-        self, Y: Optional[Union["TSCDataFrame", np.ndarray]] = None, metric="euclidean"
-    ) -> Union["TSCDataFrame", np.ndarray]:
-        # TODO: this needs to get removed
-        """Compute distance matrix on time series collection.
-
-        Internally calls :py:meth:`datafold.pcfold.distance.compute_distance_matrix`
-        and adds time information if possible.
-
-        No time information is added when
-
-           * the query matrix `Y` is a numpy matrix
-           * the distance matrix is sparse due to ``dist_kwargs`` settings.
-
-        Parameters
-        ----------
-        Y
-            Query point cloud of shape (n_samples_Y, n_features). If provided, compute
-            the distance matrix component-wise, else `Y=self` (pair-wise). For further
-            details see also :class:`.DistanceAlgorithm`.
-
-        metric
-            Distance metric. The backend algorithm set in ``dist_kwargs`` must support
-            the metric.
-
-        Returns
-        -------
-        Union[np.ndarray, scipy.sparse.csr_matrix, TSCDataFrame]
-            Distance matrix.
-        """
-
-        if Y is not None:
-            is_attach_time = isinstance(Y, pd.DataFrame)
-        else:
-            is_attach_time = True
-
-        distance_matrix = compute_distance_matrix(
-            X=self,
-            Y=Y,
-            metric=metric,
-            **self.dist_kwargs,
-        )
-
-        if is_attach_time and not isinstance(distance_matrix, scipy.sparse.spmatrix):
-            time_idx_from = self if Y is None else Y
-
-            distance_matrix = df_type_and_indices_from(
-                time_idx_from,
-                distance_matrix,
-                except_columns=[f"X{i}" for i in np.arange(self.shape[0])],
-            )
-
-        return distance_matrix
-
     def insert_ts(
         self, df: pd.DataFrame, ts_id: Optional[int] = None
     ) -> "TSCDataFrame":
-        """Inserts new time series to current collection.
+        """Inserts new time series to the current collection.
 
         Parameters
         ----------
         df
-            New time series, with same features (column names) as the existing.
-            If ``df`` is of type ``pd.DataFrame``, the row index must contain time
+            New time series. The column names have to match the existing collection.
+            If ``df`` is of type ``pd.DataFrame``, the index must contain time
             values.
         ts_id
-            Dedicated ID of new time series (must not be present in current collection).
+            Unique ID for new time series. Defaulting to increase the largest present ID by 1.
 
         Returns
         -------
@@ -1422,13 +1390,13 @@ class TSCDataFrame(pd.DataFrame):
             self
         """
         if ts_id is None:
-            ts_id = self.ids.max() + 1  # is unique and positive
+            ts_id = self.ids.max() + 1  # unique and positive
 
         if ts_id in self.ids:
-            raise ValueError(f"ID {ts_id} already present.")
+            raise ValueError(f"ID {ts_id} already in the existing collection.")
 
         if not is_integer(ts_id):
-            raise ValueError(f"ts_id has to be an integer type. Got={type(ts_id)}.")
+            raise ValueError(f"ts_id has to be an integer type. Got: {type(ts_id)=}.")
 
         if self.n_features != df.shape[1] or not (self.columns == df.columns).all():
             raise ValueError(
@@ -1442,15 +1410,18 @@ class TSCDataFrame(pd.DataFrame):
         elif df.index.nlevels == 2 and isinstance(df, TSCDataFrame):
             _index = df.index.get_level_values(self.tsc_time_idx_name)
         else:
-            raise ValueError("The input parameter 'df' is of wrong format.")
+            raise ValueError("The input parameter 'df' has an incompatible format.")
 
         if self.is_datetime_index() ^ np.issubdtype(_index.dtype, np.datetime64):
+            existing_type = self.index.get_level_values(
+                TSCDataFrame.tsc_time_idx_name
+            ).dtype
             raise ValueError(
-                "If the existing index is datetime64, but the new time "
-                f"series has dype={_index.dtype} for time values."
+                f"Cannot attach time values with dtype={existing_type} to a "
+                f"collection with dtype={_index.dtype}."
             )
 
-        # Add the id to the first level of the MultiIndex
+        # Add the ID to the first level of the MultiIndex
         df.index = pd.MultiIndex.from_arrays(
             [np.ones(df.shape[0], dtype=int) * ts_id, _index],
             names=[self.tsc_id_idx_name, self.tsc_time_idx_name],
@@ -1462,14 +1433,12 @@ class TSCDataFrame(pd.DataFrame):
     def time_interval(
         self, ts_id: Optional[int] = None
     ) -> Tuple[NumericalTimeType, NumericalTimeType]:
-        """Time interval (start, end) for all or single time series in
-        the collection.
+        """Time interval (start, end) covered by the collection or a specific time series.
 
         Parameters
         ----------
         ts_id
-            Time series ID. If not provided, the interval is over all time series
-            in the collection.
+            Time series ID. Defaults to the interval in the collection.
         """
 
         if ts_id is None:
@@ -1479,19 +1448,29 @@ class TSCDataFrame(pd.DataFrame):
 
         return np.min(time_values), np.max(time_values)
 
-    def time_values(self) -> np.ndarray:
+    def time_values(self, with_fixed_delta: bool = True) -> np.ndarray:
         """All time values that appear in at least one time series of the collection.
+
+        Attributes
+        ----------
+
+        with_fixed_delta
+            If True return the actual time values according to a set `fixed_delta`.
 
         Returns
         -------
-
+        np.ndarray
+            all time values that appear in the collection
         """
         self.index = self.index.remove_unused_levels()
-        return np.asarray(self.index.levels[1])
+        ret_idx = np.asarray(self.index.levels[1])
+        if self.fixed_delta is not None and with_fixed_delta:
+            ret_idx = ret_idx.astype(float)
+            ret_idx *= self.fixed_delta
+        return ret_idx
 
-    def time_values_delta_time(self) -> np.ndarray:
-        """All time values between `(start, end)` interval with constant time
-        delta.
+    def const_sampled_time_values(self) -> np.ndarray:
+        """All time values between `(start, end)` interval with constant time delta.
 
         Potential gaps between time series are closed so that a constant delta time is
         maintained in returned time array.
@@ -1617,7 +1596,6 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
-
         return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).head(
             n=n_samples
         )
@@ -1643,11 +1621,15 @@ class TSCDataFrame(pd.DataFrame):
         """
 
         if not is_integer(n_samples) or n_samples < 1:
-            raise ValueError("Parameter 'n_samples' must be a positive integer.")
+            raise ValueError(
+                f"Parameter 'n_samples' must be a positive integer. "
+                f"Got: {type(n_samples)=} and {n_samples=}"
+            )
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
-
-        return self.groupby(by="ID", axis=0, level=0).tail(n=n_samples)
+        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).tail(
+            n=n_samples
+        )
 
     def plot(self, **kwargs):
         """Plots time series.
@@ -1758,11 +1740,11 @@ class InitialCondition(object):
             )
 
         if X.ndim == 1:
-            # make a "row-matrix"
+            # turn to matrix with row-oriented states
             X = X[np.newaxis, :]
         elif X.ndim > 2:
             raise ValueError(
-                f"Cannot convert arrays with dimension larger than 2. Got {X.ndim=}"
+                f"Cannot convert array with dimension larger than 2. Got {X.ndim=}."
             )
 
         n_ic = X.shape[0]

@@ -873,7 +873,7 @@ class TestTSCDataFrame(unittest.TestCase):
         nptest.assert_equal(actual, expected)
 
     def test_time_array_fill(self):
-        actual = TSCDataFrame(self.simple_df).time_values_delta_time()
+        actual = TSCDataFrame(self.simple_df).const_sampled_time_values()
         expected = np.arange(0, 19 + 1, 1)
         nptest.assert_equal(actual, expected)
 
@@ -884,7 +884,7 @@ class TestTSCDataFrame(unittest.TestCase):
         ]  # include non-const time delta
         # ... should raise error
         with self.assertRaises(TSCException):
-            TSCDataFrame(simple_df).time_values_delta_time()
+            TSCDataFrame(simple_df).const_sampled_time_values()
 
     def test_single_time_df(self):
         tsc = TSCDataFrame(self.simple_df)
@@ -1446,7 +1446,26 @@ class TestTSCDataFrame(unittest.TestCase):
         with self.assertRaises(ValueError):
             actual.insert_ts(new_ts_wo_datetime_index)
 
-    def test_fixed_delta(self):
+    def test_fixed_delta01(self):
+
+        tscdf = TSCDataFrame(
+            np.zeros((3, 2)),
+            index=pd.MultiIndex.from_product([[0], [1, 2, 3]]),
+            columns=["a", "b"],
+            fixed_delta=0.1,
+        )
+
+        actual = tscdf.__repr__(with_fixed_delta=False)
+        for expected_num_str in ["0.1", "0.2", "0.3"]:
+            self.assertIn(expected_num_str, actual)
+
+        self.assertEqual(tscdf.index.get_level_values("time").dtype, int)
+
+        actual = tscdf.__repr__(with_fixed_delta=False)
+        for expected_num_str in ["1", "2", "3"]:
+            self.assertIn(expected_num_str, actual)
+
+    def test_fixed_delta02(self):
 
         tscdf = TSCDataFrame(
             np.arange(6).reshape(3, 2),
@@ -1454,8 +1473,40 @@ class TestTSCDataFrame(unittest.TestCase):
             fixed_delta=0.1,
         )
 
-        print(tscdf)
-        print(tscdf.index)
+        expected_dt = np.array([0.1, 0.2, 0.3])
+        expected_int = np.array([1, 2, 3])
+
+        actual_time_values_dt = tscdf.time_values(with_fixed_delta=True)
+        actual_time_values_int = tscdf.time_values(with_fixed_delta=False)
+
+        nptest.assert_allclose(
+            actual_time_values_dt, expected_dt, rtol=1e-16, atol=1e-16
+        )
+        nptest.assert_equal(actual_time_values_int, expected_int)
+
+    def test_fixed_delta03(self):
+        tscdf = TSCDataFrame(self.simple_df, fixed_delta=1.0)
+        self.assertEqual(tscdf.delta_time, 1.0)
+        self.assertEqual(tscdf.fixed_delta, 1.0)
+        self.assertTrue(tscdf.time_values().dtype == float)
+
+    def test_fixed_delta04(self):
+        tscdf = TSCDataFrame(self.simple_df, fixed_delta=1.0)
+
+        tscdf_attach = TSCDataFrame.from_array(np.zeros((3, 2)), time_values=[99, 100, 101], feature_names=tscdf.columns, ts_id=101)
+        actual = pd.concat([tscdf, tscdf_attach], axis=0)
+
+        self.assertIn(101, actual.ids)
+        self.assertEqual(actual.fixed_delta, 1.0)
+
+        # only support integer values
+        tscdf_attach = TSCDataFrame.from_array(
+            np.zeros((3, 2)), time_values=[0.1, 0.2, 0.3]
+        )
+
+        with self.assertRaises(AttributeError):
+            pd.concat([tscdf, tscdf_attach])
+
 
 
 class TestInitialCondition(unittest.TestCase):
