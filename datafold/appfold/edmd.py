@@ -530,9 +530,7 @@ class EDMD(
             else:
                 target = y.loc[X_dict.index, :]
 
-            inverse_map = self._least_squares_inverse_map(
-                X=target, X_dict=X_dict, U=U
-            )
+            inverse_map = self._least_squares_inverse_map(X=target, X_dict=X_dict, U=U)
 
         return inverse_map
 
@@ -809,6 +807,7 @@ class EDMD(
         DMD model as the final estimator of the pipeline. Finally, the inverse map from
         dictionary states to the original states is set up.
 
+
         Parameters
         ----------
         X
@@ -848,7 +847,7 @@ class EDMD(
         )
 
         if y is not None:
-            pass # TODO: perform validation
+            pass  # TODO: perform validation
 
         if hasattr(self, "is_partial_fit_") and self.is_partial_fit_:
             raise ValueError(
@@ -1115,15 +1114,14 @@ class EDMD(
                 # actually it is possible to return EDMD if the DMD is included in the slice,
                 # however, then we must copy all EDMD specific attributes (also ones set
                 # during fit). This can be implemented when needed.
-                raise ValueError("Can only slice transformers of the pipeline and not the "
-                                 "final DMD estimator model")
-            else:
-                return Pipeline(
-                    steps=steps, memory=self.memory, verbose=self.verbose
+                raise ValueError(
+                    "Can only slice transformers of the pipeline and not the "
+                    "final DMD estimator model"
                 )
+            else:
+                return Pipeline(steps=steps, memory=self.memory, verbose=self.verbose)
         else:
             return super(EDMD, self).__getitem__(ind)
-
 
     def partial_fit(self, X: TimePredictType, U=None, y=None, **fit_params) -> "EDMD":
         """Incremental fit of the model.

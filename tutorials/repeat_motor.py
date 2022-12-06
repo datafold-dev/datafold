@@ -1,8 +1,8 @@
 import numpy as np
-import scipy.io
 import scipy
-from datafold.utils._systems import Motor
+import scipy.io
 
+from datafold.utils._systems import Motor
 
 dt = 0.01
 Ntraj = 200
@@ -16,9 +16,19 @@ time_values = np.arange(0, Nsim * dt, dt)
 
 import pandas as pd
 
-from datafold import EDMD, DMDControl, InitialCondition, TSCDataFrame, TSCRadialBasis, TSCTakensEmbedding, TSCColumnTransformer, TSCIdentity
+from datafold import (
+    EDMD,
+    DMDControl,
+    InitialCondition,
+    TSCColumnTransformer,
+    TSCDataFrame,
+    TSCIdentity,
+    TSCRadialBasis,
+    TSCTakensEmbedding,
+)
 from datafold.dynfold.transform import TSCFeatureSelect
 from datafold.pcfold.kernels import ThinplateKernel
+
 
 def load_matlab_data():
     C = scipy.io.loadmat("file.mat")
@@ -36,15 +46,17 @@ def load_matlab_data():
 
     return X_tsc, U_tsc
 
+
 def shift_time_index_U(_X, _U):
     # TODO: create an accessor function to accomblish this?
     new_index = _X.groupby("ID").tail(_X.n_timesteps - 1).index
     return _U.set_index(new_index)
 
+
 # sampling
 own_impl = True
 if own_impl:
-    sys = Motor(ivp_kwargs={"atol": 1E-2, "rtol": 1E-5, "method": "RK23"})
+    sys = Motor(ivp_kwargs={"atol": 1e-2, "rtol": 1e-5, "method": "RK23"})
 
     X_ic = InitialCondition.from_array(
         rng.uniform(size=(Ntraj, sys.n_features_in_)) * 2 - 1,
@@ -64,7 +76,12 @@ if own_impl:
     delay = ("delay", TSCTakensEmbedding(delays=1), ["x1"])
     _id = ("id", TSCIdentity(), ["u"])
 
-    t1 = ("t1", TSCColumnTransformer(transformers=[delay, _id], verbose_feature_names_out=False))
+    t1 = (
+        "t1",
+        TSCColumnTransformer(
+            transformers=[delay, _id], verbose_feature_names_out=False
+        ),
+    )
     rbf = ("rbf", TSCRadialBasis(kernel=ThinplateKernel(), center_type="fit_params"))
     edmd = EDMD([t1, rbf], dmd_model=DMDControl(), include_id_state=True)
 
@@ -80,15 +97,17 @@ edmd = edmd.fit(X_tsc, U=U_tsc, rbf__centers=centers)
 print("successful")
 
 Tmax = 1
-Nsim = Tmax/dt
+Nsim = Tmax / dt
+
 
 def myprbs(N, duty_cycle):
     cond = rng.uniform(0, 1, size=(N, 1)) > 1 - duty_cycle
     return cond.astype(float)
 
-uprbs = (2*myprbs(Nsim, 0.5) - 1)
-u_dt = lambda i: uprbs[i+1]
 
-X_ic = rng.uniform(0, 1, size=(1,2))-0.5
-U_ic = 2*rng.uniform(0,1, size=(2,1)) - 1
+uprbs = 2 * myprbs(Nsim, 0.5) - 1
+u_dt = lambda i: uprbs[i + 1]
+
+X_ic = rng.uniform(0, 1, size=(1, 2)) - 0.5
+U_ic = 2 * rng.uniform(0, 1, size=(2, 1)) - 1
 sys.predict_vectorize(X_ic, U=U_ic, nsim=3)
