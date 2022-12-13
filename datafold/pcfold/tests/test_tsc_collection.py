@@ -561,6 +561,19 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = False
         self.assertEqual(actual, expected)
 
+    def test_nonequal_delta_time(self):
+        df_int = pd.DataFrame(np.arange(12).reshape(6,2), index=[0,1,2,5,6,7], columns=["A", "B"])
+
+        index = np.append(np.arange(np.datetime64('2022-12-13'), np.datetime64('2022-12-16')), # three days
+                          np.arange(np.datetime64('2023-01-01'), np.datetime64('2023-01-04'))) # after gap another three days
+
+        df_datetime = pd.DataFrame(np.arange(12).reshape(6, 2), index=index, columns=["A", "B"])
+        tscdf_int = TSCDataFrame.from_frame_list([df_int])
+        tscdf_datetime = TSCDataFrame.from_frame_list([df_datetime])
+
+        # self.assertTrue(np.isnan(tscdf_int.delta_time))
+        self.assertTrue(np.isnat(tscdf_datetime.delta_time))
+
     @unittest.skip(reason="see gitlab issue #85")
     def test_delta_time(self):
         # TODO: if addressing this issue, test for multiple n_values
@@ -746,6 +759,7 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = pd.DataFrame(values, index=idx, columns=col)
 
         pdtest.assert_frame_equal(actual, expected, check_flags=False)
+
 
     def test_timeseries_initial_states_n_samples(self):
         actual = TSCDataFrame(self.simple_df).initial_states(n_samples=2)
@@ -1499,18 +1513,12 @@ class TestTSCDataFrame(unittest.TestCase):
             feature_names=tscdf.columns,
             ts_id=101,
         )
+
         actual = pd.concat([tscdf, tscdf_attach], axis=0)
 
         self.assertIn(101, actual.ids)
-        self.assertEqual(actual.fixed_delta, 1.0)
-
-        # only support integer values
-        tscdf_attach = TSCDataFrame.from_array(
-            np.zeros((3, 2)), time_values=[0.1, 0.2, 0.3]
-        )
-
-        with self.assertRaises(AttributeError):
-            pd.concat([tscdf, tscdf_attach])
+        # should not propagate for newly constructed TSCDataFrame
+        self.assertIsNone(actual.fixed_delta)
 
 
 class TestInitialCondition(unittest.TestCase):

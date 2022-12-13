@@ -1,5 +1,6 @@
 from functools import partial
 from numbers import Number
+from operator import eq
 from typing import Generator, List, Optional, Tuple, Union
 
 import matplotlib.colors as mclrs
@@ -349,7 +350,7 @@ class TSCDataFrame(pd.DataFrame):
         return super(TSCDataFrame, self).__setattr__(key, value)
 
     def __repr__(self, with_fixed_delta=True):
-        if with_fixed_delta and self.fixed_delta is not None:
+        if not with_fixed_delta and self.fixed_delta is not None:
             _time = TSCDataFrame.tsc_time_idx_name
             _adapt_time_values = self.index.get_level_values(_time) * self.fixed_delta
             _repr_index = self.index.set_levels(
@@ -1035,11 +1036,16 @@ class TSCDataFrame(pd.DataFrame):
                     equal_dt = np.logical_or(within_atol, within_rtol)
                     result[~equal_dt] = np.nan
                 else:
-                    # as float to be able to insert nans if necessary
-                    result = diff_times[:, [0]].astype(float)
+                    result = diff_times[:, [0]]
                     equal_dt = np.all(diff_times[:, 1:] == result, axis=1)
 
-                result[~equal_dt] = np.nan
+                    if not equal_dt.all():
+                        if not is_timedelta64_dtype(result):
+                            result = result.astype(float)
+                            result[~equal_dt] = np.nan
+                        else:
+                            result[~equal_dt] = np.timedelta64("NaT")
+
                 dt_result_series[:] = result.flatten()
         else:
             for timeseries_id in self.ids:
@@ -1083,6 +1089,9 @@ class TSCDataFrame(pd.DataFrame):
             if isinstance(single_value, pd.Timedelta):
                 # Somehow single_value gets turned into pd.Timedelta when calling .iloc[0]
                 single_value = single_value.to_timedelta64()
+            elif dt_result_series.dtype.kind == "m" and pd.isna(single_value):
+                # Somehow single_value gets turned into pd.NaT when calling .iloc[0]
+                single_value = np.timedelta64("NaT")
 
             if self.fixed_delta is None:
                 return single_value
