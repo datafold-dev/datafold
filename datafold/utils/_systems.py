@@ -997,7 +997,9 @@ class Motor(ControllableODE):
 
         ivp_kwargs = ivp_kwargs or {}
         ivp_kwargs.setdefault("method", "RK23")
-        super(Motor, self).__init__(feature_names_in=["x1", "x2"], control_names_in=["u"], **ivp_kwargs)
+        super(Motor, self).__init__(
+            feature_names_in=["x1", "x2"], control_names_in=["u"], **ivp_kwargs
+        )
 
     def _runge_kutta(self, X, U, dt):
         U = U.flatten()
@@ -1006,7 +1008,7 @@ class Motor(ControllableODE):
         k2 = self._f(None, X.T + k1 * dt / 2, U)
         k3 = self._f(None, X.T + k2 * dt / 2, U)
         k4 = self._f(None, X.T + k1 * dt, U)
-        X_next = X.T + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+        X_next = X.T + (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
         return X_next.T
 
     def predict_vectorize(self, X, U, nsim, dt):
@@ -1017,10 +1019,16 @@ class Motor(ControllableODE):
         time_values = U.time_values()
 
         for i in range(1, nsim):
-            time = time_values[i-1]
-            X_all[:, i, :] = self._runge_kutta(X_all[:, i-1, :], U.loc[pd.IndexSlice[:, time], :].to_numpy(), dt)
+            time = time_values[i - 1]
+            X_all[:, i, :] = self._runge_kutta(
+                X_all[:, i - 1, :], U.loc[pd.IndexSlice[:, time], :].to_numpy(), dt
+            )
 
-        X_all = TSCDataFrame.from_tensor(tensor=X_all, columns=self.feature_names_in_, time_values=np.arange(0, dt*nsim-1E-15, dt))
+        X_all = TSCDataFrame.from_tensor(
+            tensor=X_all,
+            columns=self.feature_names_in_,
+            time_values=np.arange(0, dt * nsim - 1e-15, dt),
+        )
         return X_all, U
 
     def _f(self, t, y, u):

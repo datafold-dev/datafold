@@ -120,7 +120,11 @@ class EDMDTest(unittest.TestCase):
 
     def test_slicing(self):
         _edmd = EDMD(
-            dict_steps=[("id1", TSCIdentity()), ("id2", TSCIdentity()), ("id3", TSCIdentity())],
+            dict_steps=[
+                ("id1", TSCIdentity()),
+                ("id2", TSCIdentity()),
+                ("id3", TSCIdentity()),
+            ],
             include_id_state=False,
             use_transform_inverse=False,
         ).fit(self.sine_wave_tsc)
@@ -616,20 +620,32 @@ class EDMDTest(unittest.TestCase):
             include_id_state=False,
         )
 
-        target = TSCDataFrame.from_same_indices_as(self.sine_wave_tsc, values=np.cos(self.sine_wave_tsc.time_values()), except_columns=["cos"])
+        target = TSCDataFrame.from_same_indices_as(
+            self.sine_wave_tsc,
+            values=np.cos(self.sine_wave_tsc.time_values()),
+            except_columns=["cos"],
+        )
 
         edmd1.fit(self.sine_wave_tsc, y=target)
-        actual_predict = edmd1.predict(self.sine_wave_tsc.head(3), time_values=self.sine_wave_tsc.time_values()[2:])
+        actual_predict = edmd1.predict(
+            self.sine_wave_tsc.head(3), time_values=self.sine_wave_tsc.time_values()[2:]
+        )
 
         self.assertLessEqual(np.sum(actual_predict - target)[0], 2.4e-6)
         self.assertTrue(actual_predict.columns[0] == "cos")
 
         if plot:
-            plt.plot(actual_predict.time_values(), actual_predict.iloc[:, 0],
-                     label="predict (cos)")
+            plt.plot(
+                actual_predict.time_values(),
+                actual_predict.iloc[:, 0],
+                label="predict (cos)",
+            )
             plt.plot(target.time_values(), target.iloc[:, 0], label="target (cos)")
-            plt.plot(self.sine_wave_tsc.time_values(), self.sine_wave_tsc.iloc[:, 0],
-                     "input (sin)")
+            plt.plot(
+                self.sine_wave_tsc.time_values(),
+                self.sine_wave_tsc.iloc[:, 0],
+                "input (sin)",
+            )
             plt.show()
 
     def test_dict_preserved_id_state(self):
