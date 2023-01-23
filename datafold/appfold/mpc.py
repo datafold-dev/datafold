@@ -1,22 +1,17 @@
 import warnings
 from typing import List, Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.sparse
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold import EDMD, TSCDataFrame
 from datafold.dynfold.base import InitialConditionType, TransformType
-from datafold.utils.general import (
-    if1dim_colvec,
-    if1dim_rowvec,
-    projection_matrix_from_feature_names,
-)
+from datafold.utils.general import if1dim_colvec, projection_matrix_from_feature_names
 
 try:
     import quadprog  # noqa: F401
@@ -71,11 +66,11 @@ class LinearKMPC:
 
     Parameters
     ----------
-    edmd : EDMD
+    edmd: EDMD
         Model to use, must be already fitted. The underlying DMD model in :py:class:`EDMD`
         must support control, such as :py:class:`.DMDControl`.
 
-    horizon : int
+    horizon: int
         Prediction horizon in number of time steps to predict, :math:`N_p`.
 
     state_bounds : np.ndarray(shape=(n,2))
@@ -169,6 +164,8 @@ class LinearKMPC:
         # define default values of properties
         self.horizon = horizon
 
+        check_scalar(self.horizon, "horizon", target_type=int, min_val=2)
+
         self.cost_running = cost_running
         self.cost_terminal = cost_terminal
         self.cost_input = cost_input
@@ -188,30 +185,32 @@ class LinearKMPC:
         self.input_bounds = input_bounds
         self.state_bounds = state_bounds
 
-        if isinstance(self.state_bounds, np.ndarray) and self.state_bounds.shape != (
-            self.n_features,
-            2,
-        ):
-            raise ValueError(
-                f"state_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.state_bounds.shape=}."
-            )
-
         if isinstance(self.input_bounds, np.ndarray) and self.input_bounds.shape != (
             self.n_control_input,
             2,
         ):
             raise ValueError(
-                f"input_bounds must be of shape (n_control_input, 2) with {self.n_control_input=}. Got {self.input_bounds.shape=}."
+                f"input_bounds must be of shape ({self.n_control_input=}, 2). Got {self.input_bounds.shape=}."
+            )
+
+        if isinstance(self.state_bounds, np.ndarray) and self.state_bounds.shape != (
+            len(self.qois),
+            2,
+        ):
+            raise ValueError(
+                f"state_bounds must be of shape ({self.n_qois=}, 2). Got {self.state_bounds.shape=}."
+                f"\nNote that it is possible to also impose bounds on the other (not QoI) "
+                f"state dimensions, but this requires further implementation."
             )
 
         (
             self.H,
-            self.h,
-            self.G,
-            self.Y,
-            self.L,
+            self.l,
             self.M,
-            self.c,
+            self.Y,
+            self.G,
+            self.h,
+            self.Ab,
             self.lb,
             self.ub,
         ) = self._setup_optimizer()
@@ -220,17 +219,18 @@ class LinearKMPC:
         # implements relevant part of :cite:`korda-2018` to set up the optimization problem
         Ab, Bb = self._create_evolution_matrices()
         Q, q, R, r = self._create_cost_matrices()
-        F, E, c, lb, ub = self._create_constraint_matrices()
+        G, h, lb, ub = self._create_constraint_matrices(Bb)
 
         H = 2 * (Bb.T @ Q @ Bb + R)
-        h = r + Bb.T @ q  # TODO: currently h is always zero
-        G = 2 * Bb.T @ Q @ Ab
+        l = r + Bb.T @ q  # TODO: currently l is always zero
+        M = 2 * Bb.T @ Q @ Ab
         Y = (-2 * Q @ Bb).T
 
-        L = None
-        M = None
+        if G is None:
+            # Ab is not required to store if there are no bounds on state
+            Ab = None
 
-        return H, h, G, Y, L, M, c, lb, ub
+        return H, l, M, Y, G, h, Ab, lb, ub
 
     def _create_evolution_matrices(self):
         # appendix from :cite:`korda-2018`
@@ -300,7 +300,7 @@ class LinearKMPC:
         # quadratic matrix for state cost and terminal cost
         vec_running = _cost_to_array(self.cost_running, self.n_qois)
 
-        if (self.cost_terminal == 0).all() or self.cost_terminal is None:
+        if (np.asarray(self.cost_terminal) == 0).all() or self.cost_terminal is None:
             # add the running cost for the last iteration...
             vec_terminal = _cost_to_array(self.cost_running, self.n_qois)
         else:
@@ -320,43 +320,22 @@ class LinearKMPC:
 
         return Qb, q, Rb, r
 
-    def _create_constraint_matrices(self):
+    def _create_constraint_matrices(self, Bb):
         # implements appendix from :cite:`korda-2018`
         # same as Sabin 2.44, assuming
         # bounds vector is ordered [zmax; -zmin; umax; -umin]
 
         if self.state_bounds is not None:
-            raise NotImplementedError(
-                "Currently state bounds are not properly implemented."
-            )
+            # inequality matrix
+            G = np.vstack([Bb, -Bb])
 
-        # TODO: Eb and Fb are very sparse matrices (~ 99 %)
-        # constraint equations
-        # E = np.vstack([np.eye(N), -np.eye(N), np.zeros((2 * m, N))])
-        # Eb = np.kron(np.eye(Np+1), E) # TODO Np+1 if not ignoring initial
-
-        rc = (self.horizon + 1) * self.n_features
-        Eb = np.zeros((rc, rc))
-
-        # from scipy.sparse import block_diag
-        # block_diag([np.eye(Np+1) for _ in range(self.lifted_state_size)]).to_array()
-
-        # F = np.vstack([np.zeros((2 * N, m)), np.eye(m), -np.eye(m)])
-        # Fb = np.vstack([np.kron(np.eye(Np), F), np.zeros((2 * (N + m), m * Np))])
-
-        Fb = np.zeros(
-            ((self.horizon + 1) * self.n_features, self.horizon * self.n_control_input)
-        )
-
-        # constraint
-        cb = np.zeros(((self.horizon + 1) * self.n_features, 1))
-
-        # c[:, :N] = self.state_bounds[:, 0]
-        # c[:, N : 2 * N] = -self.state_bounds[:, 1]  # TODO: does it make any sense to negate here??
-        # c[:, 2 * N : 2 * N + m] = self.input_bounds[:, 0]
-        # c[:, 2 * N + m :] = -self.input_bounds[:, 1]
-        # c = c.T
-        # cb = np.tile(c, (Np, 1))  # Np+1 if initial state is accounted
+            # right hand side of inequality. NOTE: at this point 'h' is incomplete and
+            # must be adapted with the initial condition of the system (which is unknown here)
+            Xlb = np.tile(self.state_bounds[:, 0], self.horizon)
+            Xub = np.tile(self.state_bounds[:, 1], self.horizon)
+            h = np.hstack([Xub, -Xlb])
+        else:
+            G, h = [None, None]
 
         if self.input_bounds is not None:
             lb = np.tile(self.input_bounds[:, 0], self.horizon)
@@ -364,7 +343,7 @@ class LinearKMPC:
         else:
             lb, ub = [None, None]
 
-        return Eb, Fb, cb, lb, ub
+        return G, h, lb, ub
 
     def control_sequence(
         self, X: InitialConditionType, reference: TransformType
@@ -380,7 +359,7 @@ class LinearKMPC:
             \text{subject to : } U_{lb} <= U_i <= U_{ub} \\
             \text{parameter: } z_{0} = \Psi(x_{k})
 
-        # TODO: linear part h^{T} U is currently not set, LU + Mz_{0} \leq c not set
+        # TODO: linear part l^{T} U is currently not set
 
         where :math:`U` is the optimal control sequence to be estimated (represented as a time
         series of shape `(horizon, n_control_input)`), `Y` the reference time series,
@@ -412,7 +391,14 @@ class LinearKMPC:
             In case of mis-shaped input
         """
 
-        # currently only the control of a single time series is supported
+        # TODO: fill up reference with final state if reference is not horizon long
+        #  -- decide if to include here or should put this in the responsibility of the user?
+
+        # TODO: provide a function that solves the main MPC loop (this is rather complex)
+
+        # TODO: make notebook for repeat_motor
+
+        # Currently, only the control of a single time series is supported
         X.tsc.check_required_n_timeseries(1)
         X.tsc.check_required_n_timesteps(self.edmd.n_samples_ic_)
 
@@ -420,7 +406,8 @@ class LinearKMPC:
 
         if X_dict.shape[0] != 1:
             raise ValueError(
-                f"The transformed dictionary state must consist of a single sample only (i.e. X.shape[0] == 0). Got {X.shape[0]=}."
+                f"The transformed dictionary state must consist of a single sample only "
+                f"(i.e. X.shape[0] == 0). Got {X.shape[0]=}."
             )
 
         t_ic = X_dict.time_values()[0]
@@ -429,7 +416,9 @@ class LinearKMPC:
         if not np.allclose(t_ic + self.edmd.dt_, t_ref, rtol=1e-11, atol=1e-15):
             raise ValueError(
                 f"The reference time value of the initial state is at time {t_ic=}. "
-                f"The reference time series must start one time step in the future at t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead (diff={t_ic+self.edmd.dt_ - t_ref})."
+                f"The reference time series must start one time step in the future at "
+                f"t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead "
+                f"(diff={t_ic+self.edmd.dt_ - t_ref})."
             )
 
         if reference.shape != (self.horizon, self.n_qois):
@@ -440,11 +429,18 @@ class LinearKMPC:
         np_reference = reference.to_numpy()
         np_reference = np_reference.reshape((self.horizon * self.n_qois, 1))
 
+        if self.h is not None:
+            # if Ab is None than there is a bug, so there is no check
+            h_ic_adapt = self.Ab @ X_dict.to_numpy().ravel()
+            h = self.h + np.hstack([-h_ic_adapt, h_ic_adapt])
+        else:
+            h = None
+
         U = solve_qp(
             P=self.H,
-            q=(self.G @ X_dict.to_numpy().T + self.Y @ np_reference).flatten(),
-            G=None,  # , self.L
-            h=None,  # (self.c - self.M @ X_dict).flatten(),  # (,
+            q=(self.M @ X_dict.to_numpy().T + self.Y @ np_reference).flatten(),
+            G=self.G,
+            h=h,
             A=None,
             b=None,
             lb=self.lb,
@@ -462,8 +458,9 @@ class LinearKMPC:
         # the actual control input is obtained from the previous state the reference time
         # series, therefore the actual control sequence starts at the initial state (not the
         # first time value in the reference time series
-        # Note: it is better to use start and np.arange to have the numerical *exact* time value
-        # than in X (reference.time_values() - edmd.dt_ often creates numerical noise)
+
+        # Note: it is better to use np.arange to have numerical *exact* time values
+        #   -- in contrast "reference.time_values() - edmd.dt_" often creates numerical noise
         start = X_dict.time_values()[0]
         control_time_values = np.arange(
             start, start + self.horizon * self.edmd.dt_ - 1e-14, self.edmd.dt_

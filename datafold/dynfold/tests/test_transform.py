@@ -15,6 +15,7 @@ from datafold.dynfold.transform import (
     TSCFeaturePreprocess,
     TSCFiniteDifference,
     TSCIdentity,
+    TSCMovingAverage,
     TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCRadialBasis,
@@ -547,6 +548,20 @@ class TestTSCTransform(unittest.TestCase):
         pdtest.assert_index_equal(tsc.columns, rbf_coeff_inverse.columns)
         # can only check against a reference solution:
         nptest.assert_allclose(tsc.to_numpy(), rbf_coeff_inverse, atol=1e-1, rtol=0)
+
+    def test_moving_average01(self):
+        rng = np.random.default_rng(1)
+        values = pd.DataFrame(rng.uniform(size=(10, 2)), columns=["A", "B"])
+        tscdf = TSCDataFrame.from_single_timeseries(values)
+
+        ma = TSCMovingAverage(window=2)
+        actual = ma.fit_transform(tscdf)
+        actual = actual.droplevel(TSCDataFrame.tsc_id_idx_name)
+
+        expected = values.rolling(window=2).mean().dropna()
+        expected.columns = ma.get_feature_names_out()
+
+        pdtest.assert_frame_equal(actual, expected, check_names=False)
 
     def test_time_difference01(self):
 

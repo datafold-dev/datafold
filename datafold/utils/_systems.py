@@ -1024,10 +1024,11 @@ class Motor(ControllableODE):
                 X_all[:, i - 1, :], U.loc[pd.IndexSlice[:, time], :].to_numpy(), dt
             )
 
+        start = X.time_values()[0]
         X_all = TSCDataFrame.from_tensor(
             tensor=X_all,
             columns=self.feature_names_in_,
-            time_values=np.arange(0, dt * nsim - 1e-15, dt),
+            time_values=np.arange(start, start + dt * nsim - 1e-15, dt),
         )
         return X_all, U
 

@@ -52,17 +52,23 @@ class TSCException(Exception):
         )
 
     @classmethod
-    def not_const_delta_time(cls, actual_delta_time=None):
-        msg = (
-            "The time sampling ('delta_time') is not constant. \n"
-            "Note: If the time values are numerical floating points and were generated "
-            "with numpy.linspace, then this can introduce numerical noise breaking "
-            "the equal spacing."
-        )
+    def not_const_delta_time(cls, actual_delta_time=None, add_float_note=False):
 
         if actual_delta_time is not None:
-            msg += f"\n {actual_delta_time}"
+            msg_dt = f"delta_time={actual_delta_time}"
+        else:
+            msg_dt = f"delta_time"
 
+        if add_float_note:
+            msg_note = (
+                "\nNote: If the time values are numerical floating points and were "
+                "generated with numpy.linspace, then this can introduce numerical "
+                "noise breaking the equal spacing."
+            )
+        else:
+            msg_note = ""
+
+        msg = f"The time sampling is not constant ({msg_dt}).{msg_note}"
         return cls(msg)
 
     @classmethod
@@ -98,7 +104,7 @@ class TSCException(Exception):
     def not_n_timesteps(cls, required: int):
         return cls(
             f"Invalid TSCDataFrame format. Each time series in the collection must have "
-            f"exactly {required} samples."
+            f"exactly {required} {'samples' if required > 1 else 'sample'}."
         )
 
     @classmethod
@@ -585,6 +591,8 @@ class TSCDataFrame(pd.DataFrame):
             new instance
         """
 
+        df = df.copy()  # to not change original data
+
         if isinstance(df, TSCDataFrame) or df.index.nlevels > 1:
             # Handling of TSCDataFrame can be implemented if required.
             raise TypeError(
@@ -800,9 +808,9 @@ class TSCDataFrame(pd.DataFrame):
         if index.nlevels != 2:
             # must exactly have two levels [ID, time]
             raise AttributeError(
-                "Index has to be a 'MultiIndex' with two levels (index.nlevels == 2). "
+                "Index has to be a 'MultiIndex' with two levels (index.nlevels = 2). "
                 "First level for the time series ID, "
-                f"second level for the time values. Got: {index.nlevels}"
+                f"second level for the time values. Got: {index.nlevels=}"
             )
 
         if index.duplicated().any():

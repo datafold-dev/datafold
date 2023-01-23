@@ -360,8 +360,8 @@ class TSCAccessor(object):
 
         atol
             Acceptable absolute tolerance between the two delta times. This is
-            relevant for floating delta times that have "numerical noise" when
-            equally spaced.
+            relevant for delta times with floating point arithmetic which can introduce
+            "numerical noise" (breaking the exact equidistant spacing).
 
         Returns
         -------
@@ -391,8 +391,7 @@ class TSCAccessor(object):
 
         per_time_series
             If True, the windows are generated for each time series separately. This is
-            recommended for time series a collection consists where the time series are
-            disjoint (i.e. non-overlapping time intervals).
+            recommended if the time series in a collection are non-overlapping time values.
 
         strictly_sequential
             TODO
@@ -435,7 +434,7 @@ class TSCAccessor(object):
             )
         else:
             # This mimics a single element of the "groupby" function -- the first element
-            # is the time series id, but not required here and therefore None
+            # is the time series ID (but not required here and therefore set to None)
             _iter_timeseries_collection = [(None, self._tsc_df)]
 
         for _, current_tsc in _iter_timeseries_collection:

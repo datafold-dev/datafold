@@ -562,12 +562,20 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_nonequal_delta_time(self):
-        df_int = pd.DataFrame(np.arange(12).reshape(6,2), index=[0,1,2,5,6,7], columns=["A", "B"])
+        df_int = pd.DataFrame(
+            np.arange(12).reshape(6, 2), index=[0, 1, 2, 5, 6, 7], columns=["A", "B"]
+        )
 
-        index = np.append(np.arange(np.datetime64('2022-12-13'), np.datetime64('2022-12-16')), # three days
-                          np.arange(np.datetime64('2023-01-01'), np.datetime64('2023-01-04'))) # after gap another three days
+        index = np.append(
+            np.arange(
+                np.datetime64("2022-12-13"), np.datetime64("2022-12-16")
+            ),  # three days
+            np.arange(np.datetime64("2023-01-01"), np.datetime64("2023-01-04")),
+        )  # after gap another three days
 
-        df_datetime = pd.DataFrame(np.arange(12).reshape(6, 2), index=index, columns=["A", "B"])
+        df_datetime = pd.DataFrame(
+            np.arange(12).reshape(6, 2), index=index, columns=["A", "B"]
+        )
         tscdf_int = TSCDataFrame.from_frame_list([df_int])
         tscdf_datetime = TSCDataFrame.from_frame_list([df_datetime])
 
@@ -759,7 +767,6 @@ class TestTSCDataFrame(unittest.TestCase):
         expected = pd.DataFrame(values, index=idx, columns=col)
 
         pdtest.assert_frame_equal(actual, expected, check_flags=False)
-
 
     def test_timeseries_initial_states_n_samples(self):
         actual = TSCDataFrame(self.simple_df).initial_states(n_samples=2)

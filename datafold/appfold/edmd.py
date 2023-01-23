@@ -1904,7 +1904,7 @@ class EDMDWindowPrediction(object):
 
     window_size
         An integer value indicating the time steps to include in a window. The value
-        must be greater than the the attribute ``edmd.n_samples_ic_``, because a
+        must be greater than the attribute ``edmd.n_samples_ic_``, because a
         window also contains the samples dedicated for the initial condition.
 
     offset
@@ -1978,17 +1978,13 @@ class EDMDWindowPrediction(object):
         if not hasattr(edmd, "window_size"):
             raise AttributeError(
                 "The EDMD object requires the attribute 'window_size' "
-                "to perform windowed reconstruction in data."
+                "to perform windowed reconstruction of time series data."
             )
-
-        if not isinstance(edmd.window_size, int):
-            raise TypeError("'window_size' must be of type int")
 
         if edmd.window_size <= edmd.n_samples_ic_:
             raise ValueError(
                 f"edmd.window_size={edmd.window_size} must be larger than the number of "
-                "samples required to make an initial condition ("
-                f"edmd.n_samples_ic_={edmd.n_samples_ic_})"
+                f"samples required to make an initial condition ({edmd.n_samples_ic_=})"
             )
 
         X = edmd._validate_datafold_data(

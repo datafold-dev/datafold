@@ -900,6 +900,92 @@ class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         )
 
 
+class TSCMovingAverage(BaseEstimator, TSCTransformerMixin):
+    """Compute the moving average for each feature of a time series.
+
+    window
+        The window size on which the moving average is computed.
+
+    # TODO: this is not official
+    # TODO: could wrap functionality of https://github.com/cerlymarco/tsmoothie
+    #   here to smooth time series
+    """
+
+    def __init__(self, window: int = 3):
+        self.window = window
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            try:
+                input_features = self.feature_names_in_
+            except AttributeError:
+                raise NotFittedError
+
+        return [f"{n}_ma{self.window}" for n in input_features]
+
+    def fit(self, X: TSCDataFrame, **fit_params):
+        """Fit the model.
+
+        Parameters
+        ----------
+        X
+            Time series collection data
+
+        **fit_params
+            None
+
+        Returns
+        -------
+        self
+        """
+        check_scalar(self.window, "window", target_type=int, min_val=1)
+
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+        self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            ensure_min_samples=self.window,
+            tsc_kwargs=dict(ensure_const_delta_time=True),
+        )
+        self._setup_feature_attrs_fit(X, n_features_out=len(X.columns))
+
+        return self
+
+    def transform(self, X: TSCDataFrame):
+        """Transform time series data.
+
+        Parameters
+        ----------
+        X
+            Time series collection data.
+
+        Returns
+        -------
+        TSCDataFrame
+            The number of samples in each time series reduce according to the ``window``
+            parameter.
+        """
+        self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            ensure_min_samples=self.window,
+            tsc_kwargs=dict(ensure_const_delta_time=True),
+        )
+        self._validate_feature_input(X, direction="transform")
+
+        X_new = (
+            pd.DataFrame(X)
+            .groupby(TSCDataFrame.tsc_id_idx_name)
+            .rolling(window=self.window)
+            .mean()
+            .dropna()
+        )
+        X_new = TSCDataFrame(X_new.droplevel(0))
+        X_new.columns = pd.Index(self.get_feature_names_out())
+
+        return X_new
+
+
 class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
     """Represent data in coefficients of radial basis functions.
 
