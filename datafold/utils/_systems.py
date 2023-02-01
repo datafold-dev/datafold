@@ -978,26 +978,36 @@ class Burger1DPeriodicBoundary(ControllableODE):
         return ts
 
 
-class Motor(ControllableODE):
+class DCMotor(ControllableODE):
+    """
+    Model from https://arxiv.org/pdf/1611.03537.pdf
+    Section 8.2 (Feedback control of a bilinear motor)
 
-    # %Model from ([1], Eq. (9))
-    # %   dx1 = -(Ra/La)*x(1) - (km/La)*x(2)*u + ua/La
-    # %   dx2   = -(B/J)*x(2) + (km/J)*x(1)*u - taul/J;
-    # %   y = x1
-    # % Parameters La = 0.314; Ra = 12.345; km = 0.253; J = 0.00441; B = 0.00732; taul = 1.47; ua = 60;
-    # % Constraints (scaled to [-1,1] in the final model)
-    # % x1min = -10; x1max = 10;
-    # % x2min = -100; x2max = 100;
-    # % umin = -4; umax = 4;
-    # % [1] S. Daniel-Berhe and H. Unbehauen. Experimental physical parameter
-    # % estimation of a thyristor driven DC-motor using the HMF-method.
-    # % Control Engineering Practice, 6:615?626, 1998.
+    Original source for detailed description (see Eq. 9):
+     > S. Daniel-Berhe and H. Unbehauen. Experimental physical parameter
+     > estimation of a thyristor driven DC-motor using the HMF-method.
+     > Control Engineering Practice, 6:615?626, 1998.
+
+    The model
+
+    .. math::
+
+       \dot{x}_1 = -(R_a/L_a)*x_1 - (k_m/L_a)*x_2 * u + u_a/L_a
+       \dot{x}_2   = -(B/J)*x_2 + (k_m/J)*x_1 * u - \tau_l/J
+       y = x_1
+
+    Parameters L_a = 0.314, R_a = 12.345; k_m = 0.253, J = 0.00441, B = 0.00732; taul = 1.47, u_a = 60
+    Constraints (scaled to [-1,1] in the final model)
+    x_1: min = -10; max = 10
+    x_2: min = -100; max = 100
+    u: min = -4; max = 4
+    """
 
     def __init__(self, ivp_kwargs=None):
 
         ivp_kwargs = ivp_kwargs or {}
         ivp_kwargs.setdefault("method", "RK23")
-        super(Motor, self).__init__(
+        super(DCMotor, self).__init__(
             feature_names_in=["x1", "x2"], control_names_in=["u"], **ivp_kwargs
         )
 
@@ -1011,24 +1021,68 @@ class Motor(ControllableODE):
         X_next = X.T + (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
         return X_next.T
 
-    def predict_vectorize(self, X, U, nsim, dt):
+    def predict_vectorize(self, X_ic: TSCDataFrame, U: TSCDataFrame, time_values=None):
+        """This is an adapted code to speed up the computation with a standard Runge Kutta 4
+        scheme. To create a large dataset, the advanced integrators (RK23 or RK45 from scipy)
+        turned out to be too costly.
 
-        X_all = np.zeros([X.shape[0], nsim, X.shape[1]])
-        X_all[:, 0, :] = X
+        Parameters
+        ----------
+        X_ic
+            initial conditions
+        U
+            Control input for each time series. The time delta and prediction horizon are
+            extracted from here.
 
-        time_values = U.time_values()
+        time_values
+            This parameter is required if U contains a single row. Otherwise the time sampling
+            is inferred from U and the parameter is ignored.
 
-        for i in range(1, nsim):
-            time = time_values[i - 1]
-            X_all[:, i, :] = self._runge_kutta(
-                X_all[:, i - 1, :], U.loc[pd.IndexSlice[:, time], :].to_numpy(), dt
+        Returns
+        -------
+        TSCDataFrame
+        """
+        if X_ic.n_timeseries != U.n_timeseries:
+            raise ValueError(f"The number of initial conditions ({X_ic.n_timeseries=}) must match the number of control time series ({U.n_timeseries=})")
+
+
+        n_timesteps = U.tsc.check_const_timesteps()
+
+        if n_timesteps > 1:
+            is_single_step = False
+            dt = U.tsc.check_const_time_delta()
+        else:  # n_timesteps == 1:
+            is_single_step = True
+            if time_values is None or len(time_values) != 2:
+                raise ValueError(
+                    "If U contains only a single control input, then the parameter "
+                    "time_values must be provided and contain the start and end "
+                    "time.")
+            dt = time_values[1] - time_values[0]
+
+        # we always perform one more prediction than the number of control inputs
+        n_timesteps += 1
+
+        # allocate memory for prediction an set initial condition
+        X_all = np.zeros([X_ic.shape[0], n_timesteps, X_ic.shape[1]])
+        X_all[:, 0, :] = X_ic
+
+        for i in range(0, n_timesteps-1):
+            # take every i-th element from the time series
+            current_control_action = U.iloc[i::n_timesteps-1].to_numpy()
+
+            # perform the next step according to the model
+            X_all[:, i+1, :] = self._runge_kutta(
+                X_all[:, i, :], current_control_action, dt
             )
 
-        start = X.time_values()[0]
+        if not is_single_step:
+            time_values = np.append(U.time_values(), U.time_values()[-1] + dt)
+
         X_all = TSCDataFrame.from_tensor(
             tensor=X_all,
             columns=self.feature_names_in_,
-            time_values=np.arange(start, start + dt * nsim - 1e-15, dt),
+            time_values=time_values,
         )
         return X_all, U
 

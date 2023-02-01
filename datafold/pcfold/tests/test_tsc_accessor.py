@@ -10,7 +10,7 @@ from datafold.pcfold.timeseries.accessor import TSCAccessor
 from datafold.pcfold.timeseries.collection import TSCException
 
 
-class TestTscAccessor(unittest.TestCase):
+class TestTSCAccessor(unittest.TestCase):
     def setUp(self) -> None:
         # The last two elements are used
         idx = pd.MultiIndex.from_arrays(
@@ -558,6 +558,38 @@ class TestTscAccessor(unittest.TestCase):
         ).time_values()
 
         nptest.assert_equal(expected, actual)
+
+    def test_fill_timeseries_with_last_state01(self):
+        tscdf = TSCDataFrame(self.simple_df).loc[[0], :]
+
+        n_timesteps = 5
+        actual = tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=n_timesteps)
+
+        self.assertEqual(actual.delta_time, tscdf.delta_time)
+        self.assertEqual(actual.n_timesteps, n_timesteps)
+        self.assertTrue(np.all(actual.iloc[1:, :].to_numpy() == tscdf.iloc[[-1], :].to_numpy()))
+
+    def test_fill_timeseries_with_last_state02(self):
+        tscdf = TSCDataFrame(self.simple_df).loc[[0], :]
+
+        with self.assertRaises(TSCException):
+            tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=1)
+
+        with self.assertRaises(TSCException):
+            tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=2)
+
+    def test_augment_control_input(self):
+        tscdf = TSCDataFrame.from_array(np.random.uniform(size=(3,2)), feature_names=["x1", "x2"])
+        control = TSCDataFrame.from_array(np.random.uniform(size=(2, 2)), feature_names=["u1", "u2"])
+
+        expect = np.ones([3, 4]) * np.nan
+        expect[:, :2] = tscdf.to_numpy()
+        expect[1:, 2:] = control.to_numpy()
+        expect = TSCDataFrame.from_array(expect, feature_names=["x1", "x2", "u1", "u2"])
+
+        actual = tscdf.tsc.augment_control_input(U=control)
+
+        pdtest.assert_frame_equal(expect, actual)
 
 
 if __name__ == "__main__":

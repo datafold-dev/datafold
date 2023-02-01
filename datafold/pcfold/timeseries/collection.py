@@ -72,6 +72,15 @@ class TSCException(Exception):
         return cls(msg)
 
     @classmethod
+    def not_const_timesteps(cls, actual_timesteps=None):
+        a = ""
+        if actual_timesteps is not None:
+            a = f"Got\n{actual_timesteps}"
+
+        msg = f"It is required that all time series have the same number of timesteps.{a}"
+        return cls(msg)
+
+    @classmethod
     def not_required_delta_time(cls, required_delta_time, actual_delta_time):
         return cls(
             f"The required delta_time (={required_delta_time}) does not match the "

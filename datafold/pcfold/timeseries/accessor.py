@@ -10,6 +10,7 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 from scipy.stats import multivariate_normal
+from datafold.utils.general import is_df_same_index
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
 from datafold.utils.general import is_integer
@@ -180,6 +181,15 @@ class TSCAccessor(object):
         if not self._tsc_df.is_const_delta_time(delta_time):
             raise TSCException.not_const_delta_time(delta_time)
         return delta_time
+
+    def check_const_timesteps(self) -> int:
+        """Check that all time series have the same number of timesteps. The time values itself
+        can differ between the time series. """
+        n_timesteps = self._tsc_df.n_timesteps
+        if isinstance(n_timesteps, pd.Series):
+            raise TSCException.not_const_timesteps()
+        else:
+            return n_timesteps
 
     def check_equal_timevalues(self) -> None:
         """Check if all time series in the collection share the same time values."""
@@ -469,19 +479,17 @@ class TSCAccessor(object):
             same shape as input
         """
 
-        if shift_t == 0:
+        if shift_t == 0:  # no shift
             return self._tsc_df
 
-        convert_times = self._tsc_df.index.get_level_values(1) + shift_t
+        convert_times = self._tsc_df.index.get_level_values(TSCDataFrame.tsc_time_idx_name) + shift_t
         convert_times = pd.Index(convert_times, name=TSCDataFrame.tsc_time_idx_name)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
-            [self._tsc_df.index.get_level_values(0), convert_times]
+            [self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name), convert_times]
         )
 
         self._tsc_df.index = new_tsc_index
-        self._tsc_df._validate()
-
         return self._tsc_df
 
     # def shift_time_by_index(self, idx):
@@ -996,6 +1004,49 @@ class TSCAccessor(object):
             return self._tsc_df
         else:
             return None
+
+    def fill_timeseries_with_last_state(self, n_timesteps):
+        """Fills the time series with less than `n_timesteps` to a length with `n_timesteps`
+        by filling the last available state."""
+
+        if self._tsc_df.n_timeseries != 1:
+            raise NotImplementedError("Currently this function is only implemented for a single time series")
+
+        if self._tsc_df.n_timesteps >= n_timesteps:
+            df = self._tsc_df
+            raise TSCException(f"The time series must contain less timesteps ({df.n_timesteps=}) than the required {n_timesteps=}")
+
+        dt = self.check_const_time_delta()
+
+        # number of states to attach:
+        n_attach = n_timesteps - self._tsc_df.shape[0]
+
+        last_state = self._tsc_df.iloc[[-1], :].to_numpy()
+        first_time = self._tsc_df.time_values()[-1] + dt
+
+        attach_states = np.tile(last_state, (n_attach, 1))
+        attach_time = np.arange(first_time, first_time + n_attach * dt - 1e-15, dt)
+        tsc_attach = TSCDataFrame.from_array(
+            attach_states, time_values=attach_time, feature_names=self._tsc_df.columns
+        )
+        return pd.concat([self._tsc_df, tsc_attach], axis=0)
+
+    def augment_control_input(self, U: TSCDataFrame):
+        # TODO: validation
+        # X and U need to have same structure
+        #   n_elements per time series
+        #   same ID axis
+
+        X_ids = self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)
+        mask_all_except_first = np.logical_not(np.diff(X_ids, prepend=True).astype(bool))
+        mask_all_except_last = np.append(np.logical_not((X_ids[:-1] - X_ids[1:]).astype(bool)), False)
+
+        is_df_same_index(self._tsc_df.loc[mask_all_except_last], U, check_column=False)
+
+        U = U.copy(deep=True) # append new data without changing the old
+        # make that time values are identical
+        U.index = self._tsc_df.loc[mask_all_except_first].index
+        return pd.concat([self._tsc_df, U], axis=1)
 
     def shift_matrices(
         self, snapshot_orientation: str = "col", validate: bool = True

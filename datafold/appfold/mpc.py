@@ -473,6 +473,79 @@ class LinearKMPC:
         )
         return U
 
+    def control_system(self, sys, sys_ic: TSCDataFrame, X_ref:TSCDataFrame, X_ic:TSCDataFrame, augment_control: bool=False):
+        """
+        TODO
+
+        Parameters
+        ----------
+        sys
+        X_ref
+        X_ic
+        U_ic
+        augment_control
+
+        Returns
+        -------
+
+        """
+        # TODO: validation  # TODO: fill_horizon_with_last_state option
+
+        import inspect
+
+        if inspect.isclass(sys):
+            eval_sys = sys.predict  # set to function
+        else:
+            eval_sys = sys
+
+        sys_seq = sys_ic.copy()
+        X_seq = X_ic.copy()
+        U_seq = None
+        n_ic = self.edmd.n_samples_ic_
+
+        for i in range(X_ref.shape[0] - 1):
+
+            # obtain the reference time series over the time horizon that we want to optimize
+            _ref = X_ref.iloc[i: i + self.horizon, :]
+
+            # fill up with last state to obtain the required time series length, if necessary
+            if _ref.shape[0] != self.horizon:
+                _ref = _ref.tsc.fill_timeseries_with_last_state(n_timesteps=self.horizon)
+
+            # obtain optimal control sequence from KMPC
+            ukmpc = self.control_sequence(X=X_seq.iloc[-n_ic:, :], reference=_ref)
+
+            # TODO: currently we take only the next input. This could be generalized to take
+            #  more input from
+            U_next = ukmpc.iloc[[0], :]
+
+            time_values = [U_next.time_values()[0], _ref.time_values()[0]]
+
+            # forward the true model with the next optimal control
+            # TODO: this needs to be predict!
+            state, _ = eval_sys(
+                sys_seq.iloc[[-1], :],
+                U=U_next,
+                time_values=time_values,
+            )
+
+            if augment_control:
+                # augment the state for the next prediction
+                new_state = state.tsc.augment_control_input(U_next).iloc[[-1], :]
+                new_state = new_state.loc[:, self.edmd.feature_names_in_]
+
+            # TODO: preallocating memory and writing in is more efficient than concat
+            # store control input and state the sequence, which is used later for plotting
+            if sys_seq is None:
+                sys_seq = state.copy()
+            else:
+                sys_seq = pd.concat([sys_seq, state.iloc[[-1], :]], axis=0)
+
+            U_seq = pd.concat([U_seq, U_next], axis=0)
+            X_seq = pd.concat([X_seq, new_state], axis=0)
+
+        return sys_seq, U_seq
+
     # def compute_cost(self, U, reference, initial_conditions):
     #     z0 = self.lifting_function(initial_conditions)
     #     z0 = if1dim_colvec(z0)
