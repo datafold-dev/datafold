@@ -29,7 +29,8 @@ n_timesteps = 1000
 
 
 from scipy.interpolate import interp1d
-interp1d([0, .5, 1.5, 2, 2.5], [-.3, .4, -.6, -.2, .2], kind="previous")
+
+interp1d([0, 0.5, 1.5, 2, 2.5], [-0.3, 0.4, -0.6, -0.2, 0.2], kind="previous")
 
 
 time_values = np.arange(0, n_timesteps * dt, dt)
@@ -38,6 +39,7 @@ time_values = np.arange(0, n_timesteps * dt, dt)
 def shift_time_index_U(_X, _U):
     new_index = _X.groupby("ID").tail(_X.n_timesteps - 1).index
     return _U.set_index(new_index)
+
 
 X_ic = InitialCondition.from_array(
     rng.uniform(size=(n_timeseries, sys.n_features_in_)) * 2 - 1,
@@ -48,7 +50,7 @@ X_ic = InitialCondition.from_array(
 U = TSCDataFrame.from_tensor(
     rng.uniform(size=(n_timeseries, n_timesteps - 1, 1), low=-1, high=1),
     time_values=time_values[:-1],
-    columns=sys.control_names_in_
+    columns=sys.control_names_in_,
 )
 
 X_ic_xtest = TSCDataFrame.from_array(
@@ -60,7 +62,16 @@ X_tsc, U_tsc = sys.predict_vectorize(X_ic, U=U)
 X_tsc = X_tsc.loc[:, [output]].tsc.augment_control_input(U_tsc).fillna(0)
 
 # use the columns transformer to apply the time delay embedding on the output variable (x2) and the identity on the control input
-delay = ("delayembedding", TSCColumnTransformer(transformers=[("delay", TSCTakensEmbedding(delays=1), [output]), ("id", TSCIdentity(), ["u"])], verbose_feature_names_out=False),)
+delay = (
+    "delayembedding",
+    TSCColumnTransformer(
+        transformers=[
+            ("delay", TSCTakensEmbedding(delays=1), [output]),
+            ("id", TSCIdentity(), ["u"]),
+        ],
+        verbose_feature_names_out=False,
+    ),
+)
 rbf = ("rbf", TSCRadialBasis(kernel=ThinplateKernel(), center_type="fit_params"))
 rbf_centers = rng.uniform(size=(100, 3)) * 2 - 1
 edmd = EDMD([delay, rbf], dmd_model=DMDControl(), include_id_state=True)
@@ -83,6 +94,7 @@ def random_control(duty_cycle):
     # the duty cycle influences which value shows up more often
     cond = rng.uniform(0, 1, size=(n_timesteps, 1)) > (1 - duty_cycle)
     return 2 * cond.astype(float) - 1
+
 
 # control input for the test time series
 U_test = TSCDataFrame.from_array(
@@ -112,7 +124,9 @@ ax.set_ylabel("U")
 ax.step(U_test.time_values(), U_test.to_numpy())
 
 f, ax = plt.subplots()
-ax.plot(X_model_pred.time_values(), X_model_pred.loc[:, output].to_numpy(), label="original")
+ax.plot(
+    X_model_pred.time_values(), X_model_pred.loc[:, output].to_numpy(), label="original"
+)
 ax.plot(X_edmd_pred.time_values(), X_edmd_pred.loc[:, output].to_numpy(), label="EDMD")
 ax.legend()
 
@@ -127,9 +141,13 @@ if MODE == "step":
     ymax = 0.6
     x0 = TSCDataFrame.from_array(np.array([[0, 0.6]]), feature_names=X_tsc.columns)
 
-    values = (0.3 * (-1 + 2 * (np.arange(1, n_timesteps) > n_timesteps / 2)))[:, np.newaxis]
+    values = (0.3 * (-1 + 2 * (np.arange(1, n_timesteps) > n_timesteps / 2)))[
+        :, np.newaxis
+    ]
     reference = TSCDataFrame.from_array(
-        values, time_values=np.arange(dt * 2, dt * (n_timesteps + 1), dt), feature_names=["x2"]
+        values,
+        time_values=np.arange(dt * 2, dt * (n_timesteps + 1), dt),
+        feature_names=["x2"],
     )  # reference
 elif MODE == "cos":
     ymin = -0.4
@@ -139,7 +157,9 @@ elif MODE == "cos":
         0.5 * np.cos(2 * np.pi * np.arange(1, n_timesteps) / n_timesteps)[:, np.newaxis]
     )  # reference
     reference = TSCDataFrame.from_array(
-        values, time_values=np.arange(dt * 2, dt * (n_timesteps + 1), dt), feature_names=["x2"]
+        values,
+        time_values=np.arange(dt * 2, dt * (n_timesteps + 1), dt),
+        feature_names=["x2"],
     )  # reference
 else:
     raise RuntimeError("")
@@ -162,13 +182,19 @@ kmpc = LinearKMPC(
 )
 
 # 1.
-U_seq = TSCDataFrame.from_array(0.0, feature_names=U.columns, time_values=0.0)
+U_ic = TSCDataFrame.from_array(0.0, feature_names=U.columns, time_values=0.0)
 
-sys_ic, _ = sys.predict_vectorize(x0, U=U_seq, time_values=[0, dt])
-X_ic = sys_ic.copy().tsc.augment_control_input(U_seq).fillna(0)
+sys_ic, _ = sys.predict_vectorize(x0, U=U_ic, time_values=[0, dt])
+X_ic = sys_ic.copy().tsc.augment_control_input(U_ic).fillna(0)
 X_ic = X_ic.loc[:, edmd.feature_names_in_]
 
-X_seq, _ = kmpc.control_system(sys=sys.predict_vectorize, sys_ic=sys_ic, X_ref=reference, X_ic=X_ic, augment_control=True)
+X_seq, _ = kmpc.control_system(
+    sys=sys.predict_vectorize,
+    sys_ic=sys_ic,
+    X_ic=X_ic,
+    X_ref=reference,
+    augment_control=True,
+)
 
 f, ax = plt.subplots()
 teval = X_seq.time_values()
