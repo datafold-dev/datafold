@@ -969,7 +969,7 @@ class EDMD(
 
         qois
             A list of feature names of interest to be included in the returned
-            predictions. Must be a subset of ``feature_names_pred_``.
+            predictions. Must be a subset of names in attribute ``feature_names_pred_``.
 
         **predict_params: Dict[str, object]
             ignored
