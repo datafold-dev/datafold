@@ -5,11 +5,9 @@ from typing import Generator, List, Optional, Tuple, Union
 import matplotlib.colors as mclrs
 import numpy as np
 import pandas as pd
-import scipy.sparse
 from pandas.api.types import is_datetime64_dtype, is_numeric_dtype, is_timedelta64_dtype
 from pandas.core.indexing import _iLocIndexer, _LocIndexer
 
-from datafold.pcfold.distance import compute_distance_matrix
 from datafold.utils.general import (
     df_type_and_indices_from,
     if1dim_colvec,
@@ -613,14 +611,14 @@ class TSCDataFrame(pd.DataFrame):
 
         Parameters
         ----------
-        data
+        array
             Time series data (2-dim. array) with snapshots in rows.
 
         time_values
             Time values to apply. Must have :code:`data.shape[0]` elements.
             Defaults to `0, 1, 2, ...`.
 
-        ts_ids
+        ts_id
             An integer of for The ID of a single time series (if timesteps is None). Or the
 
         Returns
@@ -1780,7 +1778,7 @@ class InitialCondition(object):
             time_values = np.arange(0, U.shape[0] * dt, dt)
 
         U = TSCDataFrame.from_array(
-            U, time_values=time_values, feature_names=control_names, ts_ids=ts_id
+            U, time_values=time_values, feature_names=control_names, ts_id=ts_id
         )
 
         return U

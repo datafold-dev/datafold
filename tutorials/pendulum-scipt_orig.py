@@ -2,18 +2,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-from datafold import DiffusionMaps, GaussianKernel, TSCTakensEmbedding, TSCApplyLambdas, TSCColumnTransformer
+from tqdm import tqdm
+
 from datafold import (
     EDMD,
+    DiffusionMaps,
     DMDControl,
+    GaussianKernel,
     InverseQuadraticKernel,
+    TSCApplyLambdas,
+    TSCColumnTransformer,
     TSCDataFrame,
     TSCIdentity,
     TSCPrincipalComponent,
     TSCRadialBasis,
+    TSCTakensEmbedding,
     TSCTransformerMixin,
 )
-from tqdm import tqdm
 from datafold.appfold.mpc import LinearKMPC
 from datafold.utils._systems import InvertedPendulum, InvertedPendulum2
 
@@ -29,6 +34,7 @@ time_values = np.arange(0, 10, 0.02)
 rng = np.random.default_rng(4)
 
 invertedPendulum = InvertedPendulum2()
+
 
 def generate_data(n_timeseries, ics):
     X_tsc, U_tsc = [], []  # lists to collect sampled time series
@@ -51,7 +57,7 @@ def generate_data(n_timeseries, ics):
                 X=ics[ic, :],
                 U=Ufunc,
                 time_values=time_values,
-                require_last_control_state=False
+                require_last_control_state=False,
             )
 
             X_tsc.append(X)
@@ -162,7 +168,12 @@ ldas_cos = ("cos", TSCApplyLambdas(lambdas=[lambda x: np.cos(x)]), ["theta"])
 ldas_cosdot = ("cos_dot", TSCApplyLambdas(lambdas=[lambda x: np.cos(x)]), ["thetadot"])
 ldas_sindot = ("sin_dot", TSCApplyLambdas(lambdas=[lambda x: np.sin(x)]), ["thetadot"])
 _id_ = ("id", TSCIdentity(include_const=True), lambda df: df.columns)
-trigon = ("trigon", TSCColumnTransformer(transformers=[ldas_cos, ldas_sin, ldas_cosdot, ldas_sindot, _id_]))
+trigon = (
+    "trigon",
+    TSCColumnTransformer(
+        transformers=[ldas_cos, ldas_sin, ldas_cosdot, ldas_sindot, _id_]
+    ),
+)
 
 _dict = [delay, _id]
 
@@ -235,40 +246,54 @@ kmpc = LinearKMPC(
 X_ic = np.array([0, 0, rng.uniform(-0.1, 0.1), 0])  # TODO: make IC sampling function
 n_mpc_steps = 100
 
-time_values_mpc = np.arange(0, n_mpc_steps*edmd.dt_, edmd.dt_)
+time_values_mpc = np.arange(0, n_mpc_steps * edmd.dt_, edmd.dt_)
 
 # fill with nans to check if something is not filled out..
 
-U = TSCDataFrame.from_single_timeseries(pd.DataFrame(np.nan, index=time_values_mpc[:-1], columns=edmd.control_names_in_))
-U.iloc[0:edmd.n_samples_ic_-1, :] = 0 # no control for initially
+U = TSCDataFrame.from_single_timeseries(
+    pd.DataFrame(np.nan, index=time_values_mpc[:-1], columns=edmd.control_names_in_)
+)
+U.iloc[0 : edmd.n_samples_ic_ - 1, :] = 0  # no control for initially
 
-X_controlled = TSCDataFrame.from_single_timeseries(pd.DataFrame(np.nan, index=time_values_mpc[:-1], columns=invertedPendulum.feature_names_in_))
+X_controlled = TSCDataFrame.from_single_timeseries(
+    pd.DataFrame(
+        np.nan, index=time_values_mpc[:-1], columns=invertedPendulum.feature_names_in_
+    )
+)
 X_controlled.loc[(0, 0), :] = X_ic
 
 if edmd.n_samples_ic_ > 1:
-    X_warm_up, _ = invertedPendulum.predict(X_ic, U=U.iloc[0:edmd.n_samples_ic_ - 1, :])
+    X_warm_up, _ = invertedPendulum.predict(
+        X_ic, U=U.iloc[0 : edmd.n_samples_ic_ - 1, :]
+    )
     X_controlled.loc[X_warm_up.index] = X_warm_up
 
 const_values = np.zeros((kmpc.horizon, kmpc.n_qois))
 
-for i in tqdm(range(edmd.n_samples_ic_-1, n_mpc_steps)):
-    time_values_horizon = time_values_mpc[i+1:i+horizon+1]
+for i in tqdm(range(edmd.n_samples_ic_ - 1, n_mpc_steps)):
+    time_values_horizon = time_values_mpc[i + 1 : i + horizon + 1]
 
     if len(time_values_horizon) < horizon:
         break
 
-    reference = TSCDataFrame.from_single_timeseries(pd.DataFrame(const_values, index=time_values_horizon, columns=kmpc.qois))
+    reference = TSCDataFrame.from_single_timeseries(
+        pd.DataFrame(const_values, index=time_values_horizon, columns=kmpc.qois)
+    )
 
     ukmpc = kmpc.control_sequence(
-        X=X_controlled.iloc[i-edmd.n_samples_ic_+1:i+1, :], reference=reference
+        X=X_controlled.iloc[i - edmd.n_samples_ic_ + 1 : i + 1, :], reference=reference
     )
 
     control_action = ukmpc.iloc[[0], :]
-    t_now, t_next = time_values_mpc[i:i + 2]
+    t_now, t_next = time_values_mpc[i : i + 2]
 
     U.loc[control_action.index] = control_action
 
-    _X_next, _ = invertedPendulum.predict(X_controlled.loc[[(0, t_now)], :], U=control_action, time_values=np.array([t_now, t_next]))
+    _X_next, _ = invertedPendulum.predict(
+        X_controlled.loc[[(0, t_now)], :],
+        U=control_action,
+        time_values=np.array([t_now, t_next]),
+    )
     X_controlled.loc[[(0, t_next)], :] = _X_next.iloc[[-1], :]
 
 # X_reference_no_control, _ = invertedPendulum.predict(X_ic, U=TSCDataFrame.from_single_timeseries(pd.DataFrame(0, index=time_values_mpc[:-1], columns=invertedPendulum.control_names_in_)))

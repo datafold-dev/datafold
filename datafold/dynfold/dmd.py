@@ -1292,7 +1292,11 @@ class DMDControl(DMDBase):
         self._validate_datafold_data(
             X=U,
             # need same dtype in time axis in U as in X
-            tsc_kwargs=dict(ensure_dtype_time=X.index.get_level_values(TSCDataFrame.tsc_time_idx_name).dtype),
+            tsc_kwargs=dict(
+                ensure_dtype_time=X.index.get_level_values(
+                    TSCDataFrame.tsc_time_idx_name
+                ).dtype
+            ),
             ensure_tsc=True,
         )
 

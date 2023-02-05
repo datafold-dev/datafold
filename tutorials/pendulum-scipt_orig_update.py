@@ -2,18 +2,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-from datafold import DiffusionMaps, GaussianKernel, TSCTakensEmbedding, TSCApplyLambdas, TSCColumnTransformer
+from tqdm import tqdm
+
 from datafold import (
     EDMD,
+    DiffusionMaps,
     DMDControl,
+    GaussianKernel,
     InverseQuadraticKernel,
+    TSCApplyLambdas,
+    TSCColumnTransformer,
     TSCDataFrame,
     TSCIdentity,
     TSCPrincipalComponent,
     TSCRadialBasis,
+    TSCTakensEmbedding,
     TSCTransformerMixin,
 )
-from tqdm import tqdm
 from datafold.appfold.mpc import LinearKMPC
 from datafold.utils._systems import InvertedPendulum
 
@@ -29,6 +34,7 @@ time_values = np.arange(0, 10, 0.02)
 rng = np.random.default_rng(4)
 
 invertedPendulum = InvertedPendulum(pendulum_mass=1)
+
 
 def generate_data(n_timeseries, ics):
     X_tsc, U_tsc = [], []  # lists to collect sampled time series
@@ -51,7 +57,7 @@ def generate_data(n_timeseries, ics):
                 X=ics[ic, :],
                 U=Ufunc,
                 time_values=time_values,
-                require_last_control_state=False
+                require_last_control_state=False,
             )
 
             X_tsc.append(X)
@@ -71,10 +77,10 @@ n_ics = 3
 ics_train = np.zeros((n_ics, 4))
 
 for i in range(n_ics):
-    ics_train[i] = [0, 0, np.pi+rng.uniform(-4, 4), 0]
+    ics_train[i] = [0, 0, np.pi + rng.uniform(-4, 4), 0]
 # ics_train = np.array([[0, 0, np.pi + 0.1, 0], [0, 0, np.pi + 1.0, 0], [0, 0, 0.1, 0]])
 
-ics_test = np.array([[0, 0, np.pi+rng.uniform(-4.0, 4), 0]])
+ics_test = np.array([[0, 0, np.pi + rng.uniform(-4.0, 4), 0]])
 
 X_tsc, U_tsc = generate_data(training_size, ics_train)
 X_oos, U_oos = generate_data(1, ics_test[[0]])
@@ -188,7 +194,12 @@ ldas_cos = ("cos", TSCApplyLambdas(lambdas=[lambda x: np.cos(x)]), ["theta"])
 ldas_cosdot = ("cos_dot", TSCApplyLambdas(lambdas=[lambda x: np.cos(x)]), ["thetadot"])
 ldas_sindot = ("sin_dot", TSCApplyLambdas(lambdas=[lambda x: np.sin(x)]), ["thetadot"])
 _id_ = ("id", TSCIdentity(include_const=True), lambda df: df.columns)
-trigon = ("trigon", TSCColumnTransformer(transformers=[ldas_cos, ldas_sin, ldas_cosdot, ldas_sindot, _id_]))
+trigon = (
+    "trigon",
+    TSCColumnTransformer(
+        transformers=[ldas_cos, ldas_sin, ldas_cosdot, ldas_sindot, _id_]
+    ),
+)
 
 _dict = [delay, _id]
 
@@ -250,8 +261,8 @@ horizon = 20  # in time steps
 kmpc = LinearKMPC(
     edmd=edmd,
     horizon=horizon,
-    state_bounds=None, # np.array([[-5, 5], [0, 6.28]]),
-    input_bounds=None, # np.array([[-99, 99]]),
+    state_bounds=None,  # np.array([[-5, 5], [0, 6.28]]),
+    input_bounds=None,  # np.array([[-99, 99]]),
     qois=["x", "theta"],
     cost_running=np.array([0.01, 1]),
     cost_terminal=1,
@@ -259,12 +270,16 @@ kmpc = LinearKMPC(
 )
 
 reference = X_oos[["x", "theta"]].iloc[
-    edmd.n_samples_ic_: edmd.n_samples_ic_ + horizon
+    edmd.n_samples_ic_ : edmd.n_samples_ic_ + horizon
 ]
 
-reference_no_control, _ = invertedPendulum.predict(X_oos.iloc[edmd.n_samples_ic_ - 1, :].to_numpy(), U=np.zeros((reference.shape[0]-1, 1)), time_values=reference.time_values())
+reference_no_control, _ = invertedPendulum.predict(
+    X_oos.iloc[edmd.n_samples_ic_ - 1, :].to_numpy(),
+    U=np.zeros((reference.shape[0] - 1, 1)),
+    time_values=reference.time_values(),
+)
 
-reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ : edmd.n_samples_ic_ + horizon- 1]
+reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ : edmd.n_samples_ic_ + horizon - 1]
 
 const_values = np.tile(np.array([0, np.pi]), (reference.shape[0], 1))
 reference = TSCDataFrame.from_same_indices_as(reference, values=const_values)
@@ -278,7 +293,7 @@ kmpcpred = edmd.predict(X_oos.initial_states(edmd.n_samples_ic_), U=ukmpc)
 kmpctraj, _ = invertedPendulum.predict(
     X=X_oos.initial_states(edmd.n_samples_ic_).to_numpy()[-1, :],
     U=ukmpc,
-    time_values=kmpcpred.time_values()[:horizon+1],
+    time_values=kmpcpred.time_values()[: horizon + 1],
 )
 
 anim = invertedPendulum.animate(kmpcpred, None)

@@ -106,7 +106,7 @@ class TestTSCBase(unittest.TestCase):
         nptest.assert_array_equal(actual, expected)
 
         # non-zero start time information in X
-        expected = expected + 99.
+        expected = expected + 99.0
         X = TSCDataFrame.from_array(np.arange(2), time_values=expected[0])
         U = np.arange(6).reshape(3, 2)
 

@@ -28,6 +28,7 @@ List
     tutorial_07_jsf_common_eigensystem
     tutorial_08_gh_oos
     tutorial_09_edmd_limitcycle
+    tutorial_10_kmpc_flowcontrol
     tutorial_koopman_mpc
     tutorial_12_online_dmd
 
@@ -62,6 +63,8 @@ List
 
 * `09_edmd_limitcycle.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/09_edmd_limitcycle.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_09_edmd_limitcycle.html>`__)
     We generate data from a dynamical system (Hopf system) and compare different dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate out-of-sample predictions with time ranges exceeding the time horizon of the training data.
+* `10_kmpc_flowcontrol.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/10_kmpc_flowcontrol.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_10_kmpc_flowcontrol.html>`__)
+    We showcase how Model Predictive Control (MPC) based on the Koopman operator can be used to control a flow system (here 1D Burger equation with periodic boundary condition).
 * `11_koopman_mpc/koopman_mpc.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip?path=tutorials/koopman_mpc>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_koopman_mpc.html>`__)
     Walkthrough for doing Model Predictive Control (MPC) based on the Koopman operator. We apply MPC using an EDMD predictor to a toy model: the inverted pendulum, sometimes referred to as a cartpole.
 * `12_online_dmd.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/12_online_dmd.ipynb?inline=false>`__ , `doc <https://datafold-dev.gitlab.io/datafold/tutorial_12_online_dmd.html>`__)
@@ -119,4 +122,3 @@ or simply use the target in the Makefile:
 .. code-block:: bash
 
     make tutorial
-

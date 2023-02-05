@@ -1,5 +1,5 @@
-from scipy import signal
 import numpy as np
+from scipy import signal
 
 sys = signal.ZerosPolesGain(np.array([[1, 2, 5], [5, 6, 7]]), [3, 4, 4], 0)
 
