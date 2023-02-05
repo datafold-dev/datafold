@@ -465,7 +465,7 @@ class EDMD(
 
         if False and U is not None:
             matrix = scipy.linalg.lstsq(np.column_stack([X_dict, U]), X, cond=None)[0]
-            self._inverse_map_control = matrix[X_dict.shape[1] :, :]
+            self._inverse_map_control: np.ndarray = matrix[X_dict.shape[1] :, :]
             return matrix[: X_dict.shape[1], :]
         else:
             return scipy.linalg.lstsq(X_dict, X, cond=None)[0]
@@ -891,6 +891,7 @@ class EDMD(
         if self.is_controlled_ and self.n_samples_ic_ > 1:
             # align index of control input with intersection of indices
             # Some keys may be dropped here (e.g. when using time delay embedding)
+            assert U is not None  # for mypy
             inters_keys = X_dict.index.intersection(U.index)
             U = U.loc[inters_keys, :]  # type: ignore
 

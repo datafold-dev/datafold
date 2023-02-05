@@ -533,10 +533,10 @@ class TSCPredictMixin(TSCBase):
         if time_values is None:
             if is_controlled:
 
-                if isinstance(U, Callable):
+                if callable(U):
                     raise ValueError(
-                        "If U` is a control input function (Callable), then the "
-                        f"parameter 'time_values' cannot be None. Got {time_values=}"
+                        "If `U` is a control input function (callable), then the "
+                        "parameter 'time_values' cannot be None."
                     )
 
                 if isinstance(U, TSCDataFrame):
@@ -580,8 +580,9 @@ class TSCPredictMixin(TSCBase):
                         )
 
                         raise ValueError(
-                            f"The length of time values ({len(time_values)=}) does not match "
-                            f"the number of control states (required: {str_req_control_states}, got: {U.shape[0]=})."
+                            f"The length of time values ({len(time_values)=}) "
+                            "does not match the number of control states "
+                            f"(required: {str_req_control_states}, got: {U.shape[0]=})."
                         )
                 elif isinstance(U, TSCDataFrame):
 
@@ -606,7 +607,7 @@ class TSCPredictMixin(TSCBase):
                             "time information for the current prediction. It is recommended "
                             "to only provide the control input 'U'."
                         )
-                elif isinstance(U, Callable):
+                elif callable(U):
                     pass  # nothing to do for now ...
                 else:
                     raise TypeError(
