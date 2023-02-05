@@ -974,7 +974,7 @@ class EDMD(
         return X_dict
 
     def fit_transform(self, X: TSCDataFrame, y=None, **fit_params):
-        """Fit the model and return the EDMD-dictionary time series.
+        """Fit the model and return the dictionary time series.
 
         Parameters
         ----------
