@@ -152,7 +152,6 @@ class LinearKMPC:
         cost_terminal: Optional[Union[float, np.ndarray]] = 1,
         cost_input: Optional[Union[float, np.ndarray]] = 1,
     ) -> None:
-
         # TODO: option to set multiple horizons? E.g. setting horizon = np.arange(5)
 
         if solve_qp is None:
@@ -276,7 +275,6 @@ class LinearKMPC:
 
         # set up Bb
         for i in range(self.horizon):
-
             if is_project_coordinates:
                 _B_tmp = Cb @ B_current
             else:
@@ -513,7 +511,6 @@ class LinearKMPC:
         n_ic = self.edmd.n_samples_ic_
 
         for i in range(X_ref.shape[0] - 1):
-
             # obtain the reference time series over the time horizon that we want to optimize
             _ref = X_ref.iloc[i : i + self.horizon, :]
 
@@ -605,7 +602,6 @@ class LQR(object):
         return self
 
     def _setup_optimizer(self):
-
         Q, R = self._create_cost_matrices()
 
         Ad = self.edmd.dmd_model.sys_matrix_

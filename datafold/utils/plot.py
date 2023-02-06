@@ -52,7 +52,6 @@ def plot_eigenvalues(
     plot_kwargs.setdefault("linewidth", 0)
 
     if eigenvalues.dtype == complex:
-
         ax.plot(np.real(eigenvalues), np.imag(eigenvalues), **plot_kwargs)
 
         if plot_unit_circle:
@@ -65,7 +64,6 @@ def plot_eigenvalues(
             ax.set_ylabel("$\\Im(\\lambda)$")
 
     elif eigenvalues.dtype == float:
-
         if plot_unit_circle:
             warnings.warn(
                 "eigenvalues are real-valued, 'plot_unit_circle=True' is ignored"
@@ -243,7 +241,6 @@ def plot_pairwise_eigenvector(
     correct_one = 0
 
     for i, idx_eigvec in enumerate(range(n_eigenvectors + 1)):
-
         if i == n:
             correct_one = 1
             continue
@@ -306,7 +303,6 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), n_scale_tests=20) -> None:
     save_eps = pcm.kernel.epsilon
 
     for i, scale in enumerate(scales):
-
         pcm.kernel.epsilon = scale
         kernel_matrix_scale = pcm.kernel.eval(distance_matrix=distance_matrix)
         kernel_sum = kernel_matrix_scale.sum()

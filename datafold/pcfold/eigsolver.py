@@ -280,7 +280,6 @@ def compute_kernel_svd(
     backend: str = "scipy",
     **backend_kwargs,
 ):
-
     if n_svdtriplet > np.min(kernel_matrix.shape):
         raise ValueError(
             f"{n_svdtriplet} is larger than the maximum number of SVD triplets available "

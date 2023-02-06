@@ -33,12 +33,10 @@ class TestDistAlgorithms(unittest.TestCase):
         expected = squareform(pdist(self.data_X))
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
             for algo in self.symmetric_algos:
-
                 try:
                     da = init_distance_algorithm(
                         backend=algo.name,
@@ -64,7 +62,6 @@ class TestDistAlgorithms(unittest.TestCase):
         expected = cdist(self.data_Y, self.data_X)
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
@@ -94,7 +91,6 @@ class TestDistAlgorithms(unittest.TestCase):
         expected[expected > cut_off] = 0
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
@@ -131,7 +127,6 @@ class TestDistAlgorithms(unittest.TestCase):
         expected[expected > cut_off] = 0
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
@@ -169,14 +164,11 @@ class TestDistAlgorithms(unittest.TestCase):
             expected.sort_indices()
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected.data = np.square(expected.data)
 
             for algo in self.symmetric_algos:
-
                 try:
-
                     da = init_distance_algorithm(
                         backend=algo.name,
                         metric=metric,
@@ -215,12 +207,10 @@ class TestDistAlgorithms(unittest.TestCase):
             expected.sort_indices()
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected.data = np.square(expected.data)
 
             for algo in self.symmetric_algos:
-
                 try:
                     da = init_distance_algorithm(
                         backend=algo.name,
@@ -242,14 +232,11 @@ class TestDistAlgorithms(unittest.TestCase):
                     raise e
 
     def test_ensure_kmin_nearest_neighbours_pdist(self):
-
         print("SUPRESSED SPARSITY WARNINGS. TODO: See #93")
         warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
-
             for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(int):
-
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros
                 pdist_distance_matrix = compute_distance_matrix(
@@ -286,14 +273,11 @@ class TestDistAlgorithms(unittest.TestCase):
                     raise e
 
     def test_ensure_kmin_nearest_neighbours_cdist(self):
-
         print("SUPRESSED SPARSITY WARNINGS. TODO: See #93")
         warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
-
             for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(int):
-
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros
                 cdist_distance_matrix = compute_distance_matrix(
@@ -310,7 +294,6 @@ class TestDistAlgorithms(unittest.TestCase):
                 )
 
                 try:
-
                     rows, columns = distance_matrix.nonzero()
                     actual = scipy.sparse.csr_matrix(
                         (

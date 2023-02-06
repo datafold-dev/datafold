@@ -55,7 +55,6 @@ class _DmapKernelAlgorithms:
         n_eigenpairs: int,
         index_from: Optional[TSCDataFrame] = None,
     ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame]]:
-
         if isinstance(kernel_matrix, pd.DataFrame):
             kernel_matrix = kernel_matrix.to_numpy()
 
@@ -257,7 +256,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         alpha: float = 1,
         symmetrize_kernel: bool = True,
     ) -> None:
-
         self.kernel = kernel
         self.n_eigenpairs = n_eigenpairs
         self.time_exponent = time_exponent
@@ -358,7 +356,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return GaussianKernel(epsilon=1.0)
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals, index_from):
-
         if isinstance(kernel_cdist, pd.DataFrame):
             _kernel_cdist = kernel_cdist.to_numpy()
         else:
@@ -388,7 +385,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     def _perform_dmap_embedding(
         self, eigenvectors: Union[np.ndarray, pd.DataFrame]
     ) -> Union[np.ndarray, pd.DataFrame]:
-
         check_scalar(
             self.time_exponent,
             "time_exponent",
@@ -759,7 +755,6 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
         return np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
 
     def fit(self, X: TransformType, y=None, **fit_params):
-
         X = self._validate_datafold_data(X, ensure_min_samples=2)
         self._setup_feature_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -905,7 +900,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         alpha: float = 0,
         random_state: Optional[int] = None,
     ) -> None:
-
         self.kernel = kernel
         self.n_svdtriplet = n_svdtriplet
         self.time_exponent = time_exponent
@@ -918,7 +912,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         self.svdvec_right_: np.ndarray
 
     def _validate_setting(self, n_samples):
-
         if isinstance(self.kernel, TSCManifoldKernel):
             raise NotImplementedError(
                 "Kernels of type 'TSCManifoldKernel' are not supported yet"
@@ -995,7 +988,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         normalize_diagonal: Optional[np.ndarray] = None,
         index_from: Optional[TSCDataFrame] = None,
     ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame], np.ndarray]:
-
         svdvec_left, svdvals, svdvec_right = compute_kernel_svd(
             kernel_matrix=kernel_matrix, n_svdtriplet=n_svdtriplet
         )
@@ -1036,7 +1028,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         return svdvec_left, svdvals, svdvec_right
 
     def _nystrom(self, kernel_cdist, svdvec_right, svdvals, normalize_diagonal):
-
         _magic_tol = 1e-14  # tolerance to raise a warning
 
         if (np.abs(svdvals) < _magic_tol).any():
@@ -1061,7 +1052,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
     def _perform_roseland_embedding(
         self, svdvectors: Union[np.ndarray, pd.DataFrame], svdvalues: np.ndarray
     ) -> Union[np.ndarray, pd.DataFrame]:
-
         check_scalar(
             self.time_exponent,
             "time_exponent",
@@ -1350,7 +1340,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         bandwidth_type="median",
         random_state: Optional[int] = None,
     ):
-
         self.strategy = strategy
 
         self.intrinsic_dim = intrinsic_dim
@@ -1362,7 +1351,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         self.n_subsample = n_subsample
 
     def _validate_parameter(self, num_eigenvectors):
-
         check_scalar(
             self.eps_med_scale,
             name="eps_med_scale",
@@ -1521,7 +1509,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         return residual
 
     def _set_indices(self):
-
         # For the strategies numerical values are required. Therefore, set the first
         # residual (nan) here to the invalid value -1. This value makes sure, that
         # the first coordinate is always chosen.

@@ -74,7 +74,6 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
             self._set_attrs_knn(k)
 
     def _set_attrs_range(self, cut_off, kmin):
-
         if kmin is not None and not is_integer(kmin):
             raise TypeError(
                 f"parameter 'kmin' must be an integer type or None. Got: {type(kmin)}"
@@ -290,7 +289,6 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         is_pdist = Y is None
 
         if len(knn_query_indices) != 0:
-
             if is_pdist:
                 Y = X.view()
             else:
@@ -516,7 +514,6 @@ class BruteForceDist(DistanceAlgorithm):
         X, Y, is_pdist = self._validate_X_Y(X, Y)
 
         if is_pdist:
-
             if self.exact_numeric:
                 _pdist = pdist(X, metric=self.metric, **self.backend_options)
                 distance_matrix = squareform(_pdist)
@@ -579,7 +576,6 @@ class RDist(DistanceAlgorithm):
     name = "rdist" if IS_IMPORTED_RDIST else None  # type: ignore
 
     def __init__(self, cut_off, kmin=None, metric="euclidean", **backend_options):
-
         if not IS_IMPORTED_RDIST:
             raise ImportError("Could not import rdist. Check if it is installed.")
         self.backend_options = backend_options
@@ -857,7 +853,6 @@ class SklearnBalltreeDist(DistanceAlgorithm):
 
 
 class SklearnKNN(DistanceAlgorithm):
-
     name = "sklearn.knn"
 
     def __init__(self, metric, k, **backend_options):
@@ -869,7 +864,6 @@ class SklearnKNN(DistanceAlgorithm):
         return False
 
     def __call__(self, X, Y=None):
-
         X, Y, is_pdist = self._validate_X_Y(X, Y=Y)
 
         if is_pdist or not hasattr(self, "nn_"):
@@ -920,7 +914,6 @@ class GuessOptimalDist(DistanceAlgorithm):
     name = "guess_optimal"
 
     def __new__(cls, metric="euclidean", is_symmetric=True, cut_off=np.inf, kmin=None):
-
         cut_off = cut_off or np.inf
         cls.is_symmetric = lambda: is_symmetric
 

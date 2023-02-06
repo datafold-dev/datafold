@@ -107,7 +107,6 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         self.eigenvalues_: np.ndarray
 
     def _validate_parameter(self):
-
         if (
             not isinstance(self.data_splits, list)
             or not np.array([isinstance(a, Tuple) for a in self.data_splits]).all()
@@ -189,7 +188,6 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
     def _compute_jointly_smooth_vectors(
         self, X, kernel_eigenvectors
     ) -> Tuple[np.ndarray, np.ndarray]:
-
         stacked_eigenvectors = np.column_stack(list(kernel_eigenvectors.values()))
 
         if len(self.kernel_eigenvectors_) == 2:

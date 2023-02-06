@@ -19,7 +19,6 @@ from datafold.utils._systems import (
 
 class TestSystems(unittest.TestCase):
     def test_vanderpol01(self, plot=False):
-
         x = np.linspace(-3, 3, 10)
         y = np.linspace(-3, 3, 10)
         xv, yv = np.meshgrid(x, y)
@@ -142,7 +141,6 @@ class TestSystems(unittest.TestCase):
 
     @pytest.mark.skip(reason="This test needs an update")
     def test_inverted_pendulum01(self):
-
         # unstable equilibrium
         X_stable = np.array([0, 0, 0, 0])
 
@@ -189,7 +187,6 @@ class TestSystems(unittest.TestCase):
         pdtest.assert_frame_equal(actual_theta, X_predict)
 
     def test_duffing01(self, plot=False):
-
         X1, U1 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)))
         X2, U2 = Duffing1D().predict(
             np.array([1, 2]), U=np.zeros((999, 1)), time_values=np.arange(0, 10, 0.01)

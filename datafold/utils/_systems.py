@@ -12,10 +12,16 @@ from datafold.pcfold import TSCDataFrame
 
 
 class DynamicalSystem(TSCPredictMixin, metaclass=abc.ABCMeta):
-
     # TODO: initial_conditions should be "X" to align with the Predict models
     @abc.abstractmethod
-    def predict(self, X, *, U: Union[np.ndarray, TSCDataFrame, Callable]=None, time_values: Optional[np.ndarray]=None, **kwargs):
+    def predict(
+        self,
+        X,
+        *,
+        U: Union[np.ndarray, TSCDataFrame, Callable] = None,
+        time_values: Optional[np.ndarray] = None,
+        **kwargs,
+    ):
         raise NotImplementedError("base class")
 
 
@@ -188,7 +194,6 @@ class ClosedPeriodicalCurve(DynamicalSystem):
         self.noise = noise_std
 
     def _closed_system(self, t_eval):
-
         if self.noise > 0:
             noise_x = np.random.default_rng(1).normal(0, self.noise, size=len(t_eval))
             noise_y = np.random.default_rng(2).normal(0, self.noise, size=len(t_eval))
@@ -353,7 +358,6 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             self.dt_ = self._default_step_size
 
         if not isinstance(U, Callable):
-
             if isinstance(U, np.ndarray) and X.shape[0] == U.shape[0]:
                 if time_values is None:
                     raise ValueError(
@@ -872,7 +876,6 @@ class Burger1DPeriodicBoundary(ControllableODE):
         return x_dot
 
     def _jac(self, t, x):
-
         n_nodes = len(self.x_nodes)
 
         if x.ndim == 1:
@@ -918,7 +921,6 @@ class Burger1DPeriodicBoundary(ControllableODE):
         n_nodes = len(self.x_nodes)
 
         for j in range(1, 20):
-
             x_pad = np.concatenate([x[[-1]], x, x[[0]]])
             advection_central = (-x_pad[:-2] + x_pad[2:]) / (2 * self.dx)
             advection_central *= dt
@@ -967,7 +969,6 @@ class Burger1DPeriodicBoundary(ControllableODE):
         dts = np.append([0], np.diff(time_values))
 
         for i in range(1, len(time_values)):
-
             if isinstance(U, Callable):
                 Ut = U(time_values[i], x)
             elif isinstance(U, pd.DataFrame):
@@ -1007,7 +1008,6 @@ class DCMotor(ControllableODE):
     """
 
     def __init__(self, ivp_kwargs=None):
-
         ivp_kwargs = ivp_kwargs or {}
         ivp_kwargs.setdefault("method", "RK23")
         super(DCMotor, self).__init__(
@@ -1100,11 +1100,9 @@ class DCMotor(ControllableODE):
 
 
 class VanDerPol(ControllableODE):
-
     _allowed_control_input = ["x", "y", "both"]
 
     def __init__(self, eps=1.0, control_coord="both", **solver_kwargs):
-
         solver_kwargs.setdefault("method", "RK45")
         solver_kwargs.setdefault("vectorized", True)
 
@@ -1154,7 +1152,6 @@ class Duffing1D(ControllableODE):
         )
 
     def _f(self, t, Y, U):
-
         x1, x2 = Y.ravel()
 
         f1 = x2

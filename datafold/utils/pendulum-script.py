@@ -16,7 +16,6 @@ X_tsc, U_tsc = [], []  # lists to collect sampled time series
 rng = np.random.default_rng(1)
 
 for i in range(training_size):
-
     control_amplitude = 0.1 + 0.9 * np.random.random()
     control_frequency = np.pi + 2 * np.pi * np.random.random()
     control_phase = 2 * np.pi * np.random.random()

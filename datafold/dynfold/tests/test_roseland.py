@@ -18,7 +18,6 @@ from datafold.utils.plot import plot_pairwise_eigenvector
 
 class RoselandTest(unittest.TestCase):
     def test_dense_sparse(self):
-
         data, _ = make_swiss_roll(1000, random_state=1)
         data_landmark, _ = random_subsample(data, 250)
 
@@ -126,7 +125,6 @@ class RoselandTest(unittest.TestCase):
             actual_rose.set_target_coords(indices=[0, 6])
 
     def test_nystrom_out_of_sample_swiss_roll(self, plot=False):
-
         X_train, color_train = make_swiss_roll(n_samples=4000, noise=0, random_state=5)
         landmarks, _ = random_subsample(X_train, 1000, random_state=1)
 
@@ -237,7 +235,6 @@ class RoselandTest(unittest.TestCase):
 
     @pytest.mark.skip("too expensive")
     def test_speed(self):
-
         random_state = 1
         rng = np.random.default_rng(random_state)
 
@@ -308,7 +305,6 @@ class RoselandTest(unittest.TestCase):
         "fitted with feature names"
     )
     def test_types_tsc(self):
-
         # fit=TSCDataFrame
         _x = np.linspace(0, 2 * np.pi, 20)
         df = pd.DataFrame(
@@ -406,7 +402,6 @@ class RoselandTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     t = RoselandTest()
     exit()
 

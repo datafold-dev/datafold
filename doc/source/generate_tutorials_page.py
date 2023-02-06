@@ -89,13 +89,11 @@ def get_nblink(filename):
 
 
 class Tutorial:
-
     FOLDER = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
 
     def __init__(
         self, filename, description, warning=None, is_archive=False, nblink_kwargs=None
     ):
-
         self.tutorial_path = filename
         self.description = description.rstrip()
         self.warning = warning.rstrip() if warning is not None else None
@@ -365,7 +363,6 @@ def generate_nblink_files():
 
 
 def generate_docs_str(target):
-
     assert target in ["docs", "readme"]
 
     tutorial_page_content = (

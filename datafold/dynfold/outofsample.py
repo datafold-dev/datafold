@@ -87,7 +87,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         alpha: float = 1,
         symmetrize_kernel=True,
     ) -> None:
-
         self.kernel = kernel
         self.n_eigenpairs = n_eigenpairs
         self.is_stochastic = is_stochastic
@@ -426,7 +425,6 @@ class MultiScaleGeometricHarmonicsInterpolator(
         self.initial_scale = initial_scale
 
     def _multi_scale_optimize(self, X, y):
-
         scale = self.initial_scale
         error_not_in_range = True
 
@@ -440,7 +438,6 @@ class MultiScaleGeometricHarmonicsInterpolator(
         phi_l_ = None
 
         while error_not_in_range:
-
             kernel = GaussianKernel(epsilon=scale)
             X = PCManifold(X, kernel)
 
@@ -495,7 +492,6 @@ class MultiScaleGeometricHarmonicsInterpolator(
         return self
 
     def score(self, X, y, sample_weight=None, multioutput="uniform_average") -> float:
-
         if y is None:
             y = self.eigenvectors_  # target functions
 
@@ -572,7 +568,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         auto_adaptive: bool = False,
         alpha: float = 0,
     ):
-
         self.initial_epsilon = initial_epsilon
         self.mu = mu
         self.residual_tol = residual_tol
@@ -584,7 +579,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         return 0 if self._level_tracker == {} else max(self._level_tracker.keys())
 
     def _validate(self, X, y, ensure_y, ensure_min_samples):
-
         if self.residual_tol is None and not self.auto_adaptive:
             raise ValueError(
                 "Need to specify a stopping criteria by either providing a "
@@ -673,7 +667,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         return signal
 
     def _terminate_condition_loop(self, current_residual_norm, last_residual_norm):
-
         assert current_residual_norm.ndim == 1
         assert current_residual_norm.shape == last_residual_norm.shape
 
@@ -739,7 +732,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         current_residual,
         current_residual_norm,
     ):
-
         # remove LOOCV-termination reason as it is handeled separately
         loop_condition = loop_condition[
             loop_condition != self._LoopCond.LOOCV_INCREASES
@@ -791,7 +783,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         return current_residual, current_residual_norm, last_residual_norm
 
     def _laplacian_pyramid(self, X, y):
-
         func_approx = np.zeros_like(y, dtype=float)
 
         # compute once and only apply eval
@@ -809,7 +800,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         )
 
         while self._LoopCond.NO_TERMINATION in func_loop_conditions:
-
             (dmap_kernel, kernel_matrix) = self._prepare_kernel_and_matrix(
                 distance_matrix, epsilon
             )
@@ -930,7 +920,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         distance_matrix = self._distance_matrix(X=self.X_, Y=X)
 
         for level, level_content in self._level_tracker.items():
-
             kernel_matrix = level_content["kernel"].eval(distance_matrix)
 
             active_indices = level_content["active_indices"]

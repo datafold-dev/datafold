@@ -35,7 +35,6 @@ from datafold.utils.plot import plot_eigenvalues
 
 class LinearDynamicalSystemTest(unittest.TestCase):
     def _set_attrs_flowmap_system(self):
-
         # A too small time_delta increases error (its only a first order finite diff
         # scheme). Smallest time_delta by testing 1e-8
         self.time_delta_approx = 1e-8
@@ -72,7 +71,6 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         self._set_attrs_flowmap_system()
 
     def test_approx_continuous_linear_system(self, plot=False):
-
         n_timesteps = 200
         time_values = np.linspace(0, 1, n_timesteps)
 
@@ -138,7 +136,6 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-8, rtol=1e-13)
 
     def test_time_values(self):
-
         time_values = np.random.default_rng(1).uniform(size=100) * 100
 
         actual = (
@@ -160,7 +157,6 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         nptest.assert_array_equal(actual.time_values(), np.sort(time_values))
 
     def test_multi_initial_conditions(self):
-
         n_timeseries = 10
         initial_conditions = np.random.default_rng(1).uniform(size=(2, n_timeseries))
 
@@ -188,7 +184,6 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         nptest.assert_array_equal(actual.time_values(), time_values)
 
     def test_feature_columns(self):
-
         actual = (
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="spectral", time_invariant=True
@@ -365,7 +360,6 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
         nptest.assert_array_equal(actual.time_values(), self.t)
 
     def test_feature_columns(self):
-
         actual = (
             LinearDynamicalSystem(
                 sys_type="flowmap", sys_mode="matrix", is_controlled=True
@@ -535,7 +529,6 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
         nptest.assert_allclose(actual.to_numpy(), self.expected, atol=0.1, rtol=0.1)
 
     def test_affine_vs_linear(self):
-
         controlled_system = LinearDynamicalSystem(
             sys_type="differential",
             sys_mode="matrix",
@@ -744,7 +737,6 @@ class DMDTest(unittest.TestCase):
             plt.show()
 
     def test_dmd_pydmd1(self):
-
         test_data = self._create_random_tsc(n_samples=500, dim=30)
         pydmd = PyDMDWrapper(
             method="dmd", svd_rank=1000, tlsq_rank=0, exact=True, opt=False
@@ -784,7 +776,6 @@ class DMDTest(unittest.TestCase):
         assert_equal_eigenvectors(expected, actual, tol=1e-15)
 
     def test_reconstruct_indices(self):
-
         expected_indices = self._create_random_tsc(n_samples=100, dim=10)
         actual_indices = DMDFull(is_diagonalize=False).fit_predict(expected_indices)
 
@@ -890,7 +881,6 @@ class DMDTest(unittest.TestCase):
 
 class StreamingDMDTest(unittest.TestCase):
     def _snapshots(self, n_states, n_snaps, noise_cov=0.0):
-
         # Code part for test taken from
         # https://github.com/cwrowley/dmdtools/blob/master/python/tests/test_dmd.py
         # See also LICENSE_bundeled file for the copy of the BSD 3-Clause license
@@ -936,7 +926,6 @@ class StreamingDMDTest(unittest.TestCase):
         return df
 
     def test_sine_curve(self, plot=False):
-
         df = self._generate_delayed_sine_wave()
 
         batchsize = 200
@@ -952,7 +941,6 @@ class StreamingDMDTest(unittest.TestCase):
         train = []
 
         for dmd, fit_params in stream_dmd_classes:
-
             for i in range(len(batches) - 1):
                 fit_batch = batches[i]
                 predict_batch = batches[i + 1]
@@ -1026,7 +1014,6 @@ class StreamingDMDTest(unittest.TestCase):
         self.assertEqual(len(dmd.eigenvalues_), 1)
 
     def test_compare_methods(self, plot=False):
-
         n_samples = 500
         n_states = 1000
         noise_cov = 10  # measurement noise covariance

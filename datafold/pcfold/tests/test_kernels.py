@@ -158,7 +158,6 @@ class TestKernelUtils(unittest.TestCase):
         nptest.assert_array_equal(actual.toarray(), expected)
 
     def test_symmetric_division_sparse_dense02(self):
-
         data = generate_circle_data(100, 100, 100)
         distance_matrix = compute_distance_matrix(data)
 
@@ -178,7 +177,6 @@ class TestKernelUtils(unittest.TestCase):
         nptest.assert_allclose(actual.toarray(), expected, rtol=1e-16, atol=1e-17)
 
     def test_symmetric_division_sparse_dense03(self):
-
         data_ref = generate_circle_data(100, 100, 100)
         data_query = generate_circle_data(50, 50, 100)
         distance_matrix = compute_distance_matrix(data_ref, data_query)
@@ -221,7 +219,6 @@ class TestKernelUtils(unittest.TestCase):
         distance_matrix = compute_distance_matrix(data_ref, data_query)
 
         for k in np.linspace(2, 90, 20).astype(int):
-
             actual = _kth_nearest_neighbor_dist(
                 scipy.sparse.csr_matrix(distance_matrix), k
             )
@@ -302,7 +299,6 @@ class TestPCManifoldKernel(unittest.TestCase):
             self.assertTrue(is_symmetric_matrix(kernel_matrix.to_numpy()))
 
     def test_gaussian_kernel_callable(self):
-
         data = np.random.rand(10, 10)
 
         kernel_ufunc = GaussianKernel(epsilon=np.median)
@@ -393,7 +389,6 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
 class TestContinuousNNKernel(unittest.TestCase):
     @staticmethod
     def plot_data(train_data, train_graph, test_data=None, test_graph=None, ax=None):
-
         if ax is None:
             if train_data.shape[1] == 2:
                 fig, ax = plt.subplots()
@@ -406,7 +401,6 @@ class TestContinuousNNKernel(unittest.TestCase):
                 raise RuntimeError("only 2d or 3d")
 
         def _plot_data(query_data, ref_data, graph, color):
-
             ax.scatter(*query_data.T, c=color)
 
             if ref_data is None:
@@ -461,7 +455,6 @@ class TestContinuousNNKernel(unittest.TestCase):
             plt.show()
 
     def test_knn_kernel(self, plot=False):
-
         train_data = generate_circle_data(40, 40, 1)
 
         k = 30
@@ -492,7 +485,6 @@ class TestContinuousNNKernel(unittest.TestCase):
         test_data = generate_circle_data(40, 40, 2)
 
         for dist_cut_off in [None, 1e100]:
-
             cknn = ContinuousNNKernel(
                 k_neighbor=5, delta=2.3, distance=dict(cut_off=dist_cut_off)
             )
@@ -521,7 +513,6 @@ class TestContinuousNNKernel(unittest.TestCase):
             plt.show()
 
     def test_error_insufficient_neighbors(self):
-
         data = generate_circle_data(100, 20, 0)
         cut_off = np.quantile(pdist(data), 0.1)
         sparse_distance_matrix = compute_distance_matrix(data, cut_off=cut_off)
@@ -534,7 +525,6 @@ class TestContinuousNNKernel(unittest.TestCase):
             cknn.eval(sparse_distance_matrix, is_pdist=True)
 
     def test_invalid_parameters(self):
-
         with self.assertRaises(ValueError):
             ContinuousNNKernel(k_neighbor=0, delta=1)
 
@@ -581,7 +571,6 @@ class TestConeKernel(unittest.TestCase):
         self.assertIsInstance(actual2, TSCDataFrame)
 
     def test_zeta_approx_zero(self):
-
         cone_one = ConeKernel(zeta=1e-15)
         cone_two = ConeKernel(zeta=0)
 
@@ -639,7 +628,6 @@ class TestConeKernel(unittest.TestCase):
         self.assertTrue(np.isfinite(kernel_cdist).all().all())
 
     def test_invalid_setting(self):
-
         with self.assertRaises(ValueError):
             ConeKernel(zeta=1)(self.X_tsc)
 

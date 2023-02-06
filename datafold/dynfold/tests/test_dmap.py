@@ -129,7 +129,6 @@ class DiffusionMapsTest(unittest.TestCase):
         self.assertTrue(np.all(expected == actual))
 
     def test_multiple_epsilon_values(self, plot=False):
-
         n_samples = 5000
         n_maps = 10
         n_eigenpairs = 10
@@ -194,7 +193,6 @@ class DiffusionMapsTest(unittest.TestCase):
         self.assertEqual(actual2.eigenvalues_.shape[0], 100)
 
     def test_sanity_dense_sparse(self):
-
         data, _ = make_swiss_roll(1000, random_state=1)
 
         dense_case = DiffusionMaps(GaussianKernel(epsilon=1.25), n_eigenpairs=11).fit(
@@ -343,7 +341,6 @@ class DiffusionMapsTest(unittest.TestCase):
             actual_dmap.set_target_coords(indices=[0, 6])
 
     def test_nystrom_out_of_sample_swiss_roll(self, plot=False):
-
         X_swiss_all, color_all = make_swiss_roll(
             n_samples=4000, noise=0, random_state=5
         )
@@ -573,7 +570,6 @@ class DiffusionMapsTest(unittest.TestCase):
             self.assertIsInstance(dmap.eigenvalues_, np.ndarray)
 
     def test_dynamic_kernel(self):
-
         _x = np.linspace(0, 2 * np.pi, 20)
         df = pd.DataFrame(
             np.column_stack([np.sin(_x), np.cos(_x)]), columns=["sin", "cos"]
@@ -682,7 +678,6 @@ class DiffusionMapsTest(unittest.TestCase):
         )
 
     def test_types_tsc(self):
-
         # fit=TSCDataFrame
         _x = np.linspace(0, 2 * np.pi, 20)
         df = pd.DataFrame(
@@ -960,7 +955,6 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_eigenpairs(actual2, expected2)
 
     def test_normalized_kernel(self):
-
         data, _ = make_swiss_roll(1000, random_state=123)
         epsilon = 1.25
 
@@ -1033,7 +1027,6 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_dmap_legacy(actual, expected, rtol=1e-15, atol=1e-15)
 
     def test_multiple_epsilon(self):
-
         data, _ = make_swiss_roll(1000, random_state=123)
         epsilons = np.linspace(1.2, 1.7, 5)[1:]
         n_eigenpairs = 5
@@ -1060,7 +1053,6 @@ class DiffusionMapsLegacyTest(unittest.TestCase):
             cmp_dmap_legacy(actual_sparse, expected_sparse, rtol=1e-14, atol=1e-14)
 
     def test_num_eigenpairs(self):
-
         data, _ = make_swiss_roll(1000)
         all_n_eigenpairs = np.linspace(10, 50, 5).astype(int)
 
@@ -1216,7 +1208,6 @@ class DiffusionMapsVariableTest(unittest.TestCase):
 
     @staticmethod
     def plot_quantities(data, dmap):
-
         h3 = lambda x: 1 / np.sqrt(6) * (x**3 - 3 * x)  # 3rd Hermetian polynomial
         assert data.ndim == 2 and data.shape[1] == 1
 
@@ -1329,7 +1320,6 @@ class DiffusionMapsVariableTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     t = DiffusionMapsTest()
     t.setUp()
     t.test_cknn_kernel()

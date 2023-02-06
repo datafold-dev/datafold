@@ -45,7 +45,6 @@ def _validate_year(entry):
 
 
 def _validate_key(key, entry):
-
     key_error_text = (
         f"key='{key}' is invalid. A valid key has the form "
         "'[name (lowercase)]-[year (4 digits)][empty or a-z]' (e.g. "

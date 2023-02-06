@@ -50,7 +50,6 @@ class TSCException(Exception):
 
     @classmethod
     def not_const_delta_time(cls, actual_delta_time=None, add_float_note=False):
-
         if actual_delta_time is not None:
             msg_dt = f"delta_time={actual_delta_time}"
         else:
@@ -304,7 +303,6 @@ class TSCDataFrame(pd.DataFrame):
     tsc_feature_col_name = "feature"
 
     def __init__(self, *args, fixed_delta=None, validate=True, **kwargs):
-
         # TODO: potential
         # TODO: write an index extension?
         # TODO: include fixed_delta in constructors?
@@ -809,7 +807,6 @@ class TSCDataFrame(pd.DataFrame):
         raise NotImplementedError("The dimension of TSCDataFrame cannot be expanded")
 
     def _validate_index(self, index: Union[pd.MultiIndex, pd.Index]) -> pd.MultiIndex:
-
         if not isinstance(index, pd.MultiIndex):
             raise AttributeError("index must be of type pd.MultiIndex")
 
@@ -903,7 +900,6 @@ class TSCDataFrame(pd.DataFrame):
         return index
 
     def _validate_columns(self, columns: pd.Index) -> pd.Index:
-
         if not isinstance(columns, pd.Index):
             raise AttributeError("columns must be of type pd.Index")
 
@@ -1026,7 +1022,6 @@ class TSCDataFrame(pd.DataFrame):
         atol = 1e-16
 
         if isinstance(n_timesteps, int):
-
             if n_timesteps == 1:
                 dt_result_series[:] = np.nan
             else:
@@ -1085,7 +1080,6 @@ class TSCDataFrame(pd.DataFrame):
                     dt_result_series[timeseries_id] = _id_dt[0]
 
         if not np.isnan(dt_result_series).all():
-
             if is_timedelta64_dtype(dt_result_series) or dt_result_series.dtype == int:
                 is_global_unique = len(np.unique(dt_result_series))
             else:
@@ -1260,7 +1254,6 @@ class TSCDataFrame(pd.DataFrame):
         return _slice
 
     def __getitem__(self, key):
-
         _slice = super(TSCDataFrame, self).__getitem__(key=key)
 
         try:
@@ -1797,7 +1790,6 @@ class InitialCondition(object):
         time_values: Optional[np.ndarray] = None,
         ts_id: Optional[int] = None,
     ) -> TSCDataFrame:
-
         if not isinstance(U, np.ndarray):
             raise TypeError("")
 

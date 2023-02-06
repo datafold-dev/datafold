@@ -142,7 +142,6 @@ class TSCBase(object):
             tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
             if type(X) == pd.DataFrame:
-
                 if ensure_np:
                     TypeError(f"Found type {type(X)=} but type np.ndarray is required.")
 
@@ -175,7 +174,6 @@ class TSCBase(object):
                 X = pd.DataFrame(X, index=idx, columns=col)
 
         else:  # isinstance(X, TSCDataFrame)
-
             if ensure_np:
                 raise TypeError(
                     f"Input 'X' is of type {type(X)} but a numpy format is required."
@@ -261,7 +259,6 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
             self._check_n_features(X, reset=True)
 
         if not hasattr(self, "feature_names_in_"):
-
             if isinstance(X, TSCDataFrame) and type(X.columns[0]) != str:
                 # workaround for datafold to support non-str feature names
                 # sklearn does only support feature names of type str
@@ -284,7 +281,6 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
     def _validate_feature_input(
         self: Union[BaseEstimator, "TSCTransformerMixin"], X: TransformType, direction
     ):
-
         self._check_attributes_set_up(["n_features_in_", "n_features_out_"])
 
         if direction == "transform":
@@ -442,7 +438,6 @@ class TSCPredictMixin(TSCBase):
         X: TSCDataFrame,
         U: Optional[TSCDataFrame] = None,
     ):
-
         if not isinstance(X, TSCDataFrame):
             raise TypeError(
                 f"Only TSCDataFrame can be used for system data (got {type(U)=})."
@@ -474,7 +469,6 @@ class TSCPredictMixin(TSCBase):
             check_names=False,
             handle=None,
         ):
-
             msg = "(except the last state) " if not req_last_control_state else ""
 
             raise ValueError(
@@ -506,7 +500,6 @@ class TSCPredictMixin(TSCBase):
         X: Union[TSCDataFrame, np.ndarray],
         U: Optional[Union[TSCDataFrame, np.ndarray]],
     ):
-
         # comparing time values in floating points is sometimes a bit tricky, because two
         # effectively equal values have a tiny difference -- this parameter is used within
         # this function as a tolerance value
@@ -540,7 +533,6 @@ class TSCPredictMixin(TSCBase):
 
         if time_values is None:
             if is_controlled:
-
                 if callable(U):
                     raise ValueError(
                         "If `U` is a control input function (callable), then the "
@@ -593,7 +585,6 @@ class TSCPredictMixin(TSCBase):
                             f"(required: {str_req_control_states}, got: {U.shape[0]=})."
                         )
                 elif isinstance(U, TSCDataFrame):
-
                     req_time_values = U.time_values()
                     req_time_values = req_time_values[
                         req_time_values >= reference - _numerical_tol
@@ -636,7 +627,6 @@ class TSCPredictMixin(TSCBase):
         return time_values
 
     def _validate_time_values_format(self, time_values: np.ndarray):
-
         try:
             time_values = np.asarray(time_values)
         except Exception:
@@ -688,7 +678,6 @@ class TSCPredictMixin(TSCBase):
         X: TSCDataFrame,
         U: Optional[TSCDataFrame] = None,
     ):
-
         if not self._has_feature_names(X):
             raise TypeError(
                 "only types that are indexed with time and states are supported"
@@ -730,7 +719,6 @@ class TSCPredictMixin(TSCBase):
                 )
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
-
         if qois is not None:
             try:
                 qois = np.asarray(qois)

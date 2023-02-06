@@ -11,7 +11,6 @@ from datafold.dynfold.base import TransformType, TSCTransformerMixin
 
 
 class TSCPipeline(pipeline.Pipeline, TSCTransformerMixin):  # pragma: no cover
-
     # @property # Note: this property is handled in the super class
     # def feature_names_in_(self):
     #    return self.steps[0][1].feature_names_in_

@@ -35,6 +35,7 @@ interp1d([0, 0.5, 1.5, 2, 2.5], [-0.3, 0.4, -0.6, -0.2, 0.2], kind="previous")
 
 time_values = np.arange(0, n_timesteps * dt, dt)
 
+
 # A function to required to augment the state with control input
 def shift_time_index_U(_X, _U):
     new_index = _X.groupby("ID").tail(_X.n_timesteps - 1).index
@@ -82,6 +83,7 @@ edmd = edmd.fit(X_tsc, U=U_tsc, rbf__centers=rbf_centers)
 # Specify a test sampling to see the predictive power of EDMD
 time_horizon = 1
 n_timesteps = int(time_horizon / dt)
+
 
 # TODO: need to rename this, why is it there?
 def myprbs(N, duty_cycle):

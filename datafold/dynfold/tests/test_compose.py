@@ -85,7 +85,6 @@ class TestTSCCompose(unittest.TestCase):
         self.assertEqual(actual_result.n_timesteps, X.n_timesteps - 2)
 
     def test_column_transform(self):
-
         X = TSCDataFrame.from_single_timeseries(
             pd.DataFrame(
                 np.random.default_rng(1).uniform(low=0, high=1, size=(100, 2)),
@@ -176,7 +175,6 @@ class TestTSCCompose(unittest.TestCase):
         self.assertTrue(actual_result.n_timesteps, X.n_timesteps - 2)
 
     def test_pipeline_with_column_transform(self, display_html=False):
-
         X = TSCDataFrame.from_single_timeseries(
             pd.DataFrame(
                 np.random.default_rng(1).uniform(low=0, high=1, size=(100, 2)),
@@ -216,7 +214,6 @@ class TestTSCCompose(unittest.TestCase):
         self.assertTrue(actual_result.n_timesteps, X.n_timesteps - 2)
 
     def test_complicated_pipeline_with_pipeline_transform(self, display_html=False):
-
         X = TSCDataFrame.from_single_timeseries(
             pd.DataFrame(
                 np.random.default_rng(1).uniform(low=0, high=1, size=(100, 5)),

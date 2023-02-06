@@ -180,7 +180,6 @@ def is_vector(
     name="vector",
     handle: Optional[str] = "raise",
 ):
-
     if isinstance(vector, np.ndarray):
         if vector.ndim != 1 or vector.shape[0] < 1:
             if handle == "raise":

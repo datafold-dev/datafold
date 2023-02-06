@@ -220,7 +220,6 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_from_same_indices_as01(self):
-
         tc = TSCDataFrame(self.simple_df)
         matrix = self.simple_df.to_numpy()
 
@@ -301,7 +300,6 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertEqual(actual.ids[0], expected_id)
 
     def test_from_frame_list0(self):
-
         frame_list = [self.simple_df.loc[i, :] for i in self.simple_df.index.levels[0]]
 
         actual = TSCDataFrame.from_frame_list(frame_list)
@@ -389,7 +387,6 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected, check_names=True, check_flags=True)
 
     def test_feature_to_array1(self):
-
         with self.assertRaises(TSCException):
             TSCDataFrame(self.simple_df).feature_to_array(feature="A")
 
@@ -484,7 +481,6 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected, check_flags=False)
 
     def test_from_shift_matrix_row(self):
-
         left_matrix = np.array([[1, 3, 5], [7, 9, 11]])
         right_matrix = np.array([[2, 4, 6], [8, 10, 12]])
 
@@ -503,7 +499,6 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_from_shift_matrix_col(self):
-
         left_matrix = np.array([[1, 3, 5], [7, 9, 11]])
         right_matrix = np.array([[2, 4, 6], [8, 10, 12]])
 
@@ -842,7 +837,6 @@ class TestTSCDataFrame(unittest.TestCase):
         simple_df.loc[pd.IndexSlice[45, 1], :] = [1, 2]
 
     def test_time_delta02(self):
-
         # all time series have irregular time value frequency
         test_df = TSCDataFrame(
             np.random.rand(6, 2),
@@ -1166,7 +1160,6 @@ class TestTSCDataFrame(unittest.TestCase):
             pd.concat([tsc, insert], axis=0)
 
     def test_insert_invalid_dtype_data(self):
-
         with self.assertRaises(AttributeError):
             invalid_tsc = self.simple_df.copy()
             invalid_tsc.iloc[0, 0] = "a"
@@ -1337,7 +1330,6 @@ class TestTSCDataFrame(unittest.TestCase):
         pdtest.assert_series_equal(actual, expected)
 
     def test_linspace_unique_delta_times(self):
-
         # The problem is that np.linspace(...) is often not equally spaced numerically
         # this function tests the tolerances set in the delta_time attribute.
 
@@ -1417,7 +1409,6 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(TSCDataFrame.tsc_time_idx_name in initial_states.columns)
 
     def test_column_dtypes(self):
-
         d = np.array([[1, 2], [3, 4]])
 
         tsc_int = TSCDataFrame.from_single_timeseries(pd.DataFrame(d, columns=[1, 2]))
@@ -1482,7 +1473,6 @@ class TestTSCDataFrame(unittest.TestCase):
             actual.insert_ts(new_ts_wo_datetime_index)
 
     def test_fixed_delta01(self):
-
         tscdf = TSCDataFrame(
             np.zeros((3, 2)),
             index=pd.MultiIndex.from_product([[0], [1, 2, 3]]),
@@ -1501,7 +1491,6 @@ class TestTSCDataFrame(unittest.TestCase):
             self.assertIn(expected_num_str, actual)
 
     def test_fixed_delta02(self):
-
         tscdf = TSCDataFrame(
             np.arange(6).reshape(3, 2),
             index=pd.MultiIndex.from_product([[0], [1, 2, 3]]),
@@ -1642,7 +1631,6 @@ class TestInitialCondition(unittest.TestCase):
         for i, (actual_ic, actual_time_values) in enumerate(
             InitialCondition.iter_reconstruct_ic(self.test_tsc01, n_samples_ic=1)
         ):
-
             select_ts = pd.DataFrame(self.test_tsc01).loc[[i], :]
             expected_ic = select_ts.head(n_samples_ic)
             expected_time_values = select_ts.index.get_level_values(
@@ -1661,7 +1649,6 @@ class TestInitialCondition(unittest.TestCase):
         for i, (actual_ic, actual_time_values) in enumerate(
             InitialCondition.iter_reconstruct_ic(self.test_tsc02, n_samples_ic=1)
         ):
-
             select_ts = pd.DataFrame(self.test_tsc02).loc[[i], :]
             expected_ic = select_ts.head(n_samples_ic)
 
@@ -1681,7 +1668,6 @@ class TestInitialCondition(unittest.TestCase):
         for i, (actual_ic, actual_time_values) in enumerate(
             InitialCondition.iter_reconstruct_ic(self.test_tsc02, n_samples_ic=3)
         ):
-
             select_ts = self.test_tsc02.loc[[i], :]
             expected_ic = select_ts.head(n_sample_ic)
 

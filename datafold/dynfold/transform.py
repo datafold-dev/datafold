@@ -262,7 +262,6 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         self.rename_features = rename_features
 
     def get_feature_names_out(self, input_features=None):
-
         if input_features is None and hasattr(self, "feature_names_in_"):
             features_out = self.feature_names_in_
         else:
@@ -393,7 +392,6 @@ class TSCIncrementalPCA(IncrementalPCA, TSCTransformerMixin):  # pragma: no cove
         return np.array([f"pca{i}" for i in range(self.n_components_)], dtype=object)
 
     def partial_fit(self, X, y=None, check_input=True):
-
         super(TSCIncrementalPCA, self).partial_fit(X, y=y)
 
         if self.n_samples_seen_ == X.shape[0]:
@@ -586,7 +584,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         return dict(tsc_contains_orig_states=True)
 
     def _validate_parameter(self):
-
         check_scalar(self.lag, name="lag", target_type=(int, np.integer), min_val=0)
 
         # TODO also allow 0 delays? This would only "passthrough",
@@ -635,7 +632,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         return X
 
     def get_feature_names_out(self, input_features=None):
-
         if input_features is None:
             input_features = self.feature_names_in_
 
@@ -811,7 +807,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             kappa_vec = None
 
         for idx, (_, df) in enumerate(X.groupby(TSCDataFrame.tsc_id_idx_name)):
-
             # use time series numpy block
             time_series_numpy = df.to_numpy()
 
@@ -1108,7 +1103,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
             self.centers_ = self._X_to_numpy(X)[idx_samples, :]
 
         elif self.center_type == "fit_params":
-
             if _centers is None:
                 raise ValueError("The center points were not provided in 'fit_params'.")
 
@@ -1384,7 +1378,6 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
             )
 
     def get_feature_names_out(self, feature_names_in=None):
-
         if feature_names_in is None:
             feature_names_in = self.feature_names_in_
 
@@ -1445,7 +1438,6 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
         lambdas_applied = list()
 
         for i, _lambda in enumerate(self.lambdas):
-
             lambda_result = X.apply(func=_lambda, axis=0, raw=True)
             lambda_result.columns = pd.Index(
                 [f"{feature_name}_lambda{i}" for feature_name in X.columns]
@@ -1502,7 +1494,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         diff_order: int = 1,
         accuracy: int = 2,
     ):
-
         self.spacing = spacing
         self.diff_order = diff_order
         self.accuracy = accuracy

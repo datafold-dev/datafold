@@ -83,7 +83,6 @@ class EDMDTest(unittest.TestCase):
         require_last_control_state=False,
         seed=42,
     ):
-
         gen = np.random.default_rng(seed)
 
         X_tsc, U_tsc = [], []
@@ -545,7 +544,6 @@ class EDMDTest(unittest.TestCase):
         plt.show()
 
     def test_include_id_states(self):
-
         edmd1 = EDMD(
             dict_steps=[
                 ("id", TSCIdentity(rename_features=True)),
@@ -597,7 +595,6 @@ class EDMDTest(unittest.TestCase):
         self.assertTrue(_sin_column_is_in(actual4))
 
     def test_separate_target_data01(self):
-
         edmd1 = EDMD(
             dict_steps=[
                 ("id", TSCIdentity(rename_features=True)),
@@ -612,7 +609,6 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_frame_equal(expected, actual)
 
     def test_separate_target_data02(self, plot=False):
-
         edmd1 = EDMD(
             dict_steps=[
                 ("delay", TSCTakensEmbedding(delays=2)),
@@ -649,7 +645,6 @@ class EDMDTest(unittest.TestCase):
             plt.show()
 
     def test_dict_preserved_id_state(self):
-
         edmd1 = EDMD(
             dict_steps=[
                 ("id", TSCIdentity(rename_features=True)),
@@ -852,7 +847,6 @@ class EDMDTest(unittest.TestCase):
             plt.show()
 
     def test_edmd_sine_wave(self):
-
         edmd = EDMD(
             dict_steps=[
                 ("delays", TSCTakensEmbedding(delays=10)),
@@ -1029,7 +1023,6 @@ class EDMDTest(unittest.TestCase):
         self.assertIsInstance(edmdcv.cv_results_, dict)
 
     def test_streaming_dmd_multi_sine(self, plot=False):
-
         data = self._setup_multi_sine_wave_data(3000)
 
         _tse = TSCTakensEmbedding(delays=150)
@@ -1046,7 +1039,6 @@ class EDMDTest(unittest.TestCase):
 
         apply_dmd = True
         for i in range(len(tv_batches) - 1):
-
             current_time_values = tv_batches[i]
             next_time_values = tv_batches[i + 1]
             X_train = data.loc[pd.IndexSlice[:, current_time_values], :]
@@ -1069,7 +1061,6 @@ class EDMDTest(unittest.TestCase):
         self.assertTrue(np.all(np.logical_or(idx_close_one, idx_close_zero)))
 
         if plot:
-
             plot_eigenvalues(edmd.dmd_model.eigenvalues_, plot_unit_circle=True)
 
             ax = data.plot()
@@ -1084,11 +1075,9 @@ class EDMDTest(unittest.TestCase):
             plt.show()
 
     def test_streaming_dmd(self, plot=False):
-
         data = self._setup_sine_wave_data(end=4 * np.pi)
 
         for dmd_model in [StreamingDMD(), OnlineDMD()]:
-
             edmd = EDMD(
                 dict_steps=[("delay", TSCTakensEmbedding(delays=2))],
                 dmd_model=dmd_model,
@@ -1187,7 +1176,6 @@ class EDMDTest(unittest.TestCase):
         pdtest.assert_frame_equal(expected, actual)
 
     def test_edmdcontrol_reconstruct(self):
-
         X_tsc, U_tsc = EDMDTest.setup_inverted_pendulum()
 
         dmdc = DMDControl()

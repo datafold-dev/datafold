@@ -14,7 +14,6 @@ def warn_known_bug(original_function=None, gitlab_issue=None):
     def _decorate(function):
         @wraps(function)
         def wrapped_function(*args, **kwargs):
-
             if gitlab_issue is not None:
                 add_msg = (
                     f"\n\n See gitlab issue #{gitlab_issue} "

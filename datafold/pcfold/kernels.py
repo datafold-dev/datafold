@@ -41,7 +41,6 @@ def _apply_kernel_function(distance_matrix, kernel_function):
 
 
 def _apply_kernel_function_numexpr(distance_matrix, expr, expr_dict=None):
-
     expr_dict = expr_dict or {}
     assert "D" not in expr_dict.keys()
 
@@ -297,7 +296,6 @@ def _stochastic_kernel_matrix(kernel_matrix: Union[np.ndarray, scipy.sparse.spma
         # matrices
         kernel_matrix = normalize(kernel_matrix, copy=False, norm="l1")
     else:  # dense
-
         normalize_diagonal = np.sum(kernel_matrix, axis=1)
 
         with np.errstate(divide="ignore", over="ignore"):
@@ -490,7 +488,6 @@ class BaseManifoldKernel(Kernel):
         raise NotImplementedError("base class")
 
     def __repr__(self, print_distance=True):
-
         from copy import deepcopy
 
         _params = deepcopy(self.get_params())
@@ -506,7 +503,6 @@ class BaseManifoldKernel(Kernel):
         return f"{self.__class__.__name__}({_distance}\n\t{param_str}\n)"
 
     def _read_kernel_kwargs(self, attrs: Optional[List[str]], kernel_kwargs: dict):
-
         return_values: List[Any] = []
 
         if attrs is not None:
@@ -704,7 +700,6 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
         required_metric: str,
         distance: Optional[Union[Dict, DistanceAlgorithm]] = None,
     ):
-
         _metric_mismatch = ValueError(
             "The metric is fixed for radial basis kernel and should not set in "
             "dist_kwargs"
@@ -1005,7 +1000,6 @@ class ThinplateKernel(RadialBasisKernel):
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
     ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
-
         kernel_matrix = _apply_kernel_function_numexpr(
             distance_matrix, expr="D**2 * log(D)"
         )
@@ -1116,7 +1110,6 @@ class ContinuousNNKernel(PCManifoldKernel):
     """
 
     def __init__(self, k_neighbor: int, delta: float, distance=None):
-
         if not is_float(delta):
             if is_integer(delta):
                 self.delta = float(delta)
@@ -1304,7 +1297,6 @@ class MahalanobisKernel(PCManifoldKernel):  # pragma: no cover
     """
 
     def __init__(self, epsilon=None, distance=None):
-
         warnings.warn(
             f"Class '{MahalanobisKernel}' is marked as experimental. This means "
             f"the intended functionality may not be complete and there is no sufficient "
@@ -1543,7 +1535,6 @@ class DmapKernelFixed(BaseManifoldKernel):
         alpha: float = 1.0,
         symmetrize_kernel: bool = True,
     ):
-
         check_scalar(
             alpha,
             name="alpha",
@@ -1636,7 +1627,6 @@ class DmapKernelFixed(BaseManifoldKernel):
         kernel_matrix: KernelType,
         is_pdist: bool,
     ):
-
         # defaults to None -- only required for a symmetric conjugate kernel matrix
         basis_change_matrix = None
 
@@ -1645,7 +1635,6 @@ class DmapKernelFixed(BaseManifoldKernel):
         row_sums_alpha = None
 
         if self.is_stochastic:
-
             if self.alpha > 0:
                 # if pdist: kernel is still symmetric after this function call
                 (
@@ -1677,7 +1666,6 @@ class DmapKernelFixed(BaseManifoldKernel):
         return kernel_matrix, basis_change_matrix, row_sums_alpha
 
     def _eval_kernel_matrix(self, kernel_matrix, is_pdist):
-
         self._required_attrs(
             attrs=["row_sums_alpha_", "basis_change_matrix_"], is_fit=is_pdist
         )
@@ -1831,7 +1819,6 @@ class RoselandKernel(PCManifoldKernel):
         return obj.A1 if is_sparse else obj
 
     def _normalize_density(self, kernel_matrix, is_fit):
-
         is_sparse = scipy.sparse.spmatrix(kernel_matrix)
 
         if is_fit:
@@ -2136,7 +2123,6 @@ class ConeKernel(TSCManifoldKernel):
         super(ConeKernel, self).__init__(distance=distance)
 
     def _validate_parameter(self, X, Y):
-
         # cannot import in top of file, because this creates circular imports
         from datafold.pcfold.timeseries.collection import TSCDataFrame
 
@@ -2199,7 +2185,6 @@ class ConeKernel(TSCManifoldKernel):
         X_numpy: Optional[np.ndarray] = None,
         distance_matrix=None,
     ):
-
         if X_numpy is None:
             X_numpy = Y_numpy
 
@@ -2586,7 +2571,6 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         return scipy.sparse.diags(s_diag)
 
     def _compute_matrix_l_conjugate(self, kernel_eps_alpha_s, rho, q_eps_alpha_s):
-
         basis_change_matrix = self._compute_matrix_s_inv(rho, q_eps_alpha_s)
 
         p_sq_inv = scipy.sparse.diags(np.reciprocal(np.square(rho)))
@@ -2601,7 +2585,6 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         return matrix_l_hat, basis_change_matrix
 
     def __call__(self, X, Y=None, **kernel_kwargs):
-
         self._read_kernel_kwargs(attrs=None, kernel_kwargs=kernel_kwargs)
 
         if Y is not None:
@@ -2627,7 +2610,6 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
         return operator_l_matrix
 
     def eval(self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]):
-
         if scipy.sparse.issparse(distance_matrix):
             raise NotImplementedError(
                 "Currently DmapKernelVariable is only implemented to handle a dense "

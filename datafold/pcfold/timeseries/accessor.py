@@ -36,7 +36,6 @@ class TSCAccessor(object):
     """
 
     def __init__(self, tsc_df: TSCDataFrame):
-
         # NOTE: cannot call TSCDataFrame(tsc_df) here to transform in case it is a normal
         # DataFrame. This is because the accessor has to know when updating this object.
         if not isinstance(tsc_df, TSCDataFrame):
@@ -979,7 +978,6 @@ class TSCAccessor(object):
 
         min_id = 0
         for _id, timeseries_df in self._tsc_df.groupby(by=TSCDataFrame.tsc_id_idx_name):
-
             if pd.isnull(timeseries_df.delta_time):
                 new_df = split_irregular_time_series(timeseries_df, min_id=min_id)
             else:

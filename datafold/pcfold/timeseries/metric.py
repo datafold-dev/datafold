@@ -53,7 +53,6 @@ class TSCMetric(object):
     _cls_valid_scaling = ["id", "min-max", "standard", "l2_normalize"]
 
     def __init__(self, metric: str, mode: str, scaling: str = "id"):
-
         mode = mode.lower()
         metric = metric.lower()
 
@@ -74,7 +73,6 @@ class TSCMetric(object):
         self.scaling = self._select_scaling(name=scaling)
 
     def _select_scaling(self, name):
-
         if name == "id":
             return None
         elif name == "min-max":
@@ -89,7 +87,6 @@ class TSCMetric(object):
             )
 
     def _scaling(self, y_true: TSCDataFrame, y_pred: TSCDataFrame):
-
         # it is checked before that y_true and y_pred indices/columns are identical
         index, columns = y_true.index, y_true.columns
 
@@ -106,7 +103,6 @@ class TSCMetric(object):
     def _l2_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-
         diff = y_true - y_pred
 
         if sample_weight is not None:
@@ -195,7 +191,6 @@ class TSCMetric(object):
         return metrics.max_error(y_true=y_true, y_pred=y_pred)
 
     def _metric_from_str_input(self, error_metric: str):
-
         error_metric = error_metric.lower()
         from typing import Callable
 
@@ -237,7 +232,6 @@ class TSCMetric(object):
         return scalar_score
 
     def _single_column_name(self, multioutput) -> list:
-
         assert self._is_scalar_multioutput(multioutput)
 
         if isinstance(multioutput, str) and multioutput == "uniform_average":
@@ -256,7 +250,6 @@ class TSCMetric(object):
         sample_weight=None,
         multioutput="uniform_average",
     ) -> Union[pd.Series, pd.DataFrame]:
-
         if sample_weight is not None:
             # same length of time series to have mapping
             # sample_weight -> time step of time series (can be a different time value)
@@ -333,7 +326,6 @@ class TSCMetric(object):
         sample_weight=None,
         multioutput="uniform_average",
     ):
-
         if sample_weight is not None:
             # sample weights -> each time series has a different weight
 
@@ -368,7 +360,6 @@ class TSCMetric(object):
 
         idx_slice = pd.IndexSlice
         for t in time_indices:
-
             y_true_t = pd.DataFrame(y_true.loc[idx_slice[:, t], :])
             y_pred_t = pd.DataFrame(y_pred.loc[idx_slice[:, t], :])
 
@@ -823,7 +814,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
         window_offset: int = 0,
         train_min_timesteps: Optional[int] = None,
     ):
-
         if not is_integer(test_window_length) or test_window_length <= 0:
             raise ValueError(
                 f"The parameter 'test_window_length={test_window_length}' must be a "
@@ -906,7 +896,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
             offset=self.test_window_length + self.test_offset,
             per_time_series=True,
         ):
-
             train_tsc = indices_tsc.copy().drop(test_tsc.index, axis=0)
 
             # it is important to reassign the ids to keep the same sub-sampling and
@@ -997,7 +986,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
         id_name = TSCDataFrame.tsc_id_idx_name
 
         for i, (train_indices, test_indices) in enumerate(self.split(X)):
-
             train_tsc, test_tsc, dropped_samples = X.tsc.assign_ids_train_test(
                 train_indices, test_indices, return_dropped=True
             )

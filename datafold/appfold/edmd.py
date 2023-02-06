@@ -406,7 +406,7 @@ class EDMD(
             boolean flag if dictionary preserves the original states
         """
 
-        for (_, trans_str, transformer) in self._iter(with_final=False):
+        for _, trans_str, transformer in self._iter(with_final=False):
             if not isinstance(transformer, TSCTransformerMixin):
                 raise TypeError(
                     "The EDMD dictionary only supports datafold transformers that handle the "
@@ -448,17 +448,13 @@ class EDMD(
     def _least_squares_inverse_map(self, X, X_dict, U):
         if isinstance(X, pd.DataFrame):
             if U is not None:
-                X = X.loc[
-                    U.index,
-                ].to_numpy()
+                X = X.loc[U.index,].to_numpy()
             else:
                 X = X.to_numpy()
 
         if isinstance(X_dict, pd.DataFrame):
             if U is not None:
-                X_dict = X_dict.loc[
-                    U.index,
-                ].to_numpy()
+                X_dict = X_dict.loc[U.index,].to_numpy()
                 U = U.to_numpy()
             else:
                 X_dict = X_dict.to_numpy()
@@ -662,7 +658,7 @@ class EDMD(
         if self.memory is not None:
             raise ValueError(f"{self.memory=} is not supported for partial fit")
 
-        for (step_idx, name, transformer) in self._iter(
+        for step_idx, name, transformer in self._iter(
             with_final=False, filter_passthrough=False
         ):
             if transformer is None or transformer == "passthrough":
@@ -677,7 +673,6 @@ class EDMD(
         return X
 
     def _reconstruct(self, X: TSCDataFrame, U, qois):
-
         X_reconstruct = []
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=self.n_samples_ic_
@@ -902,11 +897,9 @@ class EDMD(
                 self._dmd_model.fit(X=X_dict, y=y, **dmd_fit_params)
 
         if not self.use_transform_inverse:
-
             self._inverse_map = self._compute_inverse_map(X=X, y=y, X_dict=X_dict, U=U)
 
             if self.dmd_model.is_spectral_mode:
-
                 self._koopman_modes = self._compute_koopman_modes(
                     inverse_map=self._inverse_map,
                 )
@@ -1010,7 +1003,6 @@ class EDMD(
 
         if self.is_controlled_:
             if isinstance(U, np.ndarray):
-
                 if X.n_timeseries > 1:
                     raise NotImplementedError(
                         "If U is a numpy array, then only a prediction with "
@@ -1217,7 +1209,6 @@ class EDMD(
         if (
             not self.use_transform_inverse
         ):  # TODO: avoid duplicated code with fit() here!
-
             if not self.use_transform_inverse:
                 self._inverse_map = self._compute_inverse_map(
                     X=X, X_dict=X_dict, y=None, U=U
@@ -1558,7 +1549,6 @@ def _fit_and_score_edmd(
             train_scores = _score(edmd, X_train, None, scorer, error_score)
 
     if verbose > 1:
-
         sorted_keys = sorted(parameters)  # Ensure deterministic o/p
         params_msg = ", ".join(f"{k}={parameters[k]}" for k in sorted_keys)
 
@@ -1738,7 +1728,6 @@ class EDMDCV(GridSearchCV):
         error_score: Union[str, numbers.Number] = "raise",
         return_train_score: bool = True,
     ):
-
         super(EDMDCV, self).__init__(
             estimator=estimator,
             param_grid=param_grid,
@@ -1805,13 +1794,11 @@ class EDMDCV(GridSearchCV):
 
         results: Dict[str, Any] = {}
         with parallel:
-
             all_candidate_params: List[List[Dict[str, Any]]] = []
             all_out: List[Any] = []
             all_more_results = defaultdict(list)
 
             def evaluate_candidates(candidate_params, cv=None, more_results=None):
-
                 cv = cv or cv_orig
                 candidate_params = list(candidate_params)
                 n_candidates = len(candidate_params)
@@ -1929,7 +1916,6 @@ class EDMDWindowPrediction(object):
         self.offset = offset
 
     def _validate(self):
-
         if self.window_size is not None and self.offset is not None:
             check_scalar(
                 self.window_size,
@@ -2170,7 +2156,6 @@ class EDMDPostObservable(object):  # pragma: no cover
         self.pre_dispatch = pre_dispatch
 
     def _adapt_edmd_model(self, edmd, X_validate, abserr_timeseries):
-
         # 1. get original data
         X_dict = edmd.transform(X_validate)
 
@@ -2235,7 +2220,6 @@ class EDMDPostObservable(object):  # pragma: no cover
     def _fit_and_create_error_timeseries(
         self, edmd: EDMD, X: TSCDataFrame, y, split_nr, train, test, fit_params, verbose
     ):
-
         if verbose:
             msg = f"split: {split_nr}"
             print("[CV] {} {}".format(msg, (64 - len(msg)) * "."), flush=True)

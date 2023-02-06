@@ -59,7 +59,6 @@ def f(points: np.ndarray) -> np.ndarray:
 
 
 class GeometricHarmonicsTest(unittest.TestCase):
-
     # TODO: not tested yet:
     #  * error measurements (kfold, etc.), also with nD interpolation
 
@@ -79,7 +78,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.values = f(self.points)
 
     def test_valid_sklearn_estimator(self):
-
         # disable check on  boston housing dataset
         # see: https://scikit-learn.org/stable/developers/develop.html#estimator-tags
         estimator = GeometricHarmonicsInterpolator(n_eigenpairs=1)
@@ -91,7 +89,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
         self.assertTrue(estimator._get_tags()["requires_y"])
 
     def test_geometric_harmonics_interpolator(self, plot=False):
-
         eps = 1e-1
 
         ghi = GeometricHarmonicsInterpolator(
@@ -129,7 +126,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
             plt.show()
 
     def test_eigenfunctions(self, plot=False):
-
         eps = 1e1
         cut_off = 1e1 * eps
         n_eigenpairs = 3
@@ -224,7 +220,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
         )
 
     def test_variable_number_of_points(self):
-
         # Simply check if something fails
 
         np.random.seed(1)
@@ -273,7 +268,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
     @unittest.skip(reason="functionality and testing not finished")
     def test_multiscale(self):
-
         x_lims_train = (0, 10)
         y_lims_train = (0, 10)
 
@@ -470,7 +464,6 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
     @unittest.skipIf(not IS_IMPORTED_RDIST, "rdist is not available")
     def test_different_backends(self):
-
         data, _ = make_swiss_roll(1000, random_state=1)
 
         eps_interp = 100  # in this case much larger compared to 1.25 for dim. reduction
@@ -892,7 +885,6 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
 
 class LaplacianPyramidsTest(unittest.TestCase):
     def setUpSyntheticFernandez(self) -> None:
-
         rng = np.random.default_rng(2)
 
         self.X_fern = np.linspace(0, 10 * np.pi, 2000)[:, np.newaxis]
@@ -944,7 +936,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
         self.y_fern2_test = np.sin(self.X_fern_test)
 
     def setUpRabin(self):
-
         rng = np.random.default_rng(1)
 
         self.X_rabin = rng.uniform(0, np.pi / 4, 3500)[:, np.newaxis]
@@ -973,7 +964,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
             lp.plot_eps_vs_residual()
 
     def test_valid_sklearn_estimator(self):
-
         for estimator, check in check_estimator(
             LaplacianPyramidsInterpolator(initial_epsilon=100, auto_adaptive=True),
             generate_only=True,
@@ -986,7 +976,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
                 raise e
 
     def test_synthetic_example_rabin(self, plot=False):
-
         # TODO: currently, there is a robustness issue. For very small scales,
         #  some cdist row-sums get zero -- the recisprocal therefore inf. Therefore,
         #  the residual_tol is currently larger than in the paper (section 3.2.1.)
@@ -1016,7 +1005,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
             plt.show()
 
     def test_synthetic_example_rabin_adaptive(self, plot=False):
-
         # TODO: currently, there is a robustness issue. For very small scales,
         #  some cdist row-sums get zero -- the recisprocal therefore inf. Therefore,
         #  the residual_tol is currently larger than in the paper (section 3.2.1.)
@@ -1048,7 +1036,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
             plt.show()
 
     def test_synthetic_example_fernandez(self, plot=False):
-
         lp = LaplacianPyramidsInterpolator(
             initial_epsilon=10 * np.pi,
             mu=2,
@@ -1078,7 +1065,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
             plt.show()
 
     def test_synthetic_example_fernandez_residualtol(self, plot=False):
-
         lp = LaplacianPyramidsInterpolator(
             initial_epsilon=10 * np.pi,
             mu=2,
@@ -1108,7 +1094,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
             plt.show()
 
     def test_synthetic_example_fernandez_multifunc(self, plot=False):
-
         lp = LaplacianPyramidsInterpolator(
             initial_epsilon=10 * np.pi,
             mu=2,
@@ -1155,7 +1140,6 @@ class LaplacianPyramidsTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     t = LaplacianPyramidsTest()
     t.setUp()
     t.test_synthetic_example_fernandez_multifunc(plot=False)

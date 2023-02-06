@@ -62,7 +62,6 @@ def _find_all_notebooks_to_run():
     for current_path, directories, files in os.walk(tutorials_path):
         for file in files:
             if file.endswith(".ipynb") and ".ipynb_checkpoints" not in current_path:
-
                 insert_path = os.path.join(current_path, file)
                 assert os.path.exists(insert_path) and os.path.isfile(insert_path)
 

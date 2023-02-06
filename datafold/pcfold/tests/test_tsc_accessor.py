@@ -186,7 +186,6 @@ class TestTSCAccessor(unittest.TestCase):
             X.tsc.assign_ids_train_test(train_indices_invalid, test_indices)
 
     def test_assign_ids_const_delta1(self):
-
         original_idx = pd.MultiIndex.from_arrays(
             [np.ones(8), np.hstack([np.arange(4), np.arange(10, 14)])]
         )
@@ -215,7 +214,6 @@ class TestTSCAccessor(unittest.TestCase):
         pdtest.assert_frame_equal(expect, actual)
 
     def test_assign_ids_const_delta2(self):
-
         original_idx = pd.MultiIndex.from_arrays(
             [np.ones(6), np.hstack([np.arange(4), np.arange(10, 14, 2)])]
         )
@@ -237,7 +235,6 @@ class TestTSCAccessor(unittest.TestCase):
         nptest.assert_array_equal(actual.delta_time.to_numpy(), np.array([1, 2]))
 
     def test_assign_ids_const_delta3(self):
-
         original_idx = pd.MultiIndex.from_arrays(
             [np.ones(5), np.array([1, 7, 8, 9, 10])]
         )
@@ -256,7 +253,6 @@ class TestTSCAccessor(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_assign_ids_const_delta4(self):
-
         # there is no time series possible with constant time sampling
         original_idx1 = pd.MultiIndex.from_arrays(
             [np.zeros(5), np.array([1, 5, 7, 14, 19])]
@@ -283,7 +279,6 @@ class TestTSCAccessor(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_assign_ids_const_delta6(self):
-
         df = pd.DataFrame(
             np.arange(18).reshape(9, 2),
             index=[1, 2, 3, 5, 7, 9, 10, 11, 12],
@@ -300,7 +295,6 @@ class TestTSCAccessor(unittest.TestCase):
         nptest.assert_array_equal(df.to_numpy(), actual.to_numpy())
 
     def test_assign_ids_const_delta7(self):
-
         tsc_df = TSCDataFrame(
             np.arange(6).reshape(3, 2),
             index=pd.MultiIndex.from_arrays([[0, 0, 1], [1, 2, 1]]),
@@ -335,7 +329,6 @@ class TestTSCAccessor(unittest.TestCase):
         pdtest.assert_series_equal(dt1, dt2)
 
     def test_shift_matrices01(self):
-
         tc = TSCDataFrame(self.simple_df)
         actual_left, actual_right = tc.tsc.shift_matrices()
 

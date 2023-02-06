@@ -41,7 +41,6 @@ class TestTSCTransform(unittest.TestCase):
         self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
 
     def _setUp_takens_df(self):
-
         idx = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
         )
@@ -166,7 +165,6 @@ class TestTSCTransform(unittest.TestCase):
         pdtest.assert_frame_equal(tsc_df, scale.inverse_transform(scaled_tsc))
 
     def test_scale_standard(self):
-
         tsc_df = TSCDataFrame(self.simple_df)
 
         scale = TSCFeaturePreprocess.from_name("standard")
@@ -345,7 +343,6 @@ class TestTSCTransform(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_pca_transform(self):
-
         tsc = TSCDataFrame(self.simple_df)
         pca = TSCPrincipalComponent(n_components=1).fit(tsc)
 
@@ -429,7 +426,6 @@ class TestTSCTransform(unittest.TestCase):
         pdtest.assert_frame_equal(actual_inverse, expected)
 
     def test_takens_embedding02_tags(self):
-
         tsc_df = TSCDataFrame(self.simple_df)
 
         takens = TSCTakensEmbedding(lag=0, delays=1, frequency=1, kappa=1)
@@ -564,7 +560,6 @@ class TestTSCTransform(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected, check_names=False)
 
     def test_time_difference01(self):
-
         from findiff import FinDiff
 
         # from example https://maroba.github.io/findiff-docs/source/examples-basic.html

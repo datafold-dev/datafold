@@ -132,7 +132,6 @@ class DMDBase(
         raise NotImplementedError("Please report bug.")  # should not get here
 
     def _read_predict_params(self, predict_params):
-
         # user defined post_map
         post_map = predict_params.pop("post_map", None)
         user_set_modes = predict_params.pop("modes", None)
@@ -299,7 +298,7 @@ class DMDBase(
         U: Optional[TSCDataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
-    ) -> TSCDataFrame: # type: ignore
+    ) -> TSCDataFrame:  # type: ignore
         """Predict time series data for each initial condition and time values.
 
         Parameters
@@ -628,7 +627,6 @@ class DMDFull(DMDBase):
         )
 
     def _compute_koopman_matrix(self, X: TSCDataFrame):
-
         # It is more suitable to get the shift_start and shift_end in row orientation as
         # this is closer to the normal least squares parameter definition
         shift_start_transposed, shift_end_transposed = X.tsc.shift_matrices(
@@ -909,7 +907,6 @@ class gDMDFull(DMDBase):
         return eigenvectors_right_, eigenvalues_, eigenvectors_left_
 
     def _generate_fd_kwargs(self):
-
         ret_kwargs = copy.deepcopy(self.kwargs_fd) or {}
 
         if "diff_order" in ret_kwargs.keys():
@@ -971,7 +968,6 @@ class gDMDFull(DMDBase):
         generator_matrix_ = self._compute_koopman_generator(X, X_grad)
 
         if self.is_spectral_mode:
-
             (
                 eigenvectors_right_,
                 eigenvalues_,
@@ -1529,7 +1525,6 @@ class PyDMDWrapper(DMDBase):
         opt: bool = False,
         **init_params,
     ):
-
         if not IS_IMPORTED_PYDMD:
             raise ImportError(
                 "The optional Python package 'pydmd' (https://github.com/mathLab/PyDMD) "
@@ -1552,7 +1547,6 @@ class PyDMDWrapper(DMDBase):
         super().__init__(sys_type="flowmap", sys_mode="spectral", time_invariant=True)
 
     def _setup_pydmd_model(self):
-
         # TODO: support HankelDMD, SpDMD, ParametricDMD ?
 
         if self.method == "dmd":
@@ -1738,7 +1732,6 @@ class StreamingDMD(DMDBase):
         )
 
     def _increase_basis(self, em, norm_m, ep, norm_p):
-
         # ---- Algorithm step 2 ----
         # check basis for x and expand, if necessary
         if np.linalg.norm(em) / norm_m > self.incr_basis_tol:
@@ -1840,7 +1833,6 @@ class StreamingDMD(DMDBase):
         return self
 
     def _separate_init_pairs(self, X: TSCDataFrame):
-
         X_init_fit, X_other = X.iloc[0:2, :], X.iloc[2:, :]
         X_init_fit.tsc.check_tsc(ensure_n_timeseries=1)
 
