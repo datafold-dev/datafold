@@ -309,6 +309,14 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
                         f"Required: {should_features}."
                     )
 
+    def _more_tags(self):
+        """Add tag to scikit-learn tags to indicate whether the original states in `X` are
+        preserved during the transformation.
+
+        Defaults to False and can be overwritten by transformers.
+        """
+        return dict(tsc_contains_orig_states=False)
+
     def _same_type_X(
         self,
         X: TransformType,
@@ -758,7 +766,7 @@ class TSCPredictMixin(TSCBase):
         self,
         X: InitialConditionType,
         *,
-        U: Optional[TSCDataFrame] = None,
+        U: Union[np.ndarray, TSCDataFrame, Callable] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:

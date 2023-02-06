@@ -280,7 +280,7 @@ for i in tqdm(range(edmd.n_samples_ic_ - 1, n_mpc_steps)):
         pd.DataFrame(const_values, index=time_values_horizon, columns=kmpc.qois)
     )
 
-    ukmpc = kmpc.control_sequence(
+    ukmpc = kmpc.control_sequence_horizon(
         X=X_controlled.iloc[i - edmd.n_samples_ic_ + 1 : i + 1, :], reference=reference
     )
 

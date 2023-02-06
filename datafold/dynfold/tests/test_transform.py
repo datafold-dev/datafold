@@ -555,7 +555,7 @@ class TestTSCTransform(unittest.TestCase):
         tscdf = TSCDataFrame.from_single_timeseries(values)
 
         ma = TSCMovingAverage(window=2)
-        actual = ma.fit_transform(tscdf)
+        actual = pd.DataFrame(ma.fit_transform(tscdf))
         actual = actual.droplevel(TSCDataFrame.tsc_id_idx_name)
 
         expected = values.rolling(window=2).mean().dropna()

@@ -567,7 +567,8 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
 
 
 class DMDTest(unittest.TestCase):
-    def _create_random_tsc(self, dim, n_samples):
+    @classmethod
+    def _create_random_tsc(cls, dim, n_samples):
         data = np.random.default_rng(1).normal(size=(n_samples, dim))
         data = pd.DataFrame(data, columns=np.arange(dim))
         return TSCDataFrame.from_single_timeseries(data)
@@ -1130,6 +1131,17 @@ class TestOnlineDMD(unittest.TestCase):
             rtol=1e-15,
             atol=1e-12,
         )
+
+    def test_invalid_feature_names(self):
+        tsc_df_fit = DMDTest._create_random_tsc(n_samples=100, dim=10)
+        predict_ic = DMDTest._create_random_tsc(n_samples=1, dim=10)
+
+        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+
+        predict_ic.columns = pd.Index(np.arange(2, 12))
+
+        with self.assertRaises(ValueError):
+            dmd.predict(predict_ic)
 
 
 class DMDControlTest(unittest.TestCase):

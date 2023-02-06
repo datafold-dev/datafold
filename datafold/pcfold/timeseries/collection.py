@@ -1,6 +1,5 @@
 from functools import partial
 from numbers import Number
-from operator import eq
 from typing import Generator, List, Optional, Tuple, Union
 
 import matplotlib.colors as mclrs
@@ -55,7 +54,7 @@ class TSCException(Exception):
         if actual_delta_time is not None:
             msg_dt = f"delta_time={actual_delta_time}"
         else:
-            msg_dt = f"delta_time"
+            msg_dt = "delta_time"
 
         if add_float_note:
             msg_note = (
@@ -1027,43 +1026,48 @@ class TSCDataFrame(pd.DataFrame):
         atol = 1e-16
 
         if isinstance(n_timesteps, int):
-            n_timeseries = self.n_timeseries
 
-            # faster evaluation if all time series have the same number of time steps
-            idx_mask = np.ones(n_timesteps, dtype=bool)
-            idx_mask[-1] = 0
-
-            # the :-1 is here because in the np.diff above, there is no diff value for the last
-            diff_times = diff_times[np.tile(idx_mask, n_timeseries)[:-1]]
-            diff_times = np.reshape(diff_times, (n_timeseries, n_timesteps - 1))
-
-            if diff_times.shape[1] == 1:
-                # special case when n_timesteps==2
-                dt_result_series[:] = diff_times.flatten()
+            if n_timesteps == 1:
+                dt_result_series[:] = np.nan
             else:
-                # need to check if all values are the same
-                if diff_times.dtype == float:
-                    result = np.min(diff_times, axis=1)[:, np.newaxis]
-                    abs_diff = np.abs(diff_times[:, 1:] - result)
+                n_timeseries = self.n_timeseries
 
-                    within_atol = np.all(abs_diff < atol, axis=1)
-                    within_rtol = np.all(
-                        np.divide(abs_diff, result, out=abs_diff) < rtol, axis=1
-                    )
-                    equal_dt = np.logical_or(within_atol, within_rtol)
-                    result[~equal_dt] = np.nan
+                # faster evaluation if all time series have the same number of time steps
+                idx_mask = np.ones(n_timesteps, dtype=bool)
+                idx_mask[-1] = 0
+
+                # the :-1 is here because in the np.diff above,
+                # there is no diff value for the last
+                diff_times = diff_times[np.tile(idx_mask, n_timeseries)[:-1]]
+                diff_times = np.reshape(diff_times, (n_timeseries, n_timesteps - 1))
+
+                if diff_times.shape[1] == 1:
+                    # special case when n_timesteps==2
+                    dt_result_series[:] = diff_times.flatten()
                 else:
-                    result = diff_times[:, [0]]
-                    equal_dt = np.all(diff_times[:, 1:] == result, axis=1)
+                    # need to check if all values are the same
+                    if diff_times.dtype == float:
+                        result = np.min(diff_times, axis=1)[:, np.newaxis]
+                        abs_diff = np.abs(diff_times[:, 1:] - result)
 
-                    if not equal_dt.all():
-                        if not is_timedelta64_dtype(result):
-                            result = result.astype(float)
-                            result[~equal_dt] = np.nan
-                        else:
-                            result[~equal_dt] = np.timedelta64("NaT")
+                        within_atol = np.all(abs_diff < atol, axis=1)
+                        within_rtol = np.all(
+                            np.divide(abs_diff, result, out=abs_diff) < rtol, axis=1
+                        )
+                        equal_dt = np.logical_or(within_atol, within_rtol)
+                        result[~equal_dt] = np.nan
+                    else:
+                        result = diff_times[:, [0]]
+                        equal_dt = np.all(diff_times[:, 1:] == result, axis=1)
 
-                dt_result_series[:] = result.flatten()
+                        if not equal_dt.all():
+                            if not is_timedelta64_dtype(result):
+                                result = result.astype(float)
+                                result[~equal_dt] = np.nan
+                            else:
+                                result[~equal_dt] = np.timedelta64("NaT")
+
+                    dt_result_series[:] = result.flatten()
         else:
             for timeseries_id in self.ids:
                 # TODO: this can be potentially faster by using views on the diff_times

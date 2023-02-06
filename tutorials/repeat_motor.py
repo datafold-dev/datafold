@@ -188,7 +188,7 @@ sys_ic, _ = sys.predict_vectorize(x0, U=U_ic, time_values=[0, dt])
 X_ic = sys_ic.copy().tsc.augment_control_input(U_ic).fillna(0)
 X_ic = X_ic.loc[:, edmd.feature_names_in_]
 
-X_seq, _ = kmpc.control_system(
+X_seq, _ = kmpc.control_system_reference(
     sys=sys.predict_vectorize,
     sys_ic=sys_ic,
     X_ic=X_ic,

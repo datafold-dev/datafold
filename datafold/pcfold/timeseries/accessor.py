@@ -10,10 +10,9 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 from scipy.stats import multivariate_normal
-from datafold.utils.general import is_df_same_index
 
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
-from datafold.utils.general import is_integer
+from datafold.utils.general import is_df_same_index, is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
@@ -184,7 +183,7 @@ class TSCAccessor(object):
 
     def check_const_timesteps(self) -> int:
         """Check that all time series have the same number of timesteps. The time values itself
-        can differ between the time series. """
+        can differ between the time series."""
         n_timesteps = self._tsc_df.n_timesteps
         if isinstance(n_timesteps, pd.Series):
             raise TSCException.not_const_timesteps()
@@ -482,11 +481,17 @@ class TSCAccessor(object):
         if shift_t == 0:  # no shift
             return self._tsc_df
 
-        convert_times = self._tsc_df.index.get_level_values(TSCDataFrame.tsc_time_idx_name) + shift_t
+        convert_times = (
+            self._tsc_df.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+            + shift_t
+        )
         convert_times = pd.Index(convert_times, name=TSCDataFrame.tsc_time_idx_name)
 
         new_tsc_index = pd.MultiIndex.from_arrays(
-            [self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name), convert_times]
+            [
+                self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name),
+                convert_times,
+            ]
         )
 
         self._tsc_df.index = new_tsc_index
@@ -510,7 +515,8 @@ class TSCAccessor(object):
     #         data with shifted time index
     #     """
     #
-    #     new_index = self._tsc_df.groupby(TSCDataFrame.tsc_id_idx_name).tail(self._tsc_df.n_timesteps - idx).index
+    #     new_index = self._tsc_df.groupby(TSCDataFrame.tsc_id_idx_name)
+    #        .tail(self._tsc_df.n_timesteps - idx).index
     #     return self._tsc_df.set_index(new_index)
 
     def normalize_time(self):
@@ -1010,11 +1016,16 @@ class TSCAccessor(object):
         by filling the last available state."""
 
         if self._tsc_df.n_timeseries != 1:
-            raise NotImplementedError("Currently this function is only implemented for a single time series")
+            raise NotImplementedError(
+                "Currently this function is only implemented for a single time series"
+            )
 
         if self._tsc_df.n_timesteps >= n_timesteps:
             df = self._tsc_df
-            raise TSCException(f"The time series must contain less timesteps ({df.n_timesteps=}) than the required {n_timesteps=}")
+            raise TSCException(
+                f"The time series must contain less timesteps ({df.n_timesteps=}) than "
+                f"the required {n_timesteps=}"
+            )
 
         dt = self.check_const_time_delta()
 
@@ -1038,12 +1049,16 @@ class TSCAccessor(object):
         #   same ID axis
 
         X_ids = self._tsc_df.index.get_level_values(TSCDataFrame.tsc_id_idx_name)
-        mask_all_except_first = np.logical_not(np.diff(X_ids, prepend=True).astype(bool))
-        mask_all_except_last = np.append(np.logical_not((X_ids[:-1] - X_ids[1:]).astype(bool)), False)
+        mask_all_except_first = np.logical_not(
+            np.diff(X_ids, prepend=True).astype(bool)
+        )
+        mask_all_except_last = np.append(
+            np.logical_not((X_ids[:-1] - X_ids[1:]).astype(bool)), False
+        )
 
         is_df_same_index(self._tsc_df.loc[mask_all_except_last], U, check_column=False)
 
-        U = U.copy(deep=True) # append new data without changing the old
+        U = U.copy(deep=True)  # append new data without changing the old
         # make that time values are identical
         U.index = self._tsc_df.loc[mask_all_except_first].index
         return pd.concat([self._tsc_df, U], axis=1)

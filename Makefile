@@ -212,7 +212,7 @@ tutorial:
 	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
 	python -m notebook $(CURRENT_PATH)/tutorials/
 
-#precommit: @ Run git hooks managed by "precommit" to analyze and automatically format the source code.
+#precommit: @ Run git hooks managed by "pre-commit" to analyze and automatically format the source code.
 precommit:
 	@$(ACTIVATE_VENV); \
 	python -m pre_commit run --all $(GITHOOK);

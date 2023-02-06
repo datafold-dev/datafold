@@ -567,7 +567,9 @@ class TestTSCAccessor(unittest.TestCase):
 
         self.assertEqual(actual.delta_time, tscdf.delta_time)
         self.assertEqual(actual.n_timesteps, n_timesteps)
-        self.assertTrue(np.all(actual.iloc[1:, :].to_numpy() == tscdf.iloc[[-1], :].to_numpy()))
+        self.assertTrue(
+            np.all(actual.iloc[1:, :].to_numpy() == tscdf.iloc[[-1], :].to_numpy())
+        )
 
     def test_fill_timeseries_with_last_state02(self):
         tscdf = TSCDataFrame(self.simple_df).loc[[0], :]
@@ -579,8 +581,12 @@ class TestTSCAccessor(unittest.TestCase):
             tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=2)
 
     def test_augment_control_input(self):
-        tscdf = TSCDataFrame.from_array(np.random.uniform(size=(3,2)), feature_names=["x1", "x2"])
-        control = TSCDataFrame.from_array(np.random.uniform(size=(2, 2)), feature_names=["u1", "u2"])
+        tscdf = TSCDataFrame.from_array(
+            np.random.uniform(size=(3, 2)), feature_names=["x1", "x2"]
+        )
+        control = TSCDataFrame.from_array(
+            np.random.uniform(size=(2, 2)), feature_names=["u1", "u2"]
+        )
 
         expect = np.ones([3, 4]) * np.nan
         expect[:, :2] = tscdf.to_numpy()

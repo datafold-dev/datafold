@@ -299,7 +299,7 @@ class DMDBase(
         U: Optional[TSCDataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
-    ) -> TSCDataFrame:
+    ) -> TSCDataFrame: # type: ignore
         """Predict time series data for each initial condition and time values.
 
         Parameters

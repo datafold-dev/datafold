@@ -2,7 +2,6 @@
 import abc
 from typing import Callable, Optional, Union
 
-import findiff as fd
 import numpy as np
 import pandas as pd
 from scipy.integrate import odeint, solve_ivp
@@ -16,7 +15,7 @@ class DynamicalSystem(TSCPredictMixin, metaclass=abc.ABCMeta):
 
     # TODO: initial_conditions should be "X" to align with the Predict models
     @abc.abstractmethod
-    def predict(self, X, *, U=None, time_values=None, **kwargs):
+    def predict(self, X, *, U: Union[np.ndarray, TSCDataFrame, Callable]=None, time_values: Optional[np.ndarray]=None, **kwargs):
         raise NotImplementedError("base class")
 
 
@@ -345,7 +344,8 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             time_values = np.asarray(time_values)
             if len(time_values) < 2:
                 raise ValueError(
-                    f"Parameter time_values must include at least two elements. Got {len(time_values)=}"
+                    "Parameter time_values must include at least two elements. "
+                    f"Got {len(time_values)=}"
                 )
 
             self.dt_ = time_values[1] - time_values[0]
@@ -456,7 +456,8 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
             # turn callable into actual data -- needs to be re-computed as I do not see a way
             # to access this from the scipy ODE solver
 
-            # TODO: this only works if U is vectorized, maybe need an element-by-element way too...
+            # TODO: this only works if U is vectorized, maybe need an element-by-element
+            #  way too...
             U = U(tv, X_sol_but_last.to_numpy())
             U = TSCDataFrame.from_same_indices_as(
                 X_sol_but_last, values=U, except_columns=self.control_names_in_
@@ -696,7 +697,7 @@ class InvertedPendulum2(ControllableODE):
         self.tension_force_gain = tension_force_gain
         self.pendulum_length = pendulum_length
         self.cart_friction = cart_friction
-        self.l = 0.3
+        self.l = 0.3  # noqa: E741
 
         super(InvertedPendulum2, self).__init__(
             feature_names_in=["x", "xdot", "theta", "thetadot"],
@@ -710,7 +711,7 @@ class InvertedPendulum2(ControllableODE):
         m = 0.2
         b = 0.1
         ftheta = 0.1
-        l = 0.3
+        l = 0.3  # noqa: E741
         g = 9.81
 
         F = u
@@ -911,7 +912,8 @@ class Burger1DPeriodicBoundary(ControllableODE):
             x = x[:, np.newaxis]
 
         # compute residual
-        # R = SimPar.dt*(D*v).*v + (eye(N,N) - SimPar.dt*SimPar.nu*D2)*v - X(:,t-1) - SimPar.dt*u;
+        # R = SimPar.dt*(D*v).*v + (eye(N,N) - SimPar.dt*SimPar.nu*D2)*v - X(:,t-1)
+        # - SimPar.dt*u;
 
         n_nodes = len(self.x_nodes)
 
@@ -979,7 +981,7 @@ class Burger1DPeriodicBoundary(ControllableODE):
 
 
 class DCMotor(ControllableODE):
-    """
+    r"""
     Model from https://arxiv.org/pdf/1611.03537.pdf
     Section 8.2 (Feedback control of a bilinear motor)
 
@@ -991,12 +993,13 @@ class DCMotor(ControllableODE):
     The model
 
     .. math::
-
        \dot{x}_1 = -(R_a/L_a)*x_1 - (k_m/L_a)*x_2 * u + u_a/L_a
        \dot{x}_2   = -(B/J)*x_2 + (k_m/J)*x_1 * u - \tau_l/J
        y = x_1
 
-    Parameters L_a = 0.314, R_a = 12.345; k_m = 0.253, J = 0.00441, B = 0.00732; taul = 1.47, u_a = 60
+    Parameters L_a = 0.314, R_a = 12.345; k_m = 0.253, J = 0.00441, B = 0.00732;
+       taul = 1.47, u_a = 60
+
     Constraints (scaled to [-1,1] in the final model)
     x_1: min = -10; max = 10
     x_2: min = -100; max = 100
@@ -1043,8 +1046,10 @@ class DCMotor(ControllableODE):
         TSCDataFrame
         """
         if X_ic.n_timeseries != U.n_timeseries:
-            raise ValueError(f"The number of initial conditions ({X_ic.n_timeseries=}) must match the number of control time series ({U.n_timeseries=})")
-
+            raise ValueError(
+                f"The number of initial conditions ({X_ic.n_timeseries=}) must match the "
+                f"number of control time series ({U.n_timeseries=})"
+            )
 
         n_timesteps = U.tsc.check_const_timesteps()
 
@@ -1057,7 +1062,8 @@ class DCMotor(ControllableODE):
                 raise ValueError(
                     "If U contains only a single control input, then the parameter "
                     "time_values must be provided and contain the start and end "
-                    "time.")
+                    "time."
+                )
             dt = time_values[1] - time_values[0]
 
         # we always perform one more prediction than the number of control inputs
@@ -1067,12 +1073,12 @@ class DCMotor(ControllableODE):
         X_all = np.zeros([X_ic.shape[0], n_timesteps, X_ic.shape[1]])
         X_all[:, 0, :] = X_ic
 
-        for i in range(0, n_timesteps-1):
+        for i in range(0, n_timesteps - 1):
             # take every i-th element from the time series
-            current_control_action = U.iloc[i::n_timesteps-1].to_numpy()
+            current_control_action = U.iloc[i :: n_timesteps - 1].to_numpy()
 
             # perform the next step according to the model
-            X_all[:, i+1, :] = self._runge_kutta(
+            X_all[:, i + 1, :] = self._runge_kutta(
                 X_all[:, i, :], current_control_action, dt
             )
 

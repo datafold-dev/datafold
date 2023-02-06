@@ -579,14 +579,11 @@ class TestTSCDataFrame(unittest.TestCase):
         tscdf_int = TSCDataFrame.from_frame_list([df_int])
         tscdf_datetime = TSCDataFrame.from_frame_list([df_datetime])
 
-        # self.assertTrue(np.isnan(tscdf_int.delta_time))
+        self.assertTrue(np.isnan(tscdf_int.delta_time))
         self.assertTrue(np.isnat(tscdf_datetime.delta_time))
 
-    @unittest.skip(reason="see gitlab issue #85")
-    def test_delta_time(self):
-        # TODO: if addressing this issue, test for multiple n_values
-
-        n_values = 100  # 100 -> delta_time=1.0, 20 delta_time=nan
+    def test_delta_time01(self):
+        n_values = 100
 
         df1 = pd.DataFrame(
             np.arange(n_values), index=np.linspace(1, 100, n_values), columns=["A"]
@@ -598,18 +595,8 @@ class TestTSCDataFrame(unittest.TestCase):
         )
 
         tsc = TSCDataFrame.from_frame_list([df1, df2])
-        print(tsc.delta_time)
-
-        exit()
-
-        tsc = TSCDataFrame.from_single_timeseries(df1)
-
-        raise NotImplementedError(
-            "Finish implementation. Requires a "
-            "'round_time_values' -- very small differences break "
-            "the delta_time. At the same time a function to get the differences (with "
-            "highest difference would also be nice."
-        )
+        expected = 1.0
+        self.assertEqual(tsc.delta_time, expected)
 
     def test_delta_time02(self):
         n_values = 100  # 100 -> delta_time=1.0, 20 delta_time=nan
@@ -632,6 +619,33 @@ class TestTSCDataFrame(unittest.TestCase):
 
         self.assertEqual(actual, expected)
         self.assertIsInstance(actual, np.integer)
+
+    def test_delta_time_03(self):
+        tscdf = TSCDataFrame(self.simple_df)
+        self.assertEqual(tscdf.delta_time, 1)
+
+    def test_delta_time_04(self):
+        tscdf = TSCDataFrame(self.simple_df)
+        tscdf = tscdf.groupby("ID").head(1)  # all degenerate
+        self.assertTrue(np.isnan(tscdf.delta_time))
+
+    def test_delta_time_05(self):
+        tscdf = TSCDataFrame(self.simple_df)
+        tscdf = tscdf.iloc[1:, :]  # different n_timesteps
+        expected = pd.Series(
+            data=[np.nan, 1.0, 1.0, 1.0], index=tscdf.ids, name="delta_time"
+        )
+        actual = tscdf.delta_time
+        pdtest.assert_series_equal(actual, expected)
+
+    def test_delta_time_06(self):
+        tscdf = TSCDataFrame(self.simple_df)
+        tscdf = tscdf.iloc[1:-1, :]  # all have the same n_timesteps
+        expected = pd.Series(
+            data=[np.nan, 1.0, 1.0, 1.0], index=tscdf.ids, name="delta_time"
+        )
+        actual = tscdf.delta_time
+        pdtest.assert_series_equal(actual, expected)
 
     def test_is_normalized_time1(self):
         actual = TSCDataFrame(self.simple_df).is_normalized_time()

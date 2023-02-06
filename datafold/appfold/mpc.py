@@ -24,11 +24,13 @@ def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
     if isinstance(cost, np.ndarray):
         if cost.ndim != 1 or cost.shape[0] != n_elements:
             raise ValueError(
-                f"The cost vector must be 1-dim. with {n_elements} elements. Got {cost.ndim=} and {cost.shape=}"
+                f"The cost vector must be 1-dim. with {n_elements} elements. "
+                f"Got {cost.ndim=} and {cost.shape=}"
             )
         if (cost < 0).any():
             raise ValueError(
-                f"All cost values must be non-negative. Found {(cost < 0).sum()} negative values."
+                "All cost values must be non-negative. "
+                f"Found {(cost < 0).sum()} negative values."
             )
 
         return cost
@@ -40,7 +42,8 @@ def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
         return np.ones(n_elements) * cost
     else:
         raise TypeError(
-            f"{type(cost)=} not understood, use numeric value (float/int) or 1-dim. array with {n_elements} elements."
+            f"{type(cost)=} not understood, use numeric value (float/int) or 1-dim. array "
+            f"with {n_elements} elements."
         )
 
 
@@ -144,7 +147,7 @@ class LinearKMPC:
         horizon: int,
         state_bounds: Optional[np.ndarray],
         input_bounds: Optional[np.ndarray],
-        qois: Optional[Union[List[str], List[int]]] = None,
+        qois: Optional[List[str]] = None,
         cost_running: Union[float, np.ndarray] = 1,
         cost_terminal: Optional[Union[float, np.ndarray]] = 1,
         cost_input: Optional[Union[float, np.ndarray]] = 1,
@@ -170,14 +173,15 @@ class LinearKMPC:
         self.cost_terminal = cost_terminal
         self.cost_input = cost_input
 
-        self.account_initial = False
-
-        self.qois = qois
-
-        if self.qois is None:
-            self.n_qois = edmd.dmd_model.n_features_in_
+        if qois is None:
+            self.qois = self.edmd.dmd_model.feature_names_in_
+            self.is_all_features = True
         else:
-            self.n_qois = len(qois)
+            # TODO: currently no validation
+            self.qois = qois
+            self.is_all_features = False
+
+        self.n_qois = len(qois)
 
         self.n_features = self.edmd.dmd_model.n_features_in_
         self.n_control_input = self.edmd.dmd_model.n_control_in_
@@ -190,17 +194,19 @@ class LinearKMPC:
             2,
         ):
             raise ValueError(
-                f"input_bounds must be of shape ({self.n_control_input=}, 2). Got {self.input_bounds.shape=}."
+                f"input_bounds must be of shape ({self.n_control_input=}, 2). "
+                f"Got {self.input_bounds.shape=}."
             )
 
         if isinstance(self.state_bounds, np.ndarray) and self.state_bounds.shape != (
-            len(self.qois),
+            self.n_qois,
             2,
         ):
             raise ValueError(
-                f"state_bounds must be of shape ({self.n_qois=}, 2). Got {self.state_bounds.shape=}."
-                f"\nNote that it is possible to also impose bounds on the other (not QoI) "
-                f"state dimensions, but this requires further implementation."
+                f"state_bounds must be of shape ({self.n_qois=}, 2). "
+                f"Got {self.state_bounds.shape=}\nNote that it is possible to also impose "
+                "bounds on the other (not QoI) state dimensions, but this requires further "
+                "implementation."
             )
 
         (
@@ -222,7 +228,9 @@ class LinearKMPC:
         G, h, lb, ub = self._create_constraint_matrices(Bb)
 
         H = 2 * (Bb.T @ Q @ Bb + R)
-        l = r + Bb.T @ q  # TODO: currently l is always zero
+        a = (
+            r + Bb.T @ q
+        )  # TODO: currently a is always zero (maybe better name for `a`?)
         M = 2 * Bb.T @ Q @ Ab
         Y = (-2 * Q @ Bb).T
 
@@ -230,7 +238,7 @@ class LinearKMPC:
             # Ab is not required to store if there are no bounds on state
             Ab = None
 
-        return H, l, M, Y, G, h, Ab, lb, ub
+        return H, a, M, Y, G, h, Ab, lb, ub
 
     def _create_evolution_matrices(self):
         # appendix from :cite:`korda-2018`
@@ -242,7 +250,7 @@ class LinearKMPC:
         Ab = np.zeros((self.horizon * self.n_qois, self.n_features))
         Bb = np.zeros((self.horizon * self.n_qois, self.horizon * self.n_control_input))
 
-        is_project_coordinates = self.qois is not None
+        is_project_coordinates = not self.is_all_features
 
         if is_project_coordinates:
             Cb = projection_matrix_from_feature_names(
@@ -345,7 +353,7 @@ class LinearKMPC:
 
         return G, h, lb, ub
 
-    def control_sequence(
+    def control_sequence_horizon(
         self, X: InitialConditionType, reference: TransformType
     ) -> TSCDataFrame:
         r"""Generate a control sequence, given some initial condition and
@@ -359,7 +367,6 @@ class LinearKMPC:
             \text{subject to : } U_{lb} <= U_i <= U_{ub} \\
             \text{parameter: } z_{0} = \Psi(x_{k})
 
-        # TODO: linear part l^{T} U is currently not set
 
         where :math:`U` is the optimal control sequence to be estimated (represented as a time
         series of shape `(horizon, n_control_input)`), `Y` the reference time series,
@@ -390,13 +397,7 @@ class LinearKMPC:
         ValueError
             In case of mis-shaped input
         """
-
-        # TODO: fill up reference with final state if reference is not horizon long
-        #  -- decide if to include here or should put this in the responsibility of the user?
-
-        # TODO: provide a function that solves the main MPC loop (this is rather complex)
-
-        # TODO: make notebook for repeat_motor
+        # TODO: linear cost is currently not supported
 
         # Currently, only the control of a single time series is supported
         X.tsc.check_required_n_timeseries(1)
@@ -417,13 +418,13 @@ class LinearKMPC:
             raise ValueError(
                 f"The reference time value of the initial state is at time {t_ic=}. "
                 f"The reference time series must start one time step in the future at "
-                f"t_ref={t_ic+self.edmd.dt_}. Got {t_ref=} instead "
-                f"(diff={t_ic+self.edmd.dt_ - t_ref})."
+                f"t_ref={t_ic+self.edmd.dt_} (diff={t_ic+self.edmd.dt_ - t_ref})."
             )
 
         if reference.shape != (self.horizon, self.n_qois):
             raise ValueError(
-                f"Reference time series must have shape ({self.horizon=}, {self.n_qois=}). Got {reference.shape=} instead."
+                f"Reference time series must have shape ({self.horizon=}, {self.n_qois=}). "
+                f"Got {reference.shape=} instead."
             )
 
         np_reference = reference.to_numpy()
@@ -453,7 +454,8 @@ class LinearKMPC:
         if U is None:
             raise ValueError("The quadratic solver did not converge.")
 
-        # y = self.Cb @ X_dict # TODO: comment from source % Should be y - yr, but yr adds just a constant term
+        # TODO: comment from source % Should be y - yr, but yr adds just a constant term
+        # y = self.Cb @ X_dict
 
         # the actual control input is obtained from the previous state the reference time
         # series, therefore the actual control sequence starts at the initial state (not the
@@ -473,7 +475,14 @@ class LinearKMPC:
         )
         return U
 
-    def control_system(self, sys, sys_ic: TSCDataFrame, X_ref:TSCDataFrame, X_ic:TSCDataFrame, augment_control: bool=False):
+    def control_system_reference(
+        self,
+        sys,
+        sys_ic: TSCDataFrame,
+        X_ref: TSCDataFrame,
+        X_ic: TSCDataFrame,
+        augment_control: bool = False,
+    ):
         """
         TODO
 
@@ -506,14 +515,18 @@ class LinearKMPC:
         for i in range(X_ref.shape[0] - 1):
 
             # obtain the reference time series over the time horizon that we want to optimize
-            _ref = X_ref.iloc[i: i + self.horizon, :]
+            _ref = X_ref.iloc[i : i + self.horizon, :]
 
             # fill up with last state to obtain the required time series length, if necessary
             if _ref.shape[0] != self.horizon:
-                _ref = _ref.tsc.fill_timeseries_with_last_state(n_timesteps=self.horizon)
+                _ref = _ref.tsc.fill_timeseries_with_last_state(
+                    n_timesteps=self.horizon
+                )
 
             # obtain optimal control sequence from KMPC
-            ukmpc = self.control_sequence(X=X_seq.iloc[-n_ic:, :], reference=_ref)
+            ukmpc = self.control_sequence_horizon(
+                X=X_seq.iloc[-n_ic:, :], reference=_ref
+            )
 
             # TODO: currently we take only the next input. This could be generalized to take
             #  more input from
@@ -624,7 +637,8 @@ class LQR(object):
             target_state_dict = self._preset_target_state
         else:
             raise ValueError(
-                "Target state must be provided either as a parameter or set with 'preset_target_state'"
+                "Target state must be provided either as a parameter or set with "
+                "'preset_target_state'"
             )
 
         u = -self.Flqr @ (self.edmd.transform(X).to_numpy() - target_state_dict).T

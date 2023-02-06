@@ -4,17 +4,22 @@ from unittest.mock import Mock
 import numpy as np
 import numpy.testing as nptest
 
-from datafold.appfold.edmd import EDMD
+from datafold import (
+    EDMD,
+    DMDControl,
+    InitialCondition,
+    TSCDataFrame,
+    TSCIdentity,
+    gDMDAffine,
+)
 from datafold.appfold.mpc import AffineKgMPC, LinearKMPC
-from datafold.appfold.tests.test_edmd import EDMDTest
-from datafold.dynfold.dmd import DMDControl, gDMDAffine
 from datafold.dynfold.dynsystem import LinearDynamicalSystem
-from datafold.dynfold.transform import TSCIdentity
-from datafold.pcfold import InitialCondition
 
 
 class LinearKMPCTest(unittest.TestCase):
     def setUp(self) -> None:
+        from datafold.appfold.tests.test_edmd import EDMDTest
+
         self.X_tsc, self.U_tsc = EDMDTest.setup_inverted_pendulum(
             sim_time_step=0.01, sim_num_steps=1000, training_size=20
         )
@@ -42,9 +47,13 @@ class LinearKMPCTest(unittest.TestCase):
         edmdmock.dmd_model.sys_matrix_ = A
         edmdmock.dmd_model.control_matrix_ = B
 
+        feature_names = [f"x{i}" for i in range(state_size)]
+        edmdmock.n_features_in_ = len(feature_names)
+        edmdmock.feature_names_in_ = feature_names
+
         # mock ID dictionary
-        edmdmock.dmd_model.feature_names_in_ = [f"x{i}" for i in range(state_size)]
-        edmdmock.dmd_model.n_features_in_ = len(edmdmock.dmd_model.feature_names_in_)
+        edmdmock.dmd_model.feature_names_in_ = feature_names
+        edmdmock.dmd_model.n_features_in_ = len(feature_names)
         edmdmock.dmd_model.feature_names_out_ = edmdmock.dmd_model.feature_names_in_
 
         edmdmock.dmd_model.control_names_in_ = [f"u{i}" for i in range(input_size)]
@@ -55,13 +64,13 @@ class LinearKMPCTest(unittest.TestCase):
         kmpcperfect = LinearKMPC(
             edmd=edmdmock,
             horizon=n_timesteps,
-            state_bounds=np.array([[5, -5]] * state_size),
-            input_bounds=np.array([[5, -5]] * input_size),
+            state_bounds=np.array([[-5, 5]] * state_size),
+            input_bounds=np.array([[-5, 5]] * input_size),
             cost_running=np.array([1] * state_size),
             cost_terminal=1,
             cost_input=0,
         )
-        pred = kmpcperfect.optimal_control_sequence(x0, df)
+        pred = kmpcperfect.control_sequence_horizon(x0, df)
         nptest.assert_allclose(pred, u)
 
     def test_kmpc_mock_edmd_1d(self):
@@ -71,39 +80,37 @@ class LinearKMPCTest(unittest.TestCase):
         self._execute_mock_test(2, 2, 50)
 
     def test_kmpc_generate_control_signal(self):
-        horizon = 100
+        horizon = 20
 
-        edmdcontrol = EDMD(
+        edmd = EDMD(
             dict_steps=[
                 ("id", TSCIdentity()),
             ],
             include_id_state=False,
-            dmd_model=DMDControl(),
-        ).fit(
-            self.X_tsc,
-            U=self.U_tsc,
+            dmd_model=DMDControl(),  # must support control
         )
+        edmd.fit(self.X_tsc, U=self.U_tsc)
 
         kmpc = LinearKMPC(
-            predictor=edmdcontrol,
+            edmd=edmd,
             horizon=horizon,
-            state_bounds=np.array([[1, -1], [6.28, 0]]),
-            input_bounds=np.array([[5, -5]]),
+            state_bounds=np.array([[-1, 1], [0, 6.28]]),
+            input_bounds=np.array([[-5, 5]]),
             qois=["x", "theta"],
             cost_running=np.array([100, 0]),
             cost_terminal=1,
             cost_input=1,
         )
 
-        reference = self.X_tsc[["x", "theta"]].iloc[: horizon + 1]
+        reference = self.X_tsc[["x", "theta"]].iloc[1 : horizon + 1]
         initial_conditions = InitialCondition.from_array(
             np.array([0, 0, np.pi, 0]),
             time_value=0,
             feature_names=["x", "xdot", "theta", "thetadot"],
         )
-        U = kmpc.optimal_control_sequence(X=initial_conditions, reference=reference)
-
+        U = kmpc.control_sequence_horizon(X=initial_conditions, reference=reference)
         self.assertEqual(U.shape, (horizon, self.U_tsc.shape[1]))
+        self.assertIsInstance(U, TSCDataFrame)
 
 
 class AffineKMPCTest(unittest.TestCase):
@@ -170,11 +177,12 @@ class AffineKMPCTest(unittest.TestCase):
     def test_kmpc_generate_control_signal(self):
         horizon = 100
 
+        from datafold.appfold.tests.test_edmd import EDMDTest
+
         X_tsc, U_tsc = EDMDTest.setup_inverted_pendulum(
             sim_time_step=0.01,
             sim_num_steps=1000,
             training_size=20,
-            include_last_control_state=True,
         )
 
         edmdcontrol = EDMD(

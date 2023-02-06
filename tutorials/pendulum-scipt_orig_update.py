@@ -284,7 +284,7 @@ reference_u = U_oos[["u"]].iloc[edmd.n_samples_ic_ : edmd.n_samples_ic_ + horizo
 const_values = np.tile(np.array([0, np.pi]), (reference.shape[0], 1))
 reference = TSCDataFrame.from_same_indices_as(reference, values=const_values)
 
-ukmpc = kmpc.control_sequence(
+ukmpc = kmpc.control_sequence_horizon(
     X=X_oos.initial_states(edmd.n_samples_ic_), reference=reference
 )
 

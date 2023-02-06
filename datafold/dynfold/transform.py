@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import itertools
-from os import replace
 from typing import Union
 
 import numpy as np
@@ -219,7 +218,7 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         if (
             not isinstance(self.features, np.ndarray)
             or self.features.ndim != 1
-            or not self.features.dtype.type is np.str_
+            or self.features.dtype.type is not np.str_
         ):
             raise ValueError(
                 "parameter 'features' must be a 1-dim. array with feature names"
@@ -279,6 +278,12 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
                 features_out = np.append(features_out, ["const"])
 
         return features_out
+
+    def _more_tags(self):
+        if not self.rename_features:
+            return dict(tsc_contains_orig_states=True)
+        else:
+            return dict(tsc_contains_orig_states=False)
 
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
@@ -576,6 +581,9 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         self.delays = delays
         self.frequency = frequency
         self.kappa = kappa
+
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=True)
 
     def _validate_parameter(self):
 
@@ -1256,6 +1264,9 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
             return powers
         else:
             return powers[powers.sum(axis=1) != 1, :]
+
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=self.include_first_order)
 
     def _get_poly_feature_names(self, X, input_features=None):
         # Note: get_feature_names function is already provided by super class

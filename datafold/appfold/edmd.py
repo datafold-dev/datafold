@@ -187,10 +187,10 @@ class EDMD(
     ----------
 
     n_features_in_
-        The number of features in the full-state time series (data passed to `fit`).
+        The number of features in the full-state time series (data passed to ``fit``).
 
     feature_names_in_
-        The features names in the full-state time series (data passed to `fit`).
+        The features names in the full-state time series (data passed to ``fit``).
 
     n_features_out_
         The number of features in the EDMD-dictionary time series.
@@ -1159,11 +1159,18 @@ class EDMD(
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
 
+        if y is not None:
+            raise NotImplementedError(
+                "The y parameter is currently not supported for partial_fit "
+                "(but should require only little implementation effort)."
+            )
         if U is not None:
             raise NotImplementedError(
                 "Currently there are no DMD models that that support both streaming "
                 "and control."
             )
+
+        self.is_controlled_ = False
 
         try:
             check_is_fitted(self)
@@ -1212,7 +1219,9 @@ class EDMD(
         ):  # TODO: avoid duplicated code with fit() here!
 
             if not self.use_transform_inverse:
-                self._inverse_map = self._compute_inverse_map(X=X, X_dict=X_dict, U=U)
+                self._inverse_map = self._compute_inverse_map(
+                    X=X, X_dict=X_dict, y=None, U=U
+                )
 
             if self.dmd_model.is_spectral_mode:
                 self._koopman_modes = self._compute_koopman_modes(
@@ -1298,42 +1307,6 @@ class EDMD(
         """
         return self.fit(X=X, U=U, y=y, **fit_params).transform(X)
 
-    def inverse_transform(self, X: TransformType) -> TransformType:
-        """Perform inverse dictionary transformations on dictionary time series.
-
-        The actual performed inverse transformation depends on the parameter settings
-        ``include_id_state`` and ``use_transform_inverse``.
-
-        Parameters
-        ----------
-        X: TSCDataFrame, pandas.DataFrame
-            Time series to map back to the full-state time series. The feature names
-            must match the ones in attribute ``feature_names_out_``.
-
-        Returns
-        -------
-        TSCDataFrame
-            full-state time series
-        """
-
-        if self._inverse_map is not None:
-            # Note, here the samples are row-wise
-            values = X.to_numpy() @ self._inverse_map
-
-            X_ts = df_type_and_indices_from(
-                indices_from=X, values=values, except_columns=self.feature_names_in_
-            )
-
-        else:
-            # inverse_transform the pipeline because an inverse linear map is not
-            # available.
-            X_ts = X
-            reverse_iter = reversed(list(self._iter(with_final=False)))
-            for _, _, tsc_transform in reverse_iter:
-                X_ts = tsc_transform.inverse_transform(X_ts)
-
-        return X_ts
-
     def reconstruct(
         self,
         X: TSCDataFrame,
@@ -1387,6 +1360,42 @@ class EDMD(
         self._validate_qois(qois=qois, valid_feature_names=self.feature_names_pred_)
 
         return self._reconstruct(X=X, U=U, qois=qois)
+
+    def inverse_transform(self, X: TransformType) -> TransformType:
+        """Perform inverse dictionary transformations on dictionary time series.
+
+        The actual performed inverse transformation depends on the parameter settings
+        ``include_id_state`` and ``use_transform_inverse``.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame
+            Time series to map back to the full-state time series. The feature names
+            must match the ones in attribute ``feature_names_out_``.
+
+        Returns
+        -------
+        TSCDataFrame
+            full-state time series
+        """
+
+        if self._inverse_map is not None:
+            # Note, here the samples are row-wise
+            values = X.to_numpy() @ self._inverse_map
+
+            X_ts = df_type_and_indices_from(
+                indices_from=X, values=values, except_columns=self.feature_names_in_
+            )
+
+        else:
+            # inverse_transform the pipeline because an inverse linear map is not
+            # available.
+            X_ts = X
+            reverse_iter = reversed(list(self._iter(with_final=False)))
+            for _, _, tsc_transform in reverse_iter:
+                X_ts = tsc_transform.inverse_transform(X_ts)
+
+        return X_ts
 
     def score(
         self,
