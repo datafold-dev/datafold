@@ -8,7 +8,7 @@ Tutorials
 
 This page contains tutorials and code snippets to
 showcase *datafold's* API. All tutorials can be viewed online. If you want to
-execute the notebooks in Jupyter, please follow the instructions below in
+execute the notebooks in Jupyter, please follow the instructions below in section
 "Run notebooks with Jupyter".
 
 List
@@ -77,6 +77,8 @@ List
     **References**: `Original PyDMD tutorial <https://github.com/mathLab/PyDMD/blob/master/tutorials/tutorial7/tutorial-7-dmdc.ipynb>`__ :octicon:`link-external`
 * `11_edmd_control.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/11_edmd_control.ipynb?inline=false>`__, `doc <https://datafold-dev.gitlab.io/datafold/tutorial_11_edmd_control.html>`__)
     This tutorial demonstrates how to use extended dynamic mode decomposition (EDMD) and a linear quadratic regulator (LQR) for controlling the Van der Pol oscillator in a closed-loop. The goal is to show how EDMD can be an effective alternative for modeling and controlling non-linear dynamic systems.
+
+    **References**: `Templated tutorial <https://github.com/i-abr/mpc-koopman/blob/master/mpc_with_koopman_op.ipynb>`__ :octicon:`link-external`
 * `12_kmpc_flowcontrol.ipynb` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/12_kmpc_flowcontrol.ipynb?inline=false>`__, `doc <https://datafold-dev.gitlab.io/datafold/tutorial_12_kmpc_flowcontrol.html>`__)
     We take the 1D Burger equation with periodic boundary conditions as an example to showcase how the Koopman operator can be utilized for model predictive control (MPC) in flow systems.
 
