@@ -171,7 +171,8 @@ All source code contributors are listed
 (1) Technical University of Munich
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Chair of Scientific Computing in Computer Science (|sccs| :octicon:`link-external`)
+School of Computiation, Information and Technology (CIT) at Chair of Scientific Computing in
+Computer Science (|sccs| :octicon:`link-external`)
 
 .. image:: _static/img/tum_logo.png
    :height: 75px
@@ -191,8 +192,8 @@ Faculty of Computer Science and Mathematics
    :width: 300px
    :target: https://www.hm.edu/en/index.en.html
 
-.. Links used above -- the external links (outside datafold) open a new tab (which is why a
-.. raw-html directive is used (used from https://stackoverflow.com/a/11718325)
+.. Links used above -- the external links (outside datafold) open a new tab, which is why the
+.. raw-html directive is used (idea from https://stackoverflow.com/a/11718325)
 
 .. |python| raw:: html
 
@@ -208,7 +209,7 @@ Faculty of Computer Science and Mathematics
 
 .. |sccs| raw:: html
 
-   <a href="https://www.in.tum.de/en/i05/home/" target="_blank">link</a>
+   <a href="https://www.cs.cit.tum.de/en/sccs/home/" target="_blank">link</a>
 
 .. |dfg| raw:: html
 

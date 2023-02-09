@@ -213,6 +213,11 @@ intersphinx_timeout = 30
 
 nbsphinx_allow_errors = False
 nbsphinx_execute = "never"  # do not use nbsphinx to execute the tutorials (see MR !106)
+nbsphinx_prolog = (
+    "Visit the "
+    "`tutorials page <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__ "
+    "to view all notebooks."
+)
 
 # allows setting expensive tutorial execution with environment variable
 # the environment variable should be set if publishing the pages

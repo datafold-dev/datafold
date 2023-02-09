@@ -466,12 +466,12 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_components_)`
         """
-
         check_is_fitted(self)
         X = self._validate_datafold_data(X)
 
         self._validate_feature_input(X, direction="transform")
         pca_data = super(TSCPrincipalComponent, self).transform(X)
+
         return self._same_type_X(
             X, values=pca_data, feature_names=self.get_feature_names_out()
         )
@@ -494,9 +494,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         """
 
         X = self._validate_datafold_data(X)
-
         pca_values = super(TSCPrincipalComponent, self).fit_transform(X, y=y)
-
         self._setup_feature_attrs_fit(X)
 
         return self._same_type_X(
@@ -517,7 +515,6 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_features)`
         """
-
         self._validate_feature_input(X, direction="inverse_transform")
 
         data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X)

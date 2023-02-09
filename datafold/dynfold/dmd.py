@@ -1201,6 +1201,7 @@ class DMDControl(DMDBase):
 
     :cite:`kutz-2016` (Chapter 6)
     :cite:`korda-2018`
+    :cite:`proctor-2016`
     """  # noqa
 
     _requires_last_control_state = False

@@ -289,6 +289,19 @@ class TestTSCTransform(unittest.TestCase):
         self.assertTrue(with_orig._get_tags()["tsc_contains_orig_states"])
         self.assertTrue(np.all(np.isin(tsc.columns, actual_with.columns)))
 
+    def test_native_sklearn_with_tscdataframe(self):
+        # TODO: it gives an opportunity to adapt TSCPrincipalComponent (by setting output)
+        #  However, there is still a cast needed to TSCDataFrame because it strictly returns
+        #  pd.DataFrame
+        tscdf = TSCDataFrame.from_array(
+            np.random.default_rng(1).uniform(size=(100, 10))
+        )
+
+        pca = PCA(n_components=3).set_output(transform="pandas")
+        actual = pca.fit_transform(tscdf)
+
+        self.assertIsInstance(actual, pd.DataFrame)
+
     def test_apply_lambda_transform01(self):
         # use lambda identity function
 

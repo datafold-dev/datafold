@@ -974,6 +974,7 @@ class TSCDataFrame(pd.DataFrame):
             For example,
 
             .. code::
+
                 np.unique(np.diff(np.linspace(0, 2, 4)))
 
             prints :code:`array([0.6666666666666666, 0.6666666666666667])`. The discrepancies
@@ -985,8 +986,9 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         pd.Series, int, float, np.timedelata64
-            Single value if `delta_time` is identical in all time series, else a
-            pd.Series with `delta_time` for each time series.
+            Scalar value of same type than the time values if `delta_time` is identical in all
+            time series, otherwise a pd.Series indicating the `delta_time` for each time
+            series.
         """
 
         _index_name_series = "delta_time"

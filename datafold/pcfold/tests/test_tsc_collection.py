@@ -130,6 +130,19 @@ class TestTSCDataFrame(unittest.TestCase):
         tc = TSCDataFrame(self.simple_df)
         self.assertEqual(tc.shape, (9, 2))
 
+    def test_assign_column(self):
+        tscdf = TSCDataFrame(self.simple_df)
+        tscdf["A"] = 1
+        tscdf["B"] = 2
+
+        actualA = tscdf.to_numpy()[:, 0]
+        expectA = np.ones(tscdf.shape[0])
+        actualB = tscdf.to_numpy()[:, 1]
+        expectB = np.ones(tscdf.shape[0]) * 2
+
+        nptest.assert_equal(actualA, expectA)
+        nptest.assert_equal(actualB, expectB)
+
     def test_set_index1(self):
         tsc_df = TSCDataFrame(self.simple_df)
 

@@ -16,8 +16,8 @@ PATH2ROOT = PATH2DOCSOURCE.parent.parent
 BASE_URL = "https://datafold-dev.gitlab.io/datafold"
 
 rst_text_before_tutorials_list = """This page contains tutorials and code snippets to
-showcase *datafold's* API. All tutorials can be viewed online below. If you want to
-execute the notebooks in Jupyter, please also note the instructions in
+showcase *datafold's* API. All tutorials can be viewed online. If you want to
+execute the notebooks in Jupyter, please follow the instructions below in section
 "Run notebooks with Jupyter".
 """
 
@@ -32,11 +32,11 @@ Download files
 * **If datafold was installed from PyPI, ...**
 
   ... the tutorials are *not* included in the package. Download the tutorials separately from
-  the above list.
+  the list.
 
 * **If the datafold repository was downloaded, ...**
 
-  ... then the tutorials are located at `path/to/repo/tutorials/`. Before executing the
+  ... then the tutorials are located ``path/to/repo/tutorials/``. Before executing the
   tutorials, please make sure that *datafold* is either installed
 
   .. code-block:: bash
@@ -47,14 +47,14 @@ Download files
 
   .. code-block:: bash
 
-    export PYTHONPATH=$PYTHONPATH:/path/to/repo/
+    export PYTHONPATH=$PYTHONPATH:/path/to/datafold/repository/
 
 
 Start Jupyter
 ^^^^^^^^^^^^^
 
-All tutorials are Jupyter notebooks (``.ipynb`` file ending). The Jupyter
-package and dependencies install with
+All tutorials are Jupyter notebooks (``.ipynb`` file ending). The Jupyter environment and its
+dependencies install with
 
 .. code-block:: bash
 
@@ -67,7 +67,7 @@ Jupyter notebook in a web browser, run
 
     jupyter notebook path/to/datafold/tutorial_folder
 
-or simply use the target in the Makefile:
+or use the target in the Makefile (if the gir repository was downloaded):
 
 .. code-block:: bash
 
@@ -92,10 +92,17 @@ class Tutorial:
     FOLDER = os.path.abspath(os.path.join(PATH2ROOT, "tutorials"))
 
     def __init__(
-        self, filename, description, warning=None, is_archive=False, nblink_kwargs=None
+        self,
+        filename,
+        description,
+        reference=None,
+        warning=None,
+        is_archive=False,
+        nblink_kwargs=None,
     ):
         self.tutorial_path = filename
         self.description = description.rstrip()
+        self.reference = reference
         self.warning = warning.rstrip() if warning is not None else None
         self.is_archive = is_archive
         self.nblink_kwargs = nblink_kwargs
@@ -152,13 +159,19 @@ class Tutorial:
 
 
 def add_tutorial(
-    filename, description, warning=None, archive=False, nblink_kwargs=None
+    filename,
+    description,
+    reference=None,
+    warning=None,
+    archive=False,
+    nblink_kwargs=None,
 ):
     assert filename not in ALL_TUTORIALS
 
     tutorial = Tutorial(
         filename,
         description,
+        reference=reference,
         warning=warning,
         is_archive=archive,
         nblink_kwargs=nblink_kwargs,
@@ -187,6 +200,7 @@ class TutorialStringBuilder:
         "docs": {
             "download":
                 "#. :doc:`{filename_nblink}` (:download:`download <{download_link}>`)\n",
+            "reference": "\n\n{INDENT}**References**: {reference}",
             "warning":
                 "\n\n"
                 "{INDENT}.. warning::\n"
@@ -197,7 +211,8 @@ class TutorialStringBuilder:
         "readme": {
             # "filename (download_link, doc_link)" in readme
             "download":
-                "* `{filename}` (`download <{download_link}>`__ , `doc <{web_link}>`__)\n",
+                "* `{filename}` (`download <{download_link}>`__, `doc <{web_link}>`__)\n",
+            "reference": "\n\n{INDENT}**References**: {reference}",
             "warning":
                 "\n\n"
                 "{INDENT}**Warning**\n"
@@ -230,8 +245,21 @@ class TutorialStringBuilder:
         if tutorial.warning is not None:
             subs["warning"] = tutorial.warning
             s += templates["warning"]
-        s += "\n"
 
+        if tutorial.reference is not None:
+            subs["reference"] = ""
+            for k, v in tutorial.reference.items():
+                if v[1] == "ext_link":
+                    subs["reference"] += f"`{k} <{v[0]}>`__ :octicon:`link-external` | "
+                elif v[1] == "ref":
+                    subs["reference"] += f"{k} {v[0]} | "
+                else:
+                    raise ValueError("Reference key not understood")
+
+            subs["reference"] = subs["reference"].rstrip(" | ")
+            s += templates["reference"]
+
+        s += "\n"
         return s.format(**subs)
 
 
@@ -243,9 +271,9 @@ def get_tutorial_text_doc(filename, target):
 def init_tutorials():
     add_tutorial(
         "01_datastructures.ipynb",
-        "We introduce *datafold*'s basic data structures for time series collection data and "
-        "kernel-based algorithms. They are both used internally in model implementations and "
-        "for input/output.",
+        "We introduce *datafold*'s basic data structures for time series collection data. The "
+        "data structures are used in model implementations and for input/output specification "
+        "of models.",
     )
 
     add_tutorial(
@@ -258,31 +286,52 @@ def init_tutorials():
 
     add_tutorial(
         "03_dmap_scurve.ipynb",
-        "We use a ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
+        "We use the ``DiffusionMaps`` model to compute lower dimensional embeddings of an "
         "S-curved point cloud manifold. We also select the best combination of intrinsic "
         "parameters automatically with an optimization routine.",
+        reference={
+            "scikit-learn tutorial": (
+                "https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py",  # noqa: E501
+                "ext_link",
+            )
+        },
     )
 
     add_tutorial(
         "04_dmap_digitclustering.ipynb",
         "We use the ``DiffusionMaps`` model to cluster data from handwritten digits and "
-        "perform an out-of-sample embedding. This example is taken from the scikit-learn "
-        "project and can be compared against other manifold learning algorithms.",
+        "highlight its out-of-sample capabilities. This example is taken from the "
+        "scikit-learn package, so the the method can be compared against other common "
+        "manifold learning algorithms.",
+        reference={
+            "scikit-learn tutorial": (
+                "https://scikit-learn.org/stable/auto_examples/manifold/plot_lle_digits.html",
+                "ext_link",
+            )
+        },
     )
 
     add_tutorial(
         "05_roseland_scurve_digits.ipynb",
         "We use a ``Roseland`` model to compute lower dimensional embeddings of an "
-        "S-curved point cloud manifold and to cluster data from handwritten digit. We also "
-        "select the best combination of intrinsic parameters automatically with an "
-        "optimization routine and demonstrate how to do include this in an scikit-learn "
-        "pipeline. Based on the Diffusion Maps tutorials.",
+        "S-curved point cloud manifold and to cluster data from handwritten digit.",
+        reference={
+            "scikit-learn tutorial 1": (
+                "https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py",  # noqa: E501
+                "ext_link",
+            ),
+            "scikit-learn tutorial 2": (
+                "https://scikit-learn.org/stable/auto_examples/manifold/plot_lle_digits.html",
+                "ext_link",
+            ),
+        },
     )
 
     add_tutorial(
         "06_dmap_mahalanobis_kernel.ipynb",
-        "We highlight how to use the Mahalanobis kernel within Diffusion Maps. With "
-        "this we can obtain embeddings that are invariant to the observation function.",
+        "We highlight how to use the Mahalanobis kernel within ``DiffusionMaps``. The key "
+        "feature of this kernel is that it can yield embeddings that are invariant to the "
+        "observation function.",
         warning="The implementation of the Mahalanobis kernel is still experimental and "
         "should be used with care. Contributions are welcome!",
     )
@@ -290,7 +339,8 @@ def init_tutorials():
     add_tutorial(
         "07_jsf_common_eigensystem.ipynb",
         "We use ``JointlySmoothFunctions`` to learn commonly smooth functions "
-        "from multimodal data. We also demonstrate the out-of-sample extension.",
+        "from multimodal data. We also demonstrate the out-of-sample capabilities of the "
+        "method.",
     )
 
     add_tutorial(
@@ -300,42 +350,103 @@ def init_tutorials():
         "``GeometricHarmonicsInterpolator`` for forward and backwards interpolation.",
         warning="The tutorial requires also the Python package "
         "`scikit-optimize <https://github.com/scikit-optimize/scikit-optimize>`__ "
-        "which does not install with *datafold*.",
+        "which does **not** install with *datafold*.",
     )
 
     add_tutorial(
         "09_edmd_limitcycle.ipynb",
-        "We generate data from a dynamical system (Hopf system) and compare different "
-        "dictionaries of the Extended Dynamic Mode Decomposition (EDMD). We also evaluate "
-        "out-of-sample predictions with time ranges exceeding the time horizon of the "
-        "training data.",
+        "We generate data from the Hopf system (an ODE system) and compare different "
+        "dictionaries of the Extended Dynamic Mode Decomposition (``EDMD``). We also showcase "
+        "out-of-sample predictions with a time horizon that exceeds the sampled time series "
+        "in the training.",
     )
 
     add_tutorial(
-        "10_kmpc_flowcontrol.ipynb",
-        "We showcase how Model Predictive Control (MPC) based on the Koopman operator can be "
-        "used to control a flow system (here 1D Burger equation with periodic boundary "
-        "condition).",
-    )
-
-    add_tutorial(
-        "11_koopman_mpc/koopman_mpc.ipynb",
-        "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
-        "operator. We apply MPC using an EDMD predictor to a toy model: the "
-        "inverted pendulum, sometimes referred to as a cartpole.",
-        archive=True,
-        nblink_kwargs={
-            "extra-media": [f"{Tutorial.FOLDER}/11_koopman_mpc/cartpole2.png"]
+        "10_dmd_control.ipynb",
+        "We introduce the dynamic mode decomposition with control. In this tutorial origins "
+        "from the PyDMD package. Here we use it to compare the interface and highlight that "
+        "the results are identical.",
+        reference={
+            "Original PyDMD tutorial": (
+                "https://github.com/mathLab/PyDMD/blob/master/tutorials/tutorial7/tutorial-7-dmdc.ipynb",  # noqa: E501
+                "ext_link",
+            )
         },
     )
 
     add_tutorial(
-        "12_online_dmd.ipynb",
-        "We highlight ``OnlineDMD`` at the example of a simple system. The dynamic "
-        "mode decomposition is updated once new data becomes available. This is particularly "
-        "useful for time-varying systems. The notebook is taken from the original work by "
-        "Zhang and Rowley, 2019; for reference see notebook.",
+        "11_edmd_control.ipynb",
+        "This tutorial demonstrates how to use extended dynamic mode decomposition (EDMD) and "
+        "a linear quadratic regulator (LQR) for controlling the Van der Pol oscillator in a "
+        "closed-loop. The goal is to show how EDMD can be an effective alternative for "
+        "modeling and controlling non-linear dynamic systems.",
+        reference={
+            "Templated tutorial": (
+                "https://github.com/i-abr/mpc-koopman/blob/master/mpc_with_koopman_op.ipynb",
+                "ext_link",
+            )
+        },
     )
+
+    add_tutorial(
+        "12_kmpc_flowcontrol.ipynb",
+        "We take the 1D Burger equation with periodic boundary conditions as an example to "
+        "showcase how the Koopman operator can be utilized for model predictive control (MPC) "
+        "in flow systems.",
+        reference={
+            "Original code (Matlab)": (
+                "https://github.com/arbabiha/KoopmanMPC_for_flowcontrol",
+                "ext_link",
+            ),
+            "": (":cite:t:`arbabi-2018`", "ref"),
+        },
+    )
+
+    add_tutorial(
+        "13_kmpc_motor_engine.ipynb",
+        "This tutorial will demonstrate how to utilize the Extended Dynamic Mode "
+        "Decomposition (EDMD) to estimate the Koopman operator in controlled dynamical "
+        "systems. The nonlinear behavior of a motor engine model will be transformed into "
+        "a higher dimensional space, which will result in an approximately linear evolution. "
+        "This will allow the use of EDMD as a linearly controlled dynamical system within the "
+        "Koopman Model Predictive Control (KMPC) framework.",
+        reference={
+            "Original code (Matlab)": (
+                "https://github.com/MilanKorda/KoopmanMPC/",
+                "ext_link",
+            ),
+            "": (":cite:t:`korda-2018` (Sect. 8.2)", "ref"),
+        },
+    )
+
+    add_tutorial(
+        "14_online_dmd.ipynb",
+        "This tutorial showcases the online dynamic mode decomposition (``OnlineDMD``) at the "
+        "example of a simple 2D time-varying system. The performance of the online DMD is "
+        "compared with batch DMD and the analytical solution of the system. Following the "
+        "online update scheme the model is updated once new data becomes available, which is "
+        "particularly useful in time-varying systems.",
+        reference={
+            "Original demo": (
+                "https://github.com/haozhg/odmd/blob/master/demo/demo_online.ipynb",
+                "ext_link",
+            ),
+            "": (":cite:t:`zhang-2019`", "ref"),
+        },
+    )
+    #  The notebook is taken from the original work by "Zhang and Rowley, 2019; see the
+    #  notebook for reference.
+
+    # add_tutorial(
+    #     "11_koopman_mpc/koopman_mpc.ipynb",
+    #     "Walkthrough for doing Model Predictive Control (MPC) based on the Koopman "
+    #     "operator. We apply MPC using an EDMD predictor to a toy model: the "
+    #     "inverted pendulum, sometimes referred to as a cartpole.",
+    #     archive=True,
+    #     nblink_kwargs={
+    #         "extra-media": [f"{Tutorial.FOLDER}/11_koopman_mpc/cartpole2.png"]
+    #     },
+    # )
 
 
 def remove_existing_nblinks_and_indexfile(tutorial_index_filename):
@@ -427,7 +538,7 @@ def setup_tutorials():
     # clean
     remove_existing_nblinks_and_indexfile(tutorial_index_filename)
 
-    # generate links to Jupyter files
+    # generate links to Jupyter .ipynb files
     generate_nblink_files()
 
     # generate and write content to rst file

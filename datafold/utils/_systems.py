@@ -432,7 +432,6 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
                 t_eval=time_values,
                 **self.ivp_kwargs,
             )
-            print(i)
 
             if not sol.success:
                 raise RuntimeError(
@@ -1156,7 +1155,7 @@ class Duffing1D(ControllableODE):
 
         f1 = x2
         f2 = -self.delta * x2 - self.alpha * x1 - self.beta * x1**3 + U
-        return np.array([f1, f2])
+        return np.array([f1, float(f2)])
 
 
 # TODO:

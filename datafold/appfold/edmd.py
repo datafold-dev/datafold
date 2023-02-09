@@ -448,13 +448,13 @@ class EDMD(
     def _least_squares_inverse_map(self, X, X_dict, U):
         if isinstance(X, pd.DataFrame):
             if U is not None:
-                X = X.loc[U.index,].to_numpy()
+                X = X.loc[U.index, :].to_numpy()
             else:
                 X = X.to_numpy()
 
         if isinstance(X_dict, pd.DataFrame):
             if U is not None:
-                X_dict = X_dict.loc[U.index,].to_numpy()
+                X_dict = X_dict.loc[U.index, :].to_numpy()
                 U = U.to_numpy()
             else:
                 X_dict = X_dict.to_numpy()

@@ -84,7 +84,7 @@ def adapt_bib():
     bibfile = bib.parse_file(path_bibfile)
 
     for key in bibfile.entries:
-        # note that there is no copy, so all following operations are directly on entry
+        # note that there is no copy, so all following operations are directly in the entry
         entry = bibfile.entries[key]
 
         # do not include these common fields as they are not
@@ -133,7 +133,7 @@ def validate_bib():
         _validate_key(key, entry)
 
         if not _has_identifier(entry):
-            print(f"WARNING: key={key}")
+            print(f"WARNING: key={key} has no identifier link (URL, ISBN, ISSN or DOI)")
 
 
 if __name__ == "__main__":
