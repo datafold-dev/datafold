@@ -672,16 +672,23 @@ class EDMD(
             self.steps[step_idx] = (name, fitted_transformer)
         return X
 
-    def _reconstruct(self, X: TSCDataFrame, U, qois):
+    def _reconstruct(self, X: TSCDataFrame, U: Optional[TSCDataFrame], qois):
         X_reconstruct = []
+
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=self.n_samples_ic_
         ):
             # transform initial condition to EDMD-dictionary space
             X_dict_ic = self.transform(X_ic)
 
+            if U is not None:
+                U_select = U.loc[pd.IndexSlice[X_ic.ids, :], :]
+                InitialCondition.validate_control(X_ic, U)
+            else:
+                U_select = None
+
             X_est_ts = self._predict_ic(
-                X_dict=X_dict_ic, U=U, time_values=time_values, qois=qois
+                X_dict=X_dict_ic, U=U_select, time_values=time_values, qois=qois
             )
 
             X_reconstruct.append(X_est_ts)
@@ -762,7 +769,6 @@ class EDMD(
                 X_ts = self._dmd_model.predict(X_dict, **dmd_params)
 
                 # map back to original space and select qois
-
                 if hasattr(self, "_inverse_map_control"):
                     vals = (X_ts.to_numpy() @ self._inverse_map)[
                         :-1, :
@@ -1035,13 +1041,14 @@ class EDMD(
 
         X_dict = self.transform(X)
 
-        if self.is_controlled_:
-            assert isinstance(U, TSCDataFrame)
-            U = U.loc[
-                U.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
-                >= time_values[0],
-                :,
-            ]
+        # TODO: deprecated, remove this later
+        # if self.is_controlled_:
+        #     assert isinstance(U, TSCDataFrame)
+        #     U = U.loc[
+        #         U.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+        #         >= time_values[0],
+        #         :,
+        #     ]
 
         X_ts = self._predict_ic(X_dict=X_dict, U=U, time_values=time_values, qois=qois)
         return X_ts
@@ -1935,9 +1942,11 @@ class EDMDWindowPrediction(object):
         X: TSCDataFrame,
         edmd: EDMD,
         offset: int,
+        *,
+        U: Optional[TSCDataFrame] = None,
         y=None,
         qois=None,
-        return_X_windows: bool = False,
+        return_windows: bool = False,
     ):
         """Reconstruct existing time series of equal length.
 
@@ -1959,7 +1968,7 @@ class EDMDWindowPrediction(object):
             A list of feature names of interest to be include in the returned
             predictions. Passed to :py:meth:`.predict`.
 
-        return_X_windows
+        return_windows
             If True, then an additional time series collection is returned,
             which contains extracted windows from `X`.
 
@@ -1970,6 +1979,8 @@ class EDMDWindowPrediction(object):
             also the extracted windows from `X`.
 
         """
+
+        check_is_fitted(edmd)
 
         if not hasattr(edmd, "window_size"):
             raise AttributeError(
@@ -1983,6 +1994,13 @@ class EDMDWindowPrediction(object):
                 f"samples required to make an initial condition ({edmd.n_samples_ic_=})"
             )
 
+        is_controlled = edmd.is_controlled_
+
+        if is_controlled and U is None:
+            raise ValueError(
+                f"The EDMD model was fit with control input "
+                f"({edmd.is_controlled_=}), but no control input was provided ({U=})")
+
         X = edmd._validate_datafold_data(
             X,
             ensure_tsc=True,
@@ -1990,6 +2008,9 @@ class EDMDWindowPrediction(object):
                 ensure_const_delta_time=True, ensure_min_timesteps=edmd.window_size
             ),
         )
+
+        U = edmd._validate_datafold_data(U, ensure_tsc=True, tsc_kwargs=dict(ensure_const_delta_time=True, ensure_delta_time=edmd.dt_))
+
         qois = edmd._validate_qois(
             qois=qois, valid_feature_names=edmd.feature_names_pred_
         )
@@ -2000,36 +2021,85 @@ class EDMDWindowPrediction(object):
                     window_size=edmd.window_size,
                     offset=offset,
                     per_time_series=True,
-                    strictly_sequential=True,
                 )
             )
         )
 
-        final_index_windows = X_windows.index.copy()
-
         n_timesteps = X_windows.n_timesteps
         assert isinstance(n_timesteps, int) and n_timesteps == edmd.window_size
 
-        final_index_reconstruct = (
+        # align the index and make equal for each time series
+        # (this way the prediction is vectorized)
+        index_final_reconstruct_X = (
             X_windows.groupby(TSCDataFrame.tsc_id_idx_name)
             .tail(edmd.window_size - edmd.n_samples_ic_ + 1)
             .index
         )
 
-        first_id_time_values = X_windows.loc[X_windows.ids[0]].index
+        if return_windows:
+            index_final_windows_X = X_windows.index.copy()
+        else:
+            index_final_windows_X = None
+
+        # for all time series set equal time values equal to allow for vectorized
+        # reconstruction
+        normalized_time_values = X_windows.loc[X_windows.ids[0]].index
         X_windows.index = pd.MultiIndex.from_product(
-            [X_windows.ids, first_id_time_values],
+            [X_windows.ids, normalized_time_values],
             names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
         )
 
-        X_reconstruct = edmd._reconstruct(X=X_windows, U=None, qois=qois)
+        if is_controlled:
+            U_windows = TSCDataFrame.from_frame_list(
+            list(
+                U.tsc.iter_timevalue_window(
+                    window_size=edmd.window_size,
+                    offset=offset,
+                    per_time_series=True,
+                    )
+                )
+            )
+
+            group = lambda df: df.groupby(TSCDataFrame.tsc_id_idx_name)
+
+            # remove last state, because it is not needed for the prediction
+            U_windows = group(U_windows).head(edmd.window_size - 1)
+            U_n_timesteps = U_windows.n_timesteps
+            assert isinstance(U_n_timesteps, int) and U_n_timesteps == edmd.window_size - 1
+
+            # remove first states that are not needed during initial condition
+            drop_indices = group(U_windows).head(edmd.n_samples_ic_-1).index
+            U_windows = U_windows.drop(drop_indices, axis=0, errors="ignore")
+
+            if return_windows:
+                index_final_windows_U = U_windows.index.copy()
+            else:
+                index_final_windows_U = None
+
+            normalized_time_values = U_windows.loc[U_windows.ids[0]].index
+            U_windows.index = pd.MultiIndex.from_product(
+                [U_windows.ids, normalized_time_values],
+                names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
+            )
+
+        else:
+            U_windows, index_final_windows_U = None, None
+
+
+
+        # finally reconstruct the data
+        X_reconstruct = edmd._reconstruct(X=X_windows, U=U_windows, qois=qois)
 
         # recover true index:
-        X_windows.index = final_index_windows
-        X_reconstruct.index = final_index_reconstruct
+        X_reconstruct.index = index_final_reconstruct_X
 
-        if return_X_windows:
-            return X_reconstruct, X_windows
+        if return_windows:
+            X_windows.index = index_final_windows_X
+            if is_controlled:
+                U_windows.index = index_final_windows_U
+                return X_reconstruct, X_windows, U_windows
+            else:
+                return X_reconstruct, X_windows
         else:
             return X_reconstruct
 
@@ -2091,6 +2161,8 @@ class EDMDWindowPrediction(object):
             The adapted model.
 
         """
+        # TODO: this is bad style, there is no reason to attach the attribute to the estimator
+        #  instead it can be used like offset below...
         estimator.window_size = self.window_size
 
         # overwrite the two methods with new "windowed" methods

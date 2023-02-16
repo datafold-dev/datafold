@@ -332,8 +332,9 @@ def init_tutorials():
         "We highlight how to use the Mahalanobis kernel within ``DiffusionMaps``. The key "
         "feature of this kernel is that it can yield embeddings that are invariant to the "
         "observation function.",
-        warning="The implementation of the Mahalanobis kernel is still experimental and "
-        "should be used with care. Contributions are welcome!",
+        warning="The implementation of Mahalanobis kernel in datafold is still experimental "
+                "and should be used with care. Contributions (mainly testing / documentation) "
+                "are welcome!",
     )
 
     add_tutorial(

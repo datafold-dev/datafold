@@ -190,9 +190,22 @@ class TSCAccessor(object):
             return n_timesteps
 
     def check_equal_timevalues(self) -> None:
-        """Check if all time series in the collection share the same time values."""
+        """Check if all time series in the collection have identical same time values."""
         if not self._tsc_df.is_same_time_values():
             raise TSCException.not_same_time_values()
+
+    def check_contain_required_ids(self, required_ids, check_order=False):
+        """Check that the time series collection contains exactly the required IDs."""
+        required_ids = np.asarray(required_ids)
+
+        if check_order:
+            X_ids = self._tsc_df.initial_states(1).index.get_level_values(TSCDataFrame.tsc_id_idx_name)
+        else:
+            required_ids = np.sort(required_ids)
+            X_ids = np.asarray(self._tsc_df.ids)  # already sorted
+
+        if X_ids.shape != required_ids.shape or (X_ids != required_ids).any():
+            raise TSCException.not_match_required_ids(required_ids)
 
     def check_normalized_time(self) -> None:
         """Check if time series collection has normalized time.
@@ -382,9 +395,9 @@ class TSCAccessor(object):
         window_size: int,
         offset: int,
         per_time_series: bool = False,
-        strictly_sequential: bool = True,
     ) -> Generator[TSCDataFrame, None, None]:
-        """Iterator over time series intervals (window).
+        """Iterator over time series windows.
+
 
         Parameters
         ----------
@@ -398,11 +411,8 @@ class TSCAccessor(object):
             shifted. If ``offset=blocksize``, then the windows are non-overlapping.
 
         per_time_series
-            If True, the windows are generated for each time series separately. This is
-            recommended if the time series in a collection are non-overlapping time values.
-
-        strictly_sequential
-            TODO
+            Treat every time series separately when iterating. This is recommended if the time
+            series in a collection have disjoint time values.
 
         Returns
         -------
@@ -430,10 +440,10 @@ class TSCAccessor(object):
                 f"Got {type(window_size)}"
             )
 
-        if offset <= 0:
+        if not is_integer(offset) or offset <= 0:
             raise ValueError(
-                f"The parameter 'offset={offset}' must be positive."
-                f"Got {type(window_size)}"
+                f"The parameter '{offset=}' must be a positive integer."
+                f"Got {type(offset)=}"
             )
 
         if per_time_series:
@@ -456,12 +466,7 @@ class TSCAccessor(object):
                 start = start + offset
                 end = start + window_size
 
-                _ret = current_tsc.select_time_values(selected_time_values)
-
-                if strictly_sequential and isinstance(_ret.n_timesteps, pd.Series):
-                    pass
-                else:
-                    yield _ret
+                yield current_tsc.select_time_values(selected_time_values)
 
     def shift_time_by_delta(self, shift_t: float):
         """Shift all time values from the time series by a constant value.

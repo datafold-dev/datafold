@@ -79,19 +79,25 @@ class TSCException(Exception):
         return cls(msg)
 
     @classmethod
+    def not_match_required_ids(cls, required_ids):
+        return cls(
+            "The time series collection does not contain all required time "
+            f"series IDs  {required_ids=}."
+        )
+
+    @classmethod
     def not_required_delta_time(cls, required_delta_time, actual_delta_time):
         return cls(
-            f"The required delta_time (={required_delta_time}) does not match the "
-            f"actual delta time {actual_delta_time}."
+            f"{required_delta_time=} does not match the {actual_delta_time=}."
         )
 
     @classmethod
     def not_same_time_values(cls):
-        return cls("The time series have not the same time values.")
+        return cls("The time series in the collection have not the same time values.")
 
     @classmethod
     def not_normalized_time(cls):
-        return cls("The time values are not normalized.")
+        return cls("The time values in the time series are not normalized.")
 
     @classmethod
     def not_required_n_timeseries(cls, required_n_timeseries, actual_n_timeseries):
@@ -1330,7 +1336,7 @@ class TSCDataFrame(pd.DataFrame):
         """Indicates if all time series in the collection share the same time values."""
 
         if self.n_timeseries == 1:
-            # trivial case early
+            # return trivial case early
             return True
 
         length_time_series = self.n_timesteps
@@ -1343,7 +1349,7 @@ class TSCDataFrame(pd.DataFrame):
             # are all the same.
 
             # This call is important, as the levels are usually not updated (even if
-            # they not appear in in the index).
+            # they not appear in the index).
             # See: https://stackoverflow.com/a/43824296
             self.index = self.index.remove_unused_levels()
             n_time_level_values = len(self.index.levels[1])
@@ -1837,7 +1843,7 @@ class InitialCondition(object):
 
     @classmethod
     def iter_reconstruct_ic(
-        cls, X: TSCDataFrame, n_samples_ic: int = 1
+        cls, X: TSCDataFrame, U: Optional[TSCDataFrame] = None, n_samples_ic: int = 1
     ) -> Generator[Tuple[TSCDataFrame, np.ndarray], None, None]:
         """Extract and iterate over initial conditions over groups of time series that
         have identical time values.
@@ -1848,6 +1854,10 @@ class InitialCondition(object):
         ----------
         X
             The time series collection to extract initial states from.
+
+        U
+            The control input acting on the states. If they are provided, these are used to
+            identify the time values of the prediction horizon.
 
         n_samples_ic
             The number of time steps per initial condition.
@@ -1864,7 +1874,7 @@ class InitialCondition(object):
 
         if np.isnan(time_series_table["delta_time"]).any():
             raise NotImplementedError(
-                "Currently, only constant delta times are " "implemented."
+                "Currently, only constant delta times are implemented."
             )
 
         for (_, _, _), df in time_series_table.groupby(
@@ -1948,19 +1958,17 @@ class InitialCondition(object):
 
     @classmethod
     def validate_control(cls, X_ic: TSCDataFrame, U: TSCDataFrame):
-        # TODO: compare with information in X
-        if (X_ic.ids != U.ids).all():
-            U_ids = list(U.ids)
-            X_ids = list(X_ic.ids)
-            raise ValueError(
-                f"The time series ids between initial conditions (X) and "
-                f"control (U) have to match! \n "
-                f"{X_ids=} \n"
-                f"{U_ids=}"
-            )
 
-        # TODO: each time series in U should have the same time information
-        # TODO:
+        X_ic.tsc.check_contain_required_ids(required_ids=U.ids, check_order=True)
+        U.tsc.check_equal_timevalues()
+
+        last_states = X_ic.final_states(1)
+        init_control = U.initial_states(1)
+
+        if (last_states.index.get_level_values(TSCDataFrame.tsc_time_idx_name) != init_control.index.get_level_values(TSCDataFrame.tsc_time_idx_name)).any():
+            raise TSCException(
+                "The last time value of X must match the "
+                "first time value of the control input.")
 
 
 def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
