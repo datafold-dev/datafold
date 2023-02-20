@@ -12,7 +12,7 @@ from datafold import (
     TSCIdentity,
     gDMDAffine,
 )
-from datafold.appfold.mpc import AffineKgMPC, LinearKMPC
+from datafold.appfold.mpc import KMPC, AffineKgMPC
 from datafold.dynfold.dynsystem import LinearDynamicalSystem
 
 
@@ -61,7 +61,7 @@ class LinearKMPCTest(unittest.TestCase):
 
         edmdmock.transform = lambda x: x
 
-        kmpcperfect = LinearKMPC(
+        kmpcperfect = KMPC(
             edmd=edmdmock,
             horizon=n_timesteps,
             state_bounds=np.array([[-5, 5]] * state_size),
@@ -91,7 +91,7 @@ class LinearKMPCTest(unittest.TestCase):
         )
         edmd.fit(self.X_tsc, U=self.U_tsc)
 
-        kmpc = LinearKMPC(
+        kmpc = KMPC(
             edmd=edmd,
             horizon=horizon,
             state_bounds=np.array([[-1, 1], [0, 6.28]]),

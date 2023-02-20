@@ -1,6 +1,7 @@
+import inspect
 import warnings
 from typing import List, Optional, Tuple, Union
-import inspect
+
 import numpy as np
 import pandas as pd
 import scipy.sparse
@@ -47,8 +48,8 @@ def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
         )
 
 
-class LinearKMPC:
-    r"""Class to implement Lifting based Model Predictive Control.
+class KMPC:
+    r"""Class to implement Koopman operator-based model predictive control.
 
     Given a linear controlled model evolving at timestep :math:`k`
 
@@ -226,12 +227,15 @@ class LinearKMPC:
         Q, q, R, r = self._create_cost_matrices()
         G, h, lb, ub = self._create_constraint_matrices(Bb)
 
-        H = 2 * (Bb.T @ Q @ Bb + R)
+        # tmp variable to save computations
+        BbTQ = 2 * Bb.T @ Q
+
+        H = BbTQ @ Bb + 2 * R
         a = (
             r + Bb.T @ q
         )  # TODO: currently a is always zero (maybe better name for `a`?)
-        M = 2 * Bb.T @ Q @ Ab
-        Y = (-2 * Q @ Bb).T
+        M = BbTQ @ Ab
+        Y = BbTQ
 
         if G is None:
             # Ab is not required to store if there are no bounds on state
@@ -438,7 +442,7 @@ class LinearKMPC:
 
         U = solve_qp(
             P=self.H,
-            q=(self.M @ X_dict.to_numpy().T + self.Y @ np_reference).flatten(),
+            q=(self.M @ X_dict.to_numpy().T - self.Y @ np_reference).flatten(),
             G=self.G,
             h=h,
             A=None,
