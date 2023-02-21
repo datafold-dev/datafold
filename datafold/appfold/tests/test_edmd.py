@@ -594,6 +594,37 @@ class EDMDTest(unittest.TestCase):
         self.assertTrue(_sin_column_is_in(actual3))
         self.assertTrue(_sin_column_is_in(actual4))
 
+    def test_edmd_transform01(self):
+        edmd = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=False)),
+            ],
+            include_id_state=False,
+        )
+        actual = edmd.fit_transform(self.sine_wave_tsc)
+        expected = self.sine_wave_tsc
+
+        pdtest.assert_frame_equal(actual, expected)
+
+    def test_edmd_transform02(self):
+        edmd = EDMD(
+            dict_steps=[
+                ("id", TSCIdentity(rename_features=False)),
+            ],
+            include_id_state=False,
+        )
+        edmd = edmd.fit(self.sine_wave_tsc)
+
+        # test if transform is inferred right
+        input = self.sine_wave_tsc.to_numpy()
+        actual = edmd.transform(input)
+
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertEqual(actual.delta_time, edmd.dt_)
+
+        expected = self.sine_wave_tsc
+        pdtest.assert_frame_equal(actual, expected)
+
     def test_separate_target_data01(self):
         edmd1 = EDMD(
             dict_steps=[

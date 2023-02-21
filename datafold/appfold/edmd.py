@@ -814,7 +814,8 @@ class EDMD(
             DMD model, at which point the time indices must be identical to the states in `X`.
 
         y
-            TODO target values
+            A different set of target values than the original states to map to with
+            Koopman modes. **This is an experimental feature.**
 
         **fit_params: Dict[str, object]
             Parameters passed to the ``fit`` method of each step, where
@@ -1247,13 +1248,19 @@ class EDMD(
             The transformed time series. The number of samples of each time series are reduced
             if `n_samples_ic_ > 1`.
         """
+
+        if isinstance(X, np.ndarray):
+            X = TSCDataFrame.from_array(
+                X,
+                feature_names=self.feature_names_in_,
+                time_values=np.arange(0, self.dt_ * X.shape[0], self.dt_),
+            )
+
         if self.include_id_state:
             # copy required to properly attach X later on
             X_dict = X.copy(deep=True)
         else:
             X_dict = X
-
-        # TODO: need to validate data here?
 
         # carry out dictionary transformations:
         for _, name, tsc_transform in self._iter(with_final=False):

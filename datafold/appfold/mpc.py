@@ -180,7 +180,7 @@ class LinearKMPC:
             self.qois = qois
             self.is_all_features = False
 
-        self.n_qois = len(qois)
+        self.n_qois = len(self.qois)
 
         self.n_features = self.edmd.dmd_model.n_features_in_
         self.n_control_input = self.edmd.dmd_model.n_control_in_
@@ -398,8 +398,8 @@ class LinearKMPC:
         # TODO: linear cost is currently not supported
 
         # Currently, only the control of a single time series is supported
-        X.tsc.check_required_n_timeseries(1)
-        X.tsc.check_required_n_timesteps(self.edmd.n_samples_ic_)
+        # X.tsc.check_required_n_timeseries(1)
+        # X.tsc.check_required_n_timesteps(self.edmd.n_samples_ic_)
 
         X_dict = self.edmd.transform(X)
 
@@ -462,9 +462,10 @@ class LinearKMPC:
         # Note: it is better to use np.arange to have numerical *exact* time values
         #   -- in contrast "reference.time_values() - edmd.dt_" often creates numerical noise
         start = X_dict.time_values()[0]
-        control_time_values = np.arange(
-            start, start + self.horizon * self.edmd.dt_ - 1e-14, self.edmd.dt_
-        )
+
+        # it is safer to use the time values from the initial condition and reference
+        # this does not introduce potential numerical noise or changes the type
+        control_time_values = np.append(t_ic, reference.time_values()[:-1])
 
         U = TSCDataFrame.from_array(
             U.reshape((self.horizon, self.n_control_input)),
