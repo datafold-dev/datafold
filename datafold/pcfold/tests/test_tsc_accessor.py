@@ -91,6 +91,17 @@ class TestTSCAccessor(unittest.TestCase):
             len(list(tsc_df2.tsc.iter_timevalue_window(window_size=5, offset=1))), 6
         )
 
+        # if per_time_series, the list becomes double as long
+        self.assertEqual(
+            len(list(tsc_df2.tsc.iter_timevalue_window(window_size=2, offset=2, per_time_series=True))), 10,
+        )
+        self.assertEqual(
+            len(list(tsc_df2.tsc.iter_timevalue_window(window_size=5, offset=5, per_time_series=True))), 4
+        )
+        self.assertEqual(
+            len(list(tsc_df2.tsc.iter_timevalue_window(window_size=5, offset=1, per_time_series=True))), 12
+        )
+
     def test_assign_ids_sequential(self):
         tsc_df = TSCDataFrame(self.simple_df)
 

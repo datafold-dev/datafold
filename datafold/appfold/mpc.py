@@ -1,3 +1,4 @@
+import inspect
 import warnings
 from typing import List, Optional, Tuple, Union
 
@@ -47,8 +48,8 @@ def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
         )
 
 
-class LinearKMPC:
-    r"""Class to implement Lifting based Model Predictive Control.
+class KMPC:
+    r"""Class to implement Koopman operator-based model predictive control.
 
     Given a linear controlled model evolving at timestep :math:`k`
 
@@ -103,16 +104,16 @@ class LinearKMPC:
         ["z1",...,"zn"] or [index("z1"), ..., index("zn")]
 
     cost_running : float | np.ndarray(shape=(1,n)), optional, by default 0.1
-        Quadratic cost of the state for internal time steps :math:`Q`. If of type float, the
-        same cost will be applied to all state dimensions.
+        Quadratic cost of the state for internal time steps :math:`Q`. If the argument is of
+        type float, then the same cost will be applied to all state dimensions.
 
     cost_terminal : float | np.ndarray(shape=(1,n)), optional, by default 100
-        Quadratic cost of the state at the end of the prediction :math:`Q_{N_p}`. If of type
-        float, the same cost will be applied to all state dimensions.
+        Quadratic cost of the state at the end of the prediction :math:`Q_{N_p}`. If the
+        argument is of type float, then the same cost will be applied to all state dimensions.
 
     cost_input : float | np.ndarray(shape=(1,n)), optional, by default 0.01
-        Quadratic cost of the input :math:`R`. If of type float, the same cost will be applied
-        to all input dimensions.
+        Quadratic cost of the input :math:`R`. If the argument is of type float, then the same
+        cost will be applied to all state dimensions.
 
     Attributes
     ----------
@@ -226,12 +227,15 @@ class LinearKMPC:
         Q, q, R, r = self._create_cost_matrices()
         G, h, lb, ub = self._create_constraint_matrices(Bb)
 
-        H = 2 * (Bb.T @ Q @ Bb + R)
+        # tmp variable to save computations
+        BbTQ = 2 * Bb.T @ Q
+
+        H = BbTQ @ Bb + 2 * R
         a = (
             r + Bb.T @ q
         )  # TODO: currently a is always zero (maybe better name for `a`?)
-        M = 2 * Bb.T @ Q @ Ab
-        Y = (-2 * Q @ Bb).T
+        M = BbTQ @ Ab
+        Y = BbTQ
 
         if G is None:
             # Ab is not required to store if there are no bounds on state
@@ -429,6 +433,7 @@ class LinearKMPC:
         np_reference = np_reference.reshape((self.horizon * self.n_qois, 1))
 
         if self.h is not None:
+            # This is required to fulfill the state bounds
             # if Ab is None than there is a bug, so there is no check
             h_ic_adapt = self.Ab @ X_dict.to_numpy().ravel()
             h = self.h + np.hstack([-h_ic_adapt, h_ic_adapt])
@@ -437,7 +442,7 @@ class LinearKMPC:
 
         U = solve_qp(
             P=self.H,
-            q=(self.M @ X_dict.to_numpy().T + self.Y @ np_reference).flatten(),
+            q=(self.M @ X_dict.to_numpy().T - self.Y @ np_reference).flatten(),
             G=self.G,
             h=h,
             A=None,
@@ -446,7 +451,7 @@ class LinearKMPC:
             ub=self.ub,
             solver="cvxpy",
             verbose=False,
-            initvals=None,
+            initvals=None,  # TODO: make use of initvals for iteration?
         )
 
         if U is None:
@@ -498,13 +503,12 @@ class LinearKMPC:
 
         """
         # TODO: validation  # TODO: fill_horizon_with_last_state option
+        # TODO: it should also be possible that the system terminates the simulation
 
-        import inspect
-
-        if inspect.isclass(sys):
-            eval_sys = sys.predict  # set to function
-        else:
+        if inspect.ismethod(sys):
             eval_sys = sys
+        else:
+            eval_sys = sys.predict  # set to function
 
         sys_seq = sys_ic.copy()
         X_seq = X_ic.copy()
@@ -527,23 +531,29 @@ class LinearKMPC:
             )
 
             # TODO: currently we take only the next input. This could be generalized to take
-            #  more input from
+            #  more control input
             U_next = ukmpc.iloc[[0], :]
 
             time_values = [U_next.time_values()[0], _ref.time_values()[0]]
 
             # forward the true model with the next optimal control
-            # TODO: this needs to be predict!
-            state, _ = eval_sys(
-                sys_seq.iloc[[-1], :],
-                U=U_next,
-                time_values=time_values,
-            )
+            try:
+                state, _ = eval_sys(
+                    sys_seq.iloc[[-1], :],
+                    U=U_next,
+                    time_values=time_values,
+                )
+            except RuntimeError:
+                print("Simulation has terminated")
+                # TODO: maybe own error to indicate termination?
+                break
 
             if augment_control:
                 # augment the state for the next prediction
-                new_state = state.tsc.augment_control_input(U_next).iloc[[-1], :]
-                new_state = new_state.loc[:, self.edmd.feature_names_in_]
+                edmd_state = state.tsc.augment_control_input(U_next).iloc[[-1], :]
+                edmd_state = edmd_state.loc[:, self.edmd.feature_names_in_]
+            else:
+                edmd_state = state.loc[:, self.edmd.feature_names_in_]
 
             # TODO: preallocating memory and writing in is more efficient than concat
             # store control input and state the sequence, which is used later for plotting
@@ -553,7 +563,7 @@ class LinearKMPC:
                 sys_seq = pd.concat([sys_seq, state.iloc[[-1], :]], axis=0)
 
             U_seq = pd.concat([U_seq, U_next], axis=0)
-            X_seq = pd.concat([X_seq, new_state], axis=0)
+            X_seq = pd.concat([X_seq, edmd_state], axis=0)
 
         return sys_seq, U_seq
 
