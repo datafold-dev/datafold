@@ -333,8 +333,8 @@ def init_tutorials():
         "feature of this kernel is that it can yield embeddings that are invariant to the "
         "observation function.",
         warning="The implementation of Mahalanobis kernel in datafold is still experimental "
-                "and should be used with care. Contributions (mainly testing / documentation) "
-                "are welcome!",
+        "and should be used with care. Contributions (mainly testing / documentation) "
+        "are welcome!",
     )
 
     add_tutorial(

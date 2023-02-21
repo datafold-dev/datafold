@@ -199,7 +199,9 @@ class TSCAccessor(object):
         required_ids = np.asarray(required_ids)
 
         if check_order:
-            X_ids = self._tsc_df.initial_states(1).index.get_level_values(TSCDataFrame.tsc_id_idx_name)
+            X_ids = self._tsc_df.initial_states(1).index.get_level_values(
+                TSCDataFrame.tsc_id_idx_name
+            )
         else:
             required_ids = np.sort(required_ids)
             X_ids = np.asarray(self._tsc_df.ids)  # already sorted

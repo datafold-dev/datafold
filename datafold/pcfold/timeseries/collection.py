@@ -87,9 +87,7 @@ class TSCException(Exception):
 
     @classmethod
     def not_required_delta_time(cls, required_delta_time, actual_delta_time):
-        return cls(
-            f"{required_delta_time=} does not match the {actual_delta_time=}."
-        )
+        return cls(f"{required_delta_time=} does not match the {actual_delta_time=}.")
 
     @classmethod
     def not_same_time_values(cls):
@@ -1958,17 +1956,20 @@ class InitialCondition(object):
 
     @classmethod
     def validate_control(cls, X_ic: TSCDataFrame, U: TSCDataFrame):
-
         X_ic.tsc.check_contain_required_ids(required_ids=U.ids, check_order=True)
         U.tsc.check_equal_timevalues()
 
         last_states = X_ic.final_states(1)
         init_control = U.initial_states(1)
 
-        if (last_states.index.get_level_values(TSCDataFrame.tsc_time_idx_name) != init_control.index.get_level_values(TSCDataFrame.tsc_time_idx_name)).any():
+        if (
+            last_states.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+            != init_control.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
+        ).any():
             raise TSCException(
                 "The last time value of X must match the "
-                "first time value of the control input.")
+                "first time value of the control input."
+            )
 
 
 def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):

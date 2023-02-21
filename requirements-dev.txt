@@ -1,5 +1,6 @@
 -r requirements.txt
 coverage[toml]==7.1.0
+cvxpy==1.3.0
 git+https://github.com/jmbr/diffusion-maps@main
 jupyter>=1.0.0,<2.0.0
 nbformat==5.7.3
@@ -20,4 +21,3 @@ sphinx-copybutton==0.5.1
 sphinx_design==0.3.0
 sphinxcontrib-bibtex==2.5.0
 tqdm==4.64.1
-cvxpy==1.3.0

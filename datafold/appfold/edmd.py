@@ -2006,7 +2006,8 @@ class EDMDWindowPrediction(object):
         if is_controlled and U is None:
             raise ValueError(
                 f"The EDMD model was fit with control input "
-                f"({edmd.is_controlled_=}), but no control input was provided ({U=})")
+                f"({edmd.is_controlled_=}), but no control input was provided ({U=})"
+            )
 
         X = edmd._validate_datafold_data(
             X,
@@ -2016,7 +2017,11 @@ class EDMDWindowPrediction(object):
             ),
         )
 
-        U = edmd._validate_datafold_data(U, ensure_tsc=True, tsc_kwargs=dict(ensure_const_delta_time=True, ensure_delta_time=edmd.dt_))
+        U = edmd._validate_datafold_data(
+            U,
+            ensure_tsc=True,
+            tsc_kwargs=dict(ensure_const_delta_time=True, ensure_delta_time=edmd.dt_),
+        )
 
         qois = edmd._validate_qois(
             qois=qois, valid_feature_names=edmd.feature_names_pred_
@@ -2058,11 +2063,11 @@ class EDMDWindowPrediction(object):
 
         if is_controlled:
             U_windows = TSCDataFrame.from_frame_list(
-            list(
-                U.tsc.iter_timevalue_window(
-                    window_size=edmd.window_size,
-                    offset=offset,
-                    per_time_series=True,
+                list(
+                    U.tsc.iter_timevalue_window(
+                        window_size=edmd.window_size,
+                        offset=offset,
+                        per_time_series=True,
                     )
                 )
             )
@@ -2072,10 +2077,12 @@ class EDMDWindowPrediction(object):
             # remove last state, because it is not needed for the prediction
             U_windows = group(U_windows).head(edmd.window_size - 1)
             U_n_timesteps = U_windows.n_timesteps
-            assert isinstance(U_n_timesteps, int) and U_n_timesteps == edmd.window_size - 1
+            assert (
+                isinstance(U_n_timesteps, int) and U_n_timesteps == edmd.window_size - 1
+            )
 
             # remove first states that are not needed during initial condition
-            drop_indices = group(U_windows).head(edmd.n_samples_ic_-1).index
+            drop_indices = group(U_windows).head(edmd.n_samples_ic_ - 1).index
             U_windows = U_windows.drop(drop_indices, axis=0, errors="ignore")
 
             if return_windows:
@@ -2091,8 +2098,6 @@ class EDMDWindowPrediction(object):
 
         else:
             U_windows, index_final_windows_U = None, None
-
-
 
         # finally reconstruct the data
         X_reconstruct = edmd._reconstruct(X=X_windows, U=U_windows, qois=qois)
