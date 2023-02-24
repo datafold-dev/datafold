@@ -980,14 +980,17 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_multi_time_tsc4(self):
         # behaviour if not all time points are present
         ts = TSCDataFrame(self.simple_df)
+        actual = ts.select_time_values(time_values=np.array([0, 1]))
 
-        with warnings.catch_warnings():
-            # -1 is even an illegal but this will raise an error in future
-            warnings.simplefilter(action="ignore", category=FutureWarning)
-            new_ts = ts.select_time_values(time_values=np.array([0, 1, -1]))
+        expected_time = (0, 1)
+        expected_ids = (0, 1, 15)
 
-        self.assertTrue(np.in1d(new_ts.time_values(), (0, 1)).all())
-        self.assertTrue(np.in1d(new_ts.ids, (0, 1, 15)).all())
+        self.assertTrue(np.in1d(actual.time_values(), expected_time).all())
+        self.assertTrue(np.in1d(actual.ids, expected_ids).all())
+
+        with self.assertRaises(KeyError):
+            # from pandas>=2.0 an illegal key (here 500) raises a KeyError
+            ts.select_time_values(time_values=np.array([0, 1, 500]))
 
     def test_loc_slice01(self):
         # get time series with ID = 0 --> is not a TSCDataFrame anymore, because the ID
