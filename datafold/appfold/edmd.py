@@ -893,7 +893,7 @@ class EDMD(
         if self.is_controlled_ and self.n_samples_ic_ > 1:
             # align index of control input with intersection of indices
             # Some keys may be dropped here (e.g. when using time delay embedding)
-            assert U is not None  # for mypy
+            assert U is not None  # for mypy typing
             inters_keys = X_dict.index.intersection(U.index)
             U = U.loc[inters_keys, :]  # type: ignore
 
@@ -2062,6 +2062,7 @@ class EDMDWindowPrediction(object):
         )
 
         if is_controlled:
+            assert U is not None  # for mypy typing
             U_windows = TSCDataFrame.from_frame_list(
                 list(
                     U.tsc.iter_timevalue_window(

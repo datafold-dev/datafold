@@ -464,10 +464,6 @@ class KMPC:
         # series, therefore the actual control sequence starts at the initial state (not the
         # first time value in the reference time series
 
-        # Note: it is better to use np.arange to have numerical *exact* time values
-        #   -- in contrast "reference.time_values() - edmd.dt_" often creates numerical noise
-        start = X_dict.time_values()[0]
-
         # it is safer to use the time values from the initial condition and reference
         # this does not introduce potential numerical noise or changes the type
         control_time_values = np.append(t_ic, reference.time_values()[:-1])

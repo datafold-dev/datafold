@@ -291,11 +291,11 @@ class DMDBase(
         else:
             return input_features
 
-    def predict(
+    def predict(  # type: ignore
         self,
         X: InitialConditionType,
         *,
-        U: Optional[TSCDataFrame] = None,
+        U: Optional[TSCDataFrame] = None,  # type: ignore
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:  # type: ignore

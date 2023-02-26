@@ -309,7 +309,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("base class")
 
-    def predict(
+    def predict(  # type: ignore
         self,
         X,
         *,
@@ -357,7 +357,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         else:
             self.dt_ = self._default_step_size
 
-        if not isinstance(U, Callable):
+        if not callable(U):
             if isinstance(U, np.ndarray) and X.shape[0] == U.shape[0]:
                 if time_values is None:
                     raise ValueError(
@@ -400,7 +400,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
         for i in range(X.shape[0]):
             ic = X[i]
 
-            if isinstance(U, Callable):
+            if callable(U):
                 # user specified input
                 Ufunc = U
             elif len(time_values) == 2:
@@ -449,7 +449,7 @@ class ControllableODE(DynamicalSystem, metaclass=abc.ABCMeta):
 
         X_sol = TSCDataFrame.from_frame_list(X_sol)
 
-        if isinstance(U, Callable):
+        if callable(U):
             X_sol_but_last = X_sol.tsc.drop_last_n_samples(1)
 
             tv = X_sol_but_last.index.get_level_values(
@@ -1162,60 +1162,60 @@ class Duffing1D(ControllableODE):
 #  include benchmark systems from: https://arxiv.org/pdf/2008.12874.pdf
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
-    X = np.array(100)
-
-    Burger1DPeriodicBoundary().predict()
-
-    exit()
-
-    if False:
-        n_ic = 500
-        state = np.random.uniform(-3.0, 3.0, size=(n_ic, 2))
-
-        x = np.linspace(-3, 3, 50)
-        y = np.linspace(-3, 3, 50)
-        xv, yv = np.meshgrid(x, y)
-
-        sys = VanDerPol()
-
-        state = np.column_stack([xv.flatten(), yv.flatten()])
-        control = np.random.uniform(-3.0, 3.0, size=(state.shape[0], 1))
-        control = np.zeros((state.shape[0], 1))
-        trajectory, U = sys.predict(X=state, U=control, time_values=np.array([0.03]))
-
-        group = trajectory.groupby("ID")
-        start, end = group.head(1).to_numpy(), group.tail(1).to_numpy()
-
-        for i in range(start.shape[0]):
-            plt.plot(
-                np.array([start[i, 0], end[i, 0]]),
-                np.array([start[i, 1], end[i, 1]]),
-                "black",
-            )
-
-        n_timesteps = 500
-        state = np.random.uniform(-3.0, 3.0, size=(1, 2))
-        control = np.zeros((n_timesteps, 1))
-        timevals = np.linspace(0, 10, n_timesteps)
-        trajectory, _ = sys.predict(X=state, U=control, time_values=timevals)
-
-        plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
-
-    else:
-        n_timesteps = 500
-        state = np.random.uniform(-3.0, 3.0, size=(1, 2))
-        control = np.random.uniform(-3.0, 3.0, size=(n_timesteps, 1))
-        control = np.zeros((n_timesteps, 1))
-        timevals = np.linspace(0, 10, n_timesteps)
-        trajectory, U = VanDerPol(eps=1).predict(
-            X=state, U=control, time_values=timevals
-        )
-
-        plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
-
-    plt.show()
+    pass
+    # import matplotlib.pyplot as plt
+    #
+    # X = np.array(100)
+    #
+    # Burger1DPeriodicBoundary().predict()
+    #
+    # exit()
+    # if False:
+    #     n_ic = 500
+    #     state = np.random.uniform(-3.0, 3.0, size=(n_ic, 2))
+    #
+    #     x = np.linspace(-3, 3, 50)
+    #     y = np.linspace(-3, 3, 50)
+    #     xv, yv = np.meshgrid(x, y)
+    #
+    #     sys = VanDerPol()
+    #
+    #     state = np.column_stack([xv.flatten(), yv.flatten()])
+    #     control = np.random.uniform(-3.0, 3.0, size=(state.shape[0], 1))
+    #     control = np.zeros((state.shape[0], 1))
+    #     trajectory, U = sys.predict(X=state, U=control, time_values=np.array([0.03]))
+    #
+    #     group = trajectory.groupby("ID")
+    #     start, end = group.head(1).to_numpy(), group.tail(1).to_numpy()
+    #
+    #     for i in range(start.shape[0]):
+    #         plt.plot(
+    #             np.array([start[i, 0], end[i, 0]]),
+    #             np.array([start[i, 1], end[i, 1]]),
+    #             "black",
+    #         )
+    #
+    #     n_timesteps = 500
+    #     state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+    #     control = np.zeros((n_timesteps, 1))
+    #     timevals = np.linspace(0, 10, n_timesteps)
+    #     trajectory, _ = sys.predict(X=state, U=control, time_values=timevals)
+    #
+    #     plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
+    #
+    # else:
+    #     n_timesteps = 500
+    #     state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+    #     control = np.random.uniform(-3.0, 3.0, size=(n_timesteps, 1))
+    #     control = np.zeros((n_timesteps, 1))
+    #     timevals = np.linspace(0, 10, n_timesteps)
+    #     trajectory, U = VanDerPol(eps=1).predict(
+    #         X=state, U=control, time_values=timevals
+    #     )
+    #
+    #     plt.plot(trajectory["x1"].to_numpy(), trajectory["x2"].to_numpy())
+    #
+    # plt.show()
 
 
 # if __name__ == "__main__":

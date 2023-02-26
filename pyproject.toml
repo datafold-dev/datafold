@@ -18,7 +18,9 @@ exclude = '''
     | \.pytest_cache
     | \.mypy_cache
     | \build
-    | \dist
+    | \\dist
+    | \\joss\_paper
+    | \\coverage
   )/
 )
 '''
@@ -26,7 +28,7 @@ exclude = '''
 
 [tool.pytest.ini_options]
 # https://docs.pytest.org/en/stable/customize.html
-minversion = "6.0"
+minversion = "7.0"
 
 
 [tool.coverage.run]

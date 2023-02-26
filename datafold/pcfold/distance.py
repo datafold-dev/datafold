@@ -966,7 +966,7 @@ def _all_available_distance_algorithm(require_symmetric=False):
                     return_backends.append(b)
                 elif not require_symmetric:
                     return_backends.append(b)
-        except AttributeError or AssertionError:
+        except AttributeError:
             raise NotImplementedError(
                 f"Bug: class {type(b)} has no 'name' attribute or it is not of "
                 f"type 'str'. Check implementation."
