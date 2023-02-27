@@ -54,7 +54,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         verbose=False,
         verbose_feature_names_out=True
     ):
-        super(TSCColumnTransformer, self).__init__(
+        super().__init__(
             transformers=transformers,
             remainder=remainder,
             sparse_threshold=0.3,  # default value, parameter ignored in TSCColumnTransformer
@@ -84,7 +84,7 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
     def fit(self, X: TransformType, y=None, **fit_params):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
-        return super(TSCColumnTransformer, self).fit(X)
+        return super().fit(X)
 
     def partial_fit(self, X, y=None, **fit_params):
         if not hasattr(self, "transformers_"):

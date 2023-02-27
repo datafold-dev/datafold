@@ -317,7 +317,7 @@ development dependencies:
 * `mathjax <https://www.mathjax.org/>`__ to display equations in the browser
 * `graphviz <https://graphviz.org/>`__ to render class dependency graphs
 * `pandoc <https://pandoc.org/index.html>`__ to convert between formats (required by
-  `nbsphinx` Sphinx extension that includes the
+  ``nbsphinx`` Sphinx extension that includes the
   `Jupyter tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
   to the web page).
 

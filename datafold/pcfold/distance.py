@@ -480,9 +480,7 @@ class BruteForceDist(DistanceAlgorithm):
     ):
         self.exact_numeric = exact_numeric
         self.backend_options = backend_options
-        super(BruteForceDist, self).__init__(
-            metric=metric, is_symmetric=True, cut_off=cut_off or np.inf
-        )
+        super().__init__(metric=metric, is_symmetric=True, cut_off=cut_off or np.inf)
 
     @classmethod
     def is_symmetric(cls):
@@ -580,9 +578,7 @@ class RDist(DistanceAlgorithm):
             raise ImportError("Could not import rdist. Check if it is installed.")
         self.backend_options = backend_options
         self._validate_metric(valid=["euclidean", "sqeuclidean"], metric=metric)
-        super(RDist, self).__init__(
-            metric=metric, is_symmetric=True, cut_off=cut_off, k=kmin
-        )
+        super().__init__(metric=metric, is_symmetric=True, cut_off=cut_off, k=kmin)
 
     @classmethod
     def is_symmetric(cls):
@@ -678,7 +674,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
     def __init__(self, cut_off, metric="euclidean", kmin=None, **backend_options):
         self.backend_options = backend_options
         self._validate_metric(valid=["euclidean", "sqeuclidean"], metric=metric)
-        super(ScipyKdTreeDist, self).__init__(
+        super().__init__(
             metric=metric, is_symmetric=True, cut_off=cut_off or np.inf, k=kmin
         )
 
@@ -785,7 +781,7 @@ class SklearnBalltreeDist(DistanceAlgorithm):
     ):
         self.backend_options = backend_options
         self._validate_metric(valid=["euclidean", "sqeuclidean"], metric=metric)
-        super(SklearnBalltreeDist, self).__init__(
+        super().__init__(
             metric=metric, is_symmetric=True, cut_off=cut_off or np.inf, k=kmin
         )
 
@@ -857,7 +853,7 @@ class SklearnKNN(DistanceAlgorithm):
 
     def __init__(self, metric, k, **backend_options):
         self.backend_options = backend_options
-        super(SklearnKNN, self).__init__(metric=metric, is_symmetric=False, k=k)
+        super().__init__(metric=metric, is_symmetric=False, k=k)
 
     @classmethod
     def is_symmetric(cls):

@@ -15,7 +15,7 @@ from datafold.pcfold import TSCDataFrame
 from datafold.utils.general import is_df_same_index, is_integer, series_if_applicable
 
 
-class TSCMetric(object):
+class TSCMetric:
     """Compute metrics for time series collection data.
 
     Parameters
@@ -480,7 +480,7 @@ class TSCMetric(object):
         return metric_result
 
 
-class TSCScoring(object):
+class TSCScoring:
     """Create scoring function from :class:`.TSCMetric`.
 
     Parameters

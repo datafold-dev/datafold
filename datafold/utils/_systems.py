@@ -514,7 +514,7 @@ class InvertedPendulum(ControllableODE):
         self.pendulum_length = pendulum_length
         self.cart_friction = cart_friction
 
-        super(InvertedPendulum, self).__init__(
+        super().__init__(
             feature_names_in=["x", "xdot", "theta", "thetadot"],
             control_names_in=["u"],
         )
@@ -702,7 +702,7 @@ class InvertedPendulum2(ControllableODE):
         self.cart_friction = cart_friction
         self.l = 0.3  # noqa: E741
 
-        super(InvertedPendulum2, self).__init__(
+        super().__init__(
             feature_names_in=["x", "xdot", "theta", "thetadot"],
             control_names_in=["u"],
         )
@@ -849,7 +849,7 @@ class Burger1DPeriodicBoundary(ControllableODE):
         self.x_nodes = np.linspace(0, 2 * np.pi, n_spatial_points)
         self.dx = self.x_nodes[1] - self.x_nodes[0]
 
-        super(Burger1DPeriodicBoundary, self).__init__(
+        super().__init__(
             feature_names_in=[f"x{i}" for i in range(n_spatial_points)],
             control_names_in=[f"u{i}" for i in range(n_spatial_points)],
             **{"method": "RK23", "vectorized": True},
@@ -1009,7 +1009,7 @@ class DCMotor(ControllableODE):
     def __init__(self, ivp_kwargs=None):
         ivp_kwargs = ivp_kwargs or {}
         ivp_kwargs.setdefault("method", "RK23")
-        super(DCMotor, self).__init__(
+        super().__init__(
             feature_names_in=["x1", "x2"], control_names_in=["u"], **ivp_kwargs
         )
 
@@ -1116,7 +1116,7 @@ class VanDerPol(ControllableODE):
                 f"{control_coord=} invalid. Choose from {self._allowed_control_input}"
             )
 
-        super(VanDerPol, self).__init__(
+        super().__init__(
             feature_names_in=["x1", "x2"],
             control_names_in=control_names_in,
             **solver_kwargs,
@@ -1143,7 +1143,7 @@ class Duffing1D(ControllableODE):
         self.beta = beta
         self.delta = delta
 
-        super(Duffing1D, self).__init__(
+        super().__init__(
             n_features_in=2,
             feature_names_in=["x1", "x2"],
             n_control_in=1,

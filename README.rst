@@ -203,7 +203,7 @@ require additional dependencies which are managed in
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`__.
    This is done by deriving the models from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
-   and appropriate `MixIns`. *datafold* defines own `MixIns` that align with the
+   and appropriate ``MixIns``. *datafold* defines own ``MixIns`` that align with the
    API in a duck-typing fashion to allow identifying dynamical systems from temporal data
    in ``TSCDataFrame``.
 

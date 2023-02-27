@@ -384,7 +384,7 @@ class TSCIncrementalPCA(IncrementalPCA, TSCTransformerMixin):  # pragma: no cove
     # TODO: docu, tests
 
     def __init__(self, n_components, *, whiten=False, copy=False, batch_size=None):
-        super(TSCIncrementalPCA, self).__init__(
+        super().__init__(
             n_components=n_components, whiten=whiten, copy=copy, batch_size=batch_size
         )
 
@@ -392,7 +392,7 @@ class TSCIncrementalPCA(IncrementalPCA, TSCTransformerMixin):  # pragma: no cove
         return np.array([f"pca{i}" for i in range(self.n_components_)], dtype=object)
 
     def partial_fit(self, X, y=None, check_input=True):
-        super(TSCIncrementalPCA, self).partial_fit(X, y=y)
+        super().partial_fit(X, y=y)
 
         if self.n_samples_seen_ == X.shape[0]:
             self._setup_feature_attrs_fit(X)
@@ -448,7 +448,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         # validation happens in super.fit()
-        super(TSCPrincipalComponent, self).fit(X, y=y)
+        super().fit(X, y=y)
         self._setup_feature_attrs_fit(X)
         return self
 
@@ -470,7 +470,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
 
         self._validate_feature_input(X, direction="transform")
-        pca_data = super(TSCPrincipalComponent, self).transform(X)
+        pca_data = super().transform(X)
 
         return self._same_type_X(
             X, values=pca_data, feature_names=self.get_feature_names_out()
@@ -494,7 +494,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         """
 
         X = self._validate_datafold_data(X)
-        pca_values = super(TSCPrincipalComponent, self).fit_transform(X, y=y)
+        pca_values = super().fit_transform(X, y=y)
         self._setup_feature_attrs_fit(X)
 
         return self._same_type_X(
@@ -517,7 +517,7 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         """
         self._validate_feature_input(X, direction="inverse_transform")
 
-        data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X)
+        data_orig_space = super().inverse_transform(X)
 
         return self._same_type_X(
             X, values=data_orig_space, feature_names=self.feature_names_in_
@@ -1241,7 +1241,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
     ):
         self.include_first_order = include_first_order
 
-        super(TSCPolynomialFeatures, self).__init__(
+        super().__init__(
             degree=degree,
             interaction_only=interaction_only,
             include_bias=include_bias,
@@ -1250,7 +1250,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
 
     @property
     def powers_(self):
-        powers = super(TSCPolynomialFeatures, self).powers_
+        powers = super().powers_
         if self.include_first_order:
             return powers
         else:
@@ -1270,7 +1270,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         return feature_names
 
     def _non_id_state_mask(self):
-        powers = super(TSCPolynomialFeatures, self).powers_
+        powers = super().powers_
         return powers.sum(axis=1) != 1
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCPolynomialFeatures":
@@ -1295,7 +1295,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        super(TSCPolynomialFeatures, self).fit(X, y=y)
+        super().fit(X, y=y)
         self._setup_feature_attrs_fit(X)
 
         return self
@@ -1325,7 +1325,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        poly_data = super(TSCPolynomialFeatures, self).transform(X)
+        poly_data = super().transform(X)
 
         if not self.include_first_order:
             poly_data = poly_data[:, self._non_id_state_mask()]

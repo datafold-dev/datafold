@@ -23,7 +23,7 @@ TimePredictType = TSCDataFrame
 InitialConditionType = Union[TSCDataFrame, np.ndarray]
 
 
-class TSCBase(object):
+class TSCBase:
     """Base class for Mixin's in *datafold*.
 
     See Also
@@ -379,7 +379,7 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
             type as input `X`.
         """
         # This is only to overwrite the datafold documentation from scikit-learns docs
-        return super(TSCTransformerMixin, self).fit_transform(X=X, y=y, **fit_params)
+        return super().fit_transform(X=X, y=y, **fit_params)
 
     def partial_fit_transform(
         self, X: TransformType, y=None, **fit_params

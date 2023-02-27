@@ -211,7 +211,7 @@ class TutorialStringBuilder:
         "readme": {
             # "filename (download_link, doc_link)" in readme
             "download":
-                "* `{filename}` (`download <{download_link}>`__, `doc <{web_link}>`__)\n",
+                "* ``{filename}`` (`download <{download_link}>`__, `doc <{web_link}>`__)\n",
             "reference": "\n\n{INDENT}**References**: {reference}",
             "warning":
                 "\n\n"
@@ -571,7 +571,7 @@ def execute_tutorials(extra_arguments):
         print(f"Executing tutorial `{tutorial.name}`")
         nbpath = tutorial.fullpath
         ex_path = os.path.dirname(nbpath)
-        with open(nbpath, "r") as f:
+        with open(nbpath) as f:
             nb = nbformat.read(f, as_version=nbformat.NO_CONVERT)
             ep = ExecutePreprocessor(extra_arguments=extra_arguments)
             ep.preprocess(nb, {"metadata": {"path": ex_path}})

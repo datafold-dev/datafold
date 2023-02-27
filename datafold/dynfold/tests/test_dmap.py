@@ -156,7 +156,7 @@ class DiffusionMapsTest(unittest.TestCase):
 
             if plot:
                 plt.figure()
-                plt.title("$\\epsilon$ = {:.3f}".format(epsilon))
+                plt.title(f"$\\epsilon$ = {epsilon:.3f}")
                 for k in range(1, 10):
                     plt.subplot(2, 5, k)
                     plt.scatter(
@@ -167,10 +167,10 @@ class DiffusionMapsTest(unittest.TestCase):
                     plt.xlim([self.xmin, self.xmin + self.width])
                     plt.ylim([self.ymin, self.ymin + self.height])
                     plt.tight_layout()
-                    plt.gca().set_title("$\\psi_{}$".format(k))
+                    plt.gca().set_title(f"$\\psi_{k}$")
                 plt.subplot(2, 5, 10)
                 plt.step(range(eigvals[i, :].shape[0]), np.abs(eigvals[i, :]))
-                plt.title("epsilon = {:.2f}".format(epsilon))
+                plt.title(f"epsilon = {epsilon:.2f}")
 
         if plot:
             plt.show()
@@ -1262,7 +1262,7 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         ax[2][0].set_ylabel("eigval")
 
         im = ax[2][1].imshow(
-            np.abs((dmap.eigenvectors_.T @ dmap.eigenvectors_))
+            np.abs(dmap.eigenvectors_.T @ dmap.eigenvectors_)
             / dmap.eigenvectors_.shape[0]
         )
         ax[2][1].set_title("inner products of EV (abs and rel)")

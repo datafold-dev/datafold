@@ -620,7 +620,7 @@ class DMDFull(DMDBase):
 
         self._setup_default_tsc_metric_and_score()
 
-        super(DMDFull, self).__init__(
+        super().__init__(
             sys_type="differential" if self.approx_generator else "flowmap",
             sys_mode=sys_mode,
             time_invariant=True,
@@ -870,7 +870,7 @@ class gDMDFull(DMDBase):
         self.rcond = rcond
         self.kwargs_fd = kwargs_fd
 
-        super(gDMDFull, self).__init__(
+        super().__init__(
             sys_type="differential", sys_mode=sys_mode, time_invariant=True
         )
 
@@ -1068,9 +1068,7 @@ class DMDEco(DMDBase):
             )
         self.reconstruct_mode = reconstruct_mode
 
-        super(DMDEco, self).__init__(
-            sys_type="flowmap", sys_mode="spectral", time_invariant=True
-        )
+        super().__init__(sys_type="flowmap", sys_mode="spectral", time_invariant=True)
 
     def _compute_internals(self, X: TSCDataFrame):
         # TODO: different orientations are good for different cases:
@@ -1390,7 +1388,7 @@ class gDMDAffine(DMDBase):
         self.diff_scheme = diff_scheme
         self.diff_accuracy = diff_accuracy
         self.rcond = rcond
-        super(gDMDAffine, self).__init__(
+        super().__init__(
             sys_type="differential",
             sys_mode="matrix",
             is_controlled=True,
@@ -1697,7 +1695,7 @@ class StreamingDMD(DMDBase):
         self.max_rank = max_rank
         self.ngram = ngram
         self.incr_basis_tol = incr_basis_tol
-        super(StreamingDMD, self).__init__(sys_type="flowmap", sys_mode="spectral")
+        super().__init__(sys_type="flowmap", sys_mode="spectral")
 
     def _gram_schmidt(self, xm, xp):
         # TODO: can the Gram-Schmidt be replaced? Usually GS has numerical troubles
@@ -2040,7 +2038,7 @@ class OnlineDMD(DMDBase):
         self.weighting = weighting
         self.is_diagonalize = is_diagonalize
         self.with_warm_up = with_warm_up
-        super(OnlineDMD, self).__init__(sys_type="flowmap", sys_mode="spectral")
+        super().__init__(sys_type="flowmap", sys_mode="spectral")
 
     def _validate_parameters(self):
         check_scalar(

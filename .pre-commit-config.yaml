@@ -13,6 +13,12 @@ repos:
     -   id: check-yaml
     -   id: check-toml
 
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v3.3.1
+    hooks:
+    -   id: pyupgrade
+        args: [ --py38-plus ]
+
 -   repo: https://github.com/python/black
     rev: 23.1.0
     hooks:
@@ -57,6 +63,23 @@ repos:
     -   id: mypy
         args: [--ignore-missing-imports, --no-implicit-optional]
 
+# TODO: install
+#-   repo: https://github.com/fsfe/reuse-tool
+#    rev: v1.1.2
+#    hooks:
+#      - id: reuse
+
+-   repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
+    hooks:
+      - id: rst-backticks
+      - id: rst-directive-colons
+        types: [text]  # overwrite types: [rst]
+        types_or: [python, rst]
+      - id: rst-inline-touching-normal
+        types: [text]  # overwrite types: [rst]
+        types_or: [python, rst]
+
 -   repo: local
     hooks:
     -   id: bibliography
@@ -71,10 +94,3 @@ repos:
 #    rev: 0.11.1
 #    hooks:
 #    -   id: doc8
-
-# TODO: install
-# The tool for checking and helping with compliance with the REUSE recommendations
-#-   repo: https://github.com/fsfe/reuse-tool
-#    rev: v1.0.0
-#    hooks:
-#      - id: reuse

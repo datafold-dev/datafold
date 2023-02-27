@@ -16,7 +16,7 @@ from datafold.utils.general import is_df_same_index, is_integer
 
 
 @pd.api.extensions.register_dataframe_accessor("tsc")
-class TSCAccessor(object):
+class TSCAccessor:
     """Extension functions for TSCDataFrame.
 
     See `documentation <https://pandas.pydata.org/pandas-docs/stable/development/

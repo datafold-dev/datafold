@@ -142,7 +142,7 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
     def _get_tags(self):
         # TODO: check if this function can be removed, as it anyway only calls super class
-        return super(GeometricHarmonicsInterpolator, self)._get_tags()
+        return super()._get_tags()
 
     def _get_default_kernel(self):
         return GaussianKernel(epsilon=1.0)
@@ -412,7 +412,7 @@ class MultiScaleGeometricHarmonicsInterpolator(
          See: Chiavazzo et al. Reduced Models in Chemical Kinetics via Nonlinear
               Data-Mining
         """
-        super(MultiScaleGeometricHarmonicsInterpolator, self).__init__(
+        super().__init__(
             kernel=GaussianKernel(),
             n_eigenpairs=n_eigenpairs,
             is_stochastic=is_stochastic,
@@ -495,7 +495,7 @@ class MultiScaleGeometricHarmonicsInterpolator(
         if y is None:
             y = self.eigenvectors_  # target functions
 
-        return super(MultiScaleGeometricHarmonicsInterpolator, self).score(
+        return super().score(
             X=X, y=y, sample_weight=sample_weight, multioutput=multioutput
         )
 
@@ -633,7 +633,7 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         self._level_tracker = dict()
 
     def _get_tags(self):
-        _tags = super(LaplacianPyramidsInterpolator, self)._get_tags()
+        _tags = super()._get_tags()
         _tags["multioutput"] = True
         return _tags
 

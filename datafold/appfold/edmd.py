@@ -269,7 +269,7 @@ class EDMD(
         self.is_partial_fit_: bool
 
         all_steps = self.dict_steps + [("dmd", self.dmd_model)]
-        super(EDMD, self).__init__(steps=all_steps, memory=memory, verbose=verbose)
+        super().__init__(steps=all_steps, memory=memory, verbose=verbose)
 
     @property
     def _dmd_model(self) -> DMDBase:
@@ -607,7 +607,7 @@ class EDMD(
         # normalized to 1 -- the factor corrects the ic_koop_eigenfunc accordingly
         # (1/factor * modes) * eigvals * (factor * eigfunc)
         factor = np.linalg.norm(self._koopman_modes, axis=0)
-        triplet_importance = np.abs((factor[:, np.newaxis] * ic_koop_eigenfunc))
+        triplet_importance = np.abs(factor[:, np.newaxis] * ic_koop_eigenfunc)
         # take the mean over all
         triplet_importance = np.mean(triplet_importance, axis=1)
 
@@ -1122,7 +1122,7 @@ class EDMD(
             else:
                 return Pipeline(steps=steps, memory=self.memory, verbose=self.verbose)
         else:
-            return super(EDMD, self).__getitem__(ind)
+            return super().__getitem__(ind)
 
     def partial_fit(self, X: TimePredictType, U=None, y=None, **fit_params) -> "EDMD":
         """Incremental fit of the model.
@@ -1742,7 +1742,7 @@ class EDMDCV(GridSearchCV):
         error_score: Union[str, numbers.Number] = "raise",
         return_train_score: bool = True,
     ):
-        super(EDMDCV, self).__init__(
+        super().__init__(
             estimator=estimator,
             param_grid=param_grid,
             scoring=None,
@@ -1902,7 +1902,7 @@ class EDMDCV(GridSearchCV):
         return self
 
 
-class EDMDWindowPrediction(object):
+class EDMDWindowPrediction:
     """Adapt EDMD model to perform reconstruct and score time series of same length.
 
     The adaptation of the EDMD model is useful if a fixed prediction horizon is
@@ -2188,7 +2188,7 @@ class EDMDWindowPrediction(object):
 
 
 @warn_experimental_class
-class EDMDPostObservable(object):  # pragma: no cover
+class EDMDPostObservable:  # pragma: no cover
     """# TODO
 
     # TODO: Alternative? EDMDCVErrorObservable?

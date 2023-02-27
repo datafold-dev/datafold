@@ -595,7 +595,7 @@ class KMPC:
     #     return (e1 + e2 + e3 + e4)[0, 0]
 
 
-class LQR(object):
+class LQR:
     def __init__(self, edmd, cost_running, cost_input):
         self.edmd = edmd
 
@@ -655,7 +655,7 @@ class LQR(object):
         return u
 
 
-class AffineKgMPC(object):
+class AffineKgMPC:
     def __init__(
         self,
         predictor: EDMD,

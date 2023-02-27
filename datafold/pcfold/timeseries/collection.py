@@ -23,7 +23,7 @@ class TSCException(Exception):
     """Error raised if TSC is not correct."""
 
     def __init__(self, message):
-        super(TSCException, self).__init__(message)
+        super().__init__(message)
 
     @classmethod
     def not_finite(cls):
@@ -146,7 +146,7 @@ class _LocTSCIndexer(_LocIndexer):
     """Required for overwriting the behavior of :meth:`TSCDataFrame.loc`."""
 
     def __getitem__(self, item):
-        sliced = super(_LocTSCIndexer, self).__getitem__(item)
+        sliced = super().__getitem__(item)
         _type = type(sliced)
 
         try:
@@ -168,7 +168,7 @@ class _LocTSCIndexer(_LocIndexer):
     def __setitem__(self, key, value):
         if not _is_numeric_dtype(value):
             raise AttributeError("Data in TSCDataFrame must be numeric.")
-        return super(_LocTSCIndexer, self).__setitem__(key, value)
+        return super().__setitem__(key, value)
 
 
 class _iLocTSCIndexer(_iLocIndexer):
@@ -196,7 +196,7 @@ class _iLocTSCIndexer(_iLocIndexer):
     def __setitem__(self, key, value):
         if not _is_numeric_dtype(value):
             raise AttributeError("Data in TSCDataFrame must be numeric.")
-        return super(_iLocTSCIndexer, self).__setitem__(key, value)
+        return super().__setitem__(key, value)
 
 
 class TSCDataFrame(pd.DataFrame):
@@ -317,7 +317,7 @@ class TSCDataFrame(pd.DataFrame):
         # NOTE: do not move this call after other setters "self.attribute = ...".
         # Otherwise, there is an infinite recursion because pandas handles the
         # __getattr__ magic function.
-        super(TSCDataFrame, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.flags.allows_duplicate_labels = False
 
@@ -363,7 +363,7 @@ class TSCDataFrame(pd.DataFrame):
 
         # Note: validation of data is not necessary here because this is done
         # in _LocTSCIndexer and _iLocTSCIndexer
-        return super(TSCDataFrame, self).__setattr__(key, value)
+        return super().__setattr__(key, value)
 
     def __repr__(self, with_fixed_delta=True):
         if not with_fixed_delta and self.fixed_delta is not None:
@@ -376,7 +376,7 @@ class TSCDataFrame(pd.DataFrame):
                 self.to_numpy(), index=_repr_index, columns=self.columns
             ).__repr__()
         else:
-            return super(TSCDataFrame, self).__repr__()
+            return super().__repr__()
 
     @classmethod
     def from_tensor(
@@ -1209,7 +1209,7 @@ class TSCDataFrame(pd.DataFrame):
         inplace=False,
         verify_integrity=False,
     ):
-        result = super(TSCDataFrame, self).set_index(
+        result = super().set_index(
             keys=keys,
             drop=drop,
             append=append,
@@ -1260,7 +1260,7 @@ class TSCDataFrame(pd.DataFrame):
         return _slice
 
     def __getitem__(self, key):
-        _slice = super(TSCDataFrame, self).__getitem__(key=key)
+        _slice = super().__getitem__(key=key)
 
         try:
             if isinstance(_slice, pd.Series):
@@ -1713,7 +1713,7 @@ class TSCDataFrame(pd.DataFrame):
         return ax
 
 
-class InitialCondition(object):
+class InitialCondition:
     """Helper functions to create and validate initial conditions for time series
     predictions.
 

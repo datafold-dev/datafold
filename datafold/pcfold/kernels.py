@@ -718,7 +718,7 @@ class RadialBasisKernel(PCManifoldKernel, metaclass=abc.ABCMeta):
             else:
                 raise _metric_mismatch
 
-        super(RadialBasisKernel, self).__init__(distance=distance)
+        super().__init__(distance=distance)
 
     @classmethod
     def _check_bandwidth_parameter(cls, parameter, name) -> float:
@@ -792,9 +792,7 @@ class GaussianKernel(RadialBasisKernel):
 
     def __init__(self, epsilon: Union[float, Callable] = 1.0, distance=None):
         self.epsilon = epsilon
-        super(GaussianKernel, self).__init__(
-            required_metric="sqeuclidean", distance=distance
-        )
+        super().__init__(required_metric="sqeuclidean", distance=distance)
 
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -859,9 +857,7 @@ class MultiquadricKernel(RadialBasisKernel):
 
     def __init__(self, epsilon: float = 1.0, distance: Optional[Dict] = None):
         self.epsilon = epsilon
-        super(MultiquadricKernel, self).__init__(
-            required_metric="sqeuclidean", distance=distance
-        )
+        super().__init__(required_metric="sqeuclidean", distance=distance)
 
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -909,9 +905,7 @@ class InverseMultiquadricKernel(RadialBasisKernel):
 
     def __init__(self, epsilon: float = 1.0, distance=None):
         self.epsilon = epsilon
-        super(InverseMultiquadricKernel, self).__init__(
-            required_metric="sqeuclidean", distance=distance
-        )
+        super().__init__(required_metric="sqeuclidean", distance=distance)
 
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -959,7 +953,7 @@ class InverseQuadraticKernel(RadialBasisKernel):
 
     def __init__(self, epsilon: float = 1.0):
         self.epsilon = epsilon
-        super(InverseQuadraticKernel, self).__init__(required_metric="sqeuclidean")
+        super().__init__(required_metric="sqeuclidean")
 
     def eval(
         self,
@@ -993,9 +987,7 @@ class ThinplateKernel(RadialBasisKernel):
     r"""Thinplate radial basis kernel"""
 
     def __init__(self, distance=None):
-        super(ThinplateKernel, self).__init__(
-            required_metric="euclidean", distance=distance
-        )
+        super().__init__(required_metric="euclidean", distance=distance)
 
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -1020,9 +1012,7 @@ class CubicKernel(RadialBasisKernel):
     """
 
     def __init__(self, distance=None):
-        super(CubicKernel, self).__init__(
-            required_metric="euclidean", distance=distance
-        )
+        super().__init__(required_metric="euclidean", distance=distance)
 
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -1056,9 +1046,7 @@ class QuinticKernel(RadialBasisKernel):
     """
 
     def __init__(self, distance=None):
-        super(QuinticKernel, self).__init__(
-            required_metric="euclidean", distance=distance
-        )
+        super().__init__(required_metric="euclidean", distance=distance)
 
     def eval(
         self, distance_matrix: Union[np.ndarray, scipy.sparse.csr_matrix]
@@ -1153,7 +1141,7 @@ class ContinuousNNKernel(PCManifoldKernel):
             raise TypeError(f"{type(self.distance)=} not understood")
         self.distance = distance
         self.reference_dist_knn_: np.ndarray
-        super(ContinuousNNKernel, self).__init__(distance=distance)
+        super().__init__(distance=distance)
 
     def _validate_reference_dist_knn(self, is_pdist, reference_dist_knn):
         if is_pdist and reference_dist_knn is None:
@@ -1304,7 +1292,7 @@ class MahalanobisKernel(PCManifoldKernel):  # pragma: no cover
         )
 
         self.epsilon = epsilon
-        super(MahalanobisKernel, self).__init__(is_symmetric=True, distance=distance)
+        super().__init__(is_symmetric=True, distance=distance)
 
     def __call__(
         self, X, Y=None, **kernel_kwargs
@@ -1548,12 +1536,10 @@ class DmapKernelFixed(BaseManifoldKernel):
         self.internal_kernel = internal_kernel
 
         is_symmetric = symmetrize_kernel or not is_stochastic
-        super(DmapKernelFixed, self).__init__(
-            is_symmetric=is_symmetric, is_stochastic=is_stochastic
-        )
+        super().__init__(is_symmetric=is_symmetric, is_stochastic=is_stochastic)
 
     def __repr__(self):
-        return super(DmapKernelFixed, self).__repr__(print_distance=False)
+        return super().__repr__(print_distance=False)
 
     @property  # type: ignore
     def distance(self):
@@ -1811,7 +1797,7 @@ class RoselandKernel(PCManifoldKernel):
             max_val=1,
         )
         self.alpha = alpha
-        super(RoselandKernel, self).__init__(is_symmetric=False, is_stochastic=False)
+        super().__init__(is_symmetric=False, is_stochastic=False)
 
     def _cast_array(self, obj, is_sparse):
         # Scipy's sparse matrices use the deprecated matrix module from Numpy
@@ -2120,7 +2106,7 @@ class ConeKernel(TSCManifoldKernel):
         self.timederiv_X_: np.ndarray
         self.norm_timederiv_X_: np.ndarray
 
-        super(ConeKernel, self).__init__(distance=distance)
+        super().__init__(distance=distance)
 
     def _validate_parameter(self, X, Y):
         # cannot import in top of file, because this creates circular imports
@@ -2452,7 +2438,7 @@ class DmapKernelVariable(BaseManifoldKernel):  # pragma: no cover
 
         # TODO: currently the kernel computes the LB generator (i.e. is_stochastic must be
         #  False, if the operator is computed, then max(eigval)==1
-        super(DmapKernelVariable, self).__init__(
+        super().__init__(
             is_symmetric=symmetrize_kernel, is_stochastic=False, distance=distance
         )
 

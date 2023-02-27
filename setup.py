@@ -88,7 +88,7 @@ def read_datafold_version():
 
 
 def get_install_requirements():
-    with open(requirements_filepath, "r", newline="\n") as f:
+    with open(requirements_filepath, newline="\n") as f:
         install_requires = [req.replace("\n", "") for req in f.readlines()]
     return install_requires
 
@@ -109,9 +109,7 @@ def get_short_description():
 
 def get_long_description():
     # use README.rst for text in PyPI:
-    with open(
-        os.path.join(setuppy_dir, "README.rst"), "r", newline="\n"
-    ) as readme_file:
+    with open(os.path.join(setuppy_dir, "README.rst"), newline="\n") as readme_file:
         long_description = readme_file.read()
     return long_description
 

@@ -16,7 +16,7 @@ class NumericalMathError(Exception):
     imaginary part."""
 
     def __init__(self, message):
-        super(NumericalMathError, self).__init__(message)
+        super().__init__(message)
 
 
 def scipy_eigsolver(

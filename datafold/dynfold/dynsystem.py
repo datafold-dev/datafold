@@ -273,7 +273,7 @@ class SystemSolveStrategy:
         time_values,
         **ignored,
     ):
-        time_series_tensor[:, 0, :] = np.real((sys_matrix @ initial_conditions)).T
+        time_series_tensor[:, 0, :] = np.real(sys_matrix @ initial_conditions).T
 
         # because of the structure it is not possible to directly make use of the spectral
         # representation. It is therefore more efficient to reconstruct the matrix form. While
@@ -350,7 +350,7 @@ class SystemSolveStrategy:
             )
 
 
-class LinearDynamicalSystem(object):
+class LinearDynamicalSystem:
     r"""Evolve linear dynamical system forward in time.
 
     There are various definitions of a linear dynamical system, the specific form is

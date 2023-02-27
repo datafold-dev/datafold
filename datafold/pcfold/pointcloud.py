@@ -123,7 +123,7 @@ class PCManifold(np.ndarray):
             ]
         )
 
-        repr = "\n".join([attributes_line, super(PCManifold, self).__repr__()])
+        repr = "\n".join([attributes_line, super().__repr__()])
         return repr
 
     def __reduce__(self):
@@ -133,7 +133,7 @@ class PCManifold(np.ndarray):
         # https://stackoverflow.com/a/26599346
 
         # Get the parent's __reduce__ tuple
-        pickled_state = super(PCManifold, self).__reduce__()
+        pickled_state = super().__reduce__()
 
         # Create own tuple to pass to __setstate__ (see below)
         new_state = pickled_state[2] + (
@@ -150,7 +150,7 @@ class PCManifold(np.ndarray):
         self.dist_kwargs = state[-1]
 
         # Call the parent's __setstate__ with the other tuple elements.
-        super(PCManifold, self).__setstate__(state[0:-2])
+        super().__setstate__(state[0:-2])
 
     @property
     def cut_off(self) -> float:
