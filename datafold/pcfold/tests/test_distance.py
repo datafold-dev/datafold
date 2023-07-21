@@ -7,52 +7,55 @@ import numpy as np
 import numpy.testing as nptest
 import scipy
 import scipy.sparse
-from scipy.sparse.base import SparseEfficiencyWarning
+from scipy.sparse import SparseEfficiencyWarning
 from scipy.spatial.distance import cdist, pdist, squareform
+from sklearn.neighbors import KNeighborsTransformer
 
 from datafold.pcfold.distance import (
+    DistanceAlgorithm,
+    SklearnKNN,
     _all_available_distance_algorithm,
-    _ensure_kmin_nearest_neighbor,
     compute_distance_matrix,
+    init_distance_algorithm,
 )
 from datafold.utils.general import is_symmetric_matrix
 
 
 class TestDistAlgorithms(unittest.TestCase):
     def setUp(self) -> None:
-        self.data_X = np.random.rand(500, 100)
-        self.data_Y = np.random.rand(300, 100)
+        rng = np.random.default_rng(1)
 
-        self.algos = _all_available_distance_algorithm()
+        self.data_X = rng.random((500, 100))
+        self.data_Y = rng.random((300, 100))
 
-    def test_pdist_dense(self):
+        self.symmetric_algos = _all_available_distance_algorithm(require_symmetric=True)
+
+    def test_range_pdist_dense(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
-
+            for algo in self.symmetric_algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=None,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        k=None,
                         **backend_options,
                     )
+                    actual = da(self.data_X)
 
                     self.assertIsInstance(actual, np.ndarray)
                     nptest.assert_allclose(actual, expected, atol=1e-14, rtol=1e-14)
                 except AssertionError as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_cdist_dense(self):
+    def test_range_cdist_dense(self):
         backend_options = {}
 
         # NOTE: first Y and then X because, the Y (query points) should be in rows, the X
@@ -61,29 +64,28 @@ class TestDistAlgorithms(unittest.TestCase):
         expected = cdist(self.data_Y, self.data_X)
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
-                        Y=self.data_Y,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=None,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        k=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X, Y=self.data_Y)
 
                     self.assertIsInstance(actual, np.ndarray)
                     nptest.assert_allclose(actual, expected, atol=1e-15, rtol=1e-14)
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_pdist_sparse(self):
+    def test_range_pdist_sparse(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
         cut_off = float(np.median(expected))
@@ -91,20 +93,20 @@ class TestDistAlgorithms(unittest.TestCase):
         expected[expected > cut_off] = 0
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        k=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X)
 
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
@@ -114,10 +116,10 @@ class TestDistAlgorithms(unittest.TestCase):
                     self.assertTrue(is_symmetric_matrix(actual, tol=0))
 
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_cdist_sparse(self):
+    def test_range_cdist_sparse(self):
         backend_options = {}
 
         # See also comment in 'test_cdist_dense'
@@ -127,31 +129,30 @@ class TestDistAlgorithms(unittest.TestCase):
         expected[expected > cut_off] = 0
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected = np.square(expected)
 
-            for algo in self.algos:
+            for algo in self.symmetric_algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
-                        Y=self.data_Y,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        k=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X, Y=self.data_Y)
 
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
                         actual.toarray(), expected, atol=1e-15, rtol=1e-14
                     )
                 except Exception as e:
-                    print(f"{algo.backend_name} failed with metric {metric}")
+                    print(f"{algo.name} failed with metric {metric}")
                     raise e
 
-    def test_pdist_sparse_zeros(self):
+    def test_range_pdist_sparse_zeros(self):
         backend_options = {}
         expected = squareform(pdist(self.data_X))
         cut_off = float(np.median(expected))
@@ -165,21 +166,20 @@ class TestDistAlgorithms(unittest.TestCase):
             expected.sort_indices()
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected.data = np.square(expected.data)
 
-            for algo in self.algos:
-
+            for algo in self.symmetric_algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        kmin=0,
-                        backend=algo.backend_name,
+                        k=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X)
 
                     self.assertTrue(is_symmetric_matrix(actual, tol=0))
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
@@ -187,10 +187,10 @@ class TestDistAlgorithms(unittest.TestCase):
                         expected.data, actual.data, atol=1e-14, rtol=1e-14
                     )
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
-    def test_cdist_sparse_duplicate_zeros(self):
+    def test_range_cdist_sparse_duplicate_zeros(self):
         backend_options = {}
 
         data_Y = self.data_Y.copy()  # make copy to manipulate values
@@ -209,21 +209,20 @@ class TestDistAlgorithms(unittest.TestCase):
             expected.sort_indices()
 
         for metric in ["euclidean", "sqeuclidean"]:
-
             if metric == "sqeuclidean":
                 expected.data = np.square(expected.data)
 
-            for algo in self.algos:
-
+            for algo in self.symmetric_algos:
                 try:
-                    actual = compute_distance_matrix(
-                        X=self.data_X,
-                        Y=data_Y,
+                    da = init_distance_algorithm(
+                        backend=algo.name,
                         metric=metric,
                         cut_off=cut_off,
-                        backend=algo.backend_name,
+                        k=None,
                         **backend_options,
                     )
+
+                    actual = da(X=self.data_X, Y=data_Y)
 
                     self.assertIsInstance(actual, scipy.sparse.csr_matrix)
                     nptest.assert_allclose(
@@ -231,25 +230,22 @@ class TestDistAlgorithms(unittest.TestCase):
                     )
 
                 except Exception as e:
-                    print(f"{algo.backend_name} failed for metric {metric}")
+                    print(f"{algo.name} failed for metric {metric}")
                     raise e
 
     def test_ensure_kmin_nearest_neighbours_pdist(self):
-
         print("SUPRESSED SPARSITY WARNINGS. TODO: See #93")
         warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
-
             for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(int):
-
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros
                 pdist_distance_matrix = compute_distance_matrix(
                     self.data_X, cut_off=cut_off
                 )
 
-                distance_matrix = _ensure_kmin_nearest_neighbor(
+                distance_matrix = DistanceAlgorithm._ensure_kmin_nearest_neighbor(
                     self.data_X,
                     Y=None,
                     metric="euclidean",
@@ -275,18 +271,15 @@ class TestDistAlgorithms(unittest.TestCase):
                         distance_matrix.toarray(),
                     )
                 except AssertionError as e:
-                    print(f"Failed for quantile={quantile} and kmin={kmin}")
+                    print(f"Failed for {quantile=} and {kmin=}")
                     raise e
 
     def test_ensure_kmin_nearest_neighbours_cdist(self):
-
         print("SUPRESSED SPARSITY WARNINGS. TODO: See #93")
         warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
         for quantile in [0.1, 0.2, 0.3, 0.7, 0.8, 0.9]:
-
             for kmin in np.linspace(1, self.data_X.shape[1], 5).astype(int):
-
                 cut_off = np.quantile(pdist(self.data_X), q=quantile)
                 # The matrix is essentially zero, with only the diagonal saved zeros
                 cdist_distance_matrix = compute_distance_matrix(
@@ -294,7 +287,7 @@ class TestDistAlgorithms(unittest.TestCase):
                 )
 
                 # TODO: resolve SparsityWarning, see issue #93
-                distance_matrix = _ensure_kmin_nearest_neighbor(
+                distance_matrix = DistanceAlgorithm._ensure_kmin_nearest_neighbor(
                     self.data_X,
                     Y=self.data_Y,
                     metric="euclidean",
@@ -303,7 +296,6 @@ class TestDistAlgorithms(unittest.TestCase):
                 )
 
                 try:
-
                     rows, columns = distance_matrix.nonzero()
                     actual = scipy.sparse.csr_matrix(
                         (
@@ -317,5 +309,35 @@ class TestDistAlgorithms(unittest.TestCase):
                     )
                     self.assertTrue((distance_matrix.getnnz(axis=1) >= kmin).all())
                 except AssertionError as e:
-                    print(f"Failed for quantile={quantile} and kmin={kmin}")
+                    print(f"Failed for {quantile=} and {kmin=}")
                     raise e
+
+    def test_knn_pdist(self):
+        # the test can be extended if there are more k-nn algorithms available
+        data = np.random.default_rng(1).normal(size=(100, 2))
+        dist = SklearnKNN(metric="euclidean", k=5)
+        actual = dist(data)
+
+        knn = KNeighborsTransformer(n_neighbors=5, metric="euclidean").fit(data)
+        expected = knn.kneighbors_graph(data, n_neighbors=5, mode="distance")
+
+        nptest.assert_array_equal(actual.toarray(), expected.toarray())
+        self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+        self.assertEqual(actual.nnz, 5 * 100)
+        self.assertEqual(actual.shape, (100, 100))
+
+    def test_knn_cdist(self):
+        # the test can be extended if there are more k-nn algorithms available
+        data = np.random.default_rng(1).normal(size=(100, 2))
+        data_query = np.random.default_rng(1).normal(size=(50, 2))
+
+        dist = SklearnKNN(metric="euclidean", k=5)
+        actual = dist(data, data_query)
+
+        knn = KNeighborsTransformer(n_neighbors=5, metric="euclidean").fit(data)
+        expected = knn.kneighbors_graph(data_query, n_neighbors=5, mode="distance")
+
+        nptest.assert_array_equal(actual.toarray(), expected.toarray())
+        self.assertIsInstance(actual, scipy.sparse.csr_matrix)
+        self.assertEqual(actual.nnz, 5 * 50)
+        self.assertEqual(actual.shape, (50, 100))

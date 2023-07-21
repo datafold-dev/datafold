@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, List, Optional, Tuple, Union
+from datetime import datetime
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
+import numpy.testing as nptest
 import pandas as pd
-import pandas.testing as pdtest
 from pandas.api.types import is_datetime64_dtype
-from sklearn.base import TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCMetric, TSCScoring
 from datafold.pcfold.timeseries.collection import TSCException
-from datafold.utils.general import if1dim_rowvec
+from datafold.utils.general import if1dim_rowvec, is_df_same_index
 
 # types allowed for transformation
 TransformType = Union[TSCDataFrame, np.ndarray]
@@ -22,7 +23,7 @@ TimePredictType = TSCDataFrame
 InitialConditionType = Union[TSCDataFrame, np.ndarray]
 
 
-class TSCBaseMixin(object):
+class TSCBase:
     """Base class for Mixin's in *datafold*.
 
     See Also
@@ -31,11 +32,16 @@ class TSCBaseMixin(object):
     :py:class:`.TSCPredictMixin`
     """
 
+    def get_feature_names_out(self, input_features=None):
+        raise NotImplementedError(
+            "class has not implemented 'get_feature_names_out' method"
+        )
+
     def _has_feature_names(self, _obj):
         # True, for pandas.DataFrame or TSCDataFrame
         return isinstance(_obj, pd.DataFrame)
 
-    def _read_fit_params(self, attrs: Optional[List[Tuple[str, Any]]], fit_params):
+    def _read_fit_params(self, attrs: Optional[list[tuple[str, Any]]], fit_params):
         return_values = []
 
         if attrs is not None:
@@ -43,7 +49,7 @@ class TSCBaseMixin(object):
                 return_values.append(fit_params.pop(a[0], a[1]))
 
         if fit_params != {}:
-            raise KeyError(f"fit_params.keys = {fit_params.keys()} are not supported")
+            raise KeyError(f"{fit_params.keys()=} are not supported")
 
         if len(return_values) == 0:
             return None
@@ -105,13 +111,18 @@ class TSCBaseMixin(object):
         -------
 
         """
-
         # defaults to empty dictionary if None
         array_kwargs = array_kwargs or {}
         tsc_kwargs = tsc_kwargs or {}
 
         if ensure_np + ensure_tsc == 2:
             raise ValueError("only 'ensure_np' or 'ensure_tsc' can be True")
+
+        if self._has_feature_names(X):
+            if X.columns.ndim != 1:
+                raise ValueError(
+                    f"The feature columns of X must be 1-dim. Got {X.columns.ndim=}"
+                )
 
         if type(X) != TSCDataFrame:
             # Currently, everything that is not strictly a TSCDataFrame will go the
@@ -124,17 +135,14 @@ class TSCBaseMixin(object):
 
             if ensure_tsc:
                 raise TypeError(
-                    f"Input 'X' is of type {type(X)} but type TSCDataFrame is required."
+                    f"Found type {type(X)=} but type TSCDataFrame is required."
                 )
 
             tsc_kwargs = {}  # no need to check -> overwrite to empty dict
 
             if type(X) == pd.DataFrame:
-
                 if ensure_np:
-                    TypeError(
-                        f"Input 'X' is of type {type(X)} but a numpy format is required."
-                    )
+                    TypeError(f"Found type {type(X)=} but type np.ndarray is required.")
 
                 # special handling of pandas.DataFrame (strictly, not including
                 # TSCDataFrame) --> keep the type (recover after validation).
@@ -165,7 +173,6 @@ class TSCBaseMixin(object):
                 X = pd.DataFrame(X, index=idx, columns=col)
 
         else:  # isinstance(X, TSCDataFrame)
-
             if ensure_np:
                 raise TypeError(
                     f"Input 'X' is of type {type(X)} but a numpy format is required."
@@ -186,25 +193,26 @@ class TSCBaseMixin(object):
                 ),
                 ensure_normalized_time=tsc_kwargs.pop("ensure_normalized_time", False),
                 ensure_n_timeseries=tsc_kwargs.pop("ensure_n_timeseries", None),
+                ensure_n_timesteps=tsc_kwargs.pop("ensure_n_timesteps", None),
                 ensure_min_timesteps=tsc_kwargs.pop("ensure_min_timesteps", None),
                 ensure_no_degenerate_ts=tsc_kwargs.pop(
                     "ensure_no_degenerate_ts", False
                 ),
+                ensure_dtype_time=tsc_kwargs.pop("ensure_dtype_time", None),
             )
 
-        if array_kwargs != {} or tsc_kwargs != {}:
-            # validate_kwargs have to be empty and must only contain key-values that can
-            # be handled to check_array / check_tsc
+        if array_kwargs or tsc_kwargs:
+            # validation kwargs have to be empty at this point (after "kwargs.pop()" above)
 
             left_over_keys = list(array_kwargs.keys()) + list(tsc_kwargs.keys())
             raise ValueError(
-                f"{left_over_keys} are no valid validation keys. Please report bug."
+                f"{left_over_keys} are no valid keys arguments. Please report bug."
             )
 
         return X
 
 
-class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
+class TSCTransformerMixin(TSCBase, TransformerMixin):
     """Mixin to provide functionality for point cloud and time series transformations.
 
     Generally, the following input/output types are supported.
@@ -215,146 +223,108 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
 
     The parameters should be set in during `fit` in a subclass.
 
-    .. note::
+    Discussions in the scikit-learn project, which are followed in datafold:
 
-        The scikit-learn project heavily discusses on how to handle feature names. There
-        are many proposed solutions. The solution that datafold uses is
-        `SLEP007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/
-        slep007/proposal.html>`__
+    * `SLEP 007 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep007/proposal.html>`__
+    * `SLEP 010 <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html>`__
 
-        However, this is only a proposal and may have to be changed later.
+    Other related discussions (also proposing different solutions):
 
-        Other resources:
-
-        * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io
-          /en/latest/slep012/proposal.html>`__
-        * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/
-          pull/18/>`__
+    * `new array (SLEP012) <https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep012/proposal.html>`__
+    * `discussion (SLEP008) <https://github.com/scikit-learn/enhancement_proposals/pull/18/>`__
 
     Parameters
     ----------
-
     n_features_in_: int
-        Number of features of input during `fit`.
+        Number of features in input `X` during `fit`. The same number of features are
+        required for `transform`.
 
-    n_features_in_: Optional[pd.Index]
-        Feature names during `fit` if the input is indexed. The feature names
-        are used as output in `inverse_transform` and for validation in `transform`.
+    feature_names_in_: Optional[np.array]
+        Feature names passed in input `X` in `fit`. The attribute is only set if the input is
+        a pandas object. The feature names are used for validation of input in `transform` and
+        as output feature names in `inverse_transform`.
 
     n_features_out_: int
-        Number of features of output during `fit`.
-
-    features_out_: Optional[pd.Index]
-        Feature names during `fit` if the input is indexed. The feature names
-        are used as output in `transform` and for validation in `inverse_transform`.
+        Number of features in output of `transform`.
     """
 
-    _feature_attrs = [
-        "n_features_in_",
-        "n_features_out_",
-        "feature_names_in_",
-        "feature_names_out_",
-    ]
+    def _setup_feature_attrs_fit(
+        self: Union[BaseEstimator, "TSCTransformerMixin"],
+        X,
+        n_features_out: Optional[int] = None,
+    ) -> None:
+        if not hasattr(self, "n_features_in_"):
+            # sklearn function to set n_features_in_
+            self._check_n_features(X, reset=True)
 
-    def _setup_feature_attrs_fit(self, X, features_out):
+        if not hasattr(self, "feature_names_in_"):
+            if isinstance(X, TSCDataFrame) and type(X.columns[0]) != str:
+                # workaround for datafold to support non-str feature names
+                # sklearn does only support feature names of type str
+                # Note that there is a guarantee for TSCDataFrame that the feature names have
+                # same type
+                self.feature_names_in_ = X.columns.to_numpy()
+            else:
+                # sklearn function to set feature_names_in_
+                self._check_feature_names(X, reset=True)
 
-        if isinstance(features_out, str):
-            assert features_out == "like_features_in"
+        # TODO: set features out implemented in alignment to SLEO013, but this proposal was
+        #  rejected -- think of removing n_features_out (check how often and where it is used)
+        # https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep013/proposal.html  # noqa
+        if not hasattr(self, "n_features_out_"):
+            if n_features_out is None:
+                feature_out = self.get_feature_names_out()
+                self.n_features_out_: int = len(feature_out)
+            else:
+                self.n_features_out_ = n_features_out
 
-        if self._has_feature_names(X):
+    def _validate_feature_input(
+        self: Union[BaseEstimator, "TSCTransformerMixin"], X: TransformType, direction
+    ) -> None:
+        self._check_attributes_set_up(["n_features_in_", "n_features_out_"])
 
-            if isinstance(features_out, str) and features_out == "like_features_in":
-                features_out = X.columns
+        if direction == "transform":
+            self._check_n_features(X, reset=False)
+            self._check_feature_names(X, reset=False)
+        else:  # direction == inverse_transform
+            should_n_features = self.n_features_out_
 
-            if isinstance(features_out, (list, np.ndarray)):
-                # For convenience features_out can be given as a list
-                # (better code readability than pd.Index)
-                features_out = pd.Index(
-                    features_out,
-                    dtype=np.str_,
-                    name=TSCDataFrame.tsc_feature_col_name,
-                )
-
-            if X.columns.has_duplicates or features_out.has_duplicates:
+            if should_n_features != X.shape[1]:
                 raise ValueError(
-                    "duplicated indices detected. \n"
-                    f"features_in={X.columns.duplicated()} \n"
-                    f"features_out={features_out.duplicated()}"
+                    f"The number of features (={X.shape[1]}) do not match. "
+                    f"Required: {should_n_features}"
                 )
 
-            if X.columns.ndim != 1 or features_out.ndim != 1:
-                raise ValueError("feature names must be 1-dim.")
+            if self._has_feature_names(X):
+                should_features = self.get_feature_names_out()
+                try:
+                    nptest.assert_array_equal(should_features, X.columns.to_numpy())
+                except AssertionError:
+                    raise ValueError(
+                        f"The features names do not match. "
+                        f"Required: {should_features}."
+                    )
 
-            self.n_features_in_: int = len(X.columns)
-            self.n_features_out_: int = len(features_out)
-            self.feature_names_in_: Optional[pd.Index] = X.columns
-            self.feature_names_out_: Optional[pd.Index] = features_out
+    def _more_tags(self) -> dict:
+        """Add tag to scikit-learn tags to indicate whether the original states in `X` are
+        preserved during the transformation.
 
-        else:
-
-            if isinstance(features_out, str) and features_out == "like_features_in":
-                features_out = X.shape[1]
-            elif isinstance(features_out, int):
-                assert features_out > 0
-            else:
-                # if list or pd.Index use the number of features out
-                features_out = len(features_out)
-
-            # do not store names, because they are not available
-            self.n_features_in_ = X.shape[1]
-            self.n_features_out_ = features_out
-            self.feature_names_in_ = None
-            self.feature_names_out_ = None
-
-    def _validate_feature_input(self, X: TransformType, direction):
-
-        self._check_attributes_set_up(self._feature_attrs)
-
-        if not self._has_feature_names(X) or self.feature_names_out_ is None:
-            # Either
-            # * X has no feature names, or
-            # * during fit X had no feature names given.
-            # --> Only check if shape is correct and trust user with the rest
-
-            if direction == "transform":
-                _check_shape = self.n_features_in_
-            else:  # direction == "inverse_transform"
-                _check_shape = self.n_features_out_
-
-            if _check_shape != X.shape[1]:
-                raise ValueError(
-                    f"Shape mismatch: expected {self.n_features_out_} "
-                    f"features (number of columns in 'X') but got {X.shape[1]}."
-                )
-        else:  # self._has_feature_names(X)
-            # Now X has features and during fit features were given. So now we can
-            # check if feature names of X match with data during fit:
-
-            if direction == "transform":
-                _check_features = self.feature_names_in_
-            elif direction == "inverse_transform":
-                _check_features = self.feature_names_out_
-            else:
-                raise RuntimeError(
-                    f"'direction'={direction} not known. Please report bug."
-                )
-
-            if isinstance(X, pd.Series):
-                # if X is a Series, then the columns of the original data are in a
-                # Series this usually happens if X.iloc[0, :] --> returns a Series
-                pdtest.assert_index_equal(right=_check_features, left=X.index)
-            else:
-                pdtest.assert_index_equal(right=_check_features, left=X.columns)
+        Defaults to False and can be overwritten by transformers.
+        """
+        return dict(tsc_contains_orig_states=False)
 
     def _same_type_X(
-        self, X: TransformType, values: np.ndarray, feature_names: pd.Index
+        self,
+        X: TransformType,
+        values: np.ndarray,
+        feature_names: Union[pd.Index, np.ndarray],
     ) -> Union[pd.DataFrame, TransformType]:
-        """Chooses the same type for input as type of `X`.
+        """Return object with the same type as for input `X`.
 
         Parameters
         ----------
         X
-            Object from which the type will be inferred.
+            Object from which the type is inferred.
 
         values
             Data to transform in the same format as `X`.
@@ -366,7 +336,6 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
         -------
 
         """
-
         if isinstance(X, TSCDataFrame):
             # NOTE: order is important here TSCDataFrame is also a DataFrame, so first
             # check for the special case, then for the more general case.
@@ -409,21 +378,38 @@ class TSCTransformerMixin(TSCBaseMixin, TransformerMixin):
             type as input `X`.
         """
         # This is only to overwrite the datafold documentation from scikit-learns docs
-        return super(TSCTransformerMixin, self).fit_transform(X=X, y=y, **fit_params)
+        return super().fit_transform(X=X, y=y, **fit_params)
+
+    def partial_fit_transform(
+        self, X: TransformType, y=None, **fit_params
+    ) -> TransformType:
+        """TODO.
+
+        Parameters
+        ----------
+        X
+        y
+        fit_params.
+
+        Returns
+        -------
+
+        """
+        self.partial_fit: Callable
+        return self.partial_fit(X, y=y, **fit_params).transform(X)
 
 
-class TSCPredictMixin(TSCBaseMixin):
+class TSCPredictMixin(TSCBase):
     """Mixin to provide functionality for models that train on time series data.
 
     The attribute should be set during `fit` and used to validate during `predict`.
 
     Parameters
     ----------
-
     n_features_in_: int
         Number of features during `fit`.
 
-    feature_names_in_: pd.Index
+    feature_names_in_: np.ndarray
         The feature names during `fit`.
 
     time_values_in_: numpy.ndarray
@@ -439,64 +425,236 @@ class TSCPredictMixin(TSCBaseMixin):
     _cls_feature_attrs = [
         "n_features_in_",
         "feature_names_in_",
-        "time_values_in_",
         "dt_",
     ]
-
-    @property
-    def time_interval_(self):
-        self._check_attributes_set_up(check_attributes="time_values_in_")
-        return (self.time_values_in_[0], self.time_values_in_[-1])
 
     def _setup_default_tsc_metric_and_score(self):
         self.metric_eval = TSCMetric(metric="rmse", mode="feature", scaling="min-max")
         self._score_eval = TSCScoring(self.metric_eval)
 
-    def _setup_features_and_time_attrs_fit(self, X: TSCDataFrame):
-
+    def _validate_and_setup_fit_attrs(
+        self: Union[BaseEstimator, "TSCPredictMixin"],
+        X: TSCDataFrame,
+        U: Optional[TSCDataFrame] = None,
+    ):
         if not isinstance(X, TSCDataFrame):
-            raise TypeError("Only TSCDataFrame can be used for 'X'.")
+            raise TypeError(
+                f"Only TSCDataFrame can be used for system data (got {type(U)=})."
+            )
+
+        is_controlled = U is not None
+
+        if is_controlled and not isinstance(X, TSCDataFrame):
+            raise TypeError(
+                f"Only TSCDataFrame can be used for control data (got {type(U)=})."
+            )
+
+        self.n_features_in_ = X.shape[1]
+        self.feature_names_in_ = X.columns
+
+        if is_controlled:
+            self.n_control_in_ = U.shape[1]  # type: ignore
+            self.control_names_in_ = U.columns  # type: ignore
 
         time_values = X.time_values()
-        features_in = X.columns
+        time_values = self._validate_time_values_format(time_values=time_values)
 
-        time_values = self._validate_time_values(time_values=time_values)
-        self.time_values_in_ = time_values
-        self.n_features_in_ = len(features_in)
-        self.feature_names_in_ = features_in
+        req_last_control_state = getattr(self, "_requires_last_control_state", False)
+
+        if is_controlled and not is_df_same_index(
+            X.tsc.drop_last_n_samples(1) if not req_last_control_state else X,
+            U,
+            check_column=False,
+            check_names=False,
+            handle=None,
+        ):
+            msg = "(except the last state) " if not req_last_control_state else ""
+
+            raise ValueError(
+                f"For each system state {msg}in `X`, there must be a matching "
+                "control input in `U` (i.e. corresponding ID and time value)."
+            )
+
         self.dt_ = X.delta_time
 
-        if isinstance(self.dt_, pd.Series) or np.isnan(
-            self.dt_
-        ):  # Series if dt_ is not the same across multiple time series.
+        if isinstance(self.dt_, pd.Series) or np.isnan(self.dt_):
+            # Series if dt_ is not the same for all time series in the data.
             raise NotImplementedError(
                 "Currently, all algorithms assume a constant time "
-                f"delta. Got X.time_delta={X.time_delta}"
+                f"delta. Got {X.time_delta=}."
             )
 
         # TODO: check this closer why are there 5 decimals required?
         assert (
             np.around(
-                (self.time_interval_[1] - self.time_interval_[0]) / self.dt_, decimals=5
+                (np.max(time_values) - np.min(time_values)) / self.dt_, decimals=5
             )
             % 1
             == 0
         )
 
-    def _validate_time_values(self, time_values: np.ndarray):
+    def _validate_and_set_time_values_predict(
+        self,
+        time_values: Optional[np.ndarray],
+        X: Union[TSCDataFrame, np.ndarray],
+        U: Optional[Union[TSCDataFrame, np.ndarray]],
+        dt=None,
+    ):
+        # comparing time values in floating points is sometimes a bit tricky, because two
+        # effectively equal values have a tiny difference -- this parameter is used within
+        # this function as a tolerance value
+        _numerical_tol = 1e-14
+        _numerical_tol = 0
 
+        if dt is None:
+            try:
+                dt = self.dt_
+            except AttributeError:
+                raise NotFittedError(
+                    "The time sampling dt needs to be either"
+                    "passed by argument or in attribute self.dt_."
+                )
+
+        is_controlled = U is not None
+        req_last_control_state = getattr(self, "_requires_last_control_state", False)
+
+        if isinstance(X, TSCDataFrame):
+            reference = X.final_states(n_samples=1).time_values()
+            reference = np.unique(reference)
+            if np.size(reference) != 1:
+                raise ValueError(
+                    "All initial conditions must have the same time reference. "
+                    f"Got {reference=}."
+                )
+            else:
+                reference = reference[0]
+        else:
+            if is_controlled and isinstance(U, TSCDataFrame):
+                reference = U.time_values()[0]
+            else:
+                if isinstance(dt, np.timedelta64):
+                    reference = np.datetime64(datetime.now())
+                else:
+                    reference = 0
+
+        if time_values is None:
+            if is_controlled:
+                if callable(U):
+                    raise ValueError(
+                        "If `U` is a control input function (callable), then the "
+                        "parameter 'time_values' cannot be None."
+                    )
+
+                if isinstance(U, TSCDataFrame):
+                    time_values = U.time_values()
+
+                    if not req_last_control_state:
+                        time_values = np.append(time_values, time_values[-1] + dt)
+
+                    # the -1E-14 is needed to avoid that numerical noise removes the actual
+                    # reference point from the time values
+                    time_values = time_values[time_values >= reference - _numerical_tol]
+
+                    if time_values.size == 0:
+                        raise ValueError(
+                            f"There are no time values in 'U' that are greater "
+                            f"than the {reference=} time value in 'X'. No time "
+                            f"values for prediction could be obtained."
+                        )
+
+                else:
+                    time_values = np.arange(
+                        reference,
+                        reference
+                        + _numerical_tol
+                        + (U.shape[0] + int(not req_last_control_state))  # type: ignore
+                        * dt,
+                        dt,
+                    )
+            else:
+                time_values = np.array([reference, reference + dt])
+        else:
+            time_values = self._validate_time_values_format(time_values=time_values)
+
+            if is_controlled:
+                if isinstance(U, np.ndarray):
+                    if len(time_values) != U.shape[0] + int(not req_last_control_state):
+                        str_req_control_states = (
+                            f"{U.shape[0]-1=}"
+                            if int(not req_last_control_state)
+                            else f"{U.shape[0]=}"
+                        )
+
+                        raise ValueError(
+                            f"The length of time values ({len(time_values)=}) "
+                            "does not match the number of control states "
+                            f"(required: {str_req_control_states}, got: {U.shape[0]=})."
+                        )
+                elif isinstance(U, TSCDataFrame):
+                    req_time_values = U.time_values()
+                    req_time_values = req_time_values[
+                        req_time_values >= reference - _numerical_tol
+                    ]
+
+                    if not req_last_control_state:
+                        req_time_values = np.append(
+                            req_time_values, req_time_values[-1] + dt
+                        )
+
+                    if (
+                        time_values.shape != req_time_values.shape
+                        or not (
+                            np.array(time_values - req_time_values) <= _numerical_tol
+                        ).all()
+                    ):
+                        raise ValueError(
+                            "The two parameters ('U' and 'time_values') provide mismatching "
+                            "time information for the current prediction. It is recommended "
+                            "to only provide the control input 'U'."
+                        )
+                elif callable(U):
+                    pass  # nothing to do for now ...
+                else:
+                    raise TypeError(
+                        f"Invalid type of control input 'U' (got {type(U)=}."
+                    )
+
+            if isinstance(X, TSCDataFrame):
+                if (time_values < reference - _numerical_tol).any():
+                    smaller_time_values = time_values[time_values < reference]
+                    if len(smaller_time_values) > 4:
+                        n_values = len(smaller_time_values)
+                        smaller_time_values = smaller_time_values[:4]
+                        msg = f"{smaller_time_values=} [...] ({n_values=})"
+                    else:
+                        msg = f"{smaller_time_values}"
+
+                    raise ValueError(
+                        "The time values must not contain any value that is smaller than the "
+                        f"time reference of the initial condition ({reference=})\n"
+                        f"Invalid values found: {msg}"
+                    )
+
+                if np.abs(reference - time_values[0]) > _numerical_tol:
+                    time_values = np.append(reference, time_values)
+        return time_values
+
+    def _validate_time_values_format(self, time_values: np.ndarray) -> np.ndarray:
         try:
             time_values = np.asarray(time_values)
         except Exception:
-            raise TypeError("Cannot convert 'time_values' to array.")
+            raise TypeError(
+                f"Cannot convert 'time_values' to NumPy array. "
+                f"Got {type(time_values)=}."
+            )
 
-        if not isinstance(time_values, np.ndarray):
-            raise TypeError("time_values has to be a NumPy array")
+        if time_values.ndim != 1:
+            raise ValueError("'time_values' must be be an 1-dim. array")
 
         if time_values.dtype.kind not in "iufM":
             # see for dtype.kind values:
             # https://docs.scipy.org/doc/numpy/reference/generated/numpy.dtype.kind.html
-            raise TypeError(f"time_values.dtype {time_values.dtype} not supported")
+            raise TypeError(f"{time_values.dtype=} not supported")
 
         if not is_datetime64_dtype(time_values) and (time_values < 0).any():
             # "datetime" cannot be negative and raises error when checked with "< 0"
@@ -505,14 +663,11 @@ class TSCPredictMixin(TSCBaseMixin):
         if not np.isfinite(time_values).all():
             raise ValueError("'time_values' contains invalid numbers (inf/nan).")
 
-        if time_values.ndim != 1:
-            raise ValueError("'time_values' must be be an 1-dim. array")
-
         if not (np.diff(time_values).astype(float) > 0).all():
             # as "float64" is required in case of datetime where the differences are in
             # terms of "np.timedelta"
             raise ValueError(
-                "'time_values' must be sorted with increasing unique values"
+                "'time_values' must be sorted with increasing (unique) numeric values"
             )
 
         return time_values
@@ -522,101 +677,138 @@ class TSCPredictMixin(TSCBaseMixin):
 
         if isinstance(delta_time, pd.Series):
             raise NotImplementedError(
-                "Currently, all methods assume that dt_ is const."
+                "Currently, all methods require that dt_ is constant. "
             )
 
-        if delta_time != self.dt_:
+        if np.abs(delta_time - self.dt_) > 1e-14:
             raise TSCException(
-                f"delta_time during fit was {self.dt_}, now it is {delta_time}"
+                f"delta_time during fit was {self.dt_=}, now it is {delta_time=} "
+                f"({np.abs(delta_time - self.dt_)=} with set tolerance 1e-14) "
             )
 
-    def _validate_feature_names(self, X: TransformType, require_all=True):
-        self._check_attributes_set_up(check_attributes=["feature_names_in_"])
+    def _validate_feature_names(
+        self: Union[BaseEstimator, "TSCPredictMixin"],
+        X: TSCDataFrame,
+        U: Optional[TSCDataFrame] = None,
+    ):
+        if not self._has_feature_names(X):
+            raise TypeError(
+                "only types that are indexed with time and states are supported"
+            )
+
+        self._check_n_features(X, reset=False)  # type: ignore
 
         try:
-            if require_all:
-                pdtest.assert_index_equal(
-                    right=self.feature_names_in_, left=X.columns, check_names=False
+            # alternative check in datafold to sklearn
+            # self._check_feature_names(reset=False)
+            # Reason: in datafold there are also non-string feature names allowed
+            nptest.assert_array_equal(
+                np.asarray(X.columns), np.asarray(self.feature_names_in_)
+            )
+        except AssertionError:
+            raise ValueError(
+                f"model was fit with feature names\n{self.feature_names_in_.tolist()}\n"
+                f"but got\n{X.columns.tolist()}"
+            )
+
+        if U is not None:
+            try:
+                # alternative check in datafold to sklearn
+                # self._check_feature_names(reset=False)
+                # Reason: in datafold there are also non-string feature names allowed
+                nptest.assert_array_equal(
+                    np.asarray(U.columns), np.asarray(self.control_names_in_)
                 )
-            else:
-                if not np.isin(X.columns, self.feature_names_in_).all():
-                    raise AssertionError(
-                        f"feature names in X are invalid "
-                        f"{X.columns[np.isin(self.feature_names_in_,X.columns)]}"
-                    )
-        except AssertionError as e:
-            raise ValueError(e.args[0])
+            except AssertionError:
+                raise ValueError(
+                    f"model was fit with feature names\n{self.control_names_in_.tolist()}\n"
+                    f"but got\n{U.columns.tolist()}"
+                )
+
+            if self.n_control_in_ != U.shape[1]:
+                raise ValueError(
+                    f"The number of set control states ({self.n_control_in_=}) does not fit "
+                    f"the current number in the control input {U.shape[1]=}."
+                )
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
-
         if qois is not None:
             try:
                 qois = np.asarray(qois)
             except Exception:
-                raise TypeError("parameter 'qois' must be list-like")
+                raise TypeError(
+                    f"Parameter 'qois' must be list-like. Got {type(qois)=}"
+                )
 
             if qois.ndim != 1:
                 raise ValueError(
-                    f"'qois' must be a 1-dim. array. " f"Got qois.ndim={qois.ndim}"
+                    f"Parameter 'qois' must be a 1-dim. array. Got {qois.ndim=}"
                 )
 
             mask_valid_qois = np.isin(qois, valid_feature_names)
 
             if not mask_valid_qois.all():
                 raise ValueError(
-                    f"The qois={qois[~mask_valid_qois]} are invalid. Valid "
+                    f"qois={qois[~mask_valid_qois]} are invalid. Valid "
                     f"feature names are {valid_feature_names}."
                 )
 
         return qois
 
     def _validate_features_and_time_values(
-        self, X: TSCDataFrame, time_values: Optional[np.ndarray]
+        self,
+        X: TSCDataFrame,
+        U: Optional[TSCDataFrame],
+        time_values: Optional[np.ndarray],
     ):
+        self._validate_feature_names(X=X, U=U)
+        self._validate_time_values_format(time_values=time_values)
 
-        self._check_attributes_set_up(check_attributes=["time_values_in_"])
-
-        if time_values is None:
-            time_values = self.time_values_in_
-
-        if not self._has_feature_names(X):
-            raise TypeError("only types that support feature names are supported")
-
-        time_values = self._validate_time_values(time_values=time_values)
-        self._validate_feature_names(X)
-
-        return X, time_values
+        return X, U, time_values
 
     def predict(
         self,
         X: InitialConditionType,
+        *,
+        U: Optional[Union[np.ndarray, TSCDataFrame, Callable]] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
-    ):
-        # intended for duck-typing, but provides method layout
+    ) -> TSCDataFrame:
+        # intended for duck-typing, but provides argument layout
         raise NotImplementedError("method not implemented")
 
     def fit_predict(
         self,
         X: InitialConditionType,
+        *,
+        U=None,
         y=None,
         **fit_params,
     ) -> TSCDataFrame:
-        # overwrite if necessary
+        """Standard fit_predict method. Overwrite if necessary."""
         self.fit: Callable
-        return self.fit(X, **fit_params).predict(X.initial_states())
+
+        # TODO: it is likely that this fails for U is not None, as predict also requires U
+        return self.fit(X, U=U, y=y, **fit_params).predict(X.initial_states(), U=U)
 
     def reconstruct(
         self,
         X: TSCDataFrame,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, list[str]]] = None,
     ):
+        """Standard reconstruct method. Overwrite if necessary."""
         X_reconstruct_ts = []
 
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=1
         ):
-            X_ts = self.predict(X=X_ic, time_values=time_values)
+            X_ts = self.predict(
+                X=X_ic,
+                U=U.loc[pd.IndexSlice[X_ic.ids, :], :] if U is not None else None,
+                time_values=time_values,
+            )
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)

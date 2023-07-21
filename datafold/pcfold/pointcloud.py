@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import copy
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -36,7 +36,6 @@ class PCManifold(np.ndarray):
 
     See Also
     --------
-
     :class:`numpy.ndarray`
     :class:`numpy.array`
     """
@@ -80,7 +79,7 @@ class PCManifold(np.ndarray):
 
         # Set the kernel according to user input
         obj.kernel = kernel
-        obj.dist_kwargs = dist_kwargs or {}
+        obj.distance = dist_kwargs or {}
 
         return obj
 
@@ -123,8 +122,7 @@ class PCManifold(np.ndarray):
             ]
         )
 
-        repr = "\n".join([attributes_line, super(PCManifold, self).__repr__()])
-        return repr
+        return "\n".join([attributes_line, super().__repr__()])
 
     def __reduce__(self):
         # __reduce__ and __setstate__ are required for pickling (required if a model
@@ -133,7 +131,7 @@ class PCManifold(np.ndarray):
         # https://stackoverflow.com/a/26599346
 
         # Get the parent's __reduce__ tuple
-        pickled_state = super(PCManifold, self).__reduce__()
+        pickled_state = super().__reduce__()
 
         # Create own tuple to pass to __setstate__ (see below)
         new_state = pickled_state[2] + (
@@ -150,7 +148,7 @@ class PCManifold(np.ndarray):
         self.dist_kwargs = state[-1]
 
         # Call the parent's __setstate__ with the other tuple elements.
-        super(PCManifold, self).__setstate__(state[0:-2])
+        super().__setstate__(state[0:-2])
 
     @property
     def cut_off(self) -> float:
@@ -231,7 +229,7 @@ class PCManifold(np.ndarray):
             A kernel can return further values see :meth:`PCManifoldKernel.__call__`
             for details.
         """
-        return self.kernel(X=self, Y=Y, dist_kwargs=self.dist_kwargs, **kernel_kwargs)
+        return self.kernel(X=self, Y=Y, **kernel_kwargs)
 
     def optimize_parameters(
         self,
@@ -241,12 +239,11 @@ class PCManifold(np.ndarray):
         random_state: Optional[int] = None,
         result_scaling: float = 1.0,
         inplace: bool = True,
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """Estimates ``cut_off`` and kernel bandwidth ``epsilon`` for a Gaussian kernel.
 
         Parameters
         ----------
-
         n_subsample
             Number of samples to use for cut-off estimation.
 
@@ -274,7 +271,6 @@ class PCManifold(np.ndarray):
         float
             epsilon
         """
-
         if not isinstance(self.kernel, GaussianKernel):
             raise TypeError("kernel must be of type GaussianKernel")
 
@@ -310,7 +306,6 @@ def pcm_subsample(
 
     Parameters
     ----------
-
     pcm
         Point cloud to subsample.
 
@@ -336,7 +331,6 @@ def pcm_subsample(
     --------
     :py:meth:`datafold.utils.math.random_subsample`
     """
-
     if min_distance is None and pcm.cut_off is not None:
         min_distance = pcm.cut_off * 2
 
@@ -347,7 +341,9 @@ def pcm_subsample(
 
     n_samples_pcm = pcm.shape[0]
 
-    all_indices = np.random.permutation(n_samples_pcm)
+    rng = np.random.default_rng(1)
+    all_indices = rng.permutation(n_samples_pcm)
+
     indices_splits = np.array_split(all_indices, n_samples_pcm // n_samples + 1)
 
     # choose first block of random samples as a basis
@@ -397,7 +393,6 @@ def pcm_remove_outlier(pcm: PCManifold, kmin: int, cut_off: float):
 
     Parameters
     ----------
-
     pcm
         Point cloud.
 
@@ -408,7 +403,6 @@ def pcm_remove_outlier(pcm: PCManifold, kmin: int, cut_off: float):
         The distance range (Euclidean) in which to count the neighbours for
         each point.
     """
-
     if kmin <= 0 or not isinstance(kmin, int):
         raise ValueError("kmin must be a positive integer")
 

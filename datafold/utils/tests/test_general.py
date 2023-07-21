@@ -9,6 +9,7 @@ from datafold.utils.general import (
     is_matrix,
     is_stochastic_matrix,
     is_symmetric_matrix,
+    is_vector,
     mat_dot_diagmat,
     sort_eigenpairs,
 )
@@ -188,16 +189,44 @@ class TestMathUtils(unittest.TestCase):
         self.assertTrue(is_matrix(rect_sparse, "m", allow_sparse=True))
 
         with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(rect_dense, "m", square=True))
+            is_matrix(rect_dense, "m", square=True)
+
+        self.assertFalse(is_matrix(rect_dense, "m", square=True, handle=None))
+
+        with self.assertRaises(TypeError):
+            is_matrix(square_sparse, "m", allow_sparse=False)
+
+        self.assertFalse(is_matrix(square_sparse, "m", allow_sparse=False, handle=None))
+
+        with self.assertRaises(TypeError):
+            is_matrix(rect_sparse, "m", allow_sparse=False)
+
+        self.assertFalse(is_matrix(rect_sparse, "m", allow_sparse=False, handle=None))
 
         with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(square_sparse, "m", allow_sparse=False))
+            is_matrix(rect_sparse, "m", square=True, allow_sparse=True)
+
+        self.assertFalse(
+            is_matrix(rect_sparse, "m", square=True, allow_sparse=True, handle=None)
+        )
+
+    def test_is_vector(self):
+        valid_vector = np.random.default_rng(1).random(size=[5])
+        self.assertTrue(is_vector(valid_vector))
+
+        invalid_vector = np.random.default_rng(1).random(size=[5, 5])
 
         with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(rect_sparse, "m", allow_sparse=False))
+            is_vector(invalid_vector)
+
+        self.assertFalse(is_vector(invalid_vector, handle=None))
+
+        invalid_vector = np.random.default_rng(1).random(size=[0])
 
         with self.assertRaises(ValueError):
-            self.assertTrue(is_matrix(rect_sparse, "m", square=True, allow_sparse=True))
+            is_vector(invalid_vector)
+
+        self.assertFalse(is_vector(invalid_vector, handle=None))
 
 
 if __name__ == "__main__":

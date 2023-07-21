@@ -1,5 +1,7 @@
-# IDE related files
+# IDE / editor related files
 .idea/
+.vscode/
+*.code-workspace
 
 # Install files (package and documentation with Sphinx)
 dist/
@@ -17,7 +19,7 @@ __pycache__/
 # Default folder for Python virtual environment (as used in the README)
 .venv/
 
-# Files for testing
+# Files for testing and coverage
 .coverage
 coverage/
 
@@ -29,15 +31,11 @@ doc/source/api/
 doc/build/
 public/
 
-# General files
+# General binary/data files
 *.csv
 *.jar
 *.mat
 *.pdf
 *.zip
-
-tags
-pyrightconfig.json
-
-venv
-.git
+*.npy
+*.pkl

@@ -3,7 +3,7 @@ import pathlib
 import pybtex.database as bib
 
 path_script = pathlib.Path(__file__).parent.absolute()
-path_bibfile = pathlib.PurePath(path_script, "_static/literature.bib")
+path_bibfile = path_script / "_static" / "literature.bib"
 
 
 def has_field(entry, field):
@@ -39,19 +39,14 @@ def _validate_year(entry):
         int(year)
     except ValueError:
         # re-raise with more information
-        raise ValueError(
-            f"key = {entry.key} has invalid value in 'year' " f"(got: year={year})"
-        )
+        raise ValueError(f"key = {entry.key} has invalid value in 'year'. Got {year=}.")
 
 
 def _validate_key(key, entry):
-
     key_error_text = (
-        f"key='{key}' is invalid. A valid key has the form "
-        "'[name (lowercase)]-[year (4 digits)][empty or a-z]' (e.g. "
-        "'einstein-1904' with a second publication 'einstein-1904a') with "
-        "the last name of the first author, year of publication and a "
-        "single character for key name mangling if necessary."
+        f"{key=} is invalid. A valid key has the form "
+        "'[first author lastname (lowercase)]-[year of publication (4 digits)][empty or a-z]' "
+        "(e.g. 'einstein-1904' with a second publication 'einstein-1904a' in this year)."
     )
 
     if "-" not in key:
@@ -82,10 +77,10 @@ def _validate_key(key, entry):
 
 
 def adapt_bib():
-    bibfile = bib.parse_file(path_bibfile)
+    bibfile = bib.parse_file(str(path_bibfile))
 
     for key in bibfile.entries:
-        # note that there is no copy, so all following operations are directly on entry
+        # note that there is no copy, so all following operations are directly in the entry
         entry = bibfile.entries[key]
 
         # do not include these common fields as they are not
@@ -134,7 +129,7 @@ def validate_bib():
         _validate_key(key, entry)
 
         if not _has_identifier(entry):
-            print(f"WARNING: key={key}")
+            print(f"WARNING: key={key} has no identifier link (URL, ISBN, ISSN or DOI)")
 
 
 if __name__ == "__main__":

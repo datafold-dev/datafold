@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Helper functions for testing. """
+"""Helper functions for testing."""
 
 import logging
 from typing import Optional
@@ -19,8 +19,9 @@ def make_strip(
     xmin: float, ymin: float, width: float, height: float, num_samples: int
 ) -> np.ndarray:
     """Draw samples from a 2D strip with uniform distribution."""
-    x = width * np.random.rand(num_samples) - xmin
-    y = height * np.random.rand(num_samples) - ymin
+    rng = np.random.default_rng(5)
+    x = width * rng.random(num_samples) - xmin
+    y = height * rng.random(num_samples) - ymin
 
     return np.stack((x, y), axis=-1)
 
@@ -48,7 +49,6 @@ def swiss_roll(nt: int, ns: int, freq: Optional[float] = 2.0) -> np.ndarray:
 
 
 def print_problem(a1, a2, cmp_str=""):
-
     if type(a1) != type(a2):
         print(f"Type mismatch, got {type(a1)} and {type(a2)}")
         return
@@ -67,7 +67,6 @@ def print_problem(a1, a2, cmp_str=""):
 
 
 def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
-
     nptest.assert_allclose(
         dmap1.eigenvalues_,
         dmap2.eigenvalues,
@@ -91,7 +90,6 @@ def cmp_eigenpairs(dmap1: DiffusionMaps, dmap2: legacy_dmap.BaseDiffusionMaps):
 def cmp_kernel_matrix(
     actual: DiffusionMaps, expected: legacy_dmap.BaseDiffusionMaps, rtol=None, atol=None
 ):
-
     if rtol is None and atol is None:
         exact = True
     else:
