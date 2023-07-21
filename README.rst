@@ -31,9 +31,10 @@ The package includes:
   * ``DMDControl`` augments the DMD to handle additional control input
   * ``EDMD`` - The Extended-DMD, which allows setting up a highly flexible dictionary to
   transform time series data and thereby handle nonlinear dynamics within the Koopman
-  operator framework. The EDMD wraps an arbitrary standard DMD model for the decomposition.
+  operator framework. The EDMD wraps an arbitrary DMD variation for the decomposition.
   The key advantage of this is, that the ``EDMD`` directly profits from the above
-  functionalities (``EDMD`` with control or streaming data).
+  functionalities. ``EDMD`` can be used in control or streaming settings. Furthermore it is
+  possible to learn the dictionary directly from data (commonly referred to EDMD-DL)
 * Handling of cross-validation. The method ``EDMDCV``, for example, allows model parameters to
   be optimized with cross-validation splittings that account for the temporal order in time
   series data.
