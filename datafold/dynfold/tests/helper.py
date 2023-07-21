@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Helper functions for testing. """
+"""Helper functions for testing."""
 
 import logging
 from typing import Optional
@@ -19,8 +19,9 @@ def make_strip(
     xmin: float, ymin: float, width: float, height: float, num_samples: int
 ) -> np.ndarray:
     """Draw samples from a 2D strip with uniform distribution."""
-    x = width * np.random.rand(num_samples) - xmin
-    y = height * np.random.rand(num_samples) - ymin
+    rng = np.random.default_rng(5)
+    x = width * rng.random(num_samples) - xmin
+    y = height * rng.random(num_samples) - ymin
 
     return np.stack((x, y), axis=-1)
 

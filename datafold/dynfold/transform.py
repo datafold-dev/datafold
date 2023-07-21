@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Union
+from typing import Literal, Union
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, clone
 from sklearn.decomposition import PCA, IncrementalPCA
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScaler
 from sklearn.utils.validation import NotFittedError, check_is_fitted, check_scalar
 
@@ -24,7 +25,6 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
 
     Parameters
     ----------
-
     sklearn_transformer
         See `here <https://scikit-learn.org/stable/modules/classes.html#module-sklearn.
         preprocessing>`__ for a list of possible preprocessing algorithms.
@@ -88,7 +88,6 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCFeaturePreprocess
             self
         """
-
         if not hasattr(self.sklearn_transformer, "transform"):
             raise AttributeError("sklearn object has no 'transform' attribute")
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -116,7 +115,6 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type and shape as `X`
         """
-
         check_is_fitted(self, "sklearn_transformer_fit_")
 
         X = self._validate_datafold_data(X)
@@ -145,7 +143,6 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type and shape as `X`
         """
-
         X = self._validate_datafold_data(X)
 
         self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
@@ -172,7 +169,6 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type and shape as `X`
         """
-
         if not hasattr(self.sklearn_transformer, "inverse_transform"):
             raise AttributeError("sklearn object has no 'inverse_transform' attribute")
 
@@ -202,7 +198,8 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
             return self.features
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeatureSelect":
-        """
+        """Fit the model.
+
         Parameters
         ----------
         X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
@@ -214,7 +211,6 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         **fit_params: Dict[str, object]
             `None`
         """
-
         if (
             not isinstance(self.features, np.ndarray)
             or self.features.ndim != 1
@@ -443,7 +439,6 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCPrincipalComponent
             self
         """
-
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
@@ -492,7 +487,6 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_components_)`
         """
-
         X = self._validate_datafold_data(X)
         pca_values = super().fit_transform(X, y=y)
         self._setup_feature_attrs_fit(X)
@@ -529,7 +523,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     Parameters
     ----------
-
     delays
         Number for time delays to embed.
 
@@ -547,7 +540,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     delay_indices_ : numpy.ndarray
         Delay indices (backwards in time) assuming a fixed time delta in the time series.
 
@@ -562,7 +554,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     References
     ----------
-
     * Original paper from :cite:t:`takens-1981`
     * Generalized to multiple observation in :cite:`deyle-2011`
     * time delay embedding in the context of Koopman operator theory, e.g.
@@ -704,7 +695,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     def partial_fit(
         self, X: TransformType, y=None, **fit_params
     ) -> "TSCTakensEmbedding":
-        """# TODO
+        """# TODO.
 
         Parameters
         ----------
@@ -754,7 +745,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             (2) all time series must have the minimum number of time samples to obtain
             one sample in the time delay embedding.
         """
-
         X = self._validate_datafold_data(
             X,
             tsc_kwargs={
@@ -857,6 +847,70 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         return X.loc[:, self.feature_names_in_]
 
 
+class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):
+    """
+    This is a simple wrapper for sampled neural networks.
+
+    Parameters
+    ----------
+    nn
+        A sklearn pipeline that represents the neural network (containing ``Dense``, ``Linear``
+        layers, etc. from the ``swimnetwork`` Python package). Note the pipleline
+        should not be fitted yet.
+
+
+    References
+    ----------
+    See :cite:t:`bolager-2023` for the paper on sampled networks and the
+    gitlab repository `swimnetworks <https://gitlab.com/felix.dietrich/swimnetworks>`__
+
+    To install the package run
+
+    .. code-block::
+
+        pip install git+https://github.com/https://gitlab.com/felix.dietrich/swimnetworks
+
+    """
+
+    def __init__(
+        self,
+        nn: Pipeline,
+    ):
+        self.nn = nn
+
+    def __repr__(self):
+        # TODO: somehow the repr of the original network is quite costly to obtain
+        #    (maybe investigate why)
+        return "SWIM NETWORK"
+
+    def get_feature_names_out(self, input_features=None):
+        n_features_out = self.nn[-1].weights.shape[1]
+        return [f"w{i}" for i in range(n_features_out)]
+
+    def fit(self, X: TSCDataFrame) -> "TSCSampledNetwork":
+        self._validate_datafold_data(X=X)
+
+        if self.nn[-1].weights is None:
+            Xm, Xp = X.tsc.shift_matrices(snapshot_orientation="row")
+            self.nn = self.nn.fit(Xm, Xp)
+        else:
+            pass
+
+        # must be setup only *after* the network is fitted
+        self._setup_feature_attrs_fit(X)
+        return self
+
+    def transform(self, X: TSCDataFrame):
+        self._validate_feature_input(X=X, direction="transform")
+
+        X_return = self.nn.transform(X.to_numpy())
+        X_return = TSCDataFrame.from_same_indices_as(
+            X, X_return, except_columns=self.get_feature_names_out()
+        )
+
+        return X_return
+
+
 class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
     def __init__(self, n_features=100, sigma=1):
         self.n_features = n_features
@@ -876,8 +930,10 @@ class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         mean = np.zeros(X.shape[1])
         cov = np.identity(X.shape[1]) / self.sigma**2
 
+        rng = np.random.default_rng(1)
+
         for d in range(self.n_features):
-            self.fourier_components_[:, d] = np.random.multivariate_normal(mean, cov)
+            self.fourier_components_[:, d] = rng.multivariate_normal(mean, cov)
 
         return self
 
@@ -991,7 +1047,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
     Parameters
     ----------
-
     kernel
         Radial basis kernel to compute the coefficients with. Defaults to
         :code:`MultiquadricKernel(epsilon=1.0)`.
@@ -1017,7 +1072,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     centers_: numpy.ndarray
         The center points of the radial basis functions.
 
@@ -1033,7 +1087,9 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         self,
         kernel,
         *,  # keyword-only
-        center_type: str = "all_data",
+        center_type: Literal[
+            "all_data", "random", "fit_params", "inital_condition"
+        ] = "all_data",
         n_samples: int = 100,
         exact_distance=True,
     ):
@@ -1074,7 +1130,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         TSCRadialBasis
             self
         """
-
         X = self._validate_datafold_data(X)
         self._validate_center_type(center_type=self.center_type)
         _centers = self._read_fit_params(
@@ -1083,7 +1138,10 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if self.center_type == "all_data":
             if _centers is not None:
-                raise ValueError("center points were passed but center_type='all_data'")
+                raise ValueError(
+                    "center points were passed but center_type='all_data'"
+                    "was set during model init"
+                )
 
             self.centers_ = self._X_to_numpy(X)
         elif self.center_type == "random":
@@ -1461,10 +1519,12 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
 
     Parameters
     ----------
-
     spacing: Union[str, float]
         The time difference between samples. If "dt" (str) then the time sampling
         frequency of a :meth:`.TSCDataFrame.delta_time` is used during fit.
+
+    scheme
+        The finite difference scheme to apply, "center", "backward" or "forward".
 
     diff_order
         The derivative order.
@@ -1474,7 +1534,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     spacing_
         The resolved time difference between samples. Equals the parameter
         input if it was of type :class`float`.
@@ -1487,11 +1546,13 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
     def __init__(
         self,
         *,  # keyword-only
-        spacing: Union[str, float] = "dt",
+        spacing: Union[Literal["dt"], float] = "dt",
+        scheme: Literal["backward", "center", "forward"] = "center",
         diff_order: int = 1,
         accuracy: int = 2,
     ):
         self.spacing = spacing
+        self.scheme = scheme
         self.diff_order = diff_order
         self.accuracy = accuracy
 
@@ -1551,16 +1612,13 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             if isinstance(self.spacing_, pd.Series) or np.isnan(self.spacing_):
                 raise TSCException.not_const_delta_time(actual_delta_time=self.spacing_)
         else:
+            check_scalar(
+                x=self.spacing,
+                target_type=(float, int),
+                min_val=0,
+                include_boundaries="right",
+            )
             self.spacing_ = self.spacing
-
-            if (
-                isinstance(X, TSCDataFrame)
-                and np.asarray(self.spacing_ != X.delta_time).all()
-            ):
-                raise ValueError(
-                    f"A spacing of {self.spacing} was specified, but the time series "
-                    f"collection has a time delta of {X.delta_time}"
-                )
 
         check_scalar(
             self.spacing_,
@@ -1621,7 +1679,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         self._validate_feature_input(X=X, direction="transform")
 
         time_derivative = X.tsc.time_derivative(
-            scheme="center",
+            scheme=self.scheme,
             diff_order=self.diff_order,
             accuracy=self.accuracy,
             shift_index=True,

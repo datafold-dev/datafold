@@ -1,6 +1,7 @@
+from collections.abc import Generator
 from functools import partial
 from numbers import Number
-from typing import Generator, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import matplotlib.colors as mclrs
 import numpy as np
@@ -15,7 +16,7 @@ from datafold.utils.general import (
     is_integer,
 )
 
-ColumnType = Union[pd.Index, List[str], np.ndarray]
+ColumnType = Union[pd.Index, list[str], np.ndarray]
 NumericalTimeType = Union[int, float, np.datetime64]
 
 
@@ -133,7 +134,7 @@ def _is_numeric_dtype(obj):
     if isinstance(obj, Number):
         # this includes np.nan and np.inf
         return True
-    elif isinstance(obj, pd.Series) or isinstance(obj, np.ndarray):
+    elif isinstance(obj, (np.ndarray, pd.Series)):
         # call is_numeric_dtype from pandas
         return is_numeric_dtype(obj)
     elif isinstance(obj, pd.DataFrame):
@@ -242,7 +243,6 @@ class TSCDataFrame(pd.DataFrame):
 
     Examples
     --------
-
     An example ``TSCDataFrame`` with three time series and two features (columns). The
     first two time series share the same time values (rows). The third time series
     contains only a single sample (degenerated time series).
@@ -383,7 +383,7 @@ class TSCDataFrame(pd.DataFrame):
         cls,
         tensor: np.ndarray,
         time_series_ids: Optional[Union[np.ndarray, pd.Index]] = None,
-        columns: Optional[Union[pd.Index, list]] = None,
+        feature_names: Optional[Union[pd.Index, list]] = None,
         time_values: Optional[np.ndarray] = None,
     ) -> "TSCDataFrame":
         """Create a ``TSCDataFrame`` from a three-dimensional tensor.
@@ -410,7 +410,6 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
-
         if tensor.ndim != 3:
             raise ValueError(
                 "Input tensor has to be of dimension 3. Index (1) denotes the time "
@@ -440,8 +439,8 @@ class TSCDataFrame(pd.DataFrame):
 
             time_series_ids = time_series_ids.repeat(n_timesteps)
 
-        if columns is None:
-            columns = pd.Index(
+        if feature_names is None:
+            feature_names = pd.Index(
                 [f"feature{i}" for i in range(n_feature)],
                 name=TSCDataFrame.tsc_feature_col_name,
             )
@@ -461,8 +460,8 @@ class TSCDataFrame(pd.DataFrame):
         data = tensor.reshape(n_timeseries * n_timesteps, n_feature)
 
         # Sorting index here, handles cases where time values are not sorted in the input.
-        data = pd.DataFrame(data=data, index=idx, columns=columns)
-        data.sort_index(axis=0, level=0, inplace=True)
+        data = pd.DataFrame(data=data, index=idx, columns=feature_names)
+        data = data.sort_index(axis=0, level=0)
         return cls(data)
 
     @classmethod
@@ -501,7 +500,6 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
-
         snapshot_orientation = snapshot_orientation.lower()
 
         if snapshot_orientation == "col":
@@ -567,7 +565,6 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
-
         if not isinstance(indices_from, TSCDataFrame):
             raise TypeError("Parameter 'indices_from' must be of type 'TSCDataFrame'")
 
@@ -600,7 +597,6 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
-
         df = df.copy()  # to not change original data
 
         if isinstance(df, TSCDataFrame) or df.index.nlevels > 1:
@@ -618,10 +614,10 @@ class TSCDataFrame(pd.DataFrame):
             df = pd.DataFrame(df)
 
         # The time values must be sorted.
-        df.sort_index(axis=0, inplace=True)
+        df = df.sort_index(axis=0)
 
         df[cls.tsc_id_idx_name] = ts_id
-        df.set_index(cls.tsc_id_idx_name, append=True, inplace=True)
+        df = df.set_index(cls.tsc_id_idx_name, append=True)
         df = df.reorder_levels([cls.tsc_id_idx_name, df.index.names[0]])
 
         return cls(df)
@@ -647,7 +643,6 @@ class TSCDataFrame(pd.DataFrame):
         TSCDataFrame
             new instance
         """
-
         if time_values is not None:
             time_values = np.atleast_1d(time_values)
 
@@ -659,8 +654,8 @@ class TSCDataFrame(pd.DataFrame):
     @classmethod
     def from_frame_list(
         cls,
-        frame_list: List[pd.DataFrame],
-        ts_ids: Optional[Union[np.ndarray, pd.Index, List[int]]] = None,
+        frame_list: list[pd.DataFrame],
+        ts_ids: Optional[Union[np.ndarray, pd.Index, list[int]]] = None,
     ) -> "TSCDataFrame":
         """Create ``TSCDataFrame`` from a list of time series.
 
@@ -700,7 +695,7 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         # prepare list
-        final_list: List[pd.DataFrame] = []
+        final_list: list[pd.DataFrame] = []
 
         for df in frame_list:
             # >= 2 to raise error for invalid DataFrames
@@ -774,8 +769,7 @@ class TSCDataFrame(pd.DataFrame):
             If path is None, returns the resulting csv format as a
             string. Otherwise returns None.
 
-        """  # noqa E501
-
+        """
         return pd.DataFrame(self).to_csv(*args, **kwargs)
 
     @classmethod
@@ -795,7 +789,7 @@ class TSCDataFrame(pd.DataFrame):
         -------
         TSCDataFrame
             new instance
-        """  # noqa E501
+        """
         # NOTE: Overwrites the super class method (which is deprecated since version 0.21
         # Here the csv is read from a csv file that was a
         # TSCDataFrame, i.e. tscdf.to_csv("filename.csv") and therefore should be valid.
@@ -824,7 +818,7 @@ class TSCDataFrame(pd.DataFrame):
 
         if index.duplicated().any():
             raise AttributeError(
-                f"Duplicated indices found: " f"{index[index.duplicated()].to_numpy()}"
+                f"Duplicated indices found: {index[index.duplicated()].to_numpy()}"
             )
 
         # Insert required index names:
@@ -885,7 +879,7 @@ class TSCDataFrame(pd.DataFrame):
         _ids = ids_index[bool_new_id]
 
         if len(np.unique(_ids)) != len(_ids):
-            raise AttributeError("The ime series must have a unique ID.")
+            raise AttributeError("The time series must have a unique ID.")
 
         if is_datetime64_dtype(time_index):
             _time_index_num = time_index.view(np.int64)
@@ -994,7 +988,6 @@ class TSCDataFrame(pd.DataFrame):
             time series, otherwise a pd.Series indicating the `delta_time` for each time
             series.
         """
-
         _index_name_series = "delta_time"
 
         if self.is_datetime_index():
@@ -1135,7 +1128,6 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         """
-
         vals, counts = np.unique(
             self.index.get_level_values(self.tsc_id_idx_name), return_counts=True
         )
@@ -1236,7 +1228,8 @@ class TSCDataFrame(pd.DataFrame):
 
         Parameters
         ----------
-        args
+        Args:
+        ----
             see docu
             `DataFrame.xs <https://pandas.pydata.org/pandas-docs/stable/reference/api/
             pandas.DataFrame.xs.html#pandas.DataFrame.xs>`_
@@ -1247,7 +1240,6 @@ class TSCDataFrame(pd.DataFrame):
             Cross section of ``TSCDataFrame``. The type is determined by the resulting
             slice.
         """
-
         _slice = pd.DataFrame(self).xs(
             key, axis=axis, level=level, drop_level=drop_level
         )
@@ -1280,7 +1272,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def itertimeseries(
         self, valid_tsc=False
-    ) -> Generator[Tuple[int, pd.DataFrame], None, None]:
+    ) -> Generator[tuple[int, pd.DataFrame], None, None]:
         """Generator of contained time series.
 
         Each iteration returns the time series ID and the corresponding
@@ -1318,7 +1310,6 @@ class TSCDataFrame(pd.DataFrame):
         delta_time
             Pass ``delta_time`` if it is already available.
         """
-
         if delta_time is None:
             # If dt is a Series it means it shows "dt per ID" (because it is not constant).
             delta_time = self.delta_time
@@ -1332,7 +1323,6 @@ class TSCDataFrame(pd.DataFrame):
 
     def is_same_time_values(self) -> bool:
         """Indicates if all time series in the collection share the same time values."""
-
         if self.n_timeseries == 1:
             # return trivial case early
             return True
@@ -1377,7 +1367,6 @@ class TSCDataFrame(pd.DataFrame):
         Returns
         -------
         """
-
         n_timesteps = self.n_timesteps
         _ids = None
 
@@ -1461,7 +1450,7 @@ class TSCDataFrame(pd.DataFrame):
 
     def time_interval(
         self, ts_id: Optional[int] = None
-    ) -> Tuple[NumericalTimeType, NumericalTimeType]:
+    ) -> tuple[NumericalTimeType, NumericalTimeType]:
         """Time interval (start, end) covered by the collection or a specific time series.
 
         Parameters
@@ -1469,7 +1458,6 @@ class TSCDataFrame(pd.DataFrame):
         ts_id
             Time series ID. Defaults to the interval in the collection.
         """
-
         if ts_id is None:
             time_values = self.time_values()
         else:
@@ -1482,7 +1470,6 @@ class TSCDataFrame(pd.DataFrame):
 
         Attributes
         ----------
-
         with_fixed_delta
             If True return the actual time values according to a set `fixed_delta`.
 
@@ -1515,7 +1502,6 @@ class TSCDataFrame(pd.DataFrame):
             if `delta_time` is not constant
 
         """
-
         if not self.is_const_delta_time():
             raise TSCException.not_const_delta_time()
 
@@ -1557,7 +1543,6 @@ class TSCDataFrame(pd.DataFrame):
             If time series in the collection have not identical time values.
 
         """
-
         if feature is None and self.shape[1] > 1:
             raise ValueError(
                 "parameter 'feature' must be provided if there are multiple features"
@@ -1602,7 +1587,6 @@ class TSCDataFrame(pd.DataFrame):
 
         Parameters
         ----------
-
         n_samples
             Number of samples required for an initial state.
 
@@ -1617,7 +1601,6 @@ class TSCDataFrame(pd.DataFrame):
             If there is a time series in the collection that has less time values
             than the required number of samples.
         """
-
         if not is_integer(n_samples) or n_samples < 1:
             raise ValueError(
                 f"The parameter 'n_samples' must be a positive integer value. "
@@ -1648,7 +1631,6 @@ class TSCDataFrame(pd.DataFrame):
             If there is a time series with less than the required number of samples.
 
         """
-
         if not is_integer(n_samples) or n_samples < 1:
             raise ValueError(
                 f"Parameter 'n_samples' must be a positive integer. "
@@ -1692,7 +1674,7 @@ class TSCDataFrame(pd.DataFrame):
 
         first = True
 
-        for i, ts in self.itertimeseries():
+        for _, ts in self.itertimeseries():
             kwargs["ax"] = ax
 
             if first:
@@ -1732,7 +1714,7 @@ class InitialCondition:
         cls,
         X: np.ndarray,
         time_value: Union[float, int],
-        feature_names: Union[pd.Index, List[str]],
+        feature_names: Union[pd.Index, list[str]],
         ts_ids: Optional[np.ndarray] = None,
     ) -> TSCDataFrame:
         """Build initial conditions object from a NumPy array.
@@ -1830,7 +1812,6 @@ class InitialCondition:
         TSCDataFrame
             initial condition
         """
-
         ic_df = X.initial_states(n_samples=n_samples_ic)
         InitialCondition.validate(
             ic_df,
@@ -1842,7 +1823,7 @@ class InitialCondition:
     @classmethod
     def iter_reconstruct_ic(
         cls, X: TSCDataFrame, U: Optional[TSCDataFrame] = None, n_samples_ic: int = 1
-    ) -> Generator[Tuple[TSCDataFrame, np.ndarray], None, None]:
+    ) -> Generator[tuple[TSCDataFrame, np.ndarray], None, None]:
         """Extract and iterate over initial conditions over groups of time series that
         have identical time values.
 
@@ -1866,7 +1847,6 @@ class InitialCondition:
             Each iteration returns the initial states for each time series of the group
             and the associate time values.
         """
-
         X.tsc.check_required_min_timesteps(n_samples_ic)
         time_series_table = X.tsc.time_values_overview()
 
@@ -1924,7 +1904,6 @@ class InitialCondition:
             True if the the initial condition is valid
 
         """
-
         if not isinstance(X_ic, TSCDataFrame):
             raise TypeError(
                 "The initial condition to be validated must be of type TSCDataFrame."
@@ -1959,16 +1938,13 @@ class InitialCondition:
         X_ic.tsc.check_contain_required_ids(required_ids=U.ids, check_order=True)
         U.tsc.check_equal_timevalues()
 
-        last_states = X_ic.final_states(1)
-        init_control = U.initial_states(1)
+        last_state_time = X_ic.final_states(1).time_values()[0]
+        first_control_time = U.initial_states(1).time_values()[0]
 
-        if (
-            last_states.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
-            != init_control.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
-        ).any():
+        if (last_state_time != first_control_time).any():
             raise TSCException(
-                "The last time value of X must match the "
-                "first time value of the control input."
+                f"The last time value of X (={last_state_time}) must match the "
+                f"first time value of the control input (={first_control_time})."
             )
 
 

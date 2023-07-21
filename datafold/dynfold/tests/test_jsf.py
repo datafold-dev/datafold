@@ -1,6 +1,4 @@
-""" Unit test for the jsf module.
-
-"""
+"""Unit test for the jsf module."""
 import unittest
 
 import numpy as np
@@ -137,8 +135,8 @@ class JointlySmoothFunctionsTest(unittest.TestCase):
             n_jointly_smooth_functions=3,
         )
 
-        for estimator, check in check_estimator(estimator, generate_only=True):
-            check(estimator)
+        for e, check in check_estimator(estimator, generate_only=True):
+            check(e)
 
     def _test_tsc_data(self, tsc_data: TSCDataFrame, data_splits):
         jsf = JointlySmoothFunctions(

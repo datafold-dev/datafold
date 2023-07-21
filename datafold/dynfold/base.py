@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from datetime import datetime
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import numpy.testing as nptest
@@ -41,7 +41,7 @@ class TSCBase:
         # True, for pandas.DataFrame or TSCDataFrame
         return isinstance(_obj, pd.DataFrame)
 
-    def _read_fit_params(self, attrs: Optional[List[Tuple[str, Any]]], fit_params):
+    def _read_fit_params(self, attrs: Optional[list[tuple[str, Any]]], fit_params):
         return_values = []
 
         if attrs is not None:
@@ -111,7 +111,6 @@ class TSCBase:
         -------
 
         """
-
         # defaults to empty dictionary if None
         array_kwargs = array_kwargs or {}
         tsc_kwargs = tsc_kwargs or {}
@@ -122,7 +121,7 @@ class TSCBase:
         if self._has_feature_names(X):
             if X.columns.ndim != 1:
                 raise ValueError(
-                    f"The feature columns of X must be 1-dim. " f"Got {X.columns.ndim=}"
+                    f"The feature columns of X must be 1-dim. Got {X.columns.ndim=}"
                 )
 
         if type(X) != TSCDataFrame:
@@ -194,6 +193,7 @@ class TSCBase:
                 ),
                 ensure_normalized_time=tsc_kwargs.pop("ensure_normalized_time", False),
                 ensure_n_timeseries=tsc_kwargs.pop("ensure_n_timeseries", None),
+                ensure_n_timesteps=tsc_kwargs.pop("ensure_n_timesteps", None),
                 ensure_min_timesteps=tsc_kwargs.pop("ensure_min_timesteps", None),
                 ensure_no_degenerate_ts=tsc_kwargs.pop(
                     "ensure_no_degenerate_ts", False
@@ -235,7 +235,6 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
 
     Parameters
     ----------
-
     n_features_in_: int
         Number of features in input `X` during `fit`. The same number of features are
         required for `transform`.
@@ -247,13 +246,13 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
 
     n_features_out_: int
         Number of features in output of `transform`.
-    """  # noqa: E501
+    """
 
     def _setup_feature_attrs_fit(
         self: Union[BaseEstimator, "TSCTransformerMixin"],
         X,
         n_features_out: Optional[int] = None,
-    ):
+    ) -> None:
         if not hasattr(self, "n_features_in_"):
             # sklearn function to set n_features_in_
             self._check_n_features(X, reset=True)
@@ -269,7 +268,8 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
                 # sklearn function to set feature_names_in_
                 self._check_feature_names(X, reset=True)
 
-        # set features out (currently not supported by sklearn, but there is a proposal:
+        # TODO: set features out implemented in alignment to SLEO013, but this proposal was
+        #  rejected -- think of removing n_features_out (check how often and where it is used)
         # https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep013/proposal.html  # noqa
         if not hasattr(self, "n_features_out_"):
             if n_features_out is None:
@@ -280,7 +280,7 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
 
     def _validate_feature_input(
         self: Union[BaseEstimator, "TSCTransformerMixin"], X: TransformType, direction
-    ):
+    ) -> None:
         self._check_attributes_set_up(["n_features_in_", "n_features_out_"])
 
         if direction == "transform":
@@ -305,7 +305,7 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
                         f"Required: {should_features}."
                     )
 
-    def _more_tags(self):
+    def _more_tags(self) -> dict:
         """Add tag to scikit-learn tags to indicate whether the original states in `X` are
         preserved during the transformation.
 
@@ -336,7 +336,6 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
         -------
 
         """
-
         if isinstance(X, TSCDataFrame):
             # NOTE: order is important here TSCDataFrame is also a DataFrame, so first
             # check for the special case, then for the more general case.
@@ -384,12 +383,13 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
     def partial_fit_transform(
         self, X: TransformType, y=None, **fit_params
     ) -> TransformType:
-        """TODO
+        """TODO.
+
         Parameters
         ----------
         X
         y
-        fit_params
+        fit_params.
 
         Returns
         -------
@@ -406,7 +406,6 @@ class TSCPredictMixin(TSCBase):
 
     Parameters
     ----------
-
     n_features_in_: int
         Number of features during `fit`.
 
@@ -499,6 +498,7 @@ class TSCPredictMixin(TSCBase):
         time_values: Optional[np.ndarray],
         X: Union[TSCDataFrame, np.ndarray],
         U: Optional[Union[TSCDataFrame, np.ndarray]],
+        dt=None,
     ):
         # comparing time values in floating points is sometimes a bit tricky, because two
         # effectively equal values have a tiny difference -- this parameter is used within
@@ -506,8 +506,14 @@ class TSCPredictMixin(TSCBase):
         _numerical_tol = 1e-14
         _numerical_tol = 0
 
-        if not hasattr(self, "dt_"):
-            raise NotFittedError("The parameter 'dt_' is not set. Please report bug.")
+        if dt is None:
+            try:
+                dt = self.dt_
+            except AttributeError:
+                raise NotFittedError(
+                    "The time sampling dt needs to be either"
+                    "passed by argument or in attribute self.dt_."
+                )
 
         is_controlled = U is not None
         req_last_control_state = getattr(self, "_requires_last_control_state", False)
@@ -526,7 +532,7 @@ class TSCPredictMixin(TSCBase):
             if is_controlled and isinstance(U, TSCDataFrame):
                 reference = U.time_values()[0]
             else:
-                if isinstance(self.dt_, np.timedelta64):
+                if isinstance(dt, np.timedelta64):
                     reference = np.datetime64(datetime.now())
                 else:
                     reference = 0
@@ -543,7 +549,7 @@ class TSCPredictMixin(TSCBase):
                     time_values = U.time_values()
 
                     if not req_last_control_state:
-                        time_values = np.append(time_values, time_values[-1] + self.dt_)
+                        time_values = np.append(time_values, time_values[-1] + dt)
 
                     # the -1E-14 is needed to avoid that numerical noise removes the actual
                     # reference point from the time values
@@ -562,11 +568,11 @@ class TSCPredictMixin(TSCBase):
                         reference
                         + _numerical_tol
                         + (U.shape[0] + int(not req_last_control_state))  # type: ignore
-                        * self.dt_,
-                        self.dt_,
+                        * dt,
+                        dt,
                     )
             else:
-                time_values = np.array([reference, reference + self.dt_])
+                time_values = np.array([reference, reference + dt])
         else:
             time_values = self._validate_time_values_format(time_values=time_values)
 
@@ -592,7 +598,7 @@ class TSCPredictMixin(TSCBase):
 
                     if not req_last_control_state:
                         req_time_values = np.append(
-                            req_time_values, req_time_values[-1] + self.dt_
+                            req_time_values, req_time_values[-1] + dt
                         )
 
                     if (
@@ -615,18 +621,25 @@ class TSCPredictMixin(TSCBase):
 
             if isinstance(X, TSCDataFrame):
                 if (time_values < reference - _numerical_tol).any():
+                    smaller_time_values = time_values[time_values < reference]
+                    if len(smaller_time_values) > 4:
+                        n_values = len(smaller_time_values)
+                        smaller_time_values = smaller_time_values[:4]
+                        msg = f"{smaller_time_values=} [...] ({n_values=})"
+                    else:
+                        msg = f"{smaller_time_values}"
+
                     raise ValueError(
                         "The time values must not contain any value that is smaller than the "
                         f"time reference of the initial condition ({reference=})\n"
-                        f"Invalid values found: {time_values[time_values < reference]=}"
+                        f"Invalid values found: {msg}"
                     )
 
                 if np.abs(reference - time_values[0]) > _numerical_tol:
                     time_values = np.append(reference, time_values)
-
         return time_values
 
-    def _validate_time_values_format(self, time_values: np.ndarray):
+    def _validate_time_values_format(self, time_values: np.ndarray) -> np.ndarray:
         try:
             time_values = np.asarray(time_values)
         except Exception:
@@ -723,18 +736,20 @@ class TSCPredictMixin(TSCBase):
             try:
                 qois = np.asarray(qois)
             except Exception:
-                raise TypeError("parameter 'qois' must be list-like")
+                raise TypeError(
+                    f"Parameter 'qois' must be list-like. Got {type(qois)=}"
+                )
 
             if qois.ndim != 1:
                 raise ValueError(
-                    f"'qois' must be a 1-dim. array. " f"Got qois.ndim={qois.ndim}"
+                    f"Parameter 'qois' must be a 1-dim. array. Got {qois.ndim=}"
                 )
 
             mask_valid_qois = np.isin(qois, valid_feature_names)
 
             if not mask_valid_qois.all():
                 raise ValueError(
-                    f"The qois={qois[~mask_valid_qois]} are invalid. Valid "
+                    f"qois={qois[~mask_valid_qois]} are invalid. Valid "
                     f"feature names are {valid_feature_names}."
                 )
 
@@ -746,7 +761,8 @@ class TSCPredictMixin(TSCBase):
         U: Optional[TSCDataFrame],
         time_values: Optional[np.ndarray],
     ):
-        self._validate_feature_names(X=X)
+        self._validate_feature_names(X=X, U=U)
+        self._validate_time_values_format(time_values=time_values)
 
         return X, U, time_values
 
@@ -754,7 +770,7 @@ class TSCPredictMixin(TSCBase):
         self,
         X: InitialConditionType,
         *,
-        U: Union[np.ndarray, TSCDataFrame, Callable] = None,
+        U: Optional[Union[np.ndarray, TSCDataFrame, Callable]] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:
@@ -765,20 +781,22 @@ class TSCPredictMixin(TSCBase):
         self,
         X: InitialConditionType,
         *,
-        U: TSCDataFrame,
+        U=None,
         y=None,
         **fit_params,
     ) -> TSCDataFrame:
         """Standard fit_predict method. Overwrite if necessary."""
         self.fit: Callable
-        return self.fit(X, U=U, y=y, **fit_params).predict(X.initial_states())
+
+        # TODO: it is likely that this fails for U is not None, as predict also requires U
+        return self.fit(X, U=U, y=y, **fit_params).predict(X.initial_states(), U=U)
 
     def reconstruct(
         self,
         X: TSCDataFrame,
         *,
-        U: TSCDataFrame,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        U: Optional[TSCDataFrame] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, list[str]]] = None,
     ):
         """Standard reconstruct method. Overwrite if necessary."""
         X_reconstruct_ts = []

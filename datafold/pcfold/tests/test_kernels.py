@@ -32,7 +32,7 @@ def generate_box_data(n_left, n_middle, n_right, seed):
 
     def _sample_box(low, high, n_samples):
         x = rng.uniform(low, high, size=n_samples)
-        y = rng.uniform(0, 1, size=n_samples)
+        y = rng.uniform(size=n_samples)
         return np.column_stack([x, y])
 
     left_box = _sample_box(0, 0.3, n_left)
@@ -269,6 +269,8 @@ class TestKernelUtils(unittest.TestCase):
 
 
 class TestPCManifoldKernel(unittest.TestCase):
+    rng = np.random.default_rng(2)
+
     def test_gaussian_kernel_print(self):
         kernel = GaussianKernel(epsilon=1)
 
@@ -279,7 +281,7 @@ class TestPCManifoldKernel(unittest.TestCase):
         self.assertEqual(kernel.__repr__(), r)
 
     def test_kernels_symmetry(self):
-        data = np.random.default_rng(1).random(size=[100, 2])
+        data = self.rng.random(size=[100, 2])
         data_tsc = TSCDataFrame.from_single_timeseries(pd.DataFrame(data))
 
         kernels = [
@@ -299,7 +301,7 @@ class TestPCManifoldKernel(unittest.TestCase):
             self.assertTrue(is_symmetric_matrix(kernel_matrix.to_numpy()))
 
     def test_gaussian_kernel_callable(self):
-        data = np.random.rand(10, 10)
+        data = self.rng.random((10, 10))
 
         kernel_ufunc = GaussianKernel(epsilon=np.median)
         kernel_ufunc(data)
@@ -319,6 +321,8 @@ class TestPCManifoldKernel(unittest.TestCase):
 
 
 class TestDiffusionMapsKernelTest(unittest.TestCase):
+    rng = np.random.default_rng(5)
+
     def test_is_symmetric01(self):
         # stochastic False
 
@@ -369,8 +373,8 @@ class TestDiffusionMapsKernelTest(unittest.TestCase):
         self.assertTrue(k2.is_conjugate)
 
     def test_missing_row_alpha_fit(self):
-        data_X = np.random.rand(100, 5)
-        data_Y = np.random.rand(5, 5)
+        data_X = self.rng.random((100, 5))
+        data_Y = self.rng.random((5, 5))
 
         kernel = DmapKernelFixed(
             GaussianKernel(epsilon=1),
@@ -522,7 +526,7 @@ class TestContinuousNNKernel(unittest.TestCase):
         self.assertTrue((sparse_distance_matrix.getnnz(axis=1) < 10).any())
 
         with self.assertRaises(ValueError):
-            cknn.eval(sparse_distance_matrix, is_pdist=True)
+            cknn.evaluate(sparse_distance_matrix, is_pdist=True)
 
     def test_invalid_parameters(self):
         with self.assertRaises(ValueError):
@@ -542,7 +546,7 @@ class TestContinuousNNKernel(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             # k_neighbor larger than the distance matrix
-            ContinuousNNKernel(k_neighbor=41, delta=1).eval(distance_matrix)
+            ContinuousNNKernel(k_neighbor=41, delta=1).evaluate(distance_matrix)
 
 
 class TestConeKernel(unittest.TestCase):

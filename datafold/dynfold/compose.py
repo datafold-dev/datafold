@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
-from typing import List, Tuple
 
 import pandas as pd
-import sklearn.compose as compose
-import sklearn.pipeline as pipeline
+from sklearn import compose, pipeline
 from sklearn.utils.validation import check_is_fitted
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
@@ -42,11 +40,11 @@ class TSCColumnTransformer(compose.ColumnTransformer, TSCTransformerMixin):
         All transformers included in the list must be able to process
         :py:class:`TSCDataFrame`. See base class for the detailed specification of
         the tuple.
-    """  # noqa E501
+    """
 
     def __init__(
         self,
-        transformers: List[Tuple],
+        transformers: list[tuple],
         *,
         remainder="drop",
         n_jobs=None,

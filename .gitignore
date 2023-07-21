@@ -1,5 +1,7 @@
-# IDE related files
+# IDE / editor related files
 .idea/
+.vscode/
+*.code-workspace
 
 # Install files (package and documentation with Sphinx)
 dist/
@@ -17,7 +19,7 @@ __pycache__/
 # Default folder for Python virtual environment (as used in the README)
 .venv/
 
-# Files for testing
+# Files for testing and coverage
 .coverage
 coverage/
 
@@ -28,19 +30,12 @@ doc/source/_apidoc/
 doc/source/api/
 doc/build/
 public/
-# ignore "extra-media" files which are contained in tutorials and copied to "/doc/source/"
-# with nblink to build the docs
-/doc/source/cartpole2.png
 
-# General files
+# General binary/data files
 *.csv
 *.jar
 *.mat
 *.pdf
 *.zip
-
-tags
-pyrightconfig.json
-
-venv
-.git
+*.npy
+*.pkl

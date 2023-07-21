@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import warnings
-from typing import Dict, Optional
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,8 +15,8 @@ def plot_eigenvalues(
     plot_unit_circle: bool = False,
     semilogy: bool = False,
     ax=None,
-    subplot_kwargs: Optional[Dict[str, object]] = None,
-    plot_kwargs: Optional[Dict[str, object]] = None,
+    subplot_kwargs: Optional[dict[str, object]] = None,
+    plot_kwargs: Optional[dict[str, object]] = None,
 ):
     """Plots eigenvalue distribution.
 
@@ -43,7 +43,6 @@ def plot_eigenvalues(
     Returns
     -------
     """
-
     if ax is None:
         _, ax = plt.subplots(**({} if subplot_kwargs is None else subplot_kwargs))
 
@@ -66,7 +65,8 @@ def plot_eigenvalues(
     elif eigenvalues.dtype == float:
         if plot_unit_circle:
             warnings.warn(
-                "eigenvalues are real-valued, 'plot_unit_circle=True' is ignored"
+                "eigenvalues are real-valued, 'plot_unit_circle=True' is ignored",
+                stacklevel=2,
             )
 
         eigenvalues = np.sort(eigenvalues.copy())[::-1]
@@ -117,7 +117,6 @@ def plot_eigenvalues_time(
 
     Parameters
     ----------
-
     time_values
         The time values on the x-axis.
 
@@ -148,7 +147,6 @@ def plot_eigenvalues_time(
     matplotlib axes object
 
     """
-
     n_timesteps = len(time_values)
 
     if system_type == "flowmap":
@@ -196,8 +194,8 @@ def plot_pairwise_eigenvector(
     n: int,
     idx_start=0,
     label=r"\Psi",
-    scatter_params: Optional[Dict] = None,
-    fig_params: Optional[Dict] = None,
+    scatter_params: Optional[dict] = None,
+    fig_params: Optional[dict] = None,
 ):
     """Plot scatter plot of n-th eigenvector on x-axis and remaining eigenvectors on
     y-axis.
@@ -221,7 +219,6 @@ def plot_pairwise_eigenvector(
     fig_params
         keyword arguments handled to `matplotlib.pyplot.figure()`
     """
-
     eigenvectors = np.asarray(eigenvectors)
 
     # -1 because the trivial case "n versus n" is skipped
@@ -278,7 +275,6 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), n_scale_tests=20) -> None:
 
     Parameters
     ----------
-
     pcm
         point cloud manifold
 
@@ -288,9 +284,6 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), n_scale_tests=20) -> None:
     n_scale_tests
         number of points
     """
-
-    np.random.seed(1)
-
     scales = np.exp(
         np.linspace(np.log(scale_range[0]), np.log(scale_range[1]), n_scale_tests)
     )
@@ -304,7 +297,7 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), n_scale_tests=20) -> None:
 
     for i, scale in enumerate(scales):
         pcm.kernel.epsilon = scale
-        kernel_matrix_scale = pcm.kernel.eval(distance_matrix=distance_matrix)
+        kernel_matrix_scale = pcm.kernel.evaluate(distance_matrix=distance_matrix)
         kernel_sum = kernel_matrix_scale.sum()
 
         scale_sum[i] = kernel_sum / (kernel_matrix_scale.shape[0] ** 2)
@@ -341,8 +334,3 @@ def plot_scales(pcm, scale_range=(1e-5, 1e3), n_scale_tests=20) -> None:
     # ax.loglog(scales, 2*scales, 'g--', label='dim=2')
     ax.legend()
     fig.tight_layout()
-
-
-if __name__ == "__main__":
-    plot_pairwise_eigenvector(eigenvectors=np.random.rand(500, 10), n=0, idx_start=1)
-    plt.show()

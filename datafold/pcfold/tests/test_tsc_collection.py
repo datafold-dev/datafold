@@ -13,13 +13,20 @@ from datafold.pcfold.timeseries.collection import (
 
 
 class TestTSCDataFrame(unittest.TestCase):
+    rng = np.random.default_rng(2)
+
     def setUp(self) -> None:
         # The last two elements are used
         idx = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
         )
         col = ["A", "B"]
-        self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
+
+        # TODO: make this a TSCDataFrame here already and save all the TSCDataFrame(...) wraps
+        # TODO: in the long run use pytest fixtures
+        self.simple_df = pd.DataFrame(
+            self.rng.uniform(size=(9, 2)), index=idx, columns=col
+        )
 
     def test_simple1(self):
         tc = TSCDataFrame(self.simple_df)
@@ -446,7 +453,7 @@ class TestTSCDataFrame(unittest.TestCase):
 
         feature_cols = pd.Index(["A", "B"])
 
-        actual = TSCDataFrame.from_tensor(matrix, columns=feature_cols)
+        actual = TSCDataFrame.from_tensor(matrix, feature_names=feature_cols)
 
         time_index_expected = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]],
@@ -473,7 +480,7 @@ class TestTSCDataFrame(unittest.TestCase):
         feature_column = pd.Index(["A", "B"])
 
         actual = TSCDataFrame.from_tensor(
-            matrix, columns=feature_column, time_values=np.array([100, 200])
+            matrix, feature_names=feature_column, time_values=np.array([100, 200])
         )
 
         time_index_expected = pd.MultiIndex.from_arrays(
@@ -851,7 +858,7 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_time_delta02(self):
         # all time series have irregular time value frequency
         test_df = TSCDataFrame(
-            np.random.rand(6, 2),
+            self.rng.uniform(size=(6, 2)),
             index=pd.MultiIndex.from_product([[0, 1], [1, 3, 100]]),
             columns=["A", "B"],
         )
@@ -1287,7 +1294,7 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_concat_new_timeseries(self):
         tsc = TSCDataFrame(self.simple_df)
         new_tsc = pd.DataFrame(
-            np.random.rand(2, 2),
+            self.rng.uniform(size=(2, 2)),
             index=pd.MultiIndex.from_tuples([(100, 0), (100, 1)]),
             columns=["A", "B"],
         )
@@ -1304,7 +1311,9 @@ class TestTSCDataFrame(unittest.TestCase):
 
     def test_insert_timeseries01(self):
         tsc = TSCDataFrame(self.simple_df)
-        new_ts = pd.DataFrame(np.random.rand(2, 2), index=[0, 1], columns=["A", "B"])
+        new_ts = pd.DataFrame(
+            self.rng.uniform(size=(2, 2)), index=[0, 1], columns=["A", "B"]
+        )
         tsc = tsc.insert_ts(df=new_ts)
         self.assertTrue(isinstance(tsc, TSCDataFrame))
 
@@ -1312,14 +1321,18 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc = TSCDataFrame(self.simple_df)
 
         # Column is not present
-        new_ts = pd.DataFrame(np.random.rand(2, 2), index=[0, 1], columns=["A", "NA"])
+        new_ts = pd.DataFrame(
+            self.rng.uniform(size=(2, 2)), index=[0, 1], columns=["A", "NA"]
+        )
 
         with self.assertRaises(ValueError):
             tsc.insert_ts(new_ts)
 
     def test_insert_timeseries03(self):
         tsc = TSCDataFrame(self.simple_df)
-        new_ts = pd.DataFrame(np.random.rand(2, 2), index=[0, 1], columns=["A", "B"])
+        new_ts = pd.DataFrame(
+            self.rng.uniform(size=(2, 2)), index=[0, 1], columns=["A", "B"]
+        )
 
         with self.assertRaises(ValueError):
             tsc.insert_ts(new_ts, 1.5)  # id has to be int
@@ -1331,7 +1344,9 @@ class TestTSCDataFrame(unittest.TestCase):
         tsc = TSCDataFrame(self.simple_df)
 
         # Not unique time points -> invalid
-        new_ts = pd.DataFrame(np.random.rand(2, 2), index=[0, 0], columns=["A", "B"])
+        new_ts = pd.DataFrame(
+            self.rng.uniform(size=(2, 2)), index=[0, 0], columns=["A", "B"]
+        )
 
         with self.assertRaises(pd.errors.DuplicateLabelError):
             tsc.insert_ts(new_ts, None)
@@ -1360,7 +1375,7 @@ class TestTSCDataFrame(unittest.TestCase):
                 time_values, delta = np.linspace(0, stop, n_samples, retstep=True)
 
                 tsc_single = TSCDataFrame(
-                    np.random.rand(time_values.shape[0], 2),
+                    self.rng.uniform(size=(time_values.shape[0], 2)),
                     index=pd.MultiIndex.from_product([[0], time_values]),
                 )
 
@@ -1368,7 +1383,7 @@ class TestTSCDataFrame(unittest.TestCase):
                     [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values]
                 )
                 tsc_two = TSCDataFrame(
-                    np.random.rand(time_values.shape[0], 2),
+                    self.rng.uniform(size=(time_values.shape[0], 2)),
                     index=idx_two,
                 )
 
@@ -1386,7 +1401,7 @@ class TestTSCDataFrame(unittest.TestCase):
                 # then the delta_time is not constant anymore
                 time_values[-1] = time_values[-1] + delta * 1e-9
                 tsc_single = TSCDataFrame(
-                    np.random.rand(time_values.shape[0], 2),
+                    self.rng.uniform(size=(time_values.shape[0], 2)),
                     index=pd.MultiIndex.from_product([[0], time_values]),
                 )
 
@@ -1394,7 +1409,7 @@ class TestTSCDataFrame(unittest.TestCase):
                     [np.append(np.zeros(5), np.ones(n_samples - 5)), time_values]
                 )
                 tsc_two = TSCDataFrame(
-                    np.random.rand(time_values.shape[0], 2),
+                    self.rng.uniform(size=(time_values.shape[0], 2)),
                     index=idx_two,
                 )
 
@@ -1407,7 +1422,7 @@ class TestTSCDataFrame(unittest.TestCase):
                 self.assertTrue(np.isnan(tsc_two.delta_time.iloc[1]))
 
     def test_build_from_single_timeseries(self):
-        df = pd.DataFrame(np.random.rand(5), index=np.arange(5, 0, -1), columns=["A"])
+        df = pd.DataFrame(self.rng.random(5), index=np.arange(5, 0, -1), columns=["A"])
         tsc = TSCDataFrame.from_single_timeseries(df)
 
         self.assertIsInstance(tsc, TSCDataFrame)
@@ -1415,8 +1430,8 @@ class TestTSCDataFrame(unittest.TestCase):
     def test_time_not_disappear_initial_state(self):
         """One observation was that a feature-column named 'time' disappears because the
         index is set to a regular column. This is tested here, such a 'time'
-        feature-column does not disappear."""
-
+        feature-column does not disappear.
+        """
         tsc = TSCDataFrame(self.simple_df)
         tsc[TSCDataFrame.tsc_time_idx_name] = 1
 
@@ -1482,7 +1497,7 @@ class TestTSCDataFrame(unittest.TestCase):
         self.assertTrue(actual.is_datetime_index())
 
         new_ts_wo_datetime_index = pd.DataFrame(
-            np.random.rand(2, 2), columns=simple_df.columns
+            self.rng.random((2, 2)), columns=simple_df.columns
         )
         with self.assertRaises(ValueError):
             actual.insert_ts(new_ts_wo_datetime_index)

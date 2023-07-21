@@ -6,7 +6,7 @@
 # import datafold
 # datafold.DiffusionMaps()
 
-from datafold._version import Version, show_versions
+from datafold._version import Version
 from datafold.appfold.edmd import *  # noqa F403
 from datafold.dynfold import *  # noqa F403
 from datafold.pcfold import *  # noqa F403

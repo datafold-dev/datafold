@@ -1,7 +1,7 @@
 import sys
 import warnings
 from copy import deepcopy
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -42,7 +42,6 @@ class _DmapKernelAlgorithms:
 
     See Also
     --------
-
     :class:`.DiffusionMaps`
     :class:`.DiffusionMapsVariable`
     :class:`.GeometricHarmonicsInterpolator`
@@ -54,7 +53,7 @@ class _DmapKernelAlgorithms:
         kernel_matrix: KernelType,
         n_eigenpairs: int,
         index_from: Optional[TSCDataFrame] = None,
-    ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame]]:
+    ) -> tuple[np.ndarray, Union[np.ndarray, TSCDataFrame]]:
         if isinstance(kernel_matrix, pd.DataFrame):
             kernel_matrix = kernel_matrix.to_numpy()
 
@@ -142,7 +141,6 @@ class _DmapKernelAlgorithms:
         numpy.ndarray
             Generally non-symmetric matrix of same shape and type as `kernel_matrix`.
         """
-
         if isinstance(kernel_matrix, TSCDataFrame):
             row_idx, col_idx = kernel_matrix.index, kernel_matrix.columns
         else:
@@ -208,7 +206,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     X_fit_: Union[numpy.ndarray, pandas.DataFrame, TSCDataFrame]
         The training data `X` passed during `fit`. The data is required for out-of-sample
         mappings in the Nyström extension.
@@ -365,7 +362,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         if (np.abs(eigvals) < _magic_tol).any():
             warnings.warn(
                 "Diffusion map eigenvalues are close to zero, which can cause "
-                "numerical instabilities when applying the Nystroem extension."
+                "numerical instabilities when applying the Nystroem extension.",
+                stacklevel=2,
             )
 
         # Nystroem approximation
@@ -409,11 +407,10 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     def _select_eigenpairs_target_coords(self):
         """Returns either
         * all eigenpairs, or
-        * the ones that were selected during set_target_coords
+        * the ones that were selected during set_target_coords.
 
         It is assumed that the model is already fit.
         """
-
         if hasattr(self, "target_coords_"):
             if isinstance(self.eigenvectors_, pd.DataFrame):
                 eigvec = self.eigenvectors_.iloc[:, self.target_coords_]
@@ -426,7 +423,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return eigvec, eigvals
 
     def set_target_coords(
-        self, indices: Union[np.ndarray, List[int]]
+        self, indices: Union[np.ndarray, list[int]]
     ) -> "DiffusionMaps":
         """Set eigenvector coordinates for parsimonious mapping.
 
@@ -441,7 +438,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         DiffusionMaps
             self
         """
-
         indices = np.asarray(indices)
         indices = np.sort(indices)
 
@@ -511,6 +507,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         # the specific normalizations in Diffusion Maps.
         # deepcopy to performed to not mutate the original self.kernel attribute (this is
         # according to sklearn's rules)
+        # TODO: no default kernel? Or use np.median for default kernel...
         internal_kernel = (
             deepcopy(self.kernel)
             if self.kernel is not None
@@ -645,7 +642,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_eigenpairs)`
         """
-
         X = self._validate_datafold_data(X, ensure_min_samples=2)
         self.fit(X=X, y=y, **fit_params)
 
@@ -670,7 +666,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape (`n_samples, n_features)`
         """
-
         check_is_fitted(self)
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="inverse_transform")
@@ -703,7 +698,7 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
     .. warning::
         This class is not documented. Contributions are welcome
             * documentation
-            * unit- or functional-testing
+            * unit- or functional-testing.
 
     References
     ----------
@@ -742,7 +737,6 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
     @property
     def peq_est_(self):
         """Estimation of the equilibrium density (p_eq)."""
-
         #  TODO: there are different suggestions,
         #    q_eps_s as noted pdfp. 5,  OR  eq. (2.3) pdfp 4 rho \approx peq^(-1/2)
 
@@ -861,7 +855,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     landmarks_: np.ndarray
         The final landmark data used. It is required for both in-sample and
         out-of-sample embeddings.
@@ -957,8 +950,8 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
     def _subsample_landmarks(self, X: Union[np.ndarray, TSCDataFrame]):
         """Subsample landmarks from training data `X` when no `landmarks` are
-        provided."""
-
+        provided.
+        """
         if isinstance(self.landmarks, float):
             n_landmarks = int(X.shape[0] * self.landmarks)
         else:  # isinstance(self.landmarks, int):
@@ -987,7 +980,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         n_svdtriplet: int,
         normalize_diagonal: Optional[np.ndarray] = None,
         index_from: Optional[TSCDataFrame] = None,
-    ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame], np.ndarray]:
+    ) -> tuple[np.ndarray, Union[np.ndarray, TSCDataFrame], np.ndarray]:
         svdvec_left, svdvals, svdvec_right = compute_kernel_svd(
             kernel_matrix=kernel_matrix, n_svdtriplet=n_svdtriplet
         )
@@ -1010,11 +1003,10 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
     def _select_svdpairs_target_coords(self):
         """Returns either
         * all svd-triplets, or
-        * the ones that were selected during set_target_coords
+        * the ones that were selected during set_target_coords.
 
         It is assumed that the model is already fit.
         """
-
         if hasattr(self, "target_coords_"):
             svdvec_left = self.svdvec_left_[:, self.target_coords_]
             svdvec_right = self.svdvec_right_[:, self.target_coords_]
@@ -1033,7 +1025,8 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         if (np.abs(svdvals) < _magic_tol).any():
             warnings.warn(
                 "Roseland singular values are close to zero, which can cause "
-                "numerical instabilities when applying the Nystroem extension."
+                "numerical instabilities when applying the Nystroem extension.",
+                stacklevel=2,
             )
 
         # Interpolate the svdvec_left with:
@@ -1074,7 +1067,7 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
 
         return feature_names
 
-    def set_target_coords(self, indices: Union[np.ndarray, List[int]]) -> "Roseland":
+    def set_target_coords(self, indices: Union[np.ndarray, list[int]]) -> "Roseland":
         """Set specific singular vector coordinates for a parsimonious mapping.
 
         Parameters
@@ -1088,7 +1081,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         Roseland
             self
         """
-
         indices = np.sort(np.asarray(indices))
 
         if indices.dtype != int:
@@ -1129,7 +1121,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         Roseland
             self
         """
-
         X = self._validate_datafold_data(
             X=X, ensure_min_samples=max(2, self.n_svdtriplet)
         )
@@ -1201,7 +1192,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             the new coordinates of the points in `X`
         """
-
         check_is_fitted(
             self, ("landmarks_", "svdvalues_", "svdvec_left_", "svdvec_right_")
         )
@@ -1252,7 +1242,6 @@ class Roseland(BaseEstimator, TSCTransformerMixin):
             the new coordinates of the points in X
 
         """
-
         self.fit(X=X, **fit_params)
         svdvec_left, svdvals, _ = self._select_svdpairs_target_coords()
 
@@ -1314,14 +1303,12 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     evec_indices_
 
     residuals_
 
     References
     ----------
-
     :cite:`dsilva-2018`
 
     """
@@ -1611,7 +1598,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         Parameters
         ----------
-
         X
             Eigenvectors of shape `(n_samples, n_eigenvectors)` to carry out selection.
 
@@ -1620,7 +1606,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_evec_indices)`
         """
-
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
@@ -1634,11 +1619,11 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         return X_selected
 
     def inverse_transform(self, X: TransformType):
-        """
+        """n/a.
+
         .. warning::
             Not implemented.
         """
-
         # TODO: the inverse_transform should map
         #   \Psi_selected -> \Psi_full
         #  However this is usually not what we are interested in. Instead it is more

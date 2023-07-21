@@ -65,8 +65,8 @@ class DiffusionMapsTest(unittest.TestCase):
         The purpose is to overwrite the argument "validate_matrix" in
         "compute_kernel_eigenpairs", which enables checks that are disabled by default
         """
-        import datafold.dynfold.dmap as dmap
-        import datafold.pcfold.eigsolver as eigsolver
+        from datafold.dynfold import dmap
+        from datafold.pcfold import eigsolver
 
         def mock_compute_kernel_eigenpairs(*args, **kwargs):
             kwargs["validate_matrix"] = True  # always validate matrix
@@ -863,7 +863,8 @@ class DiffusionMapsTest(unittest.TestCase):
 class DiffusionMapsLegacyTest(unittest.TestCase):
     """We want to produce exactly the same results as the forked DMAP repository. These
     are test to make sure this is the case. All dmaps have symmetrize_kernel=False to
-    be able to compare the kernel."""
+    be able to compare the kernel.
+    """
 
     @pytest.fixture(autouse=True)
     def run_before_each_test(self):
@@ -1108,13 +1109,11 @@ class LocalRegressionSelectionTest(unittest.TestCase):
         self.assertTrue(np.argmax(loc_regress.residuals_[2:]) == 3)
 
     def test_automatic_eigendirection_selection_rectangle(self):
-        """
-        from
+        """Test taken from:
         Paper: Parsimonious Representation of Nonlinear Dynamical Systems Through
         Manifold Learning: A Chemotaxis Case Study, Dsila et al., page 7
-        https://arxiv.org/abs/1505.06118v1
+        https://arxiv.org/abs/1505.06118v1.
         """
-
         n_samples = 5000
         n_subsample = 500
 
@@ -1122,9 +1121,11 @@ class LocalRegressionSelectionTest(unittest.TestCase):
         # the next independent eigenfunction should appear
         x_length_values = [1, 2.3, 4.3, 8.3]
 
+        rng = np.random.default_rng(1)
+
         for xlen in x_length_values:
-            x_direction = np.random.uniform(0, xlen, size=(n_samples, 1))
-            y_direction = np.random.uniform(0, 1, size=(n_samples, 1))
+            x_direction = rng.uniform(0, xlen, size=(n_samples, 1))
+            y_direction = rng.uniform(size=(n_samples, 1))
             X = np.hstack([x_direction, y_direction])
 
             dmap = DiffusionMaps(kernel=GaussianKernel(0.1), n_eigenpairs=10).fit(X)
@@ -1147,51 +1148,35 @@ class LocalRegressionSelectionTest(unittest.TestCase):
         # Same test as test_choose_automatic_parametrization, just using the proper
         # sklean-like API
         n_samples = 5000
-        n_subssample = 500
+        n_subsample = 500
 
         x_length_values = [2.3, 4.3, 8.3]
 
-        np.random.seed(1)
+        rng = np.random.default_rng(1)
 
         for xlen in x_length_values:
-            x_direction = np.random.uniform(0, xlen, size=(n_samples, 1))
-            y_direction = np.random.uniform(0, 1, size=(n_samples, 1))
+            x_direction = rng.uniform(0, xlen, size=(n_samples, 1))
+            y_direction = rng.uniform(size=(n_samples, 1))
 
             data = np.hstack([x_direction, y_direction])
             dmap = DiffusionMaps(kernel=GaussianKernel(0.1), n_eigenpairs=10).fit(data)
 
-            # -----------------------------------
-            # Streategy 1: choose by dimension
+            for s, kwargs in [
+                ("dim", dict(intrinsic_dim=2)),
+                ("threshold", dict(regress_threshold=0.5)),
+            ]:
+                loc_regress_dim = LocalRegressionSelection(
+                    n_subsample=n_subsample, strategy=s, **kwargs
+                )
+                actual = loc_regress_dim.fit_transform(dmap.eigenvectors_)
 
-            loc_regress_dim = LocalRegressionSelection(
-                n_subsample=n_subssample, strategy="dim", intrinsic_dim=2
-            )
-            actual = loc_regress_dim.fit_transform(dmap.eigenvectors_)
+                actual_indices = loc_regress_dim.evec_indices_
+                expected_indices = np.array([1, int(xlen + 1)])
 
-            actual_indices = loc_regress_dim.evec_indices_
-            expected_indices = np.array([1, int(xlen + 1)])
+                nptest.assert_equal(actual_indices, expected_indices)
 
-            nptest.assert_equal(actual_indices, expected_indices)
-
-            expected = dmap.eigenvectors_[:, actual_indices]
-            nptest.assert_array_equal(actual, expected)
-
-            # -----------------------------------
-            # Streategy 2: choose by threshold
-
-            loc_regress_thresh = LocalRegressionSelection(
-                n_subsample=n_subssample, strategy="threshold", regress_threshold=0.9
-            )
-
-            actual = loc_regress_thresh.fit_transform(dmap.eigenvectors_)
-
-            actual_indices = loc_regress_thresh.evec_indices_
-            expected_indices = np.array([1, int(xlen + 1)])
-
-            nptest.assert_equal(actual_indices, expected_indices)
-
-            expected = dmap.eigenvectors_[:, expected_indices]
-            nptest.assert_array_equal(actual, expected)
+                expected = dmap.eigenvectors_[:, actual_indices]
+                nptest.assert_array_equal(actual, expected)
 
 
 class DiffusionMapsVariableTest(unittest.TestCase):
@@ -1317,19 +1302,3 @@ class DiffusionMapsVariableTest(unittest.TestCase):
         nptest.assert_allclose(
             actual, expected.ravel(), atol=0.0002519, rtol=0.29684159
         )
-
-
-if __name__ == "__main__":
-    t = DiffusionMapsTest()
-    t.setUp()
-    t.test_cknn_kernel()
-    exit()
-
-    # t = DiffusionMapsLegacyTest()
-    # t.setUp()
-    # t.test_kernel_matrix_simple_dense()
-    # exit()
-
-    # DiffusionMapsLegacyTest().test_sanity_dense_sparse()
-    # exit()
-    unittest.main()

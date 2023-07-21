@@ -26,14 +26,14 @@ The package includes:
   `dynamics-adapted cone kernel <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
 * Implementations and variants of the Dynamic Mode Decomposition as data-driven methods to
   identify and analyze dynamical systems from time series collection data. This incldues:
-     * ``DMDFull`` or ``DMDEco`` as standard methods of DMD
-     * ``OnlineDMD`` or ``StreamingDMD`` modify the DMD to handle streaming data
-     * ``DMDControl`` augments the DMD to handle additional control input
-     * ``EDMD`` - The Extended-DMD, which allows setting up a highly flexible dictionary to
-       transform time series data and thereby handle nonlinear dynamics. The EDMD also wraps
-       an arbitrary standard DMD model for the decomposition. The key advantage of this is,
-       that the ``EDMD`` directly profits from the above functionalities (`EDMD` with control
-       or streaming data). The method directly links to the Koopman operator theory.
+  * ``DMDFull`` or ``DMDEco`` as standard methods of DMD
+  * ``OnlineDMD`` or ``StreamingDMD`` modify the DMD to handle streaming data
+  * ``DMDControl`` augments the DMD to handle additional control input
+  * ``EDMD`` - The Extended-DMD, which allows setting up a highly flexible dictionary to
+  transform time series data and thereby handle nonlinear dynamics within the Koopman
+  operator framework. The EDMD wraps an arbitrary standard DMD model for the decomposition.
+  The key advantage of this is, that the ``EDMD`` directly profits from the above
+  functionalities (``EDMD`` with control or streaming data).
 * Handling of cross-validation. The method ``EDMDCV``, for example, allows model parameters to
   be optimized with cross-validation splittings that account for the temporal order in time
   series data.
@@ -216,7 +216,7 @@ require additional dependencies which are managed in
 How does it compare to other software?
 ======================================
 
-*The selection only includes other Python packages.*
+*Note: This list covers only Python packages.*
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    provides algorithms and models along the entire machine learning pipeline, with a
@@ -234,14 +234,15 @@ How does it compare to other software?
    arbitrary many output samples (a time series) for a single input
    (an initial condition).
 
-* `PyDMD <https://mathlab.github.io/PyDMD/>`__
-   provides many variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia.org/wiki/Dynamic_mode_decomposition>`__.
-   *datafold* provides a wrapper to make models of ``PyDMD`` accessible. However, a
-   limitation of ``PyDMD`` is that it only processes single coherent time series, see
-   `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`__. The DMD models that
-   are directly included in *datafold* utilize the functionality of the data
-   structure ``TSCDataFrame`` and can therefore process time
-   series collections - in an extreme case only containing snapshot pairs.
+* `PyDMD <https://github.com/PyDMD/PyDMD>`__
+   provides many variants of the `Dynamic Mode Decomposition (DMD)
+   <https://en.wikipedia.org/wiki/Dynamic_mode_decomposition>`__. *datafold* provides a wrapper
+   to make models of ``PyDMD`` accessible. However, a limitation of ``PyDMD`` is that it only
+   processes single coherent time series, see `PyDMD issue 86
+   <https://github.com/PyDMD/PyDMD/issues/86>`__. The DMD models that are directly included
+   in *datafold* utilize the functionality of the data structure ``TSCDataFrame`` and can
+   therefore process time series collections - in an extreme case only containing snapshot
+   pairs.
 
 * `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__
    specializes on a *sparse* system identification of nonlinear dynamical systems to

@@ -1,6 +1,6 @@
 import inspect
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -11,14 +11,16 @@ from scipy.optimize import minimize
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold import EDMD, TSCDataFrame
+from datafold._decorators import warn_experimental_class
 from datafold.dynfold.base import InitialConditionType, TransformType
 from datafold.utils.general import if1dim_colvec, projection_matrix_from_feature_names
 
 try:
-    import quadprog  # noqa: F401
-    from qpsolvers import solve_qp
+    import qpsolvers
+
+    IMPORTED_QPSOLVERS = True
 except ImportError:
-    solve_qp = None
+    IMPORTED_QPSOLVERS = False
 
 
 def _cost_to_array(cost: Union[float, np.ndarray], n_elements):
@@ -117,7 +119,6 @@ class KMPC:
 
     Attributes
     ----------
-
     H : np.ndarray
         Quadratic cost/weight term for the input.
 
@@ -138,7 +139,6 @@ class KMPC:
 
     References
     ----------
-
     :cite:`korda-2018`
     """
 
@@ -148,17 +148,18 @@ class KMPC:
         horizon: int,
         state_bounds: Optional[np.ndarray],
         input_bounds: Optional[np.ndarray],
-        qois: Optional[List[str]] = None,
+        qois: Optional[list[str]] = None,
         cost_running: Union[float, np.ndarray] = 1,
         cost_terminal: Optional[Union[float, np.ndarray]] = 1,
         cost_input: Optional[Union[float, np.ndarray]] = 1,
+        solver: str = "quadprog",
     ) -> None:
         # TODO: option to set multiple horizons? E.g. setting horizon = np.arange(5)
 
-        if solve_qp is None:
+        if not IMPORTED_QPSOLVERS:
             raise ImportError(
-                "The optional dependencies `qpsolvers` and `cvxpy` are required. These can "
-                "be installed separately with `pip install qpsolvers cvxpy`"
+                "The optional dependency `qpsolvers` is required by this class. "
+                " The package can be installed with `pip install qpsolvers`."
             )
 
         self.edmd = edmd
@@ -188,6 +189,14 @@ class KMPC:
 
         self.input_bounds = input_bounds
         self.state_bounds = state_bounds
+
+        self.solver = solver
+
+        if self.solver not in qpsolvers.available_solvers:
+            raise ValueError(
+                f"{solver=} is not in the available solvers of qpsolvers\n "
+                f"{qpsolvers.available_solvers=}"
+            )
 
         if isinstance(self.input_bounds, np.ndarray) and self.input_bounds.shape != (
             self.n_control_input,
@@ -440,7 +449,7 @@ class KMPC:
         else:
             h = None
 
-        U = solve_qp(
+        U = qpsolvers.solve_qp(
             P=self.H,
             q=(self.M @ X_dict.to_numpy().T - self.Y @ np_reference).flatten(),
             G=self.G,
@@ -449,7 +458,7 @@ class KMPC:
             b=None,
             lb=self.lb,
             ub=self.ub,
-            solver="cvxpy",
+            solver=self.solver,
             verbose=False,
             initvals=None,  # TODO: make use of initvals for iteration?
         )
@@ -484,7 +493,7 @@ class KMPC:
         augment_control: bool = False,
     ):
         """
-        TODO
+        TODO.
 
         Parameters
         ----------
@@ -655,7 +664,8 @@ class LQR:
         return u
 
 
-class AffineKgMPC:
+@warn_experimental_class
+class AffineKgMPC:  # prama: no cover
     def __init__(
         self,
         predictor: EDMD,
@@ -668,7 +678,7 @@ class AffineKgMPC:
     ):
         r"""
         Class to implement Lifting based (Koopman generator) Model Predictive Control,
-        given a control-affine model in differential form
+        given a control-affine model in differential form.
 
         .. math::
             \dot{x}= Ax + \sum_{i=1}^m B_i u_i x
@@ -712,7 +722,6 @@ class AffineKgMPC:
 
         References
         ----------
-
         :cite:`peitz-2020`
         """
         self.horizon = horizon
@@ -730,7 +739,7 @@ class AffineKgMPC:
                 "support affine controlled systems (e.g. gDMDAffine)."
             )
 
-        if not self.predictor._dmd_model.is_differential_system:
+        if not self.predictor.dmd_model.is_differential_system:
             raise TypeError(
                 "The predictor.dmd_model should be a differential "
                 "affine controlled system (e.g. gDMDAffine)."
@@ -813,8 +822,8 @@ class AffineKgMPC:
         x0: np.ndarray,
         xref: np.ndarray,
         t: np.ndarray,
-    ) -> Tuple[float, np.ndarray]:
-        """Calculate the cost and its Jacobian
+    ) -> tuple[float, np.ndarray]:
+        """Calculate the cost and its Jacobian.
 
         Parameters
         ----------
@@ -851,7 +860,7 @@ class AffineKgMPC:
         t: np.ndarray,
         x: Optional[np.ndarray] = None,
     ) -> float:
-        """Compute the cost for the given reference
+        """Compute the cost for the given reference.
 
         Parameters
         ----------
@@ -869,8 +878,9 @@ class AffineKgMPC:
             Time values for the evaluation
         x
             State to use. If not provided is calculated by self.predictor
+
         Returns
-        ---------
+        -------
         float
         """
         u = u.reshape(self.input_size, self.horizon + 1)
@@ -889,7 +899,7 @@ class AffineKgMPC:
         t: np.ndarray,
         x: Optional[np.ndarray] = None,
     ) -> np.ndarray:
-        """Compute the Jacobian of the cost function
+        """Compute the Jacobian of the cost function.
 
         Parameters
         ----------
@@ -905,8 +915,9 @@ class AffineKgMPC:
             Time values for the evaluation
         x
             State to use. If not provided is calculated by self.predictor
+
         Returns
-        ---------
+        -------
         np.ndarray, shape (n*m,)
             [dJ/du1(t0) dJ/du1(t1) ... dJ/du1(tn) dJ/du2(t1) ... dJ/dum(tn)]
         """
@@ -1020,7 +1031,6 @@ class AffineKgMPC:
 
 
         """
-
         if time_values is None:
             try:
                 time_values = reference.time_values()
@@ -1083,7 +1093,8 @@ class AffineKgMPC:
         if not res.success:
             warnings.warn(
                 f"Could not find a minimum solution. Solver says '{res.message}'. "
-                "Using closest solution."
+                "Using closest solution.",
+                stacklevel=2,
             )
 
         return res.x.reshape(self.input_size, self.horizon + 1).T[:-1, :]

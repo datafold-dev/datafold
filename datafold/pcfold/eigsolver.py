@@ -1,5 +1,5 @@
 import sys
-from typing import Dict, Tuple, Union
+from typing import Union
 
 import numpy as np
 import scipy.sparse
@@ -13,7 +13,8 @@ _valid_svd_backends = ["scipy"]
 
 class NumericalMathError(Exception):
     """Use for numerical problems/issues, such as singular matrices or too large
-    imaginary part."""
+    imaginary part.
+    """
 
     def __init__(self, message):
         super().__init__(message)
@@ -53,7 +54,6 @@ def scipy_eigsolver(
 
     Parameters
     ----------
-
     kernel_matrix
         Matrix of shape `(n_samples, n_samples)`.
 
@@ -68,7 +68,6 @@ def scipy_eigsolver(
     numpy.ndarray
         eigenvectors of shape `(n_samples, n_eigenpairs)`
     """
-
     n_samples, n_features = kernel_matrix.shape
 
     # check only for n_eigenpairs == n_features and n_eigenpairs < n_features
@@ -79,7 +78,7 @@ def scipy_eigsolver(
         else:
             scipy_eigvec_solver = scipy.linalg.eig
 
-        solver_kwargs: Dict[str, object] = {
+        solver_kwargs: dict[str, object] = {
             "check_finite": False
         }  # should be checked already
 
@@ -123,7 +122,7 @@ def scipy_eigsolver(
 
 def scipy_svdsolver(
     kernel_matrix, n_svdvtriplets, **kwargs
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Decompose a (possibly rectangular) kernel matrix into singular value components.
 
     Compute
@@ -186,7 +185,7 @@ def compute_kernel_eigenpairs(
     normalize_eigenvectors: bool = False,
     backend: str = "scipy",
     validate_matrix: bool = False,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Compute eigenvalues and -vectors from kernel matrix with consideration of matrix
     properties.
 
@@ -217,7 +216,6 @@ def compute_kernel_eigenpairs(
     numpy.ndarray
         Eigenvectors (not necessarily normalized) in the same order to eigenvalues.
     """
-
     is_matrix(kernel_matrix, "kernel_matrix", square=True, allow_sparse=True)
 
     err_nonfinite = ValueError(

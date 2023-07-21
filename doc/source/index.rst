@@ -110,13 +110,13 @@ Software management
      - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/coverage.svg
           :target: https://gitlab.com/datafold-dev/datafold/-/jobs/artifacts/master/file/coverage/index.html?job=unittests
           :alt: coverage report
-   * - Source code formatting and style
+   * - Development tools (management, formatting and style)
      - .. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
           :target: https://pre-commit.com/
           :alt: pre-commit
-       .. image:: https://img.shields.io/badge/code%20style-flake8-black.svg
-          :target: https://flake8.pycqa.org/en/latest/
-          :alt: python-flake8
+       .. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v2.json
+          :target: https://beta.ruff.rs/docs/
+          :alt: ruff
        .. image:: https://img.shields.io/badge/code%20format-black-000000.svg
           :target: https://black.readthedocs.io/en/stable/
           :alt: python-black
@@ -159,9 +159,10 @@ Software maintainer and affiliation
 
 * **Daniel Lehmberg** (|dl-link| :octicon:`link-external`)
 
-  - from 5/2022 postdoctoral researcher at (1)
-  - from 3/2018-5/2022 PhD candidate at both (1) and (2) with funding from the German Research
-    Foundation (|dfg| :octicon:`link-external`), grant no. KO 5257/3-1.
+  - from 5/2022 postdoctoral researcher at Technical University of Munich (1)
+  - from 3/2018-5/2022 PhD candidate at both Munich University of Applied Scienes (1) and Technical University of
+    Munich (2) with funding from the German Research Foundation (|dfg| :octicon:`link-external`),
+    grant no. KO 5257/3-1.
 
 * **Felix Dietrich** (1, |fd-link| :octicon:`link-external`)
 
@@ -221,7 +222,7 @@ Faculty of Computer Science and Mathematics
 
 .. |dl-link| raw:: html
 
-   <a href="https://www.cs.cit.tum.de/sccs/personen/personen/daniel-lehmberg/" target="_blank">link</a>
+   <a href="https://www.cs.cit.tum.de/en/sccs/people/daniel-lehmberg/" target="_blank">link</a>
 
 .. |fd-link| raw:: html
 

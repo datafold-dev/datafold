@@ -23,8 +23,10 @@ from datafold.utils.general import is_symmetric_matrix
 
 class TestDistAlgorithms(unittest.TestCase):
     def setUp(self) -> None:
-        self.data_X = np.random.rand(500, 100)
-        self.data_Y = np.random.rand(300, 100)
+        rng = np.random.default_rng(1)
+
+        self.data_X = rng.random((500, 100))
+        self.data_Y = rng.random((300, 100))
 
         self.symmetric_algos = _all_available_distance_algorithm(require_symmetric=True)
 

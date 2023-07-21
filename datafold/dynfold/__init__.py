@@ -41,7 +41,7 @@ from datafold.dynfold.dmd import (
     DMDBase,
     DMDControl,
     DMDEco,
-    DMDFull,
+    DMDStandard,
     OnlineDMD,
     PyDMDWrapper,
     StreamingDMD,
@@ -60,5 +60,6 @@ from datafold.dynfold.transform import (
     TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCRadialBasis,
+    TSCSampledNetwork,
     TSCTakensEmbedding,
 )

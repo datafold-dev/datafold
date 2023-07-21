@@ -2,7 +2,7 @@
 import abc
 import inspect
 from copy import deepcopy
-from typing import Optional, Sequence, Type, Union
+from typing import Optional, Union
 
 import numpy as np
 import scipy.sparse
@@ -58,7 +58,13 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
     # distances cannot be negative - an easy to identify negative value
     _invalid_dist_value = -999
 
-    def __init__(self, metric, is_symmetric, cut_off=None, k=None):
+    def __init__(
+        self,
+        metric: str,
+        is_symmetric: bool,
+        cut_off: Optional[float] = None,
+        k: Optional[float] = None,
+    ) -> None:
         assert hasattr(
             self, "name"
         ), f"Attribute 'name' is missing in subclass {type(self)}."
@@ -283,7 +289,6 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
         scipy.sparse.csr_matrix
             distance matrix with shape `(n_samples_Y, n_samples_X)`
         """
-
         current_nnz = distance_matrix.getnnz(axis=1)
         knn_query_indices = np.where(current_nnz < kmin)[0]
         is_pdist = Y is None
@@ -310,7 +315,7 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
             )
 
             distances = np.reshape(
-                distances, newshape=np.product(distances.shape), order="C"
+                distances, newshape=np.prod(distances.shape), order="C"
             )
 
             # Note: duplicates and trivial self-distances in the pdist are assumed to already
@@ -321,7 +326,7 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
             knn_query_indices = np.repeat(knn_query_indices, kmin)[nnz_distance_mask]
 
             columns_indices = np.reshape(
-                columns_indices, newshape=np.product(columns_indices.shape), order="C"
+                columns_indices, newshape=np.prod(columns_indices.shape), order="C"
             )[nnz_distance_mask]
 
             if is_pdist:
@@ -422,7 +427,6 @@ class DistanceAlgorithm(metaclass=abc.ABCMeta):
 
         Attributes
         ----------
-
         X
             Reference dataset of shape `(n_samples_X, n_features)`.
 
@@ -508,7 +512,6 @@ class BruteForceDist(DistanceAlgorithm):
         np.ndarray, scipy.sparse.csr_matrix
             distance matrix
         """
-
         X, Y, is_pdist = self._validate_X_Y(X, Y)
 
         if is_pdist:
@@ -549,7 +552,6 @@ class RDist(DistanceAlgorithm):
 
     Parameters
     ----------
-
     metric
         "euclidean" or "sqeuclidean"
 
@@ -559,13 +561,11 @@ class RDist(DistanceAlgorithm):
 
     Raises
     ------
-
     ImportError
         if rdist is not installed, but selected as backend
 
     References
     ----------
-
     .. todo::
         include own paper if published
 
@@ -620,7 +620,6 @@ class RDist(DistanceAlgorithm):
         scipy.sparse.csr_matrix
             distance matrix
         """
-
         is_pdist = Y is None
 
         radius = self._adapt_radius()
@@ -667,7 +666,7 @@ class ScipyKdTreeDist(DistanceAlgorithm):
     ----------
     :class:`scipy.spatial.cKDTree`
     :meth:`scipy.spatial.KDTree.sparse_distance_matrix`
-    """  # noqa E501
+    """
 
     name = "scipy.kdtree"
 
@@ -716,7 +715,6 @@ class ScipyKdTreeDist(DistanceAlgorithm):
         scipy.sparse.csr_matrix
             distance matrix
         """
-
         X, Y, is_pdist = self._validate_X_Y(X, Y)
 
         if is_pdist or not hasattr(self, "kdtree_x_"):
@@ -768,7 +766,7 @@ class SklearnBalltreeDist(DistanceAlgorithm):
     See Also
     --------
     :class:`sklearn.neighbors.NearestNeighbors`
-    """  # noqa E501
+    """
 
     name = "sklearn.balltree"
 
@@ -826,7 +824,6 @@ class SklearnBalltreeDist(DistanceAlgorithm):
         scipy.sparse.csr_matrix
             distance matrix
         """
-
         X, Y, is_pdist = self._validate_X_Y(X, Y)
 
         if is_pdist or not hasattr(self, "nn_"):
@@ -930,8 +927,8 @@ class GuessOptimalDist(DistanceAlgorithm):
         return backend_class
 
 
-def _all_available_distance_algorithm(require_symmetric=False):
-    """Searches for valid subclasses of :py:class:`DistanceAlgorithm`
+def _all_available_distance_algorithm(require_symmetric: bool = False):
+    """Searches for valid subclasses of :py:class:`DistanceAlgorithm`.
 
     Parameters
     ----------
@@ -943,8 +940,7 @@ def _all_available_distance_algorithm(require_symmetric=False):
     list
         all valid subclasses
     """
-
-    all_backends: Sequence[type] = DistanceAlgorithm.__subclasses__()
+    all_backends = DistanceAlgorithm.__subclasses__()
 
     return_backends = list()
     # This is the case if backend is given as a str, now we look for the matching
@@ -958,7 +954,7 @@ def _all_available_distance_algorithm(require_symmetric=False):
             # If 'backend_name' is set to none, then the implementation is not
             # considered e.g. because dependencies are not met in case of rdist.
             if isinstance(b.name, str):
-                if require_symmetric and b.is_symmetric():
+                if require_symmetric and b.is_symmetric():  # type: ignore
                     return_backends.append(b)
                 elif not require_symmetric:
                     return_backends.append(b)
@@ -973,7 +969,7 @@ def _all_available_distance_algorithm(require_symmetric=False):
 
 def get_backend_distance_algorithm(
     backend, require_symmetric=False
-) -> Type[DistanceAlgorithm]:
+) -> type[DistanceAlgorithm]:
     """Selects and validates the backend class for distance matrix computation.
 
     Parameters
@@ -990,7 +986,6 @@ def get_backend_distance_algorithm(
     -------
     DistanceAlgorithm
     """
-
     if backend is None:
         raise ValueError("backend cannot be None")
 
@@ -1001,12 +996,16 @@ def get_backend_distance_algorithm(
     if backend in all_backends:
         return backend
 
+    selected_backend = None
     for b in all_backends:
         # look up for the backend algorithm with the name implemented
         if b.name == backend:
-            return b
+            selected_backend = b
+            break
     else:
         raise ValueError(f"Could not find backend {backend}")
+
+    return selected_backend
 
 
 def init_distance_algorithm(
@@ -1073,14 +1072,13 @@ def compute_distance_matrix(
     metric: str = "euclidean",
     cut_off: Optional[float] = None,
     k: Optional[int] = None,
-    backend: Union[str, Type[DistanceAlgorithm]] = "guess_optimal",
+    backend: Union[str, type[DistanceAlgorithm]] = "guess_optimal",
     **backend_kwargs,
 ) -> Union[np.ndarray, scipy.sparse.csr_matrix]:
     """Compute distance matrix with different settings and backends.
 
     Parameters
     ----------
-
     X
         Point cloud of shape `(n_samples_X, n_features_X)`.
 
@@ -1115,7 +1113,6 @@ def compute_distance_matrix(
         distance matrix of shape `(n_samples_X, n_samples_X)` if `Y=None`, \
         else of shape `(n_samples_Y, n_samples_X)`
     """
-
     backend_class = init_distance_algorithm(
         backend, metric, cut_off, k, **backend_kwargs
     )
