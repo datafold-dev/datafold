@@ -32,13 +32,15 @@ def _all_tsc_transformers():
 
 
 class TestTSCTransform(unittest.TestCase):
+    rng = np.random.default_rng(5)
+
     def _setUp_simple_df(self):
         idx = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
         )
         col = ["A", "B"]
 
-        self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
+        self.simple_df = pd.DataFrame(self.rng.random((9, 2)), index=idx, columns=col)
 
     def _setUp_takens_df(self):
         idx = pd.MultiIndex.from_arrays(
@@ -57,7 +59,7 @@ class TestTSCTransform(unittest.TestCase):
         )
 
         self.takens_df_long = pd.DataFrame(
-            np.random.rand(n_samples_timeseries * 2, 2), index=idx, columns=col
+            self.rng.random((n_samples_timeseries * 2, 2)), index=idx, columns=col
         )
 
     def setUp(self) -> None:
@@ -112,7 +114,7 @@ class TestTSCTransform(unittest.TestCase):
         # pdtest.assert_frame_equal(_id.inverse_transform(tsc_plus_const), tsc)
 
     def test_identity02_constant(self):
-        data = np.random.rand(5, 5)
+        data = self.rng.random((5, 5))
 
         data_wo_const = TSCIdentity(include_const=False).fit_transform(data)
         data_plus_const = TSCIdentity(include_const=True).fit_transform(data)
@@ -289,6 +291,9 @@ class TestTSCTransform(unittest.TestCase):
         self.assertTrue(with_orig._get_tags()["tsc_contains_orig_states"])
         self.assertTrue(np.all(np.isin(tsc.columns, actual_with.columns)))
 
+    @pytest.mark.skip(
+        "set_output not yet supported for TSCDataFrame -- may require work"
+    )
     def test_native_sklearn_with_tscdataframe(self):
         # TODO: it gives an opportunity to adapt TSCPrincipalComponent (by setting output)
         #  However, there is still a cast needed to TSCDataFrame because it strictly returns

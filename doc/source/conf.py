@@ -1,12 +1,10 @@
-#!/usr/bin/env python3
 # type: ignore
 
 # Configuration file for the Sphinx documentation builder.
 
 # -- Path setup --------------------------------------------------------------
 # If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute
+# add these (absolute path) directories to sys.path here.
 
 import importlib
 import os
@@ -27,14 +25,15 @@ try:
     from datafold import __version__
 except ImportError:
     raise ImportError(
-        f"The path to the datafold root folder ({PATH2ROOT=}) is incorrect. Check in conf.py"
+        f"The path to the datafold root folder ({PATH2ROOT=}) is incorrect. "
+        f"Check in conf.py file"
     )
 
 # For a details on Sphinx configuration see documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 # -- Project information -----------------------------------------------------------------
 project = "datafold"
-copyright = f"2019-{datetime.now().year}, the datafold contributors"
+copyright = f"2019-{datetime.now().year}, the datafold contributors"  # noqa: A001
 author = "datafold contributors"
 version = __version__
 release = version  # no need to make separate from version
@@ -105,7 +104,7 @@ remove_api_folder = True
 
 if remove_api_folder:
     try:
-        shutil.rmtree(os.path.join(PATH2DOC, "api"))
+        shutil.rmtree(PATH2DOC / "api")
     except FileNotFoundError:
         pass  # no worries, the folder is not there
 
@@ -127,7 +126,7 @@ todo_emit_warnings = False
 # https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.imgmath
 
 imgmath_image_format = "png"  # default "png", other option "svg"
-# add the LaTeX code as an “alt” attribute for math images (like on Wikipedia equations)
+# add the LaTeX code as an "alt" attribute for math images (like on Wikipedia equations)
 imgmath_add_tooltips = True
 
 imgmath_font_size = 12  # default=12
@@ -142,13 +141,13 @@ imgmath_latex_preamble = r"\usepackage{amsmath,amstext}"
 # "sphinxcontrib.bibtex"
 # see https://sphinxcontrib-bibtex.readthedocs.io/en/latest/usage.html#configuration
 
-filepath_literature_file = os.path.join(".", "_static", "literature.bib")
-filepath_literature_file = os.path.abspath(filepath_literature_file)
+filepath_literature_file = PATH2DOC / "_static" / "literature.bib"
+assert filepath_literature_file.is_file()
 bibtex_reference_style = "author_year"
 
 # currently supported "alpha" (default)  "plain", "unsrt", "unsrtalpha"
 bibtex_default_style = "plain"
-bibtex_bibfiles = [filepath_literature_file]
+bibtex_bibfiles = [str(filepath_literature_file)]
 
 # ----------------------------------------------------------------------------------------
 # napoleon (see full list of available options:
@@ -231,12 +230,13 @@ else:
     raise ValueError(f"DATAFOLD_TUTORIALS_EXECUTE={nb_execute_env} not a valid choice")
 
 # add datafold and tutorials folder to PYTHONPATH to run jupyter notebooks
-os.environ["PYTHONPATH"] = f"{PATH2ROOT}:{os.path.join(PATH2ROOT, 'tutorials')}"
+os.environ["PYTHONPATH"] = f"{PATH2ROOT}:{PATH2ROOT / 'tutorials'}"
 
 # next code lines were taken from https://stackoverflow.com/a/67692
 spec = importlib.util.spec_from_file_location(
-    "tutorials_script", os.path.join(PATH2DOC, "generate_tutorials_page.py")
+    "tutorials_script", PATH2DOC / "generate_tutorials_page.py"
 )
+
 tutorials_script = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tutorials_script)
 

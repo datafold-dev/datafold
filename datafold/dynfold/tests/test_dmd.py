@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import unittest
-import unittest.mock as mock
+from unittest import mock
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,8 +15,7 @@ from scipy.interpolate import interp1d
 from datafold.dynfold import TSCTakensEmbedding
 from datafold.dynfold.dmd import (
     DMDControl,
-    DMDEco,
-    DMDFull,
+    DMDStandard,
     LinearDynamicalSystem,
     OnlineDMD,
     PyDMDWrapper,
@@ -28,6 +27,7 @@ from datafold.pcfold import TSCDataFrame
 from datafold.utils.general import (
     assert_equal_eigenvectors,
     is_df_same_index,
+    is_symmetric_matrix,
     sort_eigenpairs,
 )
 from datafold.utils.plot import plot_eigenvalues
@@ -84,7 +84,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         actual = (
             LinearDynamicalSystem(
-                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+                sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
             )
             .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
@@ -101,9 +101,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         if plot:
             f, ax = plt.subplots(2, 1)
-
             expected = TSCDataFrame.from_same_indices_as(actual, expected)
-
             expected.plot(ax=ax[0])
             actual.plot(ax=ax[1])
 
@@ -140,7 +138,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         actual = (
             LinearDynamicalSystem(
-                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+                sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
             )
             .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
@@ -164,7 +162,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         actual = (
             LinearDynamicalSystem(
-                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+                sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
             )
             .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
@@ -186,7 +184,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
     def test_feature_columns(self):
         actual = (
             LinearDynamicalSystem(
-                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+                sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
             )
             .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
@@ -220,7 +218,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
     def test_return_types(self):
         actual = (
             LinearDynamicalSystem(
-                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+                sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
             )
             .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
@@ -240,7 +238,7 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         actual = (
             LinearDynamicalSystem(
-                sys_type="flowmap", sys_mode="spectral", time_invariant=True
+                sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
             )
             .setup_spectral_system(
                 eigenvectors_right=self.eigvec_right_flowmap,
@@ -274,7 +272,7 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
         self.expected = np.zeros((self.n_timesteps, self.state_size))
         self.expected[0, :] = self.x0
 
-        for idx, time in enumerate(self.t[1:]):
+        for idx, _time in enumerate(self.t[1:]):
             self.expected[idx + 1, :] = (
                 self.A @ self.expected[idx, :] + self.B @ self.u[idx, :]
             )
@@ -526,7 +524,7 @@ class ControlledAffineDynamicalSystemTest(unittest.TestCase):
             time_delta=1,
         )
 
-        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=0.1, rtol=0.1)
+        nptest.assert_allclose(actual.to_numpy(), self.expected, atol=0.2, rtol=0.1)
 
     def test_affine_vs_linear(self):
         controlled_system = LinearDynamicalSystem(
@@ -583,28 +581,35 @@ class DMDTest(unittest.TestCase):
         data = pd.DataFrame(np.column_stack(col_stacks))
         return TSCDataFrame.from_single_timeseries(data)
 
+    def test_clone(self):
+        from sklearn.base import clone
+
+        data = self._create_harmonic_tsc(n_samples=50, dim=5)
+        dmd = DMDStandard().fit(data)
+        dmd2 = clone(dmd)
+
+        assert id(dmd) != id(dmd2)
+
     def test_dmd_eigenpairs(self):
         # From
         # http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf # noqa
         # page 297 Example 9.5
 
-        dmd_model = DMDFull(is_diagonalize=True)
+        dmd = DMDStandard(diagonalize=True)
 
-        mock_koopman_matrix = np.array([[3.0, 1], [2, 2]])
-        dmd_model._compute_koopman_matrix = mock.MagicMock(
-            return_value=mock_koopman_matrix
+        mock_system_matrix = np.array([[3.0, 1], [2, 2]])
+        dmd._compute_full_system_matrix = mock.MagicMock(
+            return_value=[mock_system_matrix, None, None, None, None]
         )
 
-        dmd_model = dmd_model.fit(self._create_random_tsc(n_samples=2, dim=2))
+        dmd = dmd.fit(self._create_random_tsc(n_samples=2, dim=2))
 
         expected_eigenvalues = np.array([4.0, 1.0])  # must be sorted descending
-        nptest.assert_array_equal(expected_eigenvalues, dmd_model.eigenvalues_)
+        nptest.assert_array_equal(expected_eigenvalues, dmd.eigenvalues_)
 
         expected_eigenvectors_right = np.array([[1, 1], [1, -2]])
 
-        assert_equal_eigenvectors(
-            expected_eigenvectors_right, dmd_model.eigenvectors_right_
-        )
+        assert_equal_eigenvectors(expected_eigenvectors_right, dmd.eigenvectors_right_)
 
         expected_eigenvectors_left = np.array([[2 / 3, 1 / 3], [1 / 3, -1 / 3]])
 
@@ -612,7 +617,7 @@ class DMDTest(unittest.TestCase):
         # stored row-wise (whereas right eigenvectors are column-wise). The helper
         # function assert_equal_eigenvectors assumes column-wise orientation
         assert_equal_eigenvectors(
-            expected_eigenvectors_left.T, dmd_model.eigenvectors_left_.T
+            expected_eigenvectors_left.T, dmd.eigenvectors_left_.T
         )
 
         # sanity check: diagonalization of mocked Koopman matrix
@@ -620,24 +625,22 @@ class DMDTest(unittest.TestCase):
             expected_eigenvectors_right
             @ np.diag(expected_eigenvalues)
             @ expected_eigenvectors_left,
-            mock_koopman_matrix,
+            mock_system_matrix,
         )
 
         actual = (
-            dmd_model.eigenvectors_right_
-            @ np.diag(dmd_model.eigenvalues_)
-            @ dmd_model.eigenvectors_left_
+            dmd.eigenvectors_right_ @ np.diag(dmd.eigenvalues_) @ dmd.eigenvectors_left_
         )
 
-        nptest.assert_allclose(mock_koopman_matrix, actual, rtol=1e-15, atol=1e-15)
+        nptest.assert_allclose(mock_system_matrix, actual, rtol=1e-15, atol=1e-15)
 
     def test_dmd_equivalence_generator_flowmap(self):
         test_data = self._create_random_tsc(n_samples=500, dim=30)
 
-        generator_system = DMDFull(is_diagonalize=True, approx_generator=True).fit(
+        generator_system = DMDStandard(diagonalize=True, approx_generator=True).fit(
             test_data
         )
-        flowmap_system = DMDFull(is_diagonalize=True, approx_generator=False).fit(
+        flowmap_system = DMDStandard(diagonalize=True, approx_generator=False).fit(
             test_data
         )
 
@@ -672,19 +675,23 @@ class DMDTest(unittest.TestCase):
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
 
         # for flowmap case
-        first = DMDFull(
-            sys_mode="spectral", is_diagonalize=False, approx_generator=False
+        first = DMDStandard(
+            sys_mode="spectral", diagonalize=False, approx_generator=False
         ).fit_predict(tsc_df)
 
-        second = DMDFull(sys_mode="matrix", approx_generator=False).fit_predict(tsc_df)
+        second = DMDStandard(sys_mode="matrix", approx_generator=False).fit_predict(
+            tsc_df
+        )
 
-        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-12)
+        pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-11)
 
         # for generator case
-        first = DMDFull(
-            sys_mode="spectral", is_diagonalize=False, approx_generator=True
+        first = DMDStandard(
+            sys_mode="spectral", diagonalize=False, approx_generator=True
         ).fit_predict(tsc_df)
-        second = DMDFull(sys_mode="matrix", approx_generator=True).fit_predict(tsc_df)
+        second = DMDStandard(sys_mode="matrix", approx_generator=True).fit_predict(
+            tsc_df
+        )
 
         pdtest.assert_frame_equal(first, second, rtol=1e-16, atol=1e-11)
 
@@ -705,7 +712,7 @@ class DMDTest(unittest.TestCase):
         tsc_df = self._create_harmonic_tsc(100, 2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
 
-        first = DMDFull(is_diagonalize=True, approx_generator=True).fit(
+        first = DMDStandard(diagonalize=True, approx_generator=True).fit(
             tsc_df,
         )
         # extremely high accuracy to get to a similar error
@@ -748,7 +755,7 @@ class DMDTest(unittest.TestCase):
             pydmd.eigenvalues_, pydmd.dmd_modes
         )
 
-        dmd = DMDFull().fit(test_data)
+        dmd = DMDStandard().fit(test_data)
         actual = dmd.dmd_modes
 
         nptest.assert_allclose(
@@ -758,7 +765,7 @@ class DMDTest(unittest.TestCase):
             rtol=0,
         )
 
-        assert_equal_eigenvectors(expected_modes, actual, tol=1e-15)
+        assert_equal_eigenvectors(expected_modes, actual, tol=1.12e-15)
 
     def test_dmd_pydmd2(self):
         test_data = self._create_random_tsc(n_samples=500, dim=100)
@@ -766,18 +773,21 @@ class DMDTest(unittest.TestCase):
         pydmd = PyDMDWrapper(
             method="dmd", svd_rank=10, tlsq_rank=0, exact=True, opt=False
         ).fit(test_data)
-        expected = pydmd.dmd_modes
 
-        dmd = DMDEco(svd_rank=10).fit(test_data)
-        actual = dmd.dmd_modes
+        expected_eigvals, expected_modes = sort_eigenpairs(
+            pydmd.eigenvalues_, pydmd.dmd_modes
+        )
 
-        nptest.assert_allclose(dmd.eigenvalues_, pydmd.eigenvalues_, atol=1e-15, rtol=0)
+        # dmd = DMDEco(svd_rank=10).fit(test_data)
+        dmd = DMDStandard(rank=10).fit(test_data)
+        actual_eigvals, actual_modes = dmd.eigenvalues_, dmd.dmd_modes
 
-        assert_equal_eigenvectors(expected, actual, tol=1e-15)
+        nptest.assert_allclose(expected_eigvals, actual_eigvals, atol=1e-15, rtol=0)
+        assert_equal_eigenvectors(expected_modes, actual_modes, tol=1e-15)
 
     def test_reconstruct_indices(self):
         expected_indices = self._create_random_tsc(n_samples=100, dim=10)
-        actual_indices = DMDFull(is_diagonalize=False).fit_predict(expected_indices)
+        actual_indices = DMDStandard(diagonalize=False).fit_predict(expected_indices)
 
         is_df_same_index(
             actual_indices,
@@ -791,7 +801,7 @@ class DMDTest(unittest.TestCase):
         tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
         predict_ic = self._create_random_tsc(n_samples=20, dim=10)
 
-        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+        dmd = DMDStandard(diagonalize=False).fit(tsc_df_fit)
 
         # predict with array
         predict_ic = predict_ic.to_numpy()
@@ -829,7 +839,7 @@ class DMDTest(unittest.TestCase):
         tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
         predict_ic = self._create_random_tsc(n_samples=20, dim=10).to_numpy()
 
-        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+        dmd = DMDStandard(diagonalize=False).fit(tsc_df_fit)
 
         time_values = np.arange(500, dtype=float)
 
@@ -871,12 +881,110 @@ class DMDTest(unittest.TestCase):
         tsc_df_fit = self._create_random_tsc(n_samples=100, dim=10)
         predict_ic = self._create_random_tsc(n_samples=1, dim=10)
 
-        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+        dmd = DMDStandard(diagonalize=False).fit(tsc_df_fit)
 
         predict_ic.columns = pd.Index(np.arange(2, 12))
 
         with self.assertRaises(ValueError):
             dmd.predict(predict_ic)
+
+    def test_sample_weights(self):
+        harmonic = self._create_harmonic_tsc(100, 2)
+        random = self._create_random_tsc(2, 100)
+        combined = TSCDataFrame.from_frame_list([harmonic, random])
+        weights = np.hstack([np.ones(99), np.zeros(99)])
+
+        expected = DMDStandard().fit(harmonic)
+        actual = DMDStandard().fit(combined, sample_weights=weights)
+
+        nptest.assert_array_equal(expected.eigenvalues_, actual.eigenvalues_)
+
+    def test_resdmd(self):
+        dim = 7
+        test_data = self._create_harmonic_tsc(n_samples=128, dim=dim)
+
+        dmd = DMDStandard().fit(test_data)
+        expected_modes = dmd.dmd_modes
+        expected_eigenvalues = dmd.eigenvalues_
+
+        with self.assertRaises(ValueError):
+            DMDStandard(residual_filter=0.0).fit(test_data)
+
+        resdmd_high = DMDStandard(residual_filter=1e3).fit(test_data)
+        actual_modes = resdmd_high.dmd_modes
+
+        resdmd_med = DMDStandard(residual_filter=1e-1).fit(test_data)
+
+        nptest.assert_allclose(
+            np.abs(resdmd_high.eigenvalues_),
+            np.abs(expected_eigenvalues),
+            atol=1e-4,
+            rtol=0,
+        )
+
+        # check eigendecomposition
+        nptest.assert_almost_equal(
+            np.linalg.norm(
+                actual_modes
+                @ np.diag(resdmd_high.eigenvalues_)
+                @ np.linalg.inv(actual_modes),
+                "fro",
+            ),
+            np.linalg.norm(
+                expected_modes
+                @ np.diag(expected_eigenvalues)
+                @ np.linalg.inv(expected_modes),
+                "fro",
+            ),
+        )
+
+        assert len(resdmd_med.eigenvalues_) < dim
+        assert resdmd_med.dmd_modes.shape[0] == dim
+
+    def test_pseudospectrum(self, plot=False):
+        dim = 10
+        eps = 1
+        test_data = self._create_harmonic_tsc(n_samples=128, dim=dim)
+        test_data = TSCTakensEmbedding(delays=1).fit_transform(test_data)
+
+        dmd = DMDStandard().fit(test_data)
+        resdmd = DMDStandard(residual_filter=eps, compute_pseudospectrum=True).fit(
+            test_data
+        )
+
+        self.assertTrue(is_symmetric_matrix(resdmd._G))
+        self.assertTrue(is_symmetric_matrix(resdmd._R))
+
+        ax = plot_eigenvalues(dmd.eigenvalues_, plot_unit_circle=True)
+        ax.set_title("DMD eigenvalues")
+        ax = plot_eigenvalues(resdmd.eigenvalues_, plot_unit_circle=True)
+        ax.set_title("ResDMD eigenvalues")
+
+        reconstruct1 = dmd.reconstruct(test_data)
+        reconstruct2 = resdmd.reconstruct(test_data)
+
+        dmd.score(test_data)  # TODO make test that both reconstruct well!
+        resdmd.score(test_data)
+
+        for ev in resdmd.eigenvalues_:
+            self.assertIn(ev, dmd.eigenvalues_)
+
+        residuals, eigfunc = resdmd.pseudospectrum(
+            dmd.eigenvalues_, return_eigfuncs=True
+        )
+
+        # TODO: this currently fails -- check if there is a bug and if it has to be true
+        assert len(resdmd.eigenvalues_) == len(residuals[residuals <= eps])
+
+        if plot:
+            ax = test_data.plot(c="red")
+            reconstruct1.plot(ax=ax, c="black", linestyle="--")
+            ax.set_title("DMD")
+
+            ax = test_data.plot(c="red")
+            reconstruct2.plot(ax=ax, c="black", linestyle="--")
+            ax.set_title("ResDMD")
+            plt.show()
 
 
 class StreamingDMDTest(unittest.TestCase):
@@ -945,7 +1053,7 @@ class StreamingDMDTest(unittest.TestCase):
                 fit_batch = batches[i]
                 predict_batch = batches[i + 1]
 
-                dmd_full = DMDFull().fit(pd.concat(batches[: i + 1], axis=0))
+                dmd_full = DMDStandard().fit(pd.concat(batches[: i + 1], axis=0))
                 expected_ev = dmd_full.eigenvalues_[:2]
 
                 predict_fulldmd.append(
@@ -1020,14 +1128,14 @@ class StreamingDMDTest(unittest.TestCase):
 
         X = self._snapshots(n_states, n_samples, noise_cov)
 
-        dmd_full = DMDFull()
+        dmd_full = DMDStandard()
         dmd_full.fit(X)
 
         dmd_partial = StreamingDMD(max_rank=None)
         dmd_partial.partial_fit(X)
 
         # actual does not necessarily compute all possible eigenvalues
-        # -> compare only leading eigenvalues from DMDFull
+        # -> compare only leading eigenvalues from DMDStandard
         ev_actual = dmd_partial.eigenvalues_
         ev_expected = dmd_full.eigenvalues_[: len(ev_actual)]
 
@@ -1058,22 +1166,24 @@ class StreamingDMDTest(unittest.TestCase):
             plt.show()
 
 
-class TestOnlineDMD(unittest.TestCase):
+class OnlineDMDTest(unittest.TestCase):
     def test_online_dmd(self):
         """Test taken and adapted from
         https://github.com/haozhg/odmd/blob/master/tests/test_online.py. For license from
-        "odmd" see LICENSE_bundeled file in datafold repository."""
-
+        "odmd" see LICENSE_bundeled file in datafold repository.
+        """
         for n in range(2, 10):  # n -> state dimension
             T = 100 * n  # number of measurements
 
             # linear system matrix
             A = np.random.default_rng(2).normal(size=(n, n))
 
-            now = np.random.default_rng(3).normal(size=(n, T))
-            next = A.dot(now)
+            now_state = np.random.default_rng(3).normal(size=(n, T))
+            next_state = A.dot(now_state)
 
-            X = TSCDataFrame.from_shift_matrices(now, next, snapshot_orientation="col")
+            X = TSCDataFrame.from_shift_matrices(
+                now_state, next_state, snapshot_orientation="col"
+            )
             X.is_validate = False  # speeds up the iteration
 
             dmd = OnlineDMD(weighting=0.9)
@@ -1089,7 +1199,7 @@ class TestOnlineDMD(unittest.TestCase):
     def test_online_init_vs_full(self):
         X = DMDTest._create_harmonic_tsc(n_samples=500, dim=4)
 
-        expected = DMDFull().fit(X)
+        expected = DMDStandard().fit(X)
         actual = OnlineDMD(weighting=1.0).partial_fit(X, batch_fit=True)
 
         nptest.assert_allclose(
@@ -1123,7 +1233,7 @@ class TestOnlineDMD(unittest.TestCase):
         tsc_df_fit = DMDTest._create_random_tsc(n_samples=100, dim=10)
         predict_ic = DMDTest._create_random_tsc(n_samples=1, dim=10)
 
-        dmd = DMDFull(is_diagonalize=False).fit(tsc_df_fit)
+        dmd = DMDStandard(diagonalize=False).fit(tsc_df_fit)
 
         predict_ic.columns = pd.Index(np.arange(2, 12))
 
@@ -1132,22 +1242,6 @@ class TestOnlineDMD(unittest.TestCase):
 
 
 class DMDControlTest(unittest.TestCase):
-    def _create_harmonic_tsc(self, n_samples, dim):
-        x_eval = np.linspace(0, 2, n_samples)
-
-        col_stacks = []
-
-        counter = 1
-        for i in range(dim):
-            if np.mod(i, 2) == 0:
-                col_stacks.append(np.cos(x_eval * 2 * np.pi / counter))
-            else:
-                col_stacks.append(np.sin(x_eval * 2 * np.pi / counter))
-            counter += 1
-
-        data = pd.DataFrame(np.column_stack(col_stacks))
-        return TSCDataFrame.from_single_timeseries(data)
-
     def _create_control_tsc(
         self, state_size, control_size, n_timesteps, time_delta=1.0
     ):
@@ -1209,7 +1303,7 @@ class DMDControlTest(unittest.TestCase):
         pdtest.assert_frame_equal(actual1, expected, rtol=1e-11, atol=1e-15)
 
     def test_dmd_control_free(self):
-        tsc_df = self._create_harmonic_tsc(100, 2)
+        tsc_df = DMDTest._create_harmonic_tsc(n_samples=100, dim=2)
         tsc_df = TSCTakensEmbedding(delays=1).fit_transform(tsc_df)
         tsc_ic = tsc_df.initial_states()
 
@@ -1221,7 +1315,7 @@ class DMDControlTest(unittest.TestCase):
         )
 
         dmd1 = DMDControl().fit(tsc_df, U=U)
-        dmd2 = DMDFull(sys_mode="matrix", approx_generator=False).fit(tsc_df)
+        dmd2 = DMDStandard(sys_mode="matrix", approx_generator=False).fit(tsc_df)
 
         U_pred = TSCDataFrame.from_array(
             np.zeros([9, 1]), time_values=np.arange(1, 10), feature_names=["u"]

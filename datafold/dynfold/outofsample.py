@@ -45,7 +45,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
     Attributes
     ----------
-
     X_fit_: np.ndarray
         Training data during fit of shape `(n_samples, n_features)`. The data is required
         to be stored to perform out-of-sample interpolations. Equipped with kernel
@@ -65,7 +64,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
     References
     ----------
-
     :cite:`coifman-2006a`
 
     See :cite:t:`evangelou-2022` for using geometric harmonics to map between ambient and
@@ -73,7 +71,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 
     See Also
     --------
-
     :class:`.LaplacianPyramidsInterpolator`
 
     """
@@ -168,7 +165,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         GeometricHarmonicsInterpolator
             self
         """
-
         # function provided by sklearn
         # internally sets attribute n_features_in_
         X, y = self._validate_data(
@@ -241,7 +237,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         numpy.ndarray
             The interpolated function values of shape `(n_samples, n_targets)`.
         """
-
         check_is_fitted(self)
         X = check_array(
             X, **self._validate_kwargs(X, ensure_min_samples=1, during_fit=False)
@@ -272,7 +267,6 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
         np.ndarray
             Gradients (row-wise)
         """
-
         # TODO: generalize to all columns (if required...). Note that this will be a
         #  tensor then.
 
@@ -389,12 +383,11 @@ class GeometricHarmonicsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstim
 class MultiScaleGeometricHarmonicsInterpolator(
     GeometricHarmonicsInterpolator
 ):  # pragma: no cover
-    """
-    .. warning::
-        This class is not documented and in experimental state. Contributions are welcome:
-            * documentation
-            * write unit tests
-            * improve code
+    """.. warning::
+    This class is not documented and in experimental state. Contributions are welcome:
+    * documentation
+    * write unit tests
+    * improve code.
     """
 
     def __init__(
@@ -407,10 +400,9 @@ class MultiScaleGeometricHarmonicsInterpolator(
         alpha: float = 1,
         symmetrize_kernel=False,
     ):
-        """
-        TODO: This is a work in progress algorithm.
-         See: Chiavazzo et al. Reduced Models in Chemical Kinetics via Nonlinear
-              Data-Mining
+        """TODO: This is a work in progress algorithm.
+        See: Chiavazzo et al. Reduced Models in Chemical Kinetics via Nonlinear
+        Data-Mining.
         """
         super().__init__(
             kernel=GaussianKernel(),
@@ -510,7 +502,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
     Parameters
     ----------
-
     initial_epsilon
         The scale of kernel in first iteration.
 
@@ -532,7 +523,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
     Attributes
     ----------
-
     X_: numpy.ndarray
         The point cloud during fit. Must be stored into memory to be able to perform
         out-of-sample interpolations.
@@ -546,7 +536,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
     References
     ----------
-
     :cite:`fernandez-2014,rabin-2012`
 
     """
@@ -756,7 +745,9 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
             symmetrize_kernel=False,
         )
 
-        kernel_matrix = dmap_kernel.eval(distance_matrix=distance_matrix, is_pdist=True)
+        kernel_matrix = dmap_kernel.evaluate(
+            distance_matrix=distance_matrix, is_pdist=True
+        )
 
         if dmap_kernel.is_conjugate:
             raise NotImplementedError("no symmetric conjugation of kernel supported")
@@ -910,7 +901,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         numpy.ndarray
             Predicted function values of shape `(n_samples, n_targets_)`.
         """
-
         X, _ = self._validate(X, y=None, ensure_y=False, ensure_min_samples=1)
 
         check_is_fitted(self)
@@ -919,8 +909,8 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
         y_hat = np.zeros([X.shape[0], self.n_targets_])
         distance_matrix = self._distance_matrix(X=self.X_, Y=X)
 
-        for level, level_content in self._level_tracker.items():
-            kernel_matrix = level_content["kernel"].eval(distance_matrix)
+        for _, level_content in self._level_tracker.items():
+            kernel_matrix = level_content["kernel"].evaluate(distance_matrix)
 
             active_indices = level_content["active_indices"]
             y_hat[:, active_indices] += kernel_matrix @ level_content["target_values"]
@@ -932,7 +922,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
 
     def plot_eps_vs_residual(self) -> None:  # pragma: no cover
         """Plot residuals versus kernel scales (epsilon) from model fit."""
-
         check_is_fitted(self)
 
         norm_residuals = np.zeros([self.level_ + 1, self.n_targets_]) * np.nan

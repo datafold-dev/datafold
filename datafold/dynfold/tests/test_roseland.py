@@ -216,7 +216,7 @@ class RoselandTest(unittest.TestCase):
             ax[1][2].text(
                 0.01,
                 0.5,
-                f"both have same setting " f"chosen_svdvectors={indices}",
+                f"both have same setting chosen_svdvectors={indices}",
             )
 
             plt.show()
@@ -331,7 +331,7 @@ class RoselandTest(unittest.TestCase):
         nptest.assert_array_equal(actual_tsc.to_numpy(), actual_nd)
 
     @pytest.mark.filterwarnings(
-        "ignore:X has feature names, but Roseland was fitted without " "feature names"
+        "ignore:X has feature names, but Roseland was fitted without feature names"
     )
     def test_types_pcm(self):
         # fit=TSCDataFrame
@@ -399,10 +399,3 @@ class RoselandTest(unittest.TestCase):
 
         with self.assertRaises(NotImplementedError):
             Roseland(kernel=ConeKernel()).fit(make_swiss_roll(100)[0])
-
-
-if __name__ == "__main__":
-    t = RoselandTest()
-    exit()
-
-    unittest.main()

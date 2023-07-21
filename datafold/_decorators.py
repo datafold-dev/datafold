@@ -25,7 +25,8 @@ def warn_known_bug(original_function=None, gitlab_issue=None):
             warnings.formatwarning = warning_format
             warnings.warn(
                 f"Function '{function.__name__}' has a known bug. "
-                f"Use with caution {add_msg}"
+                f"Use with caution {add_msg}",
+                stacklevel=1,
             )
             return function(*args, **kwargs)
 
@@ -43,7 +44,8 @@ def warn_experimental_function(original_function):
         warnings.warn(
             f"Class '{original_function.__name__}' is marked as experimental. This means "
             f"the intended functionality may not be complete and there is no sufficient "
-            f"testing. Use function with caution!"
+            f"testing. Use function with caution!",
+            stacklevel=1,
         )
         return original_function(*args, **kwargs)
 
@@ -60,7 +62,8 @@ def warn_experimental_class(cls):
         warnings.warn(
             f"Class '{cls.__name__}' is marked as experimental. This means "
             f"the intended functionality may not be complete and there is no sufficient "
-            f"testing. Use class with caution!"
+            f"testing. Use class with caution!",
+            stacklevel=1,
         )
         return cls(*args, **kwargs)
 

@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -75,22 +75,21 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
 
     References
     ----------
-
     :cite:t:`dietrich-2022`
 
-    """  # noqa: E501
+    """
 
     _required_parameters = ["data_splits"]
 
     def __init__(
         self,
-        data_splits: List[Tuple],
+        data_splits: list[tuple],
         *,
         n_kernel_eigenvectors: int = 100,
         n_jointly_smooth_functions: int = 10,
         kernel_eigenvalue_cut_off: float = 0,
         eigenvector_tolerance: float = 1e-6,
-        svd_solver_kwargs: Optional[Dict] = None,
+        svd_solver_kwargs: Optional[dict] = None,
     ) -> None:
         self.data_splits = data_splits
         self.n_kernel_eigenvectors = n_kernel_eigenvectors
@@ -100,16 +99,16 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         self.svd_solver_kwargs = svd_solver_kwargs
 
         self.X_fit_: Union[TSCDataFrame, pd.DataFrame, np.ndarray]
-        self.kernel_content_: Dict
-        self.kernel_eigenvectors_: Dict
-        self.kernel_eigenvalues_: Dict
+        self.kernel_content_: dict
+        self.kernel_eigenvectors_: dict
+        self.kernel_eigenvalues_: dict
         self.jointly_smooth_vectors_: np.ndarray
         self.eigenvalues_: np.ndarray
 
     def _validate_parameter(self):
         if (
             not isinstance(self.data_splits, list)
-            or not np.array([isinstance(a, Tuple) for a in self.data_splits]).all()
+            or not np.array([isinstance(a, tuple) for a in self.data_splits]).all()
         ):
             raise TypeError("parameter 'data_splits' must be a list of tuples")
 
@@ -187,7 +186,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
 
     def _compute_jointly_smooth_vectors(
         self, X, kernel_eigenvectors
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         stacked_eigenvectors = np.column_stack(list(kernel_eigenvectors.values()))
 
         if len(self.kernel_eigenvectors_) == 2:
@@ -257,7 +256,6 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_jointly_smooth_functions)`
         """
-
         kernel_matrices: dict = self._kernel_content_transform(X)
         eigenvectors = dict()
         alphas = dict()
@@ -299,9 +297,9 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         return f_m_star
 
     def _kernel_content_fit(self, X: TransformType):
-        return_content: Dict[str, dict] = dict()
+        return_content: dict[str, dict] = dict()
 
-        for i, split in enumerate(self.data_splits):
+        for _, split in enumerate(self.data_splits):
             name, kernel, indices = split
 
             # copy kernels to not mutate the original attribute(sklearn conform)
@@ -321,7 +319,7 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
     def _kernel_content_transform(self, X):
         return_content = dict()
 
-        for i, split in enumerate(self.data_splits):
+        for _, split in enumerate(self.data_splits):
             name, _, indices = split
             kernel = self.kernel_content_[name]["kernel"]
 
@@ -486,11 +484,12 @@ class JointlySmoothFunctions(BaseEstimator, TSCTransformerMixin):
         float
             The E0 threshold value from :cite:t:`dietrich-2022`.
         """
-
         kernel_evecs = list(self.kernel_eigenvectors_.values())
 
         noisy = kernel_evecs[-1].copy()
-        np.random.shuffle(noisy)
+
+        rng = np.random.default_rng(1)  # expose seed to user if required
+        rng.shuffle(noisy)
 
         kernel_eigenvectors = kernel_evecs[:-1]
         kernel_eigenvectors.append(noisy)

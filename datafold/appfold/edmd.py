@@ -1,4 +1,4 @@
-"""This file contains code that is copied and modified from
+"""This file contains code that is copied and modified from:
 
 scikit-learn
 version 0.24.1.
@@ -60,14 +60,14 @@ from copy import deepcopy
 from functools import partial
 from itertools import product
 from traceback import format_exc
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
 import scipy.linalg
 import scipy.sparse
 from joblib import Parallel, delayed, logger
-from sklearn.base import clone
+from sklearn.base import BaseEstimator, clone
 from sklearn.exceptions import FitFailedWarning, NotFittedError
 from sklearn.model_selection import GridSearchCV, check_cv
 from sklearn.model_selection._validation import _num_samples, _score, is_classifier
@@ -76,7 +76,7 @@ from sklearn.utils import _print_elapsed_time, check_scalar
 from sklearn.utils.validation import _check_fit_params, check_is_fitted, indexable
 
 from datafold._decorators import warn_experimental_class
-from datafold.dynfold import DMDBase, DMDFull
+from datafold.dynfold import DMDBase, DMDStandard
 from datafold.dynfold.base import (
     InitialConditionType,
     TimePredictType,
@@ -84,6 +84,7 @@ from datafold.dynfold.base import (
     TSCPredictMixin,
     TSCTransformerMixin,
 )
+from datafold.dynfold.dictlearning import DMDDictLearning
 from datafold.pcfold import InitialCondition, TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.metric import TSCCrossValidationSplit
 from datafold.utils.general import (
@@ -100,19 +101,20 @@ class EDMD(
 ):
     r"""Extended Dynamic Mode Decomposition.
 
-    A data-driven model to approximate the Koopman operator from time series collection
-    data (:py:class:`.TSCDataFrame`) with a finite function basis, specified by the
-    data transformations in the EDMD-dictionary. The model is similar to the superclass
-    :class:`sklearn.pipeline.Pipeline`, in that the EDMD-dictionary corresponds to the
-    transformations in the pipeline and a :class:`.DMDBase` model as the final estimator
-    of the pipeline to approximate the Koopman operator (using the EDMD-dictionary time
-    series). A key difference to a Pipeline as of scikit-learn is that the states are not
-    only mapped forward (to the EDMD-dictionary) but also reconstructed to the original
-    full-state time series (typically via Koopman modes).
+    The aim of this method is to construct a data-driven model that can approximate the
+    Koopman operator from a collection of time series data, represented by a
+    :py:class:`TSCDataFrame`. The method uses a (finite) function basis and may include
+    non-linear transformations of the data to enhance the function space (compared to a
+    dynamic mode decomposition). The model is similar to :class:`sklearn.pipeline.Pipeline`,
+    where the EDMD-dictionary corresponds to the transformations in the pipeline and a
+    :class:`DMDBase` model acts as the final estimator of the pipeline, approximating the
+    Koopman operator using the EDMD-dictionary time series. Unlike a scikit-learn Pipeline,
+    this model not only maps states forward to the EDMD-dictionary but also reconstructs
+    them to the original full-state time series, typically via Koopman modes.
 
-    If the internal DMD model computes the eigenpairs of the Koopman matrix, then the
-    EDMD model provides the Koopman triplet (modes :math:`V`, eigenvalues :math:`\Lambda` and
-    eigenfunctions :math:`\xi(\mathbf{x})`)
+    If the DMD model (as the final estimator of the pipeline) computes the eigenpairs of the
+    Koopman matrix, then the EDMD model will provide the Koopman triplet comprising
+    modes :math:`V`, eigenvalues :math:`\Lambda`, and eigenfunctions :math:`\xi(\mathbf{x})`.
 
     .. math::
 
@@ -129,36 +131,45 @@ class EDMD(
         output in `transform`.
 
     dmd_model
-        A :py:class:`.DMDBase` as the final estimator. The DMD model either
-        approximates the Koopman operator or generator based on the EDMD-dictionary data.
+        An model that subclasses :py:class:`.DMDBase`. The model servies as the final
+        estimator in the pipeline. The DMD model either approximates the Koopman
+        operator or generator based on specified time series of the EDMD-dictionary data.at f
 
     include_id_state
         If True, the original time series states are added to the EDMD dictionary. The
         mapping from the EDMD dictionary states back to the full-state is then only a
-        projection and the cost of an increased EDMD-dictionary dimension. The parameter has
+        projection at the cost of an increased EDMD-dictionary dimension. The parameter has
         no effect if all elements in the pipeline preserve the original states in their output,
         as this would duplicate data and lead to conflicts in the feature names (see also
         parameter ``dict_preserves_id_state_``).
 
     dict_preserves_id_state: str, bool, defaults to "infer"
-        The parameter indicates whether the final dictionary state includes the original full
-        state data. If
+        The parameter indicates whether the final dictionary include the original full
+        state. If the parameter is set to
 
         * True, then this simplifies the inverse map to a projection on the full
-          state coordinates. In this case the parameter `include_id_state` is ignored because
-          the full state si already contained. An error is raised if not all features can be
-          matched).
+          state coordinates. In this case the parameter ``include_id_state`` is ignored because
+          the full state is already contained. An error is raised if not all features can be
+          matched.
         * False, then the dictionary does not contain the features of the original full state.
-          If also `include_id_state=False`, then the inverse map from dictionary to full state
-          is performed in a least squares sense.
-        * "infer", then there is a routine that checks the feature names of whether the full
-          state is contained in the dictionary, i.e. ``feature_names_in_`` are contained in
-          ``feature_names_out_``.
+          If also ``include_id_state=False``, then the (linear) inverse map from dictionary to
+          full state is computed in a least squares sense.
+        * "infer", then there is a routine that checks whether the feature names of the full
+          state are contained in the dictionary, i.e. ``feature_names_in_`` in
+          ``feature_names_out_``. Note that only feature names are matched, there is no
+          guarantee that the values are changed during the dictionary transformation.
 
-           .. warning::
-                If the full state names are contained in the dictionary but are actually
-                altered within the dictionary pipeline, then this leads to a wrong state
-                reconstruction. If unsure it is safer to explicitly set a boolean.
+    stepwise_transform
+        Controls whether stepwise (i.e. in every time step of a prediction) the inverse and
+        forward map between original and dictionary space is performed. When enabled this
+        can improve the overall predictive accuracy of model. For performance reasons it can be
+        worthwhile to enable ``diagonalize`` in the DMD method (to avoid a least squares
+        optimization in each timestep).
+
+        .. note::
+
+            This feature is still in an experimental phase and does not work for all settings
+            (e.g. if ``y is not None`` during ``fit`` or within ``partial_fit`` for streaming).
 
     sort_koopman_triplets
         Sort the Koopman triplets by the mean absolute value of the initial
@@ -170,7 +181,7 @@ class EDMD(
         performed with ``inverse_transform`` by the models included the dictionary in
         reverse order. Note that all models need to provide ``inverse_transform``.
 
-    memory: :class:`Optional[None, str, object]`, :class:`object` with the \
+    memory: :class:`Optional[None, str, object]`, :class:`object` with the
     `joblib.Memory` interface
         Used to cache the fitted transformers of the pipeline. By default, no caching is
         performed. If a string is given, it is the path to the caching directory.
@@ -185,7 +196,6 @@ class EDMD(
 
     Attributes
     ----------
-
     n_features_in_
         The number of features in the full-state time series (data passed to ``fit``).
 
@@ -210,19 +220,41 @@ class EDMD(
         `dict_preserves_id_state`.
 
     is_partial_fit_: bool
-        Boolean flag to indicate whether the model is fit with `partial_fit`. If True, then
-        only the `partial_fit` method can be used and `fit` raises an error and vice versa.
+        A boolean flag indicating whether the model is fit using the ``partial_fit`` method
+        If True, then only ``partial_fit`` can be used to initially fit or update the model.
+
+    is_controlled_: bool
+        Indicates whether the system is controlled. When True, it indicates that
+        the input control signals (``U``) were provided during the ``fit`` method,
+        allowing the model to consider the influence of control on the system dynamics.
+
+    is_state_transition_map_: bool
+        A flag indicating whether a the dictionary states are used to reconstruct a
+        different set of state variables (i.e. different states than the ones included in the
+        initial condition). These states are passed as the ``y`` parameter in ``fit``.
+
+    transition_map_contains_id_:
+        A flag indicating whether the original states are included in the state transition map
+        (only applicable if ``is_state_transition_map_ is True``). Note that for the check
+        only feature names are matched (not the actual original values).
+
+    is_dict_learning_: bool
+        Indicates whether the DMD method (as the final estimator of the pipeline) learns
+        dictionary functions before computing the system matrix (or spectral components).
+        If True, the ``fit`` method manipulates the model's pipeline by appending a new
+        transform model. See the ``DMDDictLearning`` class for more details.
 
     koopman_modes: Optional[pandas.DataFrame]
         A ``DataFrame`` of shape `(n_features_original_space, n_features_dict_space)`
-        with the modes to map Koopman eigenfunctions to the full-state. The attribute is
-        ``None`` if ``use_inverse_transform=True`` or if the DMD model does not provide
-        the right eigenvectors of the Koopman matrix.
+        containing the modes which linearly map Koopman eigenfunctions back to the full-state.
+        The attribute is ``None`` if ``use_inverse_transform=True`` or if the DMD model does
+        not provide spectral components of the Koopman matrix.
 
-    koopman_eigenvalues: pandas.Series
+    koopman_eigenvalues: Optinal[pandas.Series]
         The approximate eigenvalues of the Koopman operator or generator of
-        shape `(n_features_dict,)`. The attribute is ``None`` if the DMD model does not
-        provide the right eigenvectors of the Koopman matrix.
+        shape `(n_features_dict,)`. The attribute is ``None`` if
+        ``use_inverse_transform=True`` or if the DMD model does not provide spectral
+        components of the system matrix (Koopman matrix).
 
     n_samples_ic_: int
         The number of time samples required for an initial condition. If the value is
@@ -231,32 +263,34 @@ class EDMD(
 
     See Also
     --------
-
-    :py:class:`EDMDCV`
+    :py:class:`EDMDCV` :py:class:`DMDStandard`
 
     References
     ----------
-    * original EDMD description :cite:`williams-2015`
-    * for sorting the Koopman components :cite:`manojlovic-2020`
+    * :cite:t:`williams-2015` for the original EDMD description
+    * :cite:t:`manojlovic-2020` for sorting the spectral Koopman components
+    * :cite:t:`korda-2018` for EDMD with control
+    * :cite:t:`li-2017` for EDMD with dictionary learning
 
     """
 
     def __init__(
         self,
-        dict_steps: List[Tuple[str, object]],
+        dict_steps: list[tuple[str, object]],
         dmd_model: Optional[DMDBase] = None,
         *,
         include_id_state: bool = True,
-        dict_preserves_id_state: Union[str, bool] = "infer",
+        dict_preserves_id_state: Union[Literal["infer"], bool] = "infer",
+        stepwise_transform: bool = False,
         use_transform_inverse: bool = False,
         sort_koopman_triplets: bool = False,
         memory: Optional[Union[str, object]] = None,
         verbose: bool = False,
     ):
         self.dict_steps = dict_steps
-        self.dmd_model = dmd_model if dmd_model is not None else DMDFull()
         self.include_id_state = include_id_state
         self.dict_preserves_id_state = dict_preserves_id_state
+        self.stepwise_transform = stepwise_transform
         self.use_transform_inverse = use_transform_inverse
         self.sort_koopman_triplets = sort_koopman_triplets
 
@@ -267,12 +301,18 @@ class EDMD(
         self.dict_preserves_id_states_: bool
         self.n_samples_ic_: int
         self.is_partial_fit_: bool
+        self.is_state_transition_map_: bool
+        self.id_state_in_transition_map_: bool
+        self.is_controlled_: bool
+        self.is_dict_learning_: bool
 
-        all_steps = self.dict_steps + [("dmd", self.dmd_model)]
+        if dmd_model is None:
+            dmd_model = DMDStandard()
+        all_steps = self.dict_steps + [("dmd", dmd_model)]
         super().__init__(steps=all_steps, memory=memory, verbose=verbose)
 
     @property
-    def _dmd_model(self) -> DMDBase:
+    def dmd_model(self) -> DMDBase:
         # Improves (internal) code readability when using attribute
         # '_dmd_model' instead of general '_final_estimator'
         return self._final_estimator
@@ -296,13 +336,13 @@ class EDMD(
     @property
     def koopman_eigenvalues(self):
         check_is_fitted(self)
-        if not self._dmd_model.is_spectral_mode:
+        if not self.dmd_model.is_spectral_mode:
             raise AttributeError(
                 "The underlying DMD model was not configured to provide spectral "
                 "components for the Koopman matrix."
             )
 
-        return pd.Series(self._dmd_model.eigenvalues_, name="evals")
+        return pd.Series(self.dmd_model.eigenvalues_, name="evals")
 
     def koopman_eigenfunction(self, X: TransformType) -> TransformType:
         r"""Evaluate the Koopman eigenfunctions.
@@ -324,7 +364,6 @@ class EDMD(
 
         Parameters
         ----------
-
         X : TSCDataFrame, pandas.DataFrame
             The samples of the original space at which to evaluate the Koopman
             eigenfunctions. If `n_samples_ic_ > 1`, then the input must be a
@@ -339,10 +378,10 @@ class EDMD(
             accordingly if :code:`n_samples_ic_ > 1`.
         """
         check_is_fitted(self)
-        if not self._dmd_model.is_spectral_mode:
+        if not self.dmd_model.is_spectral_mode:
             raise AttributeError(
-                "The DMD model was not configured to provide spectral "
-                "components for the Koopman matrix."
+                "The DMD model as final estimator was not configured to provide spectral "
+                "components of the identified system matrix."
             )
 
         X_dict = self.transform(X)
@@ -350,7 +389,7 @@ class EDMD(
         # transform of X_dict matrix
         #   -> note that the transpose is required because in the DMD model the
         #      features are column oriented
-        eval_eigenfunction = self._dmd_model.compute_spectral_system_states(
+        eval_eigenfunction = self.dmd_model.compute_spectral_system_states(
             X_dict.to_numpy().T
         )
 
@@ -367,13 +406,13 @@ class EDMD(
         # NOT from a EDMD prediction
         # TODO: raise NotFittedError if trying to access before .fit? (relevant for all
         #  following attrs)
-        return self._dmd_model.n_features_in_
+        return self.dmd_model.n_features_in_
 
     @property
     def feature_names_out_(self):
         # Note: this returns the feature names of the dictionary
         # transformation NOT from a EDMD prediction (see feature_names_pred_)
-        return self._dmd_model.feature_names_in_
+        return self.dmd_model.feature_names_in_
 
     @property
     def control_names_in_(self):
@@ -405,8 +444,7 @@ class EDMD(
         bool
             boolean flag if dictionary preserves the original states
         """
-
-        for _, trans_str, transformer in self._iter(with_final=False):
+        for _, _, transformer in self._iter(with_final=False):
             if not isinstance(transformer, TSCTransformerMixin):
                 raise TypeError(
                     "The EDMD dictionary only supports datafold transformers that handle the "
@@ -422,7 +460,8 @@ class EDMD(
             if self.dict_preserves_id_state and self.include_id_state:
                 warnings.warn(
                     f"setting {self.dict_preserves_id_state=} and {self.include_id_state=} "
-                    f"duplicates the original features in the dictionary"
+                    f"duplicates the original features in the dictionary",
+                    stacklevel=1,
                 )
 
             return self.dict_preserves_id_state
@@ -503,7 +542,6 @@ class EDMD(
         numpy.ndarray, scipy.sparse.csr_matrix, None
 
         """
-
         if (self.include_id_state or self.dict_preserves_id_state_) and y is None:
             # trivial case: we just need a projection matrix to select the
             # original full-states from the dictionary functions
@@ -546,7 +584,6 @@ class EDMD(
 
         Parameters
         ----------
-
         inverse_map
             Matrix :math:`B`, as computed in :py:meth:`._compute_inverse_map`
 
@@ -557,12 +594,12 @@ class EDMD(
         """
         # TODO: if the system is controlled, then currently the control state is not used to
         #  possibly improve the reconstruction
-        koopman_modes = inverse_map.T @ self._dmd_model.eigenvectors_right_
+        koopman_modes = inverse_map.T @ self.dmd_model.eigenvectors_right_
         return koopman_modes
 
     def _sort_koopman_triplets(self, X_dict_ic: TSCDataFrame) -> None:
         r"""The ranking and sorting of Koopman triplets, adapted from
-        https://arxiv.org/pdf/2006.11765.pdf
+        https://arxiv.org/pdf/2006.11765.pdf.
 
         Given the Koopman mode decomposition
 
@@ -598,7 +635,6 @@ class EDMD(
         X_dict_ic
             The initial states of the EDMD-dictionary time series.
         """
-
         ic_koop_eigenfunc = self.dmd_model.compute_spectral_system_states(
             X_dict_ic.to_numpy().T
         )
@@ -615,24 +651,25 @@ class EDMD(
 
         # Sort everything:
         self._koopman_modes: np.ndarray = self._koopman_modes[:, argsort_importance]
-        self._dmd_model.eigenvalues_ = self._dmd_model.eigenvalues_[argsort_importance]
-        self._dmd_model.eigenvectors_right_ = self._dmd_model.eigenvectors_right_[
+        self.dmd_model.eigenvalues_ = self.dmd_model.eigenvalues_[argsort_importance]
+        self.dmd_model.eigenvectors_right_ = self.dmd_model.eigenvectors_right_[
             :, argsort_importance
         ]
 
         if (
-            hasattr(self._dmd_model, "eigenvectors_left_")
-            and self._dmd_model.eigenvectors_left_ is not None
+            hasattr(self.dmd_model, "eigenvectors_left_")
+            and self.dmd_model.eigenvectors_left_ is not None
         ):
             # Note the left eigenvectors are in the rows of the matrix by convention
-            self._dmd_model.eigenvectors_left_ = self._dmd_model.eigenvectors_left_[
+            self.dmd_model.eigenvectors_left_ = self.dmd_model.eigenvectors_left_[
                 argsort_importance, :
             ]
 
     def _attach_id_state(self, X, X_dict):
-        # remove states from X (the id-states) that are also removed during dictionary
-        # transformations
-        X = X.loc[X_dict.index, :]
+        # remove states from X that are also removed during dictionary mapping
+        if X.shape[0] > X_dict.shape[0]:
+            X = X.loc[X_dict.index, :]
+
         try:
             X = pd.concat([X, X_dict], axis=1)
         except AttributeError as e:
@@ -641,9 +678,9 @@ class EDMD(
 
             if len(duplicates) > 0:
                 raise ValueError(
-                    "The ID state could not be attached, because the columns\n"
+                    "The ID states could not be attached, because columns\n"
                     f"{duplicates}\n"
-                    f"are also present in the dictionary."
+                    f"are also present in the dictionary mapping."
                 ) from e
             else:
                 raise e
@@ -675,39 +712,74 @@ class EDMD(
     def _reconstruct(self, X: TSCDataFrame, U: Optional[TSCDataFrame], qois):
         X_reconstruct = []
 
+        if self.dmd_model.is_time_invariant and not X.is_datetime_index():
+            # TODO: support for datetime_index requires implementation.
+            orig_index = X.index.copy(deep=True)
+            X = X.tsc.shift_time_per_time_series(ensure_identical_values=True)
+            normalized_time = True
+        else:
+            normalized_time = False
+
         for X_ic, time_values in InitialCondition.iter_reconstruct_ic(
             X, n_samples_ic=self.n_samples_ic_
         ):
-            # transform initial condition to EDMD-dictionary space
-            X_dict_ic = self.transform(X_ic)
-
             if U is not None:
                 U_select = U.loc[pd.IndexSlice[X_ic.ids, :], :]
                 InitialCondition.validate_control(X_ic, U)
             else:
                 U_select = None
 
-            X_est_ts = self._predict_ic(
-                X_dict=X_dict_ic, U=U_select, time_values=time_values, qois=qois
-            )
+            if self.stepwise_transform:
+                X_est_ts = self._predict_stepwise_transform(
+                    X=X_ic, U=U_select, time_values=time_values, qois=qois
+                )
+            else:
+                # transform initial condition to EDMD-dictionary space
+                X_dict_ic = self.transform(X_ic)
+                X_est_ts = self._predict_dict_ic(
+                    X_dict=X_dict_ic, U=U_select, time_values=time_values, qois=qois
+                )
 
             X_reconstruct.append(X_est_ts)
 
         X_reconstruct = pd.concat(X_reconstruct, axis=0)
-        assert isinstance(X_reconstruct, TSCDataFrame)
+
+        if normalized_time:
+            # TODO: this can maybe be done better if it becomes in some scenario too
+            #  expensive
+            X.index = orig_index
+
+            if self.n_samples_ic_ > 1:
+
+                def _apply(df):
+                    # drop n instances of index and reset for X_reconstruct
+                    return (
+                        df.index[self.n_samples_ic_ - 1 :]
+                        .to_frame()
+                        .reset_index(drop=True)
+                    )
+
+                recovered_index = X.groupby(TSCDataFrame.tsc_id_idx_name).apply(_apply)
+                recovered_index = pd.MultiIndex.from_frame(recovered_index)
+            else:
+                recovered_index = orig_index
+
+            X_reconstruct = X_reconstruct.set_index(recovered_index)
 
         # NOTE: time series contained in X_reconstruct can be shorter than
         # the original time series (i.e. no full reconstruction), because some transform
         # models drop samples (e.g. time delay embeddings or finite differences)
         return X_reconstruct
 
-    def _predict_ic(self, X_dict: TSCDataFrame, U, time_values, qois) -> TSCDataFrame:
-        """Prediction with initial condition.
+    def _predict_dict_ic(
+        self, X_dict: TSCDataFrame, U, time_values, qois
+    ) -> TSCDataFrame:
+        """Prediction with initial condition in dictionary states.
 
         Parameters
         ----------
         X_dict
-            The initial condition in EDMD dictionary space.
+            The initial condition in dictionary space.
 
         U
             The control time series (None if not needed)
@@ -722,7 +794,6 @@ class EDMD(
         -------
 
         """
-
         if qois is None:
             feature_columns = self.feature_names_pred_
         else:
@@ -734,7 +805,7 @@ class EDMD(
                 # used for the reconstruction. This is because the linear system form does not
                 # directly reconstruct
 
-                # The DMD model computed spectral components and the
+                # The spectral components of the DMD model and the
                 # Koopman modes are available.
 
                 if qois is None:
@@ -755,7 +826,7 @@ class EDMD(
                 )
                 dmd_params = {k: v for k, v in dmd_params.items() if v is not None}
 
-                X_ts = self._dmd_model.predict(X_dict, **dmd_params)
+                X_ts = self.dmd_model.predict(X_dict, **dmd_params)
             else:
                 # The DMD model does not provide the spectral components of the
                 # Koopman matrix. The inverse_map needs to be applied afterwards because
@@ -766,7 +837,7 @@ class EDMD(
                 dmd_params = dict(U=U, time_values=time_values)
                 dmd_params = {k: v for k, v in dmd_params.items() if v is not None}
 
-                X_ts = self._dmd_model.predict(X_dict, **dmd_params)
+                X_ts = self.dmd_model.predict(X_dict, **dmd_params)
 
                 # map back to original space and select qois
                 if hasattr(self, "_inverse_map_control"):
@@ -786,13 +857,64 @@ class EDMD(
 
         else:
             # predict all EDMD-dictionary time series
-            X_ts = self._dmd_model.predict(X_dict, time_values=time_values)
+            X_ts = self.dmd_model.predict(X_dict, time_values=time_values)
 
             # transform from EDMD-dictionary space by pipeline inverse_transform
             X_ts = self.inverse_transform(X_ts)
             X_ts = X_ts.loc[:, feature_columns]
 
         return X_ts
+
+    def _predict_stepwise_transform(self, X: TSCDataFrame, U, time_values, qois):
+        if self.is_state_transition_map_ and not self.id_state_in_transition_map_:
+            raise ValueError(
+                "It is not possible tp perform stepwise transform predictions with "
+                "state transition map that does not include the original full-state."
+            )
+        elif self.is_state_transition_map_:
+            raise NotImplementedError(
+                "stepwise transform with state transition map is not implemented yet"
+            )
+            extract_id_columns = self.feature_names_in_
+        else:
+            extract_id_columns = None
+
+        X = X.tsc.expand_time_values(time_values=time_values[1:])
+        all_time_values = X.time_values()
+
+        for i in range(self.n_samples_ic_, len(time_values) + self.n_samples_ic_ - 1):
+            current_ic_time = all_time_values[i - self.n_samples_ic_ : i]
+            assert current_ic_time[-1] == time_values[i - self.n_samples_ic_]
+            _X_current = X.loc[
+                pd.IndexSlice[:, current_ic_time], slice(extract_id_columns)
+            ]
+
+            if U is not None:
+                _U_current = U.loc[pd.IndexSlice[:, current_ic_time], :]
+            else:
+                _U_current = None
+
+            _X_dict = self.transform(_X_current)
+            _X_predict = self._predict_dict_ic(
+                _X_dict,
+                U=_U_current,
+                time_values=all_time_values[i - 1 : i + 1],
+                qois=None,
+            )
+            assert _X_predict.n_timesteps == 2
+
+            _X_predict = _X_predict.final_states()
+
+            # fill in the new state
+            X.loc[_X_predict.index] = _X_predict
+
+        if qois is not None:
+            X = X.loc[:, qois]
+
+        if self.n_samples_ic_ > 1:
+            X = X.loc[pd.IndexSlice[:, time_values], :]
+
+        return X
 
     def fit(
         self,
@@ -840,7 +962,6 @@ class EDMD(
             Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all time series values must be finite (no `NaN` or `inf`)
         """
-
         # Currently, validation of U is only performed in the final DMD estimator
         self._validate_datafold_data(
             X,
@@ -849,20 +970,32 @@ class EDMD(
         )
 
         if y is not None:
-            pass  # TODO: perform validation
+            # TODO: perform validation
+            self.is_state_transition_map_ = True
+            warnings.warn(
+                "Currently there is no validation on y input. Implementation requires.",
+                stacklevel=1,
+            )
+        else:
+            self.is_state_transition_map_ = False
+            self.id_state_in_transition_map_ = False
 
         if hasattr(self, "is_partial_fit_") and self.is_partial_fit_:
             raise ValueError(
-                f"Fit cannot be called if the model was set up with {self.is_partial_fit_=}"
+                "The method fit() cannot be called if the model was set up with "
+                f" {self.is_partial_fit_=}. Use partial_fit() instead."
             )
         else:
             self.is_partial_fit_ = False
 
-        self.is_controlled_ = False if U is None else True
+        self.is_controlled_ = U is not None
+        self.is_dict_learning_ = isinstance(self.dmd_model, DMDDictLearning)
 
         # 1) first get the EDMD fit_params, 2) validate the fit_params for the pipeline,
         # 2) separate the DMD fit_params as the dmd is called later
+        # TODO: include validation of disallowed keys in fit_params (edmd, dl_transform(?))
         fit_params = self._check_fit_params(**fit_params or {})
+        # separated from the dictionary and passed to the DMD as final estimator below
         dmd_fit_params = fit_params.pop("dmd", None)
 
         self._validate_dictionary()
@@ -886,6 +1019,15 @@ class EDMD(
         # Either automatically detected or enforced in dict_preserves_id_states
         self.dict_preserves_id_state_ = self._set_dict_preserves_id_state(X_dict)
 
+        if self.is_state_transition_map_:
+            # Check if the original state is contained in the transition map (some
+            # features, such as stepwise_prediction, require the original state in a
+            # prediction to forward in time.
+            assert y is not None  # mypy
+            self.id_state_in_transition_map_ = np.isin(
+                self.feature_names_in_, y.columns
+            ).all()
+
         if self.include_id_state and not self.dict_preserves_id_state_:
             # only attach original states if they are not preserved
             X_dict = self._attach_id_state(X=X, X_dict=X_dict)
@@ -899,9 +1041,20 @@ class EDMD(
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             if self.is_controlled_:
-                self._dmd_model.fit(X=X_dict, U=U, y=y, **dmd_fit_params)
+                self.dmd_model.fit(X=X_dict, U=U, y=y, **dmd_fit_params)
             else:
-                self._dmd_model.fit(X=X_dict, y=y, **dmd_fit_params)
+                self.dmd_model.fit(X=X_dict, y=y, **dmd_fit_params)
+
+        if self.is_dict_learning_:
+            # apply final transformation based on trained dictionary
+            X_dict = self.dmd_model.learning_model.transform(X_dict)
+
+            # apply final dictionary transformation, adapt dictionary pipeline and
+            # reset the identified DMD model
+            self.steps = self.steps[:-1] + [
+                ("dict_learning", self.dmd_model.learning_model),
+                ("dmd", self.dmd_model.dmd_model),
+            ]
 
         if not self.use_transform_inverse:
             self._inverse_map = self._compute_inverse_map(X=X, y=y, X_dict=X_dict, U=U)
@@ -929,7 +1082,7 @@ class EDMD(
         *,
         U: Optional[InitialConditionType] = None,
         time_values: Optional[np.ndarray] = None,
-        qois: Optional[Union[pd.Index, List[str]]] = None,
+        qois: Optional[Union[pd.Index, list[str]]] = None,
         **predict_params,
     ):
         """Evaluate dynamical system for one or many initial conditions.
@@ -994,7 +1147,7 @@ class EDMD(
         )
 
         if isinstance(X, np.ndarray):
-            # work only with TSCDataFrame internally
+            # internally only work with TSCDataFrame
             X = InitialCondition.from_array(
                 if1dim_rowvec(X),
                 time_value=time_values[0],
@@ -1012,8 +1165,8 @@ class EDMD(
             if isinstance(U, np.ndarray):
                 if X.n_timeseries > 1:
                     raise NotImplementedError(
-                        "If U is a numpy array, then only a prediction with "
-                        "a single initial condition is allowed. "
+                        "If U is of type np.ndarray, then only prediction for "
+                        "a single initial condition is allowed."
                         f"Got {X.n_timeseries}"
                     )
 
@@ -1035,23 +1188,17 @@ class EDMD(
             qois=qois, valid_feature_names=self._feature_names_pred
         )
 
-        self._validate_datafold_data(
-            X,
-            ensure_tsc=True,
-        )
+        self._validate_datafold_data(X, ensure_tsc=True)
 
-        X_dict = self.transform(X)
-
-        # TODO: deprecated, remove this later
-        # if self.is_controlled_:
-        #     assert isinstance(U, TSCDataFrame)
-        #     U = U.loc[
-        #         U.index.get_level_values(TSCDataFrame.tsc_time_idx_name)
-        #         >= time_values[0],
-        #         :,
-        #     ]
-
-        X_ts = self._predict_ic(X_dict=X_dict, U=U, time_values=time_values, qois=qois)
+        if self.stepwise_transform:
+            X_ts = self._predict_stepwise_transform(
+                X=X, U=U, time_values=time_values, qois=qois
+            )
+        else:
+            X_dict = self.transform(X)
+            X_ts = self._predict_dict_ic(
+                X_dict=X_dict, U=U, time_values=time_values, qois=qois
+            )
         return X_ts
 
     def fit_predict(
@@ -1059,7 +1206,7 @@ class EDMD(
         X: TSCDataFrame,
         U: Optional[TSCDataFrame] = None,
         y=None,
-        qois: Optional[Union[pd.Index, List[str]]] = None,
+        qois: Optional[Union[pd.Index, list[str]]] = None,
         **fit_params,
     ):
         """Fit the model and reconstruct the training data.
@@ -1181,8 +1328,8 @@ class EDMD(
 
             if hasattr(self, "is_partial_fit_") and not self.is_partial_fit_:
                 raise ValueError(
-                    "The model is already build with the 'fit' method. "
-                    "Please use `partial_fit` also for the initial fit."
+                    "The model is already set up with the 'fit' method. "
+                    "Use `partial_fit` for both the initial and partial fits."
                 )
             else:
                 self.is_partial_fit_ = True
@@ -1212,7 +1359,7 @@ class EDMD(
             )
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
-            self._dmd_model.partial_fit(X=X_dict, y=y, **dmd_fit_params)
+            self.dmd_model.partial_fit(X=X_dict, y=y, **dmd_fit_params)
 
         if (
             not self.use_transform_inverse
@@ -1255,7 +1402,6 @@ class EDMD(
             The transformed time series. The number of samples of each time series are reduced
             if `n_samples_ic_ > 1`.
         """
-
         if isinstance(X, np.ndarray):
             X = TSCDataFrame.from_array(
                 X,
@@ -1270,7 +1416,7 @@ class EDMD(
             X_dict = X
 
         # carry out dictionary transformations:
-        for _, name, tsc_transform in self._iter(with_final=False):
+        for _, _, tsc_transform in self._iter(with_final=False):
             X_dict = tsc_transform.transform(X_dict)
 
         if self.include_id_state and not self.dict_preserves_id_state_:
@@ -1317,7 +1463,7 @@ class EDMD(
         X: TSCDataFrame,
         *,
         U: Optional[TSCDataFrame] = None,
-        qois: Optional[Union[pd.Index, List[str]]] = None,
+        qois: Optional[Union[pd.Index, list[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct existing time series collection.
 
@@ -1350,14 +1496,20 @@ class EDMD(
         Raises
         ------
         TSCException
-            Time series collection requirements in `X`: (1) all values must be
-            finite (no `NaN` or `inf`)
+            Time series collection requirements in ``X``:
+            * all values must be finite (no `NaN` or ``inf``)
+            * every time series must have at least ``n_samples_ic_`` samples
+              (make sure that these first samples have constant delta time, this is currently
+              not validated)
+
         """
         check_is_fitted(self)
 
         X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
+            #
+            tsc_kwargs={"ensure_min_timesteps": self.n_samples_ic_ + 1}
             # Note: no const_delta_time required here. The required const samples for
             # time series initial conditions is included in the predict method.
         )
@@ -1383,7 +1535,6 @@ class EDMD(
         TSCDataFrame
             full-state time series
         """
-
         if self._inverse_map is not None:
             # Note, here the samples are row-wise
             values = X.to_numpy() @ self._inverse_map
@@ -1435,7 +1586,6 @@ class EDMD(
             Time series collection restrictions in `X`: (1) time delta must be constant
             (2) all values must be finite (no `NaN` or `inf`)
         """
-
         assert y is None
         self._check_attributes_set_up(check_attributes=["_score_eval"])
 
@@ -1550,6 +1700,7 @@ def _fit_and_score_edmd(
                     f" partition for these parameters will be set to {error_score}. "
                     "Details: \n%s" % (format_exc()),
                     FitFailedWarning,
+                    stacklevel=2,
                 )
             result["fit_failed"] = True
     else:
@@ -1672,7 +1823,6 @@ class EDMDCV(GridSearchCV):
 
     Attributes
     ----------
-
     cv_results_ : dict of numpy (masked) ndarrays
         A dict with keys as column headers and values as columns, that can be
         imported into a ``pandas.DataFrame``. See documentation in super class.
@@ -1717,7 +1867,6 @@ class EDMDCV(GridSearchCV):
 
     Notes
     -----
-
     The parameters selected are those that maximize the score of the left out
     data. If `n_jobs` was set to a value higher than one, the data is copied for each
     point in the grid (and not `n_jobs` times). This is done for efficiency
@@ -1733,7 +1882,7 @@ class EDMDCV(GridSearchCV):
         self,
         estimator: EDMD,
         *,
-        param_grid: Union[Dict, List[Dict]],
+        param_grid: Union[dict, list[dict]],
         cv: TSCCrossValidationSplit,
         n_jobs: Optional[int] = None,
         pre_dispatch: Union[int, str] = "2*n_jobs",
@@ -1767,7 +1916,6 @@ class EDMDCV(GridSearchCV):
 
         Parameters
         ----------
-
         X
             Training time series data.
 
@@ -1806,10 +1954,10 @@ class EDMDCV(GridSearchCV):
             verbose=self.verbose,
         )
 
-        results: Dict[str, Any] = {}
+        results: dict[str, Any] = {}
         with parallel:
-            all_candidate_params: List[List[Dict[str, Any]]] = []
-            all_out: List[Any] = []
+            all_candidate_params: list[list[dict[str, Any]]] = []
+            all_out: list[Any] = []
             all_more_results = defaultdict(list)
 
             def evaluate_candidates(candidate_params, cv=None, more_results=None):
@@ -1912,7 +2060,6 @@ class EDMDWindowPrediction:
 
     Parameters
     ----------
-
     window_size
         An integer value indicating the time steps to include in a window. The value
         must be greater than the attribute ``edmd.n_samples_ic_``, because a
@@ -1942,7 +2089,9 @@ class EDMDWindowPrediction:
                 self.offset, name="offset", target_type=(np.integer, int), min_val=1
             )
         elif self.window_size is not None or self.offset is not None:
-            raise ValueError("'window_size' and 'offset' must be provided together")
+            raise ValueError(
+                "Parameters 'window_size' and 'offset' must be provided together"
+            )
 
     def _window_reconstruct(
         self,
@@ -1982,7 +2131,7 @@ class EDMDWindowPrediction:
         Returns
         -------
         TSCDataFrame, Optional[TSCDataFrame]
-            The reconstructed time series collection and if `return_X_windows=True`
+            The reconstructed time series collection and if `return_windows=True`
             also the extracted windows from `X`.
 
         """
@@ -2017,11 +2166,14 @@ class EDMDWindowPrediction:
             ),
         )
 
-        U = edmd._validate_datafold_data(
-            U,
-            ensure_tsc=True,
-            tsc_kwargs=dict(ensure_const_delta_time=True, ensure_delta_time=edmd.dt_),
-        )
+        if is_controlled:
+            U = edmd._validate_datafold_data(
+                U,
+                ensure_tsc=True,
+                tsc_kwargs=dict(
+                    ensure_const_delta_time=True, ensure_delta_time=edmd.dt_
+                ),
+            )
 
         qois = edmd._validate_qois(
             qois=qois, valid_feature_names=edmd.feature_names_pred_
@@ -2096,7 +2248,6 @@ class EDMDWindowPrediction:
                 [U_windows.ids, normalized_time_values],
                 names=[TSCDataFrame.tsc_id_idx_name, TSCDataFrame.tsc_time_idx_name],
             )
-
         else:
             U_windows, index_final_windows_U = None, None
 
@@ -2123,7 +2274,7 @@ class EDMDWindowPrediction:
         method, the time series in `X` are again subdivided into smaller time series of
         equal length (the windows). Each window contains the initial condition and the
         samples to score the model against. This therefore corresponds to a more
-        systematic approach to analyze the error over a prediciton horizon.
+        systematic approach to analyze the error over a prediction horizon.
 
         Parameters
         ----------
@@ -2145,9 +2296,8 @@ class EDMDWindowPrediction:
             score
 
         """
-
         # does all the checks:
-        X_reconstruct, X = edmd.reconstruct(X=X, y=y, qois=qois, return_X_windows=True)
+        X_reconstruct, X = edmd.reconstruct(X=X, y=y, qois=qois, return_windows=True)
 
         if qois is None:
             X_reconstruct = X_reconstruct.loc[:, X.columns]
@@ -2189,7 +2339,7 @@ class EDMDWindowPrediction:
 
 @warn_experimental_class
 class EDMDPostObservable:  # pragma: no cover
-    """# TODO
+    """# TODO.
 
     # TODO: Alternative? EDMDCVErrorObservable?
     # TODO: Testing & Docu
@@ -2272,25 +2422,14 @@ class EDMDPostObservable:  # pragma: no cover
         return edmd
 
     def _compute_err_timeseries(self, edmd, X_test):
-        """
-
-        Parameters
-        ----------
-        edmd
-        X_test
-        qois
-
-        Returns
-        -------
-
-        """
+        """Compute the error observables time series."""
         # TODO: here is a distinction that maybe is better to solve via a new parameter
         #  in reconstruct (e.g. return_X to return the samples in X that are actually
         #  reconstructed)
 
         try:
             X_reconstruct, X_test = edmd.reconstruct(
-                X_test, qois=None, return_X_windows=True
+                X_test, qois=None, return_windows=True
             )
         except TypeError:
             X_reconstruct = edmd.reconstruct(X_test)
@@ -2344,7 +2483,7 @@ class EDMDPostObservable:  # pragma: no cover
                 f"Choose from {self._valid_observables}"
             )
 
-    def _run_cv(self, X, y, **fit_params):
+    def _run_cv(self, X: TSCDataFrame, y=None, **fit_params):
         cv = check_cv(self.cv, y, classifier=is_classifier(self.estimator))
         # n_splits = self.cv.get_n_splits(X, y, groups=None)
 
@@ -2352,7 +2491,7 @@ class EDMDPostObservable:  # pragma: no cover
             n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch
         )
 
-        results: Dict[str, Any] = {}
+        results: dict[str, Any] = {}
         X_validate: Optional[TSCDataFrame] = None
         err_timeseries: Optional[TSCDataFrame] = None
         best_estimator: Optional[EDMD] = None
@@ -2384,7 +2523,7 @@ class EDMDPostObservable:  # pragma: no cover
                         "Were there no candidates?"
                     )
 
-                scores: np.ndarray = np.asarray([r["test_score"] for r in ret])
+                scores = np.asarray([r["test_score"] for r in ret])
                 best_estimator_idx = np.argmax(scores)
                 best_estimator = ret[best_estimator_idx]["edmd"]
 
@@ -2406,7 +2545,6 @@ class EDMDPostObservable:  # pragma: no cover
 
         Parameters
         ----------
-
         X
             Training time series data.
 
@@ -2443,6 +2581,106 @@ class EDMDPostObservable:  # pragma: no cover
         )
 
         return self.final_estimator_
+
+
+@warn_experimental_class
+class HAVOK(BaseEstimator, TSCPredictMixin):  # pragma: no cover
+    def __init__(self, delays, rank=None) -> None:
+        self.rank = rank
+        self.delays = delays
+
+    def transform(self, X: TSCDataFrame):
+        X = self._delay_embedding.transform(X)
+
+        X_svd = (
+            # np.linalg.inv(np.diag(self.svals[: self.svd_rank - 1]))
+            # @
+            np.linalg.pinv(self._ur)
+            @ X.to_numpy().T
+        ).T
+
+        X_svd = TSCDataFrame.from_same_indices_as(
+            X, values=X_svd, except_columns=[f"svd{i}" for i in range(self.rank - 1)]
+        )
+
+        return X_svd
+
+    def fit(self, X: TSCDataFrame, y=None):
+        # TODO: instead of using numpy here, use sciki-learn TruncatedSVD class
+        # TODO: if rank is None, then use the scipy svd
+        # TODO: data validation!
+
+        from datafold import TSCFiniteDifference, TSCTakensEmbedding
+
+        self.dt_ = X.delta_time
+
+        if X.n_timeseries != 1:
+            raise NotImplementedError(
+                "Currently only single time series are supported. Implementation welcome"
+            )
+
+        self._delay_embedding = TSCTakensEmbedding(delays=self.delays).fit(X)
+        X = self._delay_embedding.transform(X)
+
+        U, S, Vh = np.linalg.svd(X.to_numpy().T, full_matrices=False)
+
+        Vr = Vh[: self.rank, :].T
+        Ur = U[:, : self.rank]
+        Sr = S[: self.rank]
+
+        Vr = TSCDataFrame.from_array(
+            Vr,
+            time_values=X.index.get_level_values(TSCDataFrame.tsc_time_idx_name),
+            feature_names=[f"svd{i}" for i in range(self.rank)],
+        )
+        dVr = TSCFiniteDifference(diff_order=1, accuracy=2).fit_transform(
+            Vr.iloc[:, :-1]
+        )
+
+        # account for samples that are lost when computing the finite difference
+        Vr = Vr.loc[dVr.index, :]
+
+        M = np.linalg.lstsq(Vr.to_numpy(), dVr.to_numpy(), rcond=None)[0].T
+
+        assert M.shape == (self.rank - 1, self.rank)
+
+        self.forcing_signal = Vr.iloc[:, [-1]]
+        self.state_matrix = M[:, :-1]
+        self.control_matrix = M[:, [-1]]
+
+        self.svals = S
+
+        from datafold.utils.general import mat_dot_diagmat
+
+        self._ur = mat_dot_diagmat(Ur[:, :-1], Sr[:-1])
+
+        eigenvalues, eigenvectors = np.linalg.eig(self.state_matrix)
+        eigenvalues = np.exp(eigenvalues * self.dt_)
+        self.unnormalized_modes = self._ur @ eigenvectors
+        self._tmp_compute_psi = np.linalg.inv(eigenvectors) @ self._ur.T
+        return self
+
+    def fit_predict(self, X: TSCDataFrame):  # type: ignore
+        self.fit(X=X)
+
+        X_ic = X.initial_states(n_samples=self.delays + 1)
+        X_ic = self.transform(X_ic)
+
+        from datafold.dynfold.dynsystem import LinearDynamicalSystem
+
+        system = LinearDynamicalSystem(
+            is_controlled=True, sys_type="differential", sys_mode="matrix"
+        )
+        system.setup_matrix_system(
+            system_matrix=self.state_matrix, control_matrix=self.control_matrix
+        )
+        X_pred = system.evolve_system(
+            initial_conditions=X_ic.to_numpy().T,
+            control_input=self.forcing_signal.to_numpy()[:, np.newaxis],
+            time_values=self.forcing_signal.time_values()[:-1],
+        )
+
+        return X_pred
 
 
 # class EDMDControl(

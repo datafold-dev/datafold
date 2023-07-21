@@ -17,10 +17,10 @@ repos:
     rev: v3.3.1
     hooks:
     -   id: pyupgrade
-        args: [ --py38-plus ]
+        args: [ --py39-plus ]
 
 -   repo: https://github.com/python/black
-    rev: 23.1.0
+    rev: 23.3.0
     hooks:
     - id: black
 
@@ -36,38 +36,36 @@ repos:
       files: ".ipynb"
       args: [--drop-empty-cells]
 
-- repo: https://github.com/pycqa/flake8
-  rev: 6.0.0
-  hooks:
-  -   id: flake8
 
-#-   repo: https://github.com/myint/rstcheck
-#    rev: v3.3.1
-#    hooks:
-#    -   id: rstcheck
+- repo: https://github.com/charliermarsh/ruff-pre-commit
+  rev: 'v0.0.278'
+  hooks:
+    - id: ruff
+    - id: ruff
+      alias: ruff-with-fix
+      args: [--fix]
+      stages: [manual]
 
 # applies code formatting on Jupyter notebooks:
 - repo: https://github.com/nbQA-dev/nbQA
-  rev: 0.7.0
+  rev: 1.7.0
   hooks:
     - id: nbqa-isort
       additional_dependencies: [ isort==5.12.0 ]
       args: [ --nbqa-mutate ]
     - id: nbqa-black
-      additional_dependencies: [black==23.1.0]
+      additional_dependencies: [black==23.3.0]
       args: [ --nbqa-mutate ]
+    - id: nbqa-ruff
+      additional_dependencies: [ruff==0.0.278]
+      args: [--ignore=B018, --ignore=W605]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.0.1
     hooks:
     -   id: mypy
-        args: [--ignore-missing-imports, --no-implicit-optional]
+        args: [--ignore-missing-imports, --no-implicit-optional, --allow-redefinition]
 
-# TODO: install
-#-   repo: https://github.com/fsfe/reuse-tool
-#    rev: v1.1.2
-#    hooks:
-#      - id: reuse
 
 -   repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
@@ -80,17 +78,35 @@ repos:
         types: [text]  # overwrite types: [rst]
         types_or: [python, rst]
 
+# TODO: install
+#-   repo: https://github.com/fsfe/reuse-tool
+#    rev: v1.1.2
+#    hooks:
+#      - id: reuse
+
 -   repo: local
     hooks:
     -   id: bibliography
         name: bibliography
-        entry: python doc/source/verify_bibliography.py
+        # || true --> Ignore failure if venv could not be activated
+        entry: sh -c "(. .venv/bin/activate || true) && python3 doc/source/verify_bibliography.py"
         language: system
         always_run: true
         pass_filenames: false
+
+# TODO: potential future hooks
+#-   repo: https://github.com/fsfe/reuse-tool
+#    rev: v1.1.2
+#    hooks:
+#      - id: reuse
 
 # Style checker for sphinx (or other) rst documentation.
 #-   repo: https://github.com/pycqa/doc8
 #    rev: 0.11.1
 #    hooks:
 #    -   id: doc8
+
+#-   repo: https://github.com/myint/rstcheck
+#    rev: v3.3.1
+#    hooks:
+#    -   id: rstcheck

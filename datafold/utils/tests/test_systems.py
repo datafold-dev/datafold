@@ -11,8 +11,10 @@ from matplotlib.animation import FuncAnimation
 from datafold import TSCDataFrame
 from datafold.utils._systems import (
     Burger1DPeriodicBoundary,
-    Duffing1D,
+    Duffing,
+    Hopf,
     InvertedPendulum,
+    Lorenz,
     VanDerPol,
 )
 
@@ -44,7 +46,8 @@ class TestSystems(unittest.TestCase):
 
             # also include a longer example trajectory
             n_timesteps = 500
-            state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+            rng = np.random.default_rng(1)
+            state = rng.uniform(-3.0, 3.0, size=(1, 2))
             control = np.zeros((n_timesteps - 1, 2))
             timevals = np.linspace(0, 10, n_timesteps)
             trajectory, _ = sys.predict(X=state, U=control, time_values=timevals)
@@ -54,7 +57,9 @@ class TestSystems(unittest.TestCase):
     def test_vanderpol02(self, plot=False):
         # a single longer time series
         n_timesteps = 500
-        state = np.random.uniform(-3.0, 3.0, size=(1, 2))
+
+        rng = np.random.default_rng()
+        state = rng.uniform(-3.0, 3.0, size=(1, 2))
         control = np.zeros((n_timesteps - 1, 2))
 
         timevals = np.linspace(0, 10, n_timesteps)
@@ -71,7 +76,8 @@ class TestSystems(unittest.TestCase):
         n_timesteps = 500
 
         # simulate 3 timeseries
-        state = np.random.uniform(-3.0, 3.0, size=(3, 2))
+        rng = np.random.default_rng(1)
+        state = rng.uniform(-3.0, 3.0, size=(3, 2))
 
         timevals = np.linspace(0, 10, n_timesteps)
 
@@ -187,18 +193,22 @@ class TestSystems(unittest.TestCase):
         pdtest.assert_frame_equal(actual_theta, X_predict)
 
     def test_duffing01(self, plot=False):
-        X1, U1 = Duffing1D().predict(np.array([1, 2]), U=np.zeros((999, 1)))
-        X2, U2 = Duffing1D().predict(
+        # setting parameters, because default leads to error (requires smaller time step size)
+
+        X1, U1 = Duffing(alpha=1, beta=-1).predict(
+            np.array([1, 2]), U=np.zeros((999, 1))
+        )
+        X2, U2 = Duffing(alpha=1, beta=-1).predict(
             np.array([1, 2]), U=np.zeros((999, 1)), time_values=np.arange(0, 10, 0.01)
         )
 
         U = TSCDataFrame.from_array(
             np.zeros((999, 1)), time_values=np.arange(0, 10 - 0.01, 0.01)
         )
-        X3, U3 = Duffing1D().predict(
+        X3, U3 = Duffing(alpha=1, beta=-1).predict(
             np.array([1, 2]), U=U, time_values=np.arange(0, 10, 0.01)
         )
-        X4, U4 = Duffing1D().predict(np.array([1, 2]), U=U)
+        X4, U4 = Duffing(alpha=1, beta=-1).predict(np.array([1, 2]), U=U)
 
         pdtest.assert_frame_equal(X1, X2)
         pdtest.assert_frame_equal(X1, X3)
@@ -208,3 +218,178 @@ class TestSystems(unittest.TestCase):
             f, ax = plt.subplots()
             ax.plot(X1["x1"].to_numpy(), X2["x2"].to_numpy())
             plt.show()
+
+    def test_hopf01(self, plot=False):
+        # 1) mesh in Cartesian return only cartesian
+
+        from datafold.utils.general import generate_2d_regular_mesh
+
+        X = generate_2d_regular_mesh((-2, -2), (2, 2), 10, 10, ["x1", "x2"])
+
+        system = Hopf()
+        X = system.predict(X=X, time_values=np.linspace(0, 5, 200))
+
+        if plot:
+            plt.figure()
+            for _, df in X.itertimeseries():
+                Xnp = df.to_numpy()
+                plt.plot(Xnp[:, 0], Xnp[:, 1], c="black", linewidth=1)
+                plt.plot(Xnp[0, 0], Xnp[0, 1], marker=".", c="blue")
+            plt.show()
+
+    def test_hopf02(self, plot=False):
+        # 2) mesh in Angular return Cartesian
+
+        from datafold.utils.general import generate_2d_regular_mesh
+
+        X = generate_2d_regular_mesh((0.01, 0), (3, 2 * np.pi), 10, 10, ["r", "angle"])
+
+        system = Hopf()
+        X = system.predict(X=X, time_values=np.linspace(0, 5, 200), ic_type="polar")
+
+        if plot:
+            plt.figure()
+            for _, df in X.itertimeseries():
+                Xnp = df.to_numpy()
+                plt.plot(Xnp[:, 0], Xnp[:, 1], c="black", linewidth=1)
+                plt.plot(Xnp[0, 0], Xnp[0, 1], marker=".", c="blue")
+            plt.show()
+
+    def test_hopf03(self, plot=False):
+        # 3) mesh in Cartesian return Angular
+        from datafold.utils.general import generate_2d_regular_mesh
+
+        X = generate_2d_regular_mesh((-2, -2), (2, 2), 10, 10, ["x1", "x2"])
+
+        system = Hopf(return_cart=False, return_polar=True)
+        X = system.predict(X, time_values=np.linspace(0, 5, 200))
+
+        if plot:
+            f, ax = plt.subplots(subplot_kw={"projection": "polar"})
+
+            for _, df in X.itertimeseries():
+                ax.plot(
+                    df.loc[:, "angle"].to_numpy(),
+                    df.loc[:, "r"].to_numpy(),
+                    color="black",
+                )
+                ax.grid(True)
+            plt.show()
+
+    def test_hopf04(self):
+        from datafold.utils.general import generate_2d_regular_mesh
+
+        X = generate_2d_regular_mesh((-2, -2), (2, 2), 10, 10, ["x1", "x2"])
+
+        system = Hopf(return_polar=True)
+        X = system.predict(X, time_values=np.linspace(0, 1, 20))
+
+        self.assertEqual(X.shape[1], 4)
+        self.assertEqual(["x1", "x2", "r", "angle"], system.get_feature_names_out())
+
+    def test_hopf05(self):
+        from datafold.utils.general import generate_2d_regular_mesh
+
+        X_ic = generate_2d_regular_mesh((-2, -2), (2, 2), 10, 10, ["x1", "x2"])
+        X_ic_polar = generate_2d_regular_mesh(
+            (0.01, 0), (3, 2 * np.pi), 10, 10, ["r", "angle"]
+        )
+
+        system = Hopf()
+        X = system.predict(X=X_ic, time_values=0.1)
+        X_polar = system.predict(X=X_ic_polar, time_values=0.1, ic_type="polar")
+        self.assertEqual(X.n_timesteps, 2)
+        self.assertEqual(X.n_timeseries, 100)
+        pdtest.assert_index_equal(pd.Index(["x1", "x2"]), X.columns, check_names=False)
+        self.assertEqual(X_polar.n_timesteps, 2)
+        self.assertEqual(X_polar.n_timeseries, 100)
+        pdtest.assert_index_equal(
+            pd.Index(["x1", "x2"]), X_polar.columns, check_names=False
+        )
+
+        system = Hopf(return_cart=False, return_polar=True)
+        X = system.predict(X=X_ic, time_values=0.1)
+        X_polar = system.predict(X=X_ic_polar, time_values=0.1, ic_type="polar")
+        self.assertEqual(X.n_timesteps, 2)
+        self.assertEqual(X.n_timeseries, 100)
+        pdtest.assert_index_equal(
+            pd.Index(["r", "angle"]), X.columns, check_names=False
+        )
+        self.assertEqual(X_polar.n_timesteps, 2)
+        self.assertEqual(X_polar.n_timeseries, 100)
+        pdtest.assert_index_equal(
+            pd.Index(["r", "angle"]), X_polar.columns, check_names=False
+        )
+
+    def test_hopf06(self):
+        from datafold.utils.general import generate_2d_regular_mesh
+
+        X_ic = generate_2d_regular_mesh((-2, -2), (2, 2), 10, 10)
+        X_ic_polar = generate_2d_regular_mesh((0.01, 0), (3, 2 * np.pi), 10, 10)
+
+        system = Hopf()
+        X = system.predict(X=X_ic, time_values=0.1)
+        X_polar = system.predict(X=X_ic_polar, time_values=0.1, ic_type="polar")
+        self.assertEqual(X.n_timesteps, 2)
+        self.assertEqual(X.n_timeseries, 100)
+        pdtest.assert_index_equal(pd.Index(["x1", "x2"]), X.columns, check_names=False)
+        self.assertEqual(X_polar.n_timesteps, 2)
+        self.assertEqual(X_polar.n_timeseries, 100)
+        pdtest.assert_index_equal(
+            pd.Index(["x1", "x2"]), X_polar.columns, check_names=False
+        )
+
+        system = Hopf(return_cart=False, return_polar=True)
+        X = system.predict(X=X_ic, time_values=0.1)
+        X_polar = system.predict(X=X_ic_polar, time_values=0.1, ic_type="polar")
+        self.assertEqual(X.n_timesteps, 2)
+        self.assertEqual(X.n_timeseries, 100)
+        pdtest.assert_index_equal(
+            pd.Index(["r", "angle"]), X.columns, check_names=False
+        )
+        self.assertEqual(X_polar.n_timesteps, 2)
+        self.assertEqual(X_polar.n_timeseries, 100)
+        pdtest.assert_index_equal(
+            pd.Index(["r", "angle"]), X_polar.columns, check_names=False
+        )
+
+    def test_lorenz(self, plot=False):
+        time_values = np.arange(0, 200, 0.001)
+        lorenz = Lorenz()
+        X = lorenz.predict(X=[-5, 9, 30], time_values=time_values)
+
+        self.assertIsInstance(X, TSCDataFrame)
+        self.assertEqual(X.n_timeseries, 1)
+        self.assertEqual(X.n_timesteps, len(time_values))
+        self.assertEqual(X.columns.to_list(), lorenz.feature_names_in_)
+
+        if plot:
+            X = X.to_numpy()
+
+            f = plt.figure()
+            ax = f.add_subplot(projection="3d")
+
+            ax.plot3D(X[:, 0], X[:, 1], X[:, 2], "-k")
+            ax.set_xlabel("x")
+            ax.set_ylabel("y")
+            ax.set_zlabel("z")
+
+            f, ax = plt.subplots(nrows=3)
+
+            ax[0].plot(time_values, X[:, 0], label="x")
+            ax[0].set_ylabel("x")
+            ax[0].set_xlim([-1, 100])
+
+            ax[1].plot(time_values, X[:, 1], label="y")
+            ax[1].set_ylabel("y")
+            ax[1].set_xlim([-1, 100])
+
+            ax[2].plot(time_values, X[:, 2], label="z")
+            ax[2].set_ylabel("z")
+            ax[2].set_xlabel("time")
+            ax[2].set_xlim([-1, 100])
+            plt.show()
+
+
+if __name__ == "__main__":
+    TestSystems().test_hopf02()

@@ -111,7 +111,9 @@ class TestPCMEstimation(unittest.TestCase):
     @staticmethod
     def generate_mushroom(n_points=500):
         NX = int(np.sqrt(n_points))
-        data = np.random.rand(NX * NX, 2)
+
+        rng = np.random.default_rng(1)
+        data = rng.random((NX * NX, 2))
         data[:, 1] = data[:, 1] * 1.0
 
         def transform(x, y):

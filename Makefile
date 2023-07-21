@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help venv print_variables install_devdeps install_docdeps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi pypi_test clean_docs clean_build clean_test clean_venv clean clean_all
+.PHONY: help venv print_variables install_deps install_devdeps install_docdeps versions docs docs_linkcheck unittest tutorialtest tutorial precommit ci build install uninstall test_install pypi pypi_test clean_docs clean_build clean_test clean_venv clean clean_all
 
 #Internal variables:
 CURRENT_PATH = $(shell pwd)/
@@ -25,7 +25,7 @@ help:
 	@echo 'HTML_FILE_OPEN - If "OPEN_DOCS_BROWSER" is enabled, specify the html file that opens. Defaults to "index.html".'
 	@echo ''
 	@echo 'Arguments associated to the target "unittest".'
-	@echo 'PYTESTOPTS - Options passed to "pytest" in target "unittest"'
+	@echo 'PYTESTOPTS - Options passed to "pytest" in target "unittest" and "tutorialtest" (defaults to --verbose)'
 	@echo ''
 	@echo 'Arguments associated to the target "precommit".'
 	@echo 'GITHOOK - Execute specific githook. Defaults to "--all".'
@@ -53,15 +53,16 @@ else
 endif
 
 SPHINXOPTS    ?=
-PYTESTOPTS    ?=
+PYTESTOPTS    ?= --verbose
 
 DATAFOLD_TUTORIALS_EXECUTE ?= false
 OUTPUT_DOCS ?= doc/build/
 
 ifeq ($(OS),Linux)
-	_DOCDEPS = pandoc texlive-base texlive-latex-extra graphviz libjs-mathjax fonts-mathjax dvipng
+	# NOTE: a newer version of pandoc is installed separately in install_docdeps target for Linux
+	_DOCDEPS = texlive-base texlive-lang-english texlive-latex-extra ffmpeg graphviz libjs-mathjax fonts-mathjax dvipng
 else # Windows_NT
-	_DOCDEPS = pandoc miktex graphviz
+	_DOCDEPS = pandoc miktex ffmpeg graphviz
 endif
 
 ifeq ($(IS_DOCKER),)
@@ -78,7 +79,7 @@ GITHOOK = --all
 
 # Check that the used Python version fulfills the minimum requirement
 VPYTHON_MIN_MAJOR = 3
-VPYTHON_MIN_MINOR = 8
+VPYTHON_MIN_MINOR = 9
 
 define PYTHON_CHECK_SCRIPT
 import sys
@@ -109,7 +110,7 @@ print_variables:
 	@echo HTML_FILE_OPEN = $(HTML_FILE_OPEN)
 	@echo GITHOOK = $(GITHOOK)
 
-#venv: @ Create a new Python virtual environment if it does not exist yet (target is disabled in a docker container).
+#venv: @ Create a new Python virtual environment if it does not exist yet (target is disabled if DOCKERENVIRONMENT is set).
 venv:
 ifeq ($(IS_DOCKER),)
 	@# Only create a Python-venv if not in a docker environment, because docker is already a virtualization
@@ -129,6 +130,7 @@ else
 	@$(PYTHON) -c "$$PYTHON_CHECK_SCRIPT" $(VPYTHON_MIN_MAJOR) $(VPYTHON_MIN_MINOR);
 endif
 
+
 #docker_build: @ Build a new docker image from the Dockerfile (named "datafold").
 docker_build:
 	docker build -t datafold .
@@ -137,20 +139,33 @@ docker_build:
 docker_run:
 	docker run -v `pwd`:/home/datafold-mount -w /home/datafold-mount/ -it --rm --net=host datafold bash
 
-#install_devdeps: @ Install (or update) development dependencies in virtual environment according to the file "requirements-dev.txt".
+
+#install_deps: @ Install (or update) datafold dependencies in virtual environment specifed file "requirements.txt".
+install_deps: venv
+	$(ACTIVATE_VENV); \
+	python -m pip install -r requirements.txt
+
+#install_devdeps: @ Install (or update) development dependencies in virtual environment specifed in file "requirements-dev.txt".
 install_devdeps: venv
 	$(ACTIVATE_VENV); \
-    python -m pip install --upgrade pip wheel setuptools twine; \
+	python -m pip install --upgrade pip wheel setuptools twine; \
 	python -m pip install -r requirements-dev.txt
 
-#install_docdeps: @ Install non-Python dependencies to build datafold's documentation (requires admin rights).
+#install_docdeps: @ Install non-Python dependencies to build datafold's documentation (requires admin rights or set, DOCKER_ENVIRONMENT=true).
 install_docdeps:
 ifeq ($(OS),Linux)
-ifeq ($(IS_DOCKER),) # no docker
-	sudo apt install $(_DOCDEPS)
+ifeq ($(IS_DOCKER),) # true if IS_DOCKER is empty
+	@# TODO this could be improved to avoid statement duplication... only sudo changes
+	sudo apt-get update \
+	&& wget "https://github.com/jgm/pandoc/releases/download/3.1.5/pandoc-3.1.5-1-amd64.deb" \
+	&& sudo apt -y --no-install-recommends install ./pandoc-3.1.5-1-amd64.deb \
+	&& sudo apt -y --no-install-recommends install $(_DOCDEPS) \
+	&& rm -f pandoc-3.1.5-1-amd64.deb;
 else # in docker "sudo" is not available and everything is executed with root
-	apt-get update && \
-	apt-get -y install $(_DOCDEPS)
+	apt-get update \
+	&& wget "https://github.com/jgm/pandoc/releases/download/3.1.5/pandoc-3.1.5-1-amd64.deb" \
+	&& apt -y --no-install-recommends install ./pandoc-3.1.5-1-amd64.deb \
+	&& apt -y --no-install-recommends install $(_DOCDEPS);
 endif
 else # OS = Windows
 	@echo "INFO: Make sure that chocolatery is installed (https://community.chocolatey.org/)."
@@ -158,10 +173,51 @@ else # OS = Windows
 	choco install $(_DOCDEPS)
 endif
 
+#ci_build_image: @ Build a docker image (name: datafold/gitlab-runner) that is based on the gitlab-runner:latest image (see Dockerfile.ci file).
+ci_build_image:
+	sudo docker build -t datafold/gitlab-runner -f Dockerfile.ci .
+
+#ci_run_container: @ Start the container from the datafold/gitlab-runner image (target ci_build_image).
+ci_run_container:
+	sudo docker run -it -d --restart always --name gitlab-runner \
+	-v /var/run/docker.sock:/var/run/docker.sock \
+	-v /srv/gitlab-runner/config:/etc/gitlab-runner \
+	datafold/gitlab-runner:latest
+
+
+#ci_start_gitlab_runner: @ Start the gitlab-runner within the container. Note that this requires a registered gitlab-runner/.
+ci_start_gitlab_runner:
+	sudo docker exec gitlab-runner gitlab-runner start
+	sudo docker exec gitlab-runner gitlab-runner status
+
+
+#ci_enter: @ Enter the running docker container with an interactive shell.
+ci_enter:
+	sudo docker exec -it gitlab-runner /bin/bash
+
+#ci_show_runner_config: @ Show the current config file of the gitlab-runner (config file does not exist if the runner was never registered).
+ci_show_runner_config:
+	sudo docker exec gitlab-runner cat /etc/gitlab-runner/config.toml
+
+#ci_build_and_run: @ Build docker image, start container and start gitlab-runner. If there is no config file (or empty) at '/srv/gitlab-runner/config', then the gitlab-runner needs still to be registered.
+ci_build_and_run: ci_build_image ci_run_container ci_start_gitlab_runner
+
+#ci_register_gitlab_runner: @ Register gitlab-runner (note the hints at the beginning). Since this Makefile is within the container, this should be run within the container (see target 'ci_enter').
+ci_register_gitlab_runner:
+	# TODO: do not register if there is already a config.toml file present?
+	@echo "-------------------------------------------------------"
+	@echo "-------------------------------------------------------"
+	@echo "The gitlab instance is usually https://www.gitlab.com/"
+	@echo "The token is obtained by going to the gitlab repo -> Settings -> CI/CD -> Runners -> New Project runner -> Linux -> Tick "Run untagged jobs" -> Create runner"
+	@echo "Set 'bash' as executor"
+	@echo "-------------------------------------------------------"
+	@echo "-------------------------------------------------------"
+	gitlab-runner register
+
 #devenv: @ Setup full development environment by executing targets 'install_devdeps' and 'install_docdeps'.
 devenv: install_devdeps install_docdeps precommit
 
-#versions: @ Show current version of datafold and its essential dependencies.
+#versions: @ Show current version of datafold and versions of essential dependencies.
 versions:
 	@$(ACTIVATE_VENV); \
 	python datafold/_version.py
@@ -186,10 +242,10 @@ docs_linkcheck:
 	cd doc/; \
 	python -m sphinx -M linkcheck source/ build/ $(SPHINXOPTS) $(O)
 
-#unittest: @ Run unittests with "pytest" and "coverage". A html coverage report is saved to folder "./coverage/".
+#unittest: @ Run unittests with 'pytest' and 'coverage'. A html coverage report is saved to folder './coverage/'.
 unittest:
-	# run unittests with coverage first and then store and use exit code at end
-    # (to not succeed with coverage report
+	# run unittests with coverage first and then return exit code at end
+    # (otherwise a successful generation of coverage report is returned)
 	@$(ACTIVATE_VENV); \
 	python -m coverage run --branch -m pytest $(PYTESTOPTS) datafold/;
 	EXIT_CODE=$$?
@@ -198,15 +254,28 @@ unittest:
 	python -m coverage report; \
 	exit $(EXIT_CODE);
 
+#unittest_last_failed: @ Run only unittests that failed last.
+unittest_last_failed:
+	# --lf, --last-failed   rerun only the tests that failed at the last run (or all if none failed)
+	@$(ACTIVATE_VENV); \
+	python -m pytest --lf datafold/;
+
 #tutorialtest: @ Run all tutorials with pytest.
 tutorialtest:
 	@$(ACTIVATE_VENV); \
 	export PYTHONPATH="$(CURRENT_PATH):$$PYTHONPATH"; \
-	python -m pytest tutorials/;
+	python -m pytest $(PYTESTOPTS) tutorials/;
 
 test: unittest tutorialtest
 
-#tutorial: @ Open tutorials in Jupyter notebook in a new tab of the default web browser.
+
+#jupyter: @ Open Juypter notebook with correct virtual environment and PYTHONPATH set for datafold source code.
+jupyter:
+	@$(ACTIVATE_VENV); \
+	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
+	jupyter notebook
+
+#tutorial: @ Open tutorials in Jupyter notebook (opens in the default web browser).
 tutorial:
 	@$(ACTIVATE_VENV); \
 	export PYTHONPATH=$(CURRENT_PATH):$$PYTHONPATH; \
@@ -216,6 +285,11 @@ tutorial:
 precommit:
 	@$(ACTIVATE_VENV); \
 	python -m pre_commit run --all $(GITHOOK);
+
+#ruff_fix: @ Run ruff (installed within pre-commit) with '--fix' option to detect and fix issues (if possible).
+ruff_fix:
+	@$(ACTIVATE_VENV); \
+	python -m pre_commit run ruff-with-fix --hook-stage manual;
 
 #gitamend: @ Amend a commit to the last commit (already pushed).
 gitamend:
@@ -236,7 +310,7 @@ install:
 	@$(ACTIVATE_VENV); \
 	python -m pip install .
 
-#test_install: @ Install and subsequently uninstall datafold (for testing purposes all created files are removed).
+#test_install: @ Install and subsequently uninstall datafold for testing. All created files during installation are removed.
 test_install: install clean_install
 	@echo 'Successful'
 
@@ -295,7 +369,13 @@ clean_cache:
 clean_docker:
 	docker system prune -a
 
-#clean_venv: @ Remove the virtual environment folder which is created for the target "venv".
+#clean_docker_ci: Clean the container and image from the gitlab-runner. Note that this removes the registered runner.
+clean_docker_ci:
+	-sudo docker container stop gitlab-runner;
+	-sudo docker container rm gitlab-runner;
+	-sudo docker rmi datafold/gitlab-runner;
+
+#clean_venv: @ Remove the virtual environment folder which is created in the target "venv".
 clean_venv:
 	rm -fr $(VENV_DIR);
 

@@ -1,3 +1,16 @@
+# It is assumed that the CI pipeline is executed in a docker.
+# Importantly, not the single jobs are executed in a container but the whole gitlab-runner
+# instance. See e.g. https://docs.gitlab.com/runner/install/docker.html
+
+# Use the Makefile in the root folder of datafold to set up a gitlab CI runner docker.
+# The only runner can run anywhere (only tested for Linux) with internet access (on a
+# dedicated server, but also locally along the dev environment). Consider the following
+# make targets
+# * `make build_ci_image` -- to create the docker image (deriving from the gitlab-runner:latest docker image)
+# * `make run_ci_container` -- start the container
+# * `make register_gitlab_runner` -- register the gitlab-runner
+# TODO: make PYTHON an environment variable
+
 stages:
   - setup
   - test
@@ -9,6 +22,7 @@ variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   PRE_COMMIT_DIR: "${CI_PROJECT_DIR}/.cache/pre-commit"
   VENV_DIR: "${CI_PROJECT_DIR}/.venv"
+  PYTHON: "python"
 
 
 cache:
@@ -28,12 +42,11 @@ workflow:
 
 # See keyword reference for the .gitlab-ci.yml file
 # https://docs.gitlab.com/ee/ci/yaml/
-setup:
+setup_dependencies:
   stage: setup
   script:
-    - make install_devdeps PYTHON=python3.8
+    - make install_devdeps
     - make versions
-
 
 unittests:
   stage: test
@@ -79,7 +92,7 @@ docu_checks_urls:
   stage: code_analysis
   script:
     - make docs_linkcheck
-  when: manual # not always ping all urls in the docs for each run
+  when: manual # not always ping all urls in the docs for each CI run
   except:
     - master
   allow_failure: true

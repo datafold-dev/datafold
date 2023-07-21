@@ -11,13 +11,15 @@ from datafold.pcfold.timeseries.collection import TSCException
 
 
 class TestTSCAccessor(unittest.TestCase):
+    rng = np.random.default_rng(5)
+
     def setUp(self) -> None:
         # The last two elements are used
         idx = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
         )
         col = ["A", "B"]
-        self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
+        self.simple_df = pd.DataFrame(self.rng.random((9, 2)), index=idx, columns=col)
 
     def test_normalize_time1(self):
         # NOTE: more tests are included in test_tsc_data_structure/test_is_normalize_time()
@@ -60,13 +62,44 @@ class TestTSCAccessor(unittest.TestCase):
 
         pdtest.assert_frame_equal(actual, expected)
 
+    def test_shift_time_per_time_series01(self):
+        simple_df = TSCDataFrame(self.simple_df)
+
+        actual, shift_values = simple_df.tsc.shift_time_per_time_series(
+            return_shift_values=True
+        )
+
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertIsInstance(shift_values, pd.Series)
+
+        self.assertTrue(
+            np.all(actual.initial_states().index.get_level_values("time") == 0)
+        )
+
+        actual2 = actual.tsc.shift_time_per_time_series(shift_values=-1 * shift_values)
+
+        pdtest.assert_frame_equal(simple_df, actual2)
+
+    def test_shift_time_per_time_series02(self):
+        simple_df = TSCDataFrame(self.simple_df)
+
+        actual, shift_values = simple_df.tsc.shift_time_per_time_series(
+            return_shift_values=True
+        )
+
+        with self.assertRaises(ValueError):
+            actual.tsc.shift_time_per_time_series(shift_values.iloc[:2])
+
+        with self.assertRaises(TypeError):
+            actual.tsc.shift_time_per_time_series(shift_values.to_numpy())
+
     def test_iter_timevalue_window(self):
         tsc_df = TSCDataFrame.from_single_timeseries(
-            pd.DataFrame(np.random.rand(10, 2), columns=["A", "B"])
+            pd.DataFrame(self.rng.random((10, 2)), columns=["A", "B"])
         )
 
         tsc_df2 = tsc_df.insert_ts(
-            pd.DataFrame(np.random.rand(10, 2), columns=["A", "B"])
+            pd.DataFrame(self.rng.random((10, 2)), columns=["A", "B"])
         )
 
         # tests for one time series
@@ -606,11 +639,13 @@ class TestTSCAccessor(unittest.TestCase):
             tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=2)
 
     def test_augment_control_input(self):
+        rng = np.random.default_rng(1)
+
         tscdf = TSCDataFrame.from_array(
-            np.random.uniform(size=(3, 2)), feature_names=["x1", "x2"]
+            rng.uniform(size=(3, 2)), feature_names=["x1", "x2"]
         )
         control = TSCDataFrame.from_array(
-            np.random.uniform(size=(2, 2)), feature_names=["u1", "u2"]
+            rng.uniform(size=(2, 2)), feature_names=["u1", "u2"]
         )
 
         expect = np.ones([3, 4]) * np.nan
@@ -621,12 +656,3 @@ class TestTSCAccessor(unittest.TestCase):
         actual = tscdf.tsc.augment_control_input(U=control)
 
         pdtest.assert_frame_equal(expect, actual)
-
-
-if __name__ == "__main__":
-    # test = TestErrorTimeSeries()
-    # test.setUp()
-    # test.test_error_per_timestep3()
-    # exit()
-
-    unittest.main()

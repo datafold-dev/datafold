@@ -82,8 +82,8 @@ class GeometricHarmonicsTest(unittest.TestCase):
         # see: https://scikit-learn.org/stable/developers/develop.html#estimator-tags
         estimator = GeometricHarmonicsInterpolator(n_eigenpairs=1)
 
-        for estimator, check in check_estimator(estimator, generate_only=True):
-            check(estimator)
+        for e, check in check_estimator(estimator, generate_only=True):
+            check(e)
 
         self.assertTrue(estimator._get_tags()["multioutput"])
         self.assertTrue(estimator._get_tags()["requires_y"])
@@ -222,10 +222,10 @@ class GeometricHarmonicsTest(unittest.TestCase):
     def test_variable_number_of_points(self):
         # Simply check if something fails
 
-        np.random.seed(1)
+        rng = np.random.default_rng(1)
 
-        data = np.random.randn(100, 5)
-        values = np.random.randn(100)
+        data = rng.normal(size=(100, 5))
+        values = rng.normal(size=100)
 
         parameter_grid = ParameterGrid(
             {
@@ -249,20 +249,20 @@ class GeometricHarmonicsTest(unittest.TestCase):
             ).fit(data, values)
 
             # larger number of samples than original data
-            oos_data = np.random.randn(200, 5)
+            oos_data = rng.normal(size=(200, 5))
 
             gh.predict(oos_data)
             gh.gradient(oos_data)
 
-            oos_data = np.random.randn(100, 5)  # same size as original data
+            oos_data = rng.normal(size=(100, 5))  # same size as original data
             gh.predict(oos_data)
             gh.gradient(oos_data)
 
-            oos_data = np.random.randn(50, 5)  # less than original data
+            oos_data = rng.normal(size=(50, 5))  # less than original data
             gh.predict(oos_data)
             gh.gradient(oos_data)
 
-            oos_data = np.random.randn(1, 5)  # single sample
+            oos_data = rng.normal(size=(1, 5))  # single sample
             gh.predict(oos_data)
             gh.gradient(oos_data)
 
@@ -287,9 +287,9 @@ class GeometricHarmonicsTest(unittest.TestCase):
         zz = np.sin(yy) * np.sin(xx)
 
         X_train = np.vstack(
-            [xx.reshape(np.product(xx.shape)), yy.reshape(np.product(yy.shape))]
+            [xx.reshape(np.prod(xx.shape)), yy.reshape(np.prod(yy.shape))]
         ).T
-        y_train = zz.reshape(np.product(zz.shape))
+        y_train = zz.reshape(np.prod(zz.shape))
 
         xx_oos, yy_oos = np.meshgrid(
             np.linspace(*x_lims_test, nr_sample_x_test),
@@ -299,11 +299,11 @@ class GeometricHarmonicsTest(unittest.TestCase):
 
         X_oos = np.vstack(
             [
-                xx_oos.reshape(np.product(xx_oos.shape)),
-                yy_oos.reshape(np.product(yy_oos.shape)),
+                xx_oos.reshape(np.prod(xx_oos.shape)),
+                yy_oos.reshape(np.prod(yy_oos.shape)),
             ]
         ).T
-        y_test = zz_oos.reshape(np.product(zz_oos.shape))
+        y_test = zz_oos.reshape(np.prod(zz_oos.shape))
 
         gh_single_interp = GeometricHarmonicsInterpolator(
             epsilon=13.0,
@@ -601,7 +601,6 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
     # are test to make sure this is the case.
 
     def setUp(self):
-        np.random.seed(1)
         self.data, _ = make_swiss_roll(n_samples=1000, noise=0, random_state=1)
 
         dim_red_eps = 1.25
@@ -726,7 +725,6 @@ class GeometricHarmonicsLegacyTest(unittest.TestCase):
 
     def test_method_example2(self):
         # Example from method_examples/diffusion_maps/geometric_harmonics -- inverse case.
-        np.random.seed(1)
 
         eps_interp = 0.0005
         # in this case much smaller compared to 1.25 for dim. reduction or 100 for the

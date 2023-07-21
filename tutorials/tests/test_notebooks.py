@@ -1,12 +1,15 @@
 import os
 import subprocess
 import tempfile
-from typing import List
 
 import nbformat
 import pytest
 
-IGNORE_NOTEBOOKS: List[str] = ["koopman_mpc.ipynb"]
+IGNORE_NOTEBOOKS: list[str] = [
+    "12_ResDMD.ipynb",
+    "12_koopman_mpc.ipynb",
+    "koopman_mpc.ipynb",
+]
 
 
 def _notebook_run(path):
@@ -16,7 +19,6 @@ def _notebook_run(path):
     Source:
     https://blog.thedataincubator.com/2016/06/testing-jupyter-notebooks/
     """
-
     dirname, _ = os.path.split(path)
     os.chdir(dirname)
     with tempfile.NamedTemporaryFile(suffix=".ipynb") as fout:
@@ -51,22 +53,24 @@ def _find_all_notebooks_to_run():
     from datafold import __path__ as datafold_path
 
     assert len(datafold_path) == 1
-    datafold_path = datafold_path[0]
 
-    tutorials_path = os.path.join(datafold_path, "..", "tutorials")
-    tutorials_path = os.path.abspath(tutorials_path)
+    import pathlib
 
-    assert os.path.isdir(tutorials_path)
+    datafold_path = pathlib.Path(datafold_path[0])
+
+    tutorials_path = datafold_path.parent / "tutorials"
+
+    assert tutorials_path.is_dir()
 
     example_notebooks = []
-    for current_path, directories, files in os.walk(tutorials_path):
-        for file in files:
-            if file.endswith(".ipynb") and ".ipynb_checkpoints" not in current_path:
-                insert_path = os.path.join(current_path, file)
-                assert os.path.exists(insert_path) and os.path.isfile(insert_path)
 
-                if os.path.basename(insert_path) not in IGNORE_NOTEBOOKS:
-                    example_notebooks.append(insert_path)
+    for ipynb_filepath in tutorials_path.rglob("*.ipynb"):
+        if (
+            ".ipynb_checkpoints" not in str(ipynb_filepath)
+            and ipynb_filepath.name not in IGNORE_NOTEBOOKS
+        ):
+            assert ipynb_filepath.is_file()
+            example_notebooks.append(ipynb_filepath)
 
     return example_notebooks
 

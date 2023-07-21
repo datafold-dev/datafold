@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -44,6 +44,82 @@ class SystemSolveStrategy:
         return time_series_tensor
 
     @staticmethod
+    def differential_matrix_controlled(
+        time_series_tensor,
+        initial_conditions,
+        sys_matrix,
+        control_matrix,
+        control_input,
+        time_values,
+        **ignored,
+    ):
+        r"""Solves system:
+        \dot{x} = A x + B u.
+        """
+        time_series_tensor[:, 0, :] = initial_conditions
+        time_diff = np.diff(time_values)
+
+        n_states = sys_matrix.shape[0]
+        n_inputs = control_matrix.shape[1]
+
+        for idx, tdiff in enumerate(time_diff):
+            M = np.vstack(
+                [np.hstack([sys_matrix * tdiff]), control_matrix * tdiff],
+                np.zeros([n_inputs, n_states + n_inputs]),
+            )
+            expM = np.linalg.expm(M)
+            Ad = expM[:n_states, :n_states]
+            Bd = expM[n_states:, :n_states]
+
+            time_series_tensor[:, idx + 1, :] = (
+                Ad @ time_series_tensor[:, idx, :] + Bd @ control_input[:, idx, :]
+            )
+
+        return time_series_tensor
+
+    @staticmethod
+    def differential_matrix_controlled_affine(
+        time_series_tensor,
+        initial_conditions,
+        sys_matrix,
+        control_matrix,
+        control_input,
+        time_values,
+        **ignored,
+    ):
+        """Documentation and review welcome.
+        This is based on the implementation of :cite:`peitz-2020`.
+        """
+        # solve for each initial condition separately
+        for i in range(initial_conditions.shape[1]):
+            interp_control = interp1d(
+                time_values, control_input[i], axis=0, kind="cubic"
+            )
+
+            affine_system_func = lambda t, state: (
+                sys_matrix @ state + control_matrix @ interp_control(t) @ state
+            )
+
+            ivp_solution = solve_ivp(
+                affine_system_func,
+                t_span=(time_values[0], time_values[-1]),
+                y0=initial_conditions[:, i],
+                t_eval=time_values,
+                method="RK23",
+            )
+
+            if not ivp_solution.success:
+                raise RuntimeError(
+                    f"The system could not be simulated for the requested "
+                    f"timespan and initial condition {i=} with values "
+                    f"{initial_conditions[i]=}."
+                )
+
+            time_series_tensor[i] = ivp_solution.y.T
+
+        return time_series_tensor
+
+    @staticmethod
     def differential_spectral(
         time_series_tensor,
         initial_conditions,
@@ -73,49 +149,6 @@ class SystemSolveStrategy:
                 sys_matrix
                 @ diagmat_dot_mat(np.exp(eigenvalues * time), initial_conditions)
             ).T
-        return time_series_tensor
-
-    @staticmethod
-    def differential_matrix_controlled_affine(
-        time_series_tensor,
-        initial_conditions,
-        sys_matrix,
-        control_matrix,
-        control_input,
-        time_values,
-        **ignored,
-    ):
-        """Documentation and review welcome.
-        This is based on the implementation of :cite:`peitz-2020`.
-        """
-
-        # solve for each initial condition separately
-        for i in range(initial_conditions.shape[1]):
-            interp_control = interp1d(
-                time_values, control_input[i], axis=0, kind="cubic"
-            )
-
-            affine_system_func = lambda t, state: (
-                sys_matrix @ state + control_matrix @ interp_control(t) @ state
-            )
-
-            ivp_solution = solve_ivp(
-                affine_system_func,
-                t_span=(time_values[0], time_values[-1]),
-                y0=initial_conditions[:, i],
-                t_eval=time_values,
-                method="RK23",
-            )
-
-            if not ivp_solution.success:
-                raise RuntimeError(
-                    f"The system could not be envolved for the requested "
-                    f"timespan for initial condition {i=} with values "
-                    f"{initial_conditions[i]=}."
-                )
-
-            time_series_tensor[i] = ivp_solution.y.T
-
         return time_series_tensor
 
     @staticmethod
@@ -212,7 +245,7 @@ class SystemSolveStrategy:
         time_delta,
         **ignored,
     ):
-        r"""A linear dynamical system as a discrete flowmap with control input
+        r"""A linear dynamical system as a discrete flowmap with control input.
 
         .. math::
             x_{n+1} = A \cdot x_{n} + B \cdot u_{n}
@@ -228,7 +261,6 @@ class SystemSolveStrategy:
         Note that the control input has to be available for the entire time horizon of the
         prediction.
         """
-
         time_series_tensor[:, 0, :] = initial_conditions.T
 
         for idx, time_diff in enumerate(np.diff(time_values)):
@@ -244,7 +276,8 @@ class SystemSolveStrategy:
 
                 warnings.warn(
                     "Solving the control system with a different time sampling to "
-                    "the original sampling rate is potentially wrong."
+                    "the original sampling rate is potentially wrong.",
+                    stacklevel=1,
                 )
 
                 _f_sys_matrix = scipy.linalg.fractional_matrix_power(
@@ -283,7 +316,7 @@ class SystemSolveStrategy:
             eigenvalues, eigenvectors_left
         )
 
-        for idx, time in enumerate(time_values[1:]):
+        for idx, _time in enumerate(time_values[1:]):
             next_state = (
                 reconstruct_system_matrix @ time_series_tensor[:, idx, :].T
                 + control_matrix @ control_input[:, idx, :].T
@@ -297,14 +330,13 @@ class SystemSolveStrategy:
         *, system_type, system_mode, is_time_invariant, is_controlled, is_control_affine
     ):
         """Selects the solver for the linear dynamical system based on the given system
-        parameters."""
-
+        parameters.
+        """
         if not is_time_invariant:
             raise NotImplementedError(
                 "Currently there are only time invariant system solvers implemented"
             )
 
-        # a switch-case construct to select the appropriate solver
         if (
             system_type == "differential"
             and system_mode == "spectral"
@@ -315,6 +347,10 @@ class SystemSolveStrategy:
             system_type == "differential"
             and system_mode == "matrix"
             and not is_controlled
+        ):
+            return SystemSolveStrategy.differential_matrix
+        elif (
+            system_type == "differential" and system_mode == "matrix" and is_controlled
         ):
             return SystemSolveStrategy.differential_matrix
         elif (
@@ -346,7 +382,9 @@ class SystemSolveStrategy:
             return SystemSolveStrategy.differential_matrix_controlled_affine
         else:
             raise ValueError(
-                "no strategy found to solve the specified linear dynamical system"
+                "No strategy found to solve the specified linear dynamical system\n"
+                f"{system_type=}, {system_mode=}, {is_time_invariant=}, {is_controlled=}, "
+                f"{is_control_affine=}"
             )
 
 
@@ -358,7 +396,6 @@ class LinearDynamicalSystem:
 
     Parameters
     ----------
-
     sys_type
         Type of linear system:
 
@@ -379,7 +416,7 @@ class LinearDynamicalSystem:
         Whether the system is a control affine. The control matrix must be a 3-dim. array
         (tensor) and the implementation is based on :cite:t:`peitz-2020`.
 
-    time_invariant
+    is_time_invariant
         If True, the system internally always starts with `time=0`. \
         This is irrespective of the time given in the time values. If the initial
         time is larger than zero, the internal times are corrected to the requested time.
@@ -394,17 +431,17 @@ class LinearDynamicalSystem:
 
     def __init__(
         self,
-        sys_type: str,
-        sys_mode: str,
+        sys_type: Literal["differential", "flowmap"],
+        sys_mode: Literal["matrix", "spectral"],
         is_controlled: bool = False,
         is_control_affine: bool = False,
-        time_invariant: bool = True,
+        is_time_invariant: bool = True,
     ):
         self.sys_type = sys_type
         self.sys_mode = sys_mode
         self.is_controlled = is_controlled
         self.is_control_affine = is_control_affine
-        self.time_invariant = time_invariant
+        self.is_time_invariant = is_time_invariant
 
         self._check_system_type()
         self._check_system_mode()
@@ -414,7 +451,7 @@ class LinearDynamicalSystem:
             system_mode=self.sys_mode,
             is_controlled=self.is_controlled,
             is_control_affine=self.is_control_affine,
-            is_time_invariant=self.time_invariant,
+            is_time_invariant=self.is_time_invariant,
         )
 
     def _check_system_type(self) -> None:
@@ -538,13 +575,17 @@ class LinearDynamicalSystem:
         elif time_delta is None or not is_scalar(time_delta):
             raise TypeError(
                 "In a 'flowmap' system the parameter 'time_delta' must be provided as a "
-                f"scalar value and a scalar value. Got {type(time_delta)=}"
+                f"scalar value. Got {type(time_delta)=}"
             )
         else:
             assert time_delta is not None  # mypy
             # cast to built-in Python value
-            if np.asarray(time_delta).dtype.kind in "mli":
-                time_delta = int(time_delta)
+            np_time_delta = np.asarray(time_delta)
+
+            if np_time_delta.dtype.kind in "mi":
+                # Note: it looks over-complicated but this is works for both timedelta and
+                #       signed int
+                time_delta = int(np_time_delta.astype(int))
             else:
                 time_delta = float(time_delta)
             if time_delta <= 0:
@@ -649,7 +690,6 @@ class LinearDynamicalSystem:
 
     def is_linear_system_setup(self, raise_error_if_not_setup: bool = False) -> bool:
         """Indicate whether the linear system is set up."""
-
         if self.is_matrix_mode:
             is_setup = hasattr(self, "sys_matrix_")
         else:  # self.is_differential_system():
@@ -706,7 +746,6 @@ class LinearDynamicalSystem:
         numpy.ndarray
             spectrally aligned states
         """
-
         self.is_linear_system_setup(raise_error_if_not_setup=True)
 
         if not self.is_spectral_mode:
@@ -771,16 +810,15 @@ class LinearDynamicalSystem:
         LinearDynamicalSystem
             self
         """
-
         if not self.is_spectral_mode:
             raise RuntimeError(
                 f"With '{self.sys_mode=}' this function is not supported."
             )
 
-        is_matrix(eigenvectors_right, "eigenvectors_right")
+        is_matrix(eigenvectors_right, name="eigenvectors_right")
 
         if eigenvectors_left is not None:
-            is_matrix(eigenvectors_right, "eigenvectors_left")
+            is_matrix(eigenvectors_right, name="eigenvectors_left")
 
         is_vector(eigenvalues)
 
@@ -795,7 +833,9 @@ class LinearDynamicalSystem:
 
         return self
 
-    def setup_matrix_system(self, system_matrix, *, control_matrix=None):
+    def setup_matrix_system(
+        self, system_matrix, *, control_matrix=None
+    ) -> "LinearDynamicalSystem":
         r"""Set up linear system with system matrix.
 
         Parameters
@@ -888,14 +928,14 @@ class LinearDynamicalSystem:
         overwrite_sys_matrix
             Primarily for performance reasons the system matrix :math:`A` can also be
             overwritten. An example is to include linear post-mappings of the system (e.g.
-            a projection matrix :math:`P`, resulting in to only return some quantities of
+            a projection matrix :math:`P`, resulting in only returning some quantities of
             interest; :math:`A^{*} = P \cdot A`).
 
         time_delta
             Time delta :math:`\Delta t`. This is a required parameter in a "flowmap" system.
 
         time_series_ids
-           Unique integer time series IDs of shape `(n_initial_conditions,)` for each \
+           Unique integer time series IDs of shape `(n_initial_conditions,)` for each
            respective initial condition. Defaults to `(0, 1, 2, ...)`.
 
         feature_names_out
@@ -908,7 +948,6 @@ class LinearDynamicalSystem:
             Time series for each initial condition, each time series has \
             shape `(n_time_values, n_features)`
         """
-
         (
             initial_conditions,
             sys_matrix,
@@ -953,6 +992,6 @@ class LinearDynamicalSystem:
         return TSCDataFrame.from_tensor(
             time_series_tensor,
             time_series_ids=time_series_ids,
-            columns=feature_names_out,
+            feature_names=feature_names_out,
             time_values=time_values,
         )

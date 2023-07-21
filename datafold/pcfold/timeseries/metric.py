@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-
 import abc
+from collections.abc import Generator
 from functools import partial
-from typing import Generator, Optional, Tuple, Union
+from typing import Literal, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +19,6 @@ class TSCMetric:
 
     Parameters
     ----------
-
     metrics
 
         * "rmse" - root mean squared error,
@@ -43,7 +41,6 @@ class TSCMetric:
 
     References
     ----------
-
     "rrmse" is taken from :cite:t:`leclainche-2017`
 
     """
@@ -52,7 +49,12 @@ class TSCMetric:
     _cls_valid_metrics = ["rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2"]
     _cls_valid_scaling = ["id", "min-max", "standard", "l2_normalize"]
 
-    def __init__(self, metric: str, mode: str, scaling: str = "id"):
+    def __init__(
+        self,
+        metric: Literal["rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2"],
+        mode: Literal["timeseries", "timestep", "feature"],
+        scaling: Literal["id", "min-max", "standard", "l2_normalize"] = "id",
+    ):
         mode = mode.lower()
         metric = metric.lower()
 
@@ -119,7 +121,6 @@ class TSCMetric:
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
         """Median absolute error."""
-
         if sample_weight is not None:
             raise ValueError("Median absolute error does not support sample_weight.")
 
@@ -161,8 +162,7 @@ class TSCMetric:
     def _rrmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-        """Metric from :cite:`le_clainche_higher_2017`"""
-
+        """Metric from :cite:`le_clainche_higher_2017`."""
         if multioutput == "uniform_average":
             norm_ = np.sum(np.square(np.linalg.norm(y_true, axis=1)))
         else:  # multioutput == "raw_values":
@@ -186,7 +186,6 @@ class TSCMetric:
         """Wrapper for :class:`sklean.metrics.max_error` to allow `sample_weight` and
         `multioutput` arguments (both have not effect).
         """
-
         # fails if y is multioutput
         return metrics.max_error(y_true=y_true, y_pred=y_pred)
 
@@ -340,18 +339,18 @@ class TSCMetric:
                     f"does not match the number of time series (={y_true.n_timeseries})."
                 )
 
-        time_indices = pd.Index(y_true.time_values(), name="time")
+        time_values = pd.Index(y_true.time_values(), name="time")
 
         if self._is_scalar_multioutput(multioutput=multioutput):
             column = self._single_column_name(multioutput=multioutput)
 
             # Make in both cases a DataFrame and later convert to Series in the scalar
             # case this allows to use .loc[i, :] in the loop
-            metric_per_time = pd.DataFrame(np.nan, index=time_indices, columns=column)
+            metric_per_time = pd.DataFrame(np.nan, index=time_values, columns=column)
 
         else:
             metric_per_time = pd.DataFrame(
-                np.nan, index=time_indices, columns=y_true.columns.to_list()
+                np.nan, index=time_values, columns=y_true.columns.to_list()
             )
 
         metric_per_time.index = metric_per_time.index.set_names(
@@ -359,7 +358,7 @@ class TSCMetric:
         )
 
         idx_slice = pd.IndexSlice
-        for t in time_indices:
+        for t in time_values:
             y_true_t = pd.DataFrame(y_true.loc[idx_slice[:, t], :])
             y_pred_t = pd.DataFrame(y_pred.loc[idx_slice[:, t], :])
 
@@ -423,7 +422,6 @@ class TSCMetric:
             If not all values are finite in `y_true` or `y_pred` or if \
             :class:`TSCDataFrame` properties do not allow for a `sample_weight` argument.
         """
-
         if sample_weight is not None:
             sample_weight = np.asarray(sample_weight)
 
@@ -545,7 +543,6 @@ class TSCScoring:
         :class:`float`
             score
         """
-
         eval_tsc_metric: pd.Series = self.tsc_metric(
             y_true=y_true,
             y_pred=y_pred,
@@ -625,7 +622,7 @@ class TSCKfoldSeries(TSCCrossValidationSplit):
 
     def split(
         self, X: TSCDataFrame, y=None, groups=None
-    ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+    ) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
         """Yields k-folds of training and test indices of time series collection.
 
         Parameters
@@ -705,7 +702,6 @@ class TSCKFoldTime(TSCCrossValidationSplit):
 
     Parameters
     ----------
-
     n_splits
         The number of splits.
     """
@@ -794,7 +790,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
 
     Parameters
     ----------
-
     test_window_length
         The length of a window for samples included in testing.
 
@@ -948,7 +943,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
         Returns
         -------
         """
-
         if X is None:
             raise ValueError("'X' must be provided to compute the number of splits.")
 

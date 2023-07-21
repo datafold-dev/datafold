@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 import numpy.testing as nptest
@@ -52,7 +52,6 @@ def is_df_same_index(
     handle: Optional[str] = "raise",
 ):
     """Check that two data frames have the same properties (index, columns, names)."""
-
     assert check_index + check_column >= 1
 
     is_index_same = True
@@ -117,7 +116,6 @@ def is_float(n: object) -> bool:
         True if `n` is a float.
 
     """
-
     return isinstance(n, (float, np.floating))
 
 
@@ -278,7 +276,6 @@ def sort_eigenpairs(
 
     Parameters
     ----------
-
     eigenvalues
         complex or real-valued
 
@@ -341,10 +338,10 @@ def mat_dot_diagmat(
     matrix: Union[np.ndarray, scipy.sparse.spmatrix],
     diag_elements: np.ndarray,
     out: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """Efficient computation of "matrix times diagonal matrix".
+) -> Union[np.ndarray, scipy.sparse.spmatrix]:
+    """Efficient computation of "(sparse/dense) matrix times diagonal matrix".
 
-    This computes
+    Compute the often common but inefficient way
 
     .. code::
         matrix @ np.diag(diag_elements)
@@ -360,8 +357,9 @@ def mat_dot_diagmat(
         Diagonal elements in 1 dim. array of `J` elements.
 
     out
-        Select where to write the result. Usual choice is setting it to the full matrix
-        input for better memory efficient.
+        Select NumPy ndarray (with shape ``(I,J)`` to write the result into. A usual choice is
+        setting it to the same matrix as in the argument input. This can improve memory
+        efficient as no new memory needs to be allocated. Ignored if matrix is sparse.
 
     Returns
     -------
@@ -379,10 +377,10 @@ def diagmat_dot_mat(
     diag_elements: Union[np.ndarray, scipy.sparse.spmatrix],
     matrix: np.ndarray,
     out=None,
-):
-    """Efficient computation of "diagonal matrix times matrix".
+) -> Union[np.ndarray, scipy.sparse.spmatrix]:
+    """Efficient computation of "diagonal matrix times (sparse/dense) matrix".
 
-    This computes
+    Compute the often common but inefficient way
 
     .. code::
         np.diag(diag_elements) @ matrix
@@ -392,14 +390,15 @@ def diagmat_dot_mat(
     Parameters
     ----------
     diag_elements
-         Diagonal elements in 1 dim. array of `I` elements.
+         Diagonal elements in 1 dim. array of ``I`` elements.
 
     matrix
-        Dense matrix of shape `(I,J)`.
+        Dense matrix of shape ``(I,J)``.
 
     out
-        Select where to write the result. Usual choice is setting it to the full matrix
-        input for better memory efficient.
+        Select NumPy ndarray (with shape ``(I,J)`` to write the result into. A usual choice is
+        setting it to the same matrix as in the argument input. This can improve memory
+        efficient as no new memory needs to be allocated. Ignored if matrix is sparse.
 
     Returns
     -------
@@ -407,26 +406,44 @@ def diagmat_dot_mat(
     assert diag_elements.ndim == 1 and is_matrix(matrix, "matrix", allow_sparse=True)
 
     if scipy.sparse.issparse(matrix):
-        # out is ignored here, as it is not supported by scipy sparse dot
+        # out is not supported by scipy sparse dot
+        # sparse.diags does not fill memory with zeros
         return scipy.sparse.diags(diag_elements) @ matrix
     else:
         return np.multiply(matrix, diag_elements[:, np.newaxis], out=out)
 
 
+def generate_2d_regular_mesh(
+    low=(-1, -1), high=(1, 1), n_xvalues=10, n_yvalues=10, feature_names=None
+):
+    x_values = np.linspace(low[0], high[0], num=n_xvalues)
+    y_values = np.linspace(low[1], high[1], num=n_yvalues)
+
+    x_mesh, y_mesh = np.meshgrid(x_values, y_values)
+    X = np.column_stack((x_mesh.ravel(), y_mesh.ravel()))
+
+    if feature_names is not None:
+        # import here to avoid circular imports
+        from datafold import InitialCondition
+
+        X = InitialCondition.from_array(X, time_value=0, feature_names=feature_names)
+
+    return X
+
+
 def df_type_and_indices_from(
     indices_from: pd.DataFrame,
     values: Union[np.ndarray, pd.DataFrame],
-    except_index: Optional[Union[pd.Index, List[str]]] = None,
-    except_columns: Optional[Union[pd.Index, List[str]]] = None,
+    except_index: Optional[Union[pd.Index, list[str]]] = None,
+    except_columns: Optional[Union[pd.Index, list[str]]] = None,
 ):
     # import here to prevent circular imports
     from datafold.pcfold import TSCDataFrame
 
     if except_index is not None and except_columns is not None:
         raise ValueError(
-            "'except_index' and 'except_columns' are both given. "
-            "Cannot copy neither index nor column from existing TSCDataFrame if both "
-            "is excluded."
+            "Both parameters 'except_index' and 'except_columns' are provided. For this "
+            "function provide none or one of the optional parameters."
         )
 
     # view input as array (allows for different input, which is
@@ -434,7 +451,7 @@ def df_type_and_indices_from(
     values = np.asarray(values)
 
     if except_index is None:
-        index = indices_from.index  # type: ignore  # mypy cannot infer type here
+        index = indices_from.index
     else:
         index = except_index
 
@@ -448,9 +465,7 @@ def df_type_and_indices_from(
     elif isinstance(indices_from, pd.DataFrame):
         return pd.DataFrame(data=values, index=index, columns=columns)
     else:
-        raise TypeError(
-            f"The argument type 'type(indices_from)={type(indices_from)} is invalid."
-        )
+        raise TypeError(f"The argument type {type(indices_from)=} is invalid.")
 
 
 def is_symmetric_matrix(
@@ -471,7 +486,6 @@ def is_symmetric_matrix(
     bool
         True if symmetric else False.
     """
-
     is_matrix(matrix, "matrix", square=True, allow_sparse=True)
     max_abs_deviation = np.max(np.abs(matrix - matrix.T))
     return max_abs_deviation <= tol
@@ -482,7 +496,7 @@ def is_stochastic_matrix(
 ) -> bool:
     """Check whether a matrix is stochastic.
 
-    A matrix is stochastic if either the columns (axis=1) or the rows (axis=0) sum to 1.
+    A matrix is stochastic if either the columns (axis=1) or the rows (axis=0) sum up to 1.
 
     Parameters
     ----------
@@ -490,17 +504,20 @@ def is_stochastic_matrix(
          The matrix to be checked for stochasticity.
 
     axis
+       The axis along which to check the stochasticity (0 or row and 1 for column).
+
+    tol
        The tolerance of absolute deviation from the row or column sum from 1.
 
     Returns
     -------
     bool
-        True if stochastic else False.
+        True if matrix is stochastic else False
     """
-
     is_matrix(matrix, "matrix", allow_sparse=True)
 
     sum_array = matrix.sum(axis=axis)
+
     if scipy.sparse.issparse(matrix):
         sum_array = sum_array.A1
 
@@ -519,16 +536,16 @@ def remove_numeric_noise_symmetric_matrix(
 
         D^{-1} M D^{-1},
 
-    where :math:`D` is a diagonal matrix. This can then break the exact floating point
-    symmetry in the matrix.
+    where :math:`D` is a diagonal matrix can break exact floating point symmetry in a
+    symmetric matrix :math:`M`.
 
-    This function is intended to make recover an exact symmetry of "almost" symmetric
-    matrices, such as in the following situation:
+    This function recovers an exact symmetry of an "almost symmetric" matrix, such as in the
+    following situation:
 
     .. code::
         np.max(np.abs(matrix - matrix.T)) # 1.1102230246251565e-16
 
-    The symmetry is removed with:
+    The symmetry is recovered with:
 
     .. math::
         M_{sym} = \frac{M + M^T}{2}
@@ -543,14 +560,12 @@ def remove_numeric_noise_symmetric_matrix(
     Union[numpy.ndarray, scipy.sparse.csr_matrix]
         symmetric matrix without noise
     """
-
-    # A faster way would be to truncate the floating values of the matrix to a certain
-    # precision, but NumPy does not seem to provide anything for this?
-
     is_matrix(matrix, "matrix", square=True, allow_sparse=True)
 
     if scipy.sparse.issparse(matrix):
-        # need to preserve of explicit stored zeros (-> distance matrix)
+        # need to preserve stored zeros (e.g. in case of distance matrices)
+        # NOTE: there is no check that the sparse structure is symmetric, this leads to
+        # wrong results if the symmetric value of a (non-negative) value is not there.
         matrix.data[matrix.data == 0] = np.nan
         matrix = (matrix + matrix.T) / 2.0
         matrix.data[np.isnan(matrix.data)] = 0
@@ -563,7 +578,7 @@ def remove_numeric_noise_symmetric_matrix(
 
 def random_subsample(
     data: np.ndarray, n_samples: int, random_state: Optional[int] = None
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Random uniform subsample without replacement of data.
 
     Parameters
@@ -586,7 +601,6 @@ def random_subsample(
     numpy.ndarray
         indices in the subsample from the original array
     """
-
     is_matrix(data, "data", allow_sparse=False)
 
     n_samples_data = data.shape[0]

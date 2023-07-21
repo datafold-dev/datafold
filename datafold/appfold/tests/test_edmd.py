@@ -17,17 +17,26 @@ from sklearn.compose import make_column_selector
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import estimator_html_repr
 
-from datafold.appfold.edmd import EDMD, EDMDCV, EDMDWindowPrediction
-from datafold.dynfold import DMDControl, DMDFull, TSCColumnTransformer, gDMDFull
-from datafold.dynfold.dmd import OnlineDMD, StreamingDMD
-from datafold.dynfold.transform import (
+from datafold import (
+    EDMD,
+    EDMDCV,
+    DMDControl,
+    DMDStandard,
+    EDMDWindowPrediction,
+    OnlineDMD,
+    StreamingDMD,
+    TSCColumnTransformer,
+    TSCDataFrame,
     TSCFeaturePreprocess,
     TSCIdentity,
+    TSCKfoldSeries,
+    TSCKFoldTime,
+    TSCMetric,
     TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCTakensEmbedding,
+    gDMDFull,
 )
-from datafold.pcfold import TSCDataFrame, TSCKfoldSeries, TSCKFoldTime
 from datafold.pcfold.timeseries.collection import TSCException
 from datafold.utils._systems import InvertedPendulum
 from datafold.utils.general import is_df_same_index
@@ -60,7 +69,6 @@ class EDMDTest(unittest.TestCase):
 
     def _setup_multi_sine_wave_data2(self) -> TSCDataFrame:
         time = np.linspace(0, 2 * np.pi, 100)
-
         omega = 1.5
 
         for i in range(1, 11):
@@ -87,7 +95,7 @@ class EDMDTest(unittest.TestCase):
 
         X_tsc, U_tsc = [], []
 
-        for i in range(training_size):
+        for _ in range(training_size):
             control_amplitude = 0.1 + 0.9 * gen.random()
             control_frequency = np.pi + 2 * np.pi * gen.random()
             control_phase = 2 * np.pi * gen.random()
@@ -340,7 +348,7 @@ class EDMDTest(unittest.TestCase):
 
         eval_waves = self.multi_waves.loc[pd.IndexSlice[0:1], :]
 
-        actual_matrix = _edmd.dmd_model.koopman_matrix_
+        actual_matrix = _edmd.dmd_model.system_matrix_
         actual_modes = _edmd.koopman_modes
         actual_eigvals = _edmd.koopman_eigenvalues
         actual_eigfunc = _edmd.koopman_eigenfunction(X=eval_waves)
@@ -375,7 +383,7 @@ class EDMDTest(unittest.TestCase):
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=6)),
             ],
-            dmd_model=DMDFull(is_diagonalize=True),
+            dmd_model=DMDStandard(diagonalize=True),
             include_id_state=True,
         ).fit(X=self.multi_waves)
 
@@ -385,7 +393,7 @@ class EDMDTest(unittest.TestCase):
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=6)),
             ],
-            dmd_model=DMDFull(is_diagonalize=True),
+            dmd_model=DMDStandard(diagonalize=True),
             sort_koopman_triplets=True,
             include_id_state=True,
         ).fit(X=self.multi_waves)
@@ -395,7 +403,7 @@ class EDMDTest(unittest.TestCase):
 
         pdtest.assert_frame_equal(expected, actual)
 
-    def test_time_invariant_system(self):
+    def test_is_time_invariant_system(self):
         # the system corresponds to the Pendulum example
 
         from datafold.utils._systems import Pendulum
@@ -415,7 +423,7 @@ class EDMDTest(unittest.TestCase):
             dict_steps=[
                 ("delay", TSCTakensEmbedding(delays=3, lag=0, kappa=0)),
             ],
-            dmd_model=DMDFull(approx_generator=False),
+            dmd_model=DMDStandard(approx_generator=False),
             include_id_state=False,
         )
 
@@ -503,8 +511,8 @@ class EDMDTest(unittest.TestCase):
         # TODO: make regression test (make sure that the result is replicated)
 
         from datafold.dynfold import DiffusionMaps
-        from datafold.pcfold import (  # MultiquadricKernel
-            ConeKernel,
+        from datafold.pcfold import ConeKernel  # MultiquadricKernel
+        from datafold.pcfold import (
             ContinuousNNKernel,
             GaussianKernel,
             InverseMultiquadricKernel,
@@ -616,8 +624,8 @@ class EDMDTest(unittest.TestCase):
         edmd = edmd.fit(self.sine_wave_tsc)
 
         # test if transform is inferred right
-        input = self.sine_wave_tsc.to_numpy()
-        actual = edmd.transform(input)
+        X_tsc = self.sine_wave_tsc.to_numpy()
+        actual = edmd.transform(X_tsc)
 
         self.assertIsInstance(actual, TSCDataFrame)
         self.assertEqual(actual.delta_time, edmd.dt_)
@@ -658,7 +666,12 @@ class EDMDTest(unittest.TestCase):
             self.sine_wave_tsc.head(3), time_values=self.sine_wave_tsc.time_values()[2:]
         )
 
-        self.assertLessEqual(np.sum(actual_predict - target)[0], 2.4e-6)
+        expected_error = TSCMetric(metric="l2", mode="feature")(
+            actual_predict, target.iloc[2:, :]
+        )[0]
+
+        # detect changes in numerics, update if necessary
+        self.assertLessEqual(expected_error, 7.36e-06)
         self.assertTrue(actual_predict.columns[0] == "cos")
 
         if plot:
@@ -812,7 +825,7 @@ class EDMDTest(unittest.TestCase):
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=2)),
             ],
-            dmd_model=DMDFull(sys_mode="spectral"),
+            dmd_model=DMDStandard(sys_mode="spectral"),
         )
 
         _edmd_matrix = EDMD(
@@ -821,7 +834,7 @@ class EDMDTest(unittest.TestCase):
                 ("delays", TSCTakensEmbedding(delays=10)),
                 ("pca", TSCPrincipalComponent(n_components=2)),
             ],
-            dmd_model=DMDFull(sys_mode="matrix"),
+            dmd_model=DMDStandard(sys_mode="matrix"),
         )
 
         actual_spectral = _edmd_spectral.fit_predict(X=self.sine_wave_tsc)
@@ -1076,7 +1089,7 @@ class EDMDTest(unittest.TestCase):
             X_test = data.loc[pd.IndexSlice[:, next_time_values], :]
 
             if apply_dmd:
-                dmd = DMDFull().fit(_tse.fit_transform(X_train))
+                dmd = DMDStandard().fit(_tse.fit_transform(X_train))
                 test_batches_dmd.append(
                     dmd.reconstruct(_tse.fit_transform(X_test)).loc[:, "sin"]
                 )
@@ -1140,6 +1153,8 @@ class EDMDTest(unittest.TestCase):
         plt.show()
 
     def test_edmdcontrol_pipe(self):
+        from scipy.special import comb
+
         n_delays = 2
         n_degrees = 2
         sim_num_steps = 10
@@ -1155,12 +1170,10 @@ class EDMDTest(unittest.TestCase):
             dict_steps=dict_steps, include_id_state=False, dmd_model=DMDControl()
         )
 
-        edmd.fit(X=X_tsc, U=U_tsc)
-        actual_transform = edmd.transform(X_tsc)
-
         n_latent_states = X_tsc.shape[1] * (n_delays + 1)
 
-        from scipy.special import comb
+        edmd.fit(X=X_tsc, U=U_tsc)
+        actual_transform = edmd.transform(X_tsc)
 
         n_final = comb(n_latent_states, n_degrees) + 2 * n_latent_states
 
@@ -1169,12 +1182,14 @@ class EDMDTest(unittest.TestCase):
             len(actual_transform.time_values()), sim_num_steps - lag - n_delays
         )
 
-        actual_predict = edmd.predict(X_tsc.initial_states(edmd.n_samples_ic_), U=U_tsc)
+        X_ic = X_tsc.initial_states(edmd.n_samples_ic_)
+        U = U_tsc.final_states(2)  # align with initial condition
+
+        actual_predict = edmd.predict(X_ic, U=U)
         actual_predict2 = edmd.predict(
-            X_tsc.initial_states(edmd.n_samples_ic_),
-            U=U_tsc,
-            time_values=actual_transform.time_values(),
+            X_ic, U=U, time_values=actual_transform.time_values()
         )
+
         nptest.assert_allclose(
             actual_predict.time_values(),
             actual_transform.time_values(),
@@ -1205,6 +1220,85 @@ class EDMDTest(unittest.TestCase):
         actual = edmdid.predict(X=ic, U=U_tsc)
 
         pdtest.assert_frame_equal(expected, actual)
+
+    def test_edmd_timedelay_stepwise_transform(self):
+        expected_edmd = EDMD(
+            dict_steps=[("delay", TSCTakensEmbedding(delays=2))],
+            stepwise_transform=False,
+        )
+        expected_edmd = expected_edmd.fit(self.multi_sine_wave_tsc)
+
+        actual_edmd = EDMD(
+            dict_steps=[("delay", TSCTakensEmbedding(delays=2))],
+            stepwise_transform=True,
+        )
+        actual_edmd = actual_edmd.fit(self.multi_sine_wave_tsc)
+
+        expected = expected_edmd.reconstruct(self.multi_sine_wave_tsc)
+        actual = actual_edmd.reconstruct(self.multi_sine_wave_tsc)
+
+        pdtest.assert_index_equal(expected.index, actual.index)
+        pdtest.assert_index_equal(expected.columns, actual.columns)
+
+        win_size = expected_edmd.n_samples_ic_ + 1
+        X_windows = TSCDataFrame.from_frame_list(
+            list(
+                self.multi_sine_wave_tsc.tsc.iter_timevalue_window(
+                    window_size=win_size, offset=win_size
+                )
+            )
+        )
+
+        self.assertEqual(X_windows.n_timesteps, win_size)
+
+        expected = expected_edmd.reconstruct(X_windows)
+        actual = actual_edmd.reconstruct(X_windows)
+
+        print(expected_edmd.score(self.multi_sine_wave_tsc))
+        print(actual_edmd.score(self.multi_sine_wave_tsc))
+
+        pdtest.assert_frame_equal(expected, actual)
+
+    def test_edmd_control_stepwise_transform(self):
+        X_tsc, U_tsc = EDMDTest.setup_inverted_pendulum()
+
+        # make the data only snapshots of 2 steps, so that the code with
+        # stepwise transform=True gives the same result than with
+        # stepwise_transform=False
+        X_tsc = X_tsc.drop(
+            X_tsc.groupby(TSCDataFrame.tsc_id_idx_name).tail(1).index, axis=0
+        )
+        X_now, X_next = X_tsc.tsc.shift_matrices(snapshot_orientation="row")
+        U_now, _ = U_tsc.tsc.shift_matrices(snapshot_orientation="row")
+
+        X_tsc = TSCDataFrame.from_shift_matrices(
+            left_matrix=X_now,
+            right_matrix=X_next,
+            snapshot_orientation="row",
+            columns=X_tsc.columns,
+        )
+        U_index = X_tsc.groupby("ID").head(1).index
+        U_tsc = TSCDataFrame(U_now, index=U_index, columns=U_tsc.columns)
+
+        # two different procedures to get the same result
+        stepwise_transform_expext = False
+        stepwise_transform_actual = True
+
+        X_exp = EDMD(
+            dict_steps=[("id", TSCIdentity())],
+            include_id_state=False,
+            stepwise_transform=stepwise_transform_expext,
+            dmd_model=DMDControl(),
+        ).fit_predict(X=X_tsc, U=U_tsc)
+
+        X_act = EDMD(
+            dict_steps=[("id", TSCIdentity())],
+            include_id_state=False,
+            stepwise_transform=stepwise_transform_actual,
+            dmd_model=DMDControl(),
+        ).fit_predict(X=X_tsc, U=U_tsc)
+
+        pdtest.assert_frame_equal(X_exp, X_act)
 
     def test_edmdcontrol_reconstruct(self):
         X_tsc, U_tsc = EDMDTest.setup_inverted_pendulum()
@@ -1260,6 +1354,47 @@ class EDMDPredictionTest(unittest.TestCase):
         self.assertTrue(actual.n_timesteps, 1)
 
         self.assertIsInstance(edmd_new.score(self.sine_data), float)
+
+
+class HAVOKTest(unittest.TestCase):
+    def test_lorenz(self, plot=False):
+        # TODO: try using TSCDataframe with fixed delta time and see how it works...
+
+        from datafold.appfold.edmd import HAVOK
+        from datafold.utils._systems import Lorenz
+
+        dt = 0.001
+        time_values = np.arange(0, 200 + 1e-15, dt)
+
+        X = Lorenz(atol=1e-12, rtol=1e-12).predict([-8, 8, 27], time_values=time_values)
+
+        n_samples = X.shape[0]
+
+        # TODO: for now I work with integer time values as the other is not considered as
+        #  equally spaced (numerical noise)
+        # TODO: in future try to either fix this (see test_linspace_unique_delta_times) or
+        #  check whether the fixed_delta_time within TSCDataFrame works in EDMD properly
+        #  (requires a separate test)
+        X.index = pd.MultiIndex.from_arrays([np.zeros(n_samples), np.arange(n_samples)])
+        X = X.iloc[:, [0]]  # only on the first component
+
+        havok = HAVOK(rank=15, delays=99).fit(X=X)
+
+        if plot:
+            f, ax = plt.subplots(ncols=2)
+
+            ax[0].imshow(havok.state_matrix, aspect="equal", cmap=plt.get_cmap("RdBu"))
+            ax[1].imshow(
+                havok.control_matrix, aspect="equal", cmap=plt.get_cmap("RdBu")
+            )
+
+            plt.figure()
+            plt.plot(
+                havok.forcing_signal.time_values(),
+                havok.forcing_signal.to_numpy().ravel(),
+            )
+            plt.xlim(0, 25000)
+            plt.show()
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import abc
 import copy
 import warnings
-from typing import List, Optional, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,7 @@ import scipy.linalg
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
+from datafold._decorators import warn_experimental_function
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.dynfold.dynsystem import LinearDynamicalSystem
 from datafold.pcfold import InitialCondition, TSCDataFrame
@@ -28,7 +29,7 @@ else:
     IS_IMPORTED_PYDMD = True
 
 
-def compute_spectal_components(system_matrix, is_diagonalize):
+def compute_spectral_components(system_matrix, is_diagonalize):
     eigenvalues, eigenvectors_right = sort_eigenpairs(*np.linalg.eig(system_matrix))
     eigenvectors_right /= np.linalg.norm(eigenvectors_right, axis=0)
 
@@ -40,30 +41,33 @@ def compute_spectal_components(system_matrix, is_diagonalize):
         #     The left eigenvectors are
         #          * not normed
         #          * row-wise in returned matrix
-        eigenvectors_left_ = np.linalg.solve(
+        eigenvectors_left = np.linalg.solve(
             mat_dot_diagmat(eigenvectors_right, eigenvalues), system_matrix
         )
     else:
-        eigenvectors_left_ = None
+        eigenvectors_left = None
 
-    return eigenvectors_right, eigenvalues, eigenvectors_left_
+    return eigenvectors_right, eigenvalues, eigenvectors_left
 
 
 class DMDBase(
     BaseEstimator, LinearDynamicalSystem, TSCPredictMixin, metaclass=abc.ABCMeta
 ):
-    r"""Abstract base class for Dynamic Mode Decomposition (DMD) models.
+    r"""Abstract base class for variations of the Dynamic Mode Decomposition (DMD).
 
-    A DMD model decomposes time series data linearly into spatial-temporal components.
-    The decomposition defines a linear dynamical system. Due to it's strong connection to
-    non-linear dynamical systems with Koopman spectral theory
-    (see e.g. introduction in :cite:t:`tu-2014`), the DMD variants (subclasses)
-    are framed in the context of this theory.
+    A DMD model decomposes a linearly identified dynamical system matrix --
+    obtained from example time series data -- into intrinsic spatial-temporal components.
+    Specifically, this corresponds to an eigendecomposition of the system matrix.
+    Due to its connection to non-linear dynamical systems with the Koopman operator
+    (see e.g. introduction in :cite:t:`tu-2014`), the DMD variants (in the subclasses)
+    use the terminology of this.
 
     A DMD model approximates the Koopman operator with a matrix :math:`K`, which defines a
     linear dynamical system
 
-    .. math:: K^n x_0 &= x_n
+    .. math::
+
+        K^n x_0 &= x_n
 
     with :math:`x_n` being the (column) state vectors of the system at timestep :math:`n`.
     Note, that the state vectors :math:`x`, when used in conjunction with the
@@ -71,33 +75,30 @@ class DMDBase(
     functional coordinate basis that seeks to linearize the dynamics (see reference for
     details).
 
-    A subclass can either provide :math:`K`, the spectrum of :math:`K` or the generator
+    A :code:`DMDBase` subclass can either provide the matrix :math:`K`, the generator
     :math:`U` of :math:`K`
 
     .. math::
         U = \frac{K-I}{\Delta t}
 
-    The spectrum of the Koopman matrix (or equivalently its generator) \
-    (:math:`\Psi_r` right eigenvectors, and :math:`\Lambda` matrix with eigenvalues on
-    diagonal)
+    or the spectrum of either :math:`K` or :math:`U`. The spectrum of the Koopman matrix
+    (or similar its generator) is obtained by solving the eigenproblem of the matrix
 
     .. math:: K \Psi_r = \Psi_r \Lambda
 
-    enables further analysis (e.g. stability) about the system and inexpensive
-    evaluation of the Koopman system (matrix power of diagonal matrix :math:`\Lambda`
-    instead of :math:`K`):
+    where :math:`\Psi_r` are the right eigenvectors and :math:`\Lambda` a matrix with
+    the eigenvalues on the diagonal. The spectral components enable further system analysis
+    (e.g. stability, mode analysis) and lead also to an inexpensive system representation
+    with powers of a diagonal matrix instead of a full matrix:
 
     .. math::
         x_n &= K^n x_0 \\
         &= K^n \Psi_r b_0  \\
         &= \Psi_r \Lambda^n b_0
 
-    The vector :math:`b_0` contains the initial state (adapted from :math:`x_0` to the
-    spectral system state). In the Koopman analysis this corresponds to the initial
-    Koopman eigenfunctions, whereas in a 'pure' DMD setting this is often referred to the
-    initial amplitudes.
-
-    The DMD modes :math:`\Psi_r` remain constant.
+    The DMD modes :math:`\Psi_r` - or eigenvectors - remain constant and the vector
+    :math:`b_0` can be understood as a "spectrally adapted initial state", which is obtained
+    from :math:`x_0` and the eigenvectors.
 
     All subclasses of ``DMDBase`` are also subclasses of
     :py:class:`.LinearDynamicalSystem` and must therefore set up and specify the system
@@ -114,7 +115,6 @@ class DMDBase(
 
     See Also
     --------
-
     :py:class:`.LinearDynamicalSystem`
 
     """
@@ -163,15 +163,16 @@ class DMDBase(
         Parameters
         ----------
         X
-            Training data
+            Training time series data.
 
         U
-            Control data (set to None as a default if the subclass does not support control
-            input)
+            Control input (set to ``None`` by default if the subclass does not support
+            control input).
 
         y
-            ignored (Hint for future dev.: This parameter is reserved to specify an extra map,
-            e.g. to specific features in `X` or a separate system feature)
+            ignored
+              TODO for future devevelopment: This parameter is reserved to specify an
+               extra map. Currently, this is already implemented for EDMD.
 
         """
         raise NotImplementedError("base class")
@@ -227,7 +228,7 @@ class DMDBase(
                 states=initial_states_origspace
             )
 
-        if self.time_invariant:
+        if self.is_time_invariant:
             shift = np.min(time_values)
         else:
             # If the dmd time is shifted during data (e.g. the minimum processed data
@@ -251,7 +252,7 @@ class DMDBase(
             feature_names_out=feature_columns,
         )
 
-        # correct the time shift again according to the training data
+        # correct the time shift according to the training data
         # (not necessarily normed time steps [0, 1, 2, ...])
         # One way is to shift the time again, i.e.
         #
@@ -335,7 +336,6 @@ class DMDBase(
             The computed time series predictions, where each time series has shape
             `(n_time_values, n_features)`.
         """
-
         check_is_fitted(self)
 
         time_values = self._validate_and_set_time_values_predict(
@@ -405,7 +405,7 @@ class DMDBase(
         X: TSCDataFrame,
         *,
         U: Optional[TSCDataFrame] = None,
-        qois: Optional[Union[np.ndarray, pd.Index, List[str]]] = None,
+        qois: Optional[Union[np.ndarray, pd.Index, list[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct time series collection.
 
@@ -426,7 +426,6 @@ class DMDBase(
         TSCDataFrame
             same shape as input `X`
         """
-
         check_is_fitted(self)
         X = self._validate_datafold_data(
             X,
@@ -515,6 +514,53 @@ class DMDBase(
         return self._score_eval(X, X_est_ts, sample_weight)
 
 
+class PretrainedDMD(DMDBase):
+    def __init__(
+        self,
+        sys_type: Literal["flowmap", "differential"],
+        sys_mode: Literal["spectral", "matrix"],
+    ):
+        super().__init__(sys_type=sys_type, sys_mode=sys_mode)
+
+    @classmethod
+    def from_available_system_matrix(
+        cls,
+        sys_type: Literal["flowmap", "differential"],
+        sys_mode: Literal["matrix", "spectral"],
+        system_matrix: np.ndarray,
+        is_diagonalize: bool,
+    ):
+        dmd: LinearDynamicalSystem = PretrainedDMD(sys_type=sys_type, sys_mode=sys_mode)
+        if sys_mode == "spectral":
+            (
+                eigenvectors_right,
+                eigenvalues,
+                eigenvectors_left,
+            ) = compute_spectral_components(
+                system_matrix=system_matrix, is_diagonalize=is_diagonalize
+            )
+
+            dmd = dmd.setup_spectral_system(
+                eigenvectors_right=eigenvectors_right,
+                eigenvalues=eigenvalues,
+                eigenvectors_left=eigenvectors_left,
+            )
+        else:
+            dmd = dmd.setup_matrix_system(system_matrix=system_matrix)
+
+        return dmd
+
+    def fit(
+        self, X: TSCDataFrame, *, U: Optional[TSCDataFrame] = None, y=None, **fit_params
+    ) -> "PretrainedDMD":
+        self._validate_and_setup_fit_attrs(X, U=None)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+
+        # TODO: perform validation if dimensions with setup system are correct...
+        return self
+
+
+@DeprecationWarning
 class DMDFull(DMDBase):
     r"""Full dynamic mode decomposition of time series collection data.
 
@@ -533,7 +579,6 @@ class DMDFull(DMDBase):
 
     Parameters
     ----------
-
     sys_mode
        Select a mode to evolve the linear system with
 
@@ -571,13 +616,20 @@ class DMDFull(DMDBase):
             also :py:class:`.gDMDFull`, which provides an alternative way to
             approximate the Koopman generator by using finite differences.
 
-    rcond: Optional[float]
+    rcond
         Cut-off ratio for small singular values
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
+    res_threshold
+        Residual threshold to filter spurious spectral components. This follows Algorithm 2
+        in :cite:t:`colbrook-2021`. If set, this requires ``sys_mode="spectral``.
+
+    compute_pseudospectrum
+        Flag to indicate whether the method ``pesudospectrum`` is required. If True, then
+        additional (internal) matrices are stored that are required for the computations.
+
     Attributes
     ----------
-
     eigenvalues_ : numpy.ndarray
         Eigenvalues of Koopman matrix.
 
@@ -598,35 +650,47 @@ class DMDFull(DMDBase):
 
     References
     ----------
-
     * :cite:t:`schmid-2010` - DMD method in the original sense
     * :cite:t:`rowley-2009` - connects the DMD method to Koopman operator theory
     * :cite:t:`tu-2014` - generalizes the DMD to temporal snapshot pairs
     * :cite:t:`williams-2015` - generalizes the approximation to a lifted space
-    * :cite:t:`kutz-2016` - an introductory book for DMD and Koopman connection
+    * :cite:t:`kutz-2016` - an introductory book for DMD and its connection to the
+    Koopman operator
+    * :cite:t:`colbrook-2021` - residual DMD (ResDMD) and spectral properties of the
+    Koopman operator
     """
 
     def __init__(
         self,
         *,  # keyword-only
-        sys_mode: str = "spectral",
+        sys_mode: Literal["matrix", "spectral"] = "spectral",
         is_diagonalize: bool = False,
         approx_generator: bool = False,
         rcond: Optional[float] = None,
+        res_threshold: Optional[float] = None,
+        compute_pseudospectrum: bool = False,
     ):
         self.is_diagonalize = is_diagonalize
         self.approx_generator = approx_generator
         self.rcond = rcond
+        self.res_threshold = res_threshold
+        self.compute_pesudospectrum = compute_pseudospectrum
+
+        if res_threshold is not None and sys_mode != "spectral":
+            raise ValueError(
+                f'Residual computation requires sys_mode="spectral". '
+                f"Got {sys_mode=}."
+            )
 
         self._setup_default_tsc_metric_and_score()
 
         super().__init__(
             sys_type="differential" if self.approx_generator else "flowmap",
             sys_mode=sys_mode,
-            time_invariant=True,
+            is_time_invariant=True,
         )
 
-    def _compute_koopman_matrix(self, X: TSCDataFrame):
+    def _compute_koopman_matrix_components(self, X: TSCDataFrame, sample_weight=None):
         # It is more suitable to get the shift_start and shift_end in row orientation as
         # this is closer to the normal least squares parameter definition
         shift_start_transposed, shift_end_transposed = X.tsc.shift_matrices(
@@ -648,25 +712,50 @@ class DMDFull(DMDBase):
         if shift_start_transposed.shape[1] > shift_start_transposed.shape[0]:
             warnings.warn(
                 "There are more observables than snapshots. The current implementation "
-                "favors more snapshots than obserables. This may result in a bad "
-                "computational performance."
+                "is more efficient for the case of more snapshots than observables. "
+                "Implementation effort is required if the performance is too bad.",
+                stacklevel=2,
             )
 
         # see Eq. (13 a) and (13 b) in `williams_datadriven_2015`
-        G = shift_start_transposed.T @ shift_start_transposed
-        G = np.multiply(1 / X.shape[0], G, out=G)
+        if sample_weight is None:
+            # assume uniform sample weights
+            G = shift_start_transposed.T @ shift_start_transposed
+            G = np.multiply(1 / X.shape[0], G, out=G)
 
-        G_dash = shift_start_transposed.T @ shift_end_transposed
-        G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
+            G_dash = shift_start_transposed.T @ shift_end_transposed
+            G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
+        else:
+            G = shift_start_transposed.T @ diagmat_dot_mat(
+                sample_weight, shift_start_transposed
+            )
+            G_dash = shift_start_transposed.T @ diagmat_dot_mat(
+                sample_weight, shift_end_transposed
+            )
+
+        # TODO: remove!
+        self._G_dash = G_dash
+        self._G = G
+
+        if self.res_threshold is not None:
+            if sample_weight is None:
+                _shiftYTY = shift_end_transposed.T @ shift_end_transposed
+                R = np.multiply(1 / X.shape[0], _shiftYTY, out=_shiftYTY)
+            else:
+                R = shift_end_transposed.T @ diagmat_dot_mat(
+                    sample_weight, shift_end_transposed
+                )
+        else:
+            R = None
 
         # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
-        # solution of the linear equation system.
+        # (numerical) solution of the linear system of equations.
         koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
         if rank != G.shape[1]:
             warnings.warn(
                 f"Shift matrix ({G.shape=}) has not full rank ({rank=}), falling "
-                f"back to least squares solution. The sum of residuals is: "
-                f"{np.sum(residual)=}"
+                f"back to least squares solution.",
+                stacklevel=2,
             )
 
         # # TODO: START Experimental (test other solvers, with more functionality)
@@ -704,7 +793,35 @@ class DMDFull(DMDBase):
         #                             beginning)
 
         koopman_matrix = koopman_matrix.conj().T
-        return koopman_matrix
+
+        if self.res_threshold is None:
+            # free memory and make sure that they are not used again
+            G, G_dash, R = [None] * 3
+
+    def _compute_spectral_components(self, system_matrix):
+        eigenvalues_, eigenvectors_right_ = sort_eigenpairs(
+            *np.linalg.eig(system_matrix)
+        )
+        eigenvectors_right_ /= np.linalg.norm(eigenvectors_right_, axis=0)
+
+        if self.is_diagonalize:
+            # must be computed with the Koopman eigenvalues
+            # (NOT the generator eigenvalues)
+            eigenvectors_left_ = self._compute_left_eigenvectors(
+                system_matrix=system_matrix,
+                eigenvalues=eigenvalues_,
+                eigenvectors_right=eigenvectors_right_,
+            )
+
+        else:
+            eigenvectors_left_ = None
+
+        if self.approx_generator:
+            # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
+            # Eq. 3.2 and 3.3.
+            eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
+
+        return eigenvectors_right_, eigenvalues_, eigenvectors_left_
 
     def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "DMDFull":
         """Compute Koopman matrix and if applicable the spectral components.
@@ -722,18 +839,21 @@ class DMDFull(DMDBase):
 
         **fit_params
 
-         - store_system_matrix
+         - store_system_matrix: bool
             If True, the model stores the system matrix -- either Koopman
             matrix or Koopman generator matrix -- in attribute ``koopman_matrix_`` or
             ``generator_matrix_`` respectively. The parameter is ignored if
             ``sys_mode=="matrix"`` (the system matrix is then in attribute
             ``sys_matrix_``).
+         - sample_weights: np.ndarray
+            Sample weights
 
         Returns
         -------
-        DMDFull
+        DMDStandard
             self
         """
+        # TODO: doc, note if rank is set, then the system matrix is only a reduced form!
 
         self._validate_datafold_data(
             X=X,
@@ -742,20 +862,55 @@ class DMDFull(DMDBase):
         )
         self._validate_and_setup_fit_attrs(X=X)
 
-        store_system_matrix = self._read_fit_params(
-            attrs=[("store_system_matrix", False)], fit_params=fit_params
+        store_system_matrix, sample_weights = self._read_fit_params(
+            attrs=[
+                ("store_system_matrix", False),
+                ("sample_weights", None),
+            ],
+            fit_params=fit_params,
         )
 
-        koopman_matrix_ = self._compute_koopman_matrix(X)
+        if self.rank is None:
+            (
+                koopman_matrix_,
+                G,
+                G_dash,
+                R,
+                reconstruct,
+            ) = self._compute_full_system_matrix(X, sample_weights=sample_weights)
+        else:
+            (
+                koopman_matrix_,
+                G,
+                G_dash,
+                R,
+                reconstruct,
+            ) = self._compute_reduced_system_matrix(X, sample_weights=sample_weights)
 
         if self.is_spectral_mode:
             (
                 eigenvectors_right_,
                 eigenvalues_,
                 eigenvectors_left_,
-            ) = compute_spectal_components(
-                koopman_matrix_, is_diagonalize=self.is_diagonalize
-            )
+            ) = self._compute_spectral_components(
+                koopman_matrix_, reconstruct
+            )  # type: ignore
+
+            if self.res_threshold is not None:
+                # TODO: by removing spectral components the (reconstructed) system matrix also
+                #  changes -- should this be considered?
+                (
+                    eigenvalues_,
+                    eigenvectors_right_,
+                    eigenvectors_left_,
+                ) = self._remove_spectral_pollution(
+                    eigenvalues_,
+                    eigenvectors_right_,
+                    eigenvectors_left_,
+                    G,
+                    G_dash,
+                    R,
+                )
 
             if self.approx_generator:
                 # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
@@ -774,13 +929,752 @@ class DMDFull(DMDBase):
                         scipy.linalg.logm(koopman_matrix_) / self.dt_
                     )
                 else:
-                    self.koopman_matrix_ = koopman_matrix_
+                    self.system_matrix_ = koopman_matrix_
+
+            if self.compute_pseudospectrum:
+                self._G = G
+                self._G_dash = G_dash
+                self._R = R
+
         else:  # self.is_matrix_mode()
             if self.approx_generator:
                 generator_matrix_ = scipy.linalg.logm(koopman_matrix_) / self.dt_
                 self.setup_matrix_system(system_matrix=generator_matrix_)
             else:
                 self.setup_matrix_system(system_matrix=koopman_matrix_)
+
+        return self
+
+
+class DMDStandard(DMDBase):
+    r"""Standard dynamic mode decomposition.
+
+    The standard DMD computes a system matrix :math:`K` (which can be interpreted as an
+    approximation of a Koopman operator approximation in a matrix) with
+
+    .. math::
+        K X &= X^{+} \\
+        K &= X^{+} X^{\dagger},
+
+    where :math:`X` is the data with column-oriented snapshots, :math:`\dagger`
+    the Moore–Penrose inverse and :math:`+` the future time shifted data.
+
+    The actual decomposition contains the spectral elements of the matrix :math:`K`.
+
+    If the parameter ``rank`` is set, then an economic DMD is computed. For this the data
+    :math:`X` is first represented in a singular value decomposition
+
+      .. math::
+          X \approx U_k \Sigma_k V_k^*
+
+    with singular values in the diagonal matrix :math:`\Sigma` and vectors in :math:`U` and
+    :math:`V`. Instead of using all components, only the leading `k` (corresponding to
+    ``rank``) are used. Using this representation the system matrix is then computed with the
+    reduced SVD coordinates
+
+      .. math::
+          K = U^T X' V_k \Sigma_k^{-1}
+
+    Again the eigenpairs of the system matrix are computed :math:`K W_k = W_k \Omega`. There
+    are two ways to reconstruct the eigendecomposition of the full system matrix
+
+    1. ``reconstruct_mode="exact"``
+        .. math::
+            \Psi_r = X' V \Sigma^{-1} W
+    2. ``reconstruct_mode="projected"``
+        .. math::
+            \Psi_r = U W
+
+    ...
+
+    Parameters
+    ----------
+    sys_mode
+       Select a mode to evolve the linear system with
+
+       * "spectral" to compute spectral components from the system matrix. The evaluation of
+         the linear system is cheap and it provides valuable information about the
+         underlying process. Predictions may be numerically corrupted If the system matrix is
+         badly conditioned.
+       * "matrix" to use system matrix directly. The evaluation of the system is more robust,
+         but computationally more expensive.
+
+    rank
+        If set, the economic DMD is performed. The rank should be less than the number of
+        features in the data.
+
+    reconstruct_mode
+        How to reconstruct the eigenvectors of the reduced system matrix (valid values are
+        ``exact`` and ``project``). The parameter is ignored if ``rank is None``.
+
+    diagonalize
+        If True, the right and left eigenvectors are computed to diagonalize the system matrix.
+        This affects how initial conditions are adapted for the spectral system
+        representation (instead of a least squares :math:`\Psi_r^\dagger x_0` with right
+        eigenvectors it performs :math:`\Psi_l x_0`). The parameter is ignored if
+        ``sys_mode=matrix``.
+
+    approx_generator
+        If True, approximate the generator of the system
+
+        * ``mode=spectral`` compute (complex) eigenvalues of the
+          generator matrix :math:`log(\lambda) / \Delta t`, with eigenvalues `\lambda`
+          of the system matrix. The left and right eigenvectors remain the same.
+        * ``mode=matrix`` compute generator matrix with
+          :math:`logm(K) / \Delta t`, where :math:`logm` is the matrix logarithm.
+
+        .. warning::
+
+            This operation can fail if the eigenvalues of the matrix :math:`K` are too
+            close to zero or the matrix logarithm is ill-defined because of
+            non-uniqueness. For details see :cite:t:`dietrich-2020` (Eq.
+            3.2. and 3.3. and discussion). Currently, there are no counter measurements
+            implemented to increase numerical robustness (work is needed). Consider
+            also :py:class:`.gDMDFull`, which provides an alternative way to
+            approximate the Koopman generator by using finite differences.
+
+    rcond
+        Cut-off ratio for small singular values
+        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
+
+    res_threshold
+        Residual threshold to filter spurious spectral components. This follows Algorithm 2
+        in :cite:t:`colbrook-2021`. If set, this requires ``sys_mode="spectral``.
+
+    compute_pseudospectrum
+        Flag to indicate whether the method ``pesudospectrum`` is required. If True, then
+        additional (internal) matrices are stored that are required for the computations.
+
+    Attributes
+    ----------
+    eigenvalues_ : numpy.ndarray
+        Eigenvalues of Koopman matrix.
+
+    eigenvectors_right_ : numpy.ndarray
+        All right eigenvectors of Koopman matrix; ordered column-wise.
+
+    eigenvectors_left_ : numpy.ndarray
+        All left eigenvectors of Koopman matrix with ordered row-wise.
+        Only accessible if ``is_diagonalize=True``.
+
+    system_matrix_ : numpy.ndarray
+        System matrix describing the discrete flow map obtained from linear system
+        identification. Only available if ``store_system_matrix=True`` is set during fit and
+        ``approx_generator=False``.
+
+    generator_matrix_ : numpy.ndarray
+        The generator matrix describing a vector field for the continuous system obtained by
+        taking the logarithm of the system matrix (or is eigenvalues). Only available if
+        ``store_system_matrix=True`` during fit and ``approx_generator=True``.
+
+    References
+    ----------
+    * :cite:t:`schmid-2010` - DMD method in the original sense
+    * :cite:t:`rowley-2009` - connects the DMD method to Koopman operator theory
+    * :cite:t:`tu-2014` - generalizes the DMD to temporal snapshot pairs
+    * :cite:t:`williams-2015` - generalizes the approximation to a lifted space
+    * :cite:t:`kutz-2016` - an introductory book for DMD and its connection to the
+      Koopman operator
+    * :cite:t:`colbrook-2021` - residual DMD (ResDMD) and spectral properties of the
+      Koopman operator
+    """
+
+    _valid_reconstruct_modes = ["exact", "project"]
+
+    def __init__(
+        self,
+        *,  # keyword-only
+        sys_mode: Literal["spectral", "matrix"] = "spectral",
+        rank: Optional[int] = None,
+        reconstruct_mode: Literal["exact", "project"] = "exact",
+        diagonalize: bool = False,
+        approx_generator: bool = False,
+        rcond: Optional[float] = None,
+        residual_filter: Optional[float] = None,
+        compute_pseudospectrum: bool = False,
+    ):
+        self.rank = rank
+        self.reconstruct_mode = reconstruct_mode
+        self.diagonalize = diagonalize
+        self.approx_generator = approx_generator
+        self.rcond = rcond
+        self.residual_filter = residual_filter
+        self.compute_pseudospectrum = compute_pseudospectrum
+
+        if residual_filter is not None and sys_mode != "spectral":
+            raise ValueError(
+                f'Residual computation requires sys_mode="spectral". '
+                f"Got {sys_mode=}."
+            )
+
+        self._setup_default_tsc_metric_and_score()
+
+        super().__init__(
+            sys_type="differential" if self.approx_generator else "flowmap",
+            sys_mode=sys_mode,
+            is_time_invariant=True,
+        )
+
+    def _compute_full_system_matrix(self, X: TSCDataFrame, sample_weights=None):
+        # It is more suitable to get the shift_start and shift_end in row orientation as
+        # this is closer to the common least squares A K = B
+        shift_start_transposed, shift_end_transposed = X.tsc.shift_matrices(
+            snapshot_orientation="row"
+        )
+
+        # The easier to read version is:
+        # koopman_matrix shift_start_transposed = shift_end_transposed
+        # koopman_matrix.T = np.linalg.lstsq(shift_start_transposed,
+        # shift_end_transposed, rcond=1E-14)[0]
+        #
+        # However, it is much more efficient to multiply shift_start from right
+        # K^T (shift_start^T * shift_start) = (shift_end^T * shift_start)
+        # K^T G = G'
+        # This is because (shift_start^T * shift_start) is a smaller matrix and faster
+        # to solve. For further info, see Williams et al. Extended DMD and DMD book,
+        # Kutz et al. (book page 168).
+
+        if shift_start_transposed.shape[1] > shift_start_transposed.shape[0]:
+            warnings.warn(
+                "There are more observables than snapshots. The current implementation "
+                "favors more snapshots than observables. This may result in a bad "
+                "computational performance.",
+                stacklevel=2,
+            )
+
+        # see Eq. (13 a) and (13 b) in `williams_datadriven_2015`
+        if sample_weights is None:
+            # assume uniform sample weights
+            G = shift_start_transposed.T @ shift_start_transposed
+            G = np.multiply(1 / X.shape[0], G, out=G)
+
+            G_dash = shift_start_transposed.T @ shift_end_transposed
+            G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
+        else:
+            G = shift_start_transposed.T @ diagmat_dot_mat(
+                sample_weights, shift_start_transposed
+            )
+            G_dash = shift_start_transposed.T @ diagmat_dot_mat(
+                sample_weights, shift_end_transposed
+            )
+
+        if self.residual_filter is not None:
+            if sample_weights is None:
+                _shiftYTY = shift_end_transposed.T @ shift_end_transposed
+                R = np.multiply(1 / X.shape[0], _shiftYTY, out=_shiftYTY)
+            else:
+                R = shift_end_transposed.T @ diagmat_dot_mat(
+                    sample_weights, shift_end_transposed
+                )
+        else:
+            R = None
+
+        from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
+
+        alpha = 0
+        l1_ratio = 0
+        # TODO: integrate later also CV of each version (depending if user requests it)
+        # TODO: need to also adapt the text above (note that here no transpose is necessary)
+        if alpha == 0 and l1_ratio == 0:
+            # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
+            # (numerical) solution of the linear system of equations.
+            linregress_model = LinearRegression(fit_intercept=False)
+        elif alpha > 0 and l1_ratio == 0:
+            linregress_model = Ridge(alpha=alpha, fit_intercept=False)
+        elif alpha == 0 and l1_ratio > 0:
+            linregress_model = Lasso(fit_intercept=False)
+        else:  # alpha > 0 and l1_ratio > 0:
+            linregress_model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
+
+        linregress_model = linregress_model.fit(G, G_dash)
+        koopman_matrix = linregress_model.coef_
+
+        if linregress_model.rank_ != G.shape[1]:
+            warnings.warn(
+                f"Shift matrix ({G.shape=}) has not full rank ({linregress_model.rank_=}), "
+                f"falling back to least squares solution.",
+                stacklevel=2,
+            )
+
+        if self.residual_filter is None:
+            # free memory and to make sure that they are not used again
+            G, G_dash, R = [None] * 3
+
+        reconstruct = None  # not required for the case with rank = None
+
+        # TODO: return NamedTuple
+        return koopman_matrix, G, G_dash, R, reconstruct
+
+    def _compute_reduced_system_matrix(self, X, sample_weights):
+        if sample_weights is not None:
+            raise NotImplementedError(
+                "sample_weights are currently not implemented for the reduced DMD"
+            )
+
+        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="col")
+
+        U, S, Vh = np.linalg.svd(shift_start, full_matrices=False)  # (1.18)
+
+        U = U[:, : self.rank]
+        S = S[: self.rank]
+        S_inverse = np.reciprocal(S, out=S)
+
+        V = Vh.conj().T
+        V = V[:, : self.rank]
+
+        koopman_matrix_low_rank = (
+            U.T @ shift_end @ mat_dot_diagmat(V, S_inverse)
+        )  # (1.20)
+
+        G = shift_start @ shift_start.T
+        G_dash = shift_end @ shift_start.T
+        R = shift_end @ shift_end.T
+
+        reconstruct = dict(V=V, S_inverse=S_inverse, U=U, shift_end=shift_end)
+
+        return koopman_matrix_low_rank, G, G_dash, R, reconstruct
+
+    def _remove_spectral_pollution(
+        self, eigenvalues, eigenvectors_right, eigenvectors_left, G, G_dash, R
+    ):
+        res_squared = np.ones(len(eigenvalues)) * np.inf
+
+        for i, eigval, eigvec in zip(
+            *(range(len(eigenvalues)), eigenvalues, eigenvectors_right.T)
+        ):
+            # Eq. 4.6 (page 18) in https://arxiv.org/pdf/2111.14889.pdf
+            eigvec = if1dim_colvec(eigvec)
+            eigvec_conj = eigvec.conj().T
+
+            num = (
+                R
+                - eigval * G_dash.T
+                - np.conj(eigval) * G_dash
+                + np.square(np.abs(eigval)) * G
+            )
+            denom = np.real(eigvec_conj @ G @ eigvec)
+
+            if np.abs(denom) > 1e-15:
+                res_squared[i] = (np.real(eigvec_conj @ num @ eigvec)) / denom[0]
+
+        residuals = np.sqrt(res_squared, out=res_squared)
+
+        if isinstance(self.residual_filter, (float, int)):
+            self.residual_filter = dict(threshold=self.residual_filter)
+        elif not isinstance(self.residual_filter, dict):
+            raise TypeError("residual_filter must be a float, int or dict.")
+
+        # TODO: there is currently no validation if the user sets a wrong value
+        if self.residual_filter.get("threshold", False):
+            mask_keep = residuals <= self.residual_filter["threshold"]
+        elif self.residual_filter.get("quantile", False):
+            mask_keep = residuals <= np.quantile(
+                residuals, self.residual_filter["quantile"]
+            )
+        elif self.residual_filter.get("keep_n", False):
+            value = self.residual_filter["keep_n"]
+            res_n = np.partition(residuals, value - 1)[value - 1]
+            mask_keep = residuals <= res_n
+        else:
+            raise ValueError(
+                f"{self.residual_filter=} is set incorrectly. Key must be 'threshold', "
+                "'quantile' or 'keep_n' must be available"
+            )
+
+        if self.residual_filter.get("store_residuals", False):
+            self.residuals_ = residuals
+            self.residuals_mask_keep_ = mask_keep
+
+        res_finite = np.isfinite(residuals)
+        min_res, max_res = np.min(residuals[res_finite]), np.max(residuals[res_finite])
+        median_res = np.median(residuals[res_finite])
+
+        if np.all(~mask_keep):
+            raise ValueError(
+                "All system components are removed as spectral pollution. "
+                f"Consider setting a higher threshold (currently {self.residual_filter=}).\n"
+                f"{min_res=:.3e}, {max_res=:.3e} and {median_res=:.3e}"
+            )
+        elif np.all(mask_keep):
+            warnings.warn(
+                "No system component was removed as spectral pollution.\n"
+                f"{min_res=:.3e}, {max_res=:.3e} and {median_res=:.3e}",
+                stacklevel=2,
+            )
+
+        eigenvalues = eigenvalues[mask_keep]
+        eigenvectors_right = eigenvectors_right[:, mask_keep]
+
+        if eigenvectors_left is not None:
+            eigenvectors_left = eigenvectors_left[mask_keep, :]
+
+        if self.residual_filter.get("sort", False):
+            sortidx = np.argsort(residuals[mask_keep])  # from low to high
+            eigenvalues = eigenvalues[sortidx]
+            eigenvectors_right = eigenvectors_right[:, sortidx]
+
+            if eigenvectors_left is not None:
+                eigenvectors_left = eigenvectors_left[sortidx, :]
+
+        return eigenvalues, eigenvectors_right, eigenvectors_left
+
+        # TODO: remove
+        # if np.sqrt(np.real(res_squared)) <= self.res_threshold:
+        #     new_vals.append(eval)
+        #     new_rvecs.append(if1dim_colvec(g))
+        #     if not (eigenvectors_left is None):
+        #         new_lvecs.append(if1dim_rowvec(lvec))
+        #
+        # return (
+        #     np.array(new_vals),
+        #     (np.hstack(new_rvecs) if len(new_rvecs) else np.empty((0, 0))),
+        #     (None if eigenvectors_left is None else np.vstack(new_lvecs)),
+        # )
+
+    def _compute_left_eigenvectors(
+        self, system_matrix, eigenvalues, eigenvectors_right
+    ):
+        """Compute left eigenvectors such that
+        system_matrix = eigenvectors_right_ @ diag(eigenvalues) @ eigenvectors_left_.
+
+        .. note::
+             The eigenvectors are
+
+             * not normed
+             * row-wise in returned matrix
+
+        """
+        lhs_matrix = mat_dot_diagmat(eigenvectors_right, eigenvalues)
+        return np.linalg.solve(lhs_matrix, system_matrix)
+
+    def _compute_spectral_components(self, system_matrix, reconstruct):
+        eigenvalues_, eigenvectors_right_ = sort_eigenpairs(
+            *np.linalg.eig(system_matrix)
+        )
+
+        if self.rank is not None:
+            shift_end = reconstruct["shift_end"]
+            V = reconstruct["V"]
+            U = reconstruct["U"]
+            S_inverse = reconstruct["S_inverse"]
+
+            if self.reconstruct_mode == "exact":
+                eigenvectors_right_ = (
+                    shift_end @ V @ diagmat_dot_mat(S_inverse, eigenvectors_right_)
+                )  # (1.23)
+            else:  # self.reconstruct_mode == "projected"
+                eigenvectors_right_ = U @ eigenvectors_right_
+
+        if self.diagonalize:
+            eigenvectors_left_ = self._compute_left_eigenvectors(
+                system_matrix=system_matrix,
+                eigenvalues=eigenvalues_,
+                eigenvectors_right=eigenvectors_right_,
+            )
+        else:
+            eigenvectors_left_ = None
+
+        return eigenvectors_right_, eigenvalues_, eigenvectors_left_
+
+    def pseudospectrum(
+        self, grid: np.ndarray, regparam=1e-14, return_eigfuncs=False
+    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+        """Compute the pseudospectrum of the Koopman operator according to
+        Algorithm 3 in :cite:t:`colbrook-2021`.
+
+        Parameters
+        ----------
+        grid  # TODO: default to the eigenvalues of DMD?
+            Sampling grid on which to evaluate the minimum of the residual
+            of candidate eigenvalues
+
+        regparam
+            Regularization parameter for the Gram matrix.
+
+        return_eigfuncs
+            If True, returns both the residuals and corresponding
+            pseudoeigenfunctions, by default False
+
+        Returns
+        -------
+        np.ndarray, Optional[np.ndarray]
+            Residual at the grid points and (if requested) the corresponding
+            pseudo eigenfunctions
+        """
+        if not self.compute_pseudospectrum:
+            raise ValueError(
+                "Calculating the pseudospectrum requires fitting"
+                f"self.compute_pesudospectrum=True (got {self.compute_pesudospectrum=}) and"
+                f"res_threshold is not None (got {self.residual_filter=}."
+            )
+
+        zs = grid.ravel()
+        n_samples = zs.shape[0]
+
+        G_adapt = self._G.copy()
+        G_adapt.ravel()[:: G_adapt.shape[1] + 1] += np.linalg.norm(self._G) * regparam
+
+        # SQ is approximate inverse of G  # TODO check this
+        DG, VG = np.linalg.eigh(G_adapt)
+        DG[DG != 0.0] = np.sqrt(1.0 / np.abs(DG[DG != 0.0]))
+        SQ = VG @ diagmat_dot_mat(
+            DG, VG.T
+        )  # TODO: this should be symmetric? Currently it is corrupted by numerical noise
+
+        residuals = np.inf * np.ones(n_samples)
+
+        if return_eigfuncs:
+            eigfuncs = np.zeros((self._G.shape[0], n_samples), dtype=complex)
+        else:
+            eigfuncs = None
+
+        for i in range(n_samples):
+            print(f"{i}/{n_samples}")
+
+            z = zs[i]
+            try:
+                # num = (L - z * A' - conj(z) * A + (abs(z)^2)*G)
+                # RES= sqrt(real(eigs( SQ*num*SQ, 1, 'smallestabs')))
+
+                num = (
+                    self._R
+                    - z * self._G_dash.T
+                    - np.conj(z) * self._G_dash
+                    + np.square(np.abs(z)) * self._G
+                )
+
+                # TODO: the original code only computes the smallest eigenvalue in magnitude. # noqa
+                #   check shift-invere mode as the smallest eigenvalues are tricky to find numerically stable # noqa
+                #   https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh # noqa
+                # TODO: could improve by finding good starting vector from previous computations? // v0=eigvec if i > 1 else None) # noqa
+                eigval, eigvec = scipy.sparse.linalg.eigs(
+                    SQ @ num @ SQ, k=1, sigma=0, which="LM", return_eigenvectors=True
+                )
+
+                if return_eigfuncs:
+                    eigfuncs[:, i] = eigvec.ravel()
+
+                # eigval, eigvec = np.linalg.eig(SQ @ num @ SQ)
+                # ix_min = np.argmin(np.abs(eigval))
+                residuals[i] = np.sqrt(np.real(eigval))
+
+            except np.linalg.LinAlgError:
+                # if eig did not converge for the residual computation at a grid point
+                residuals[i] = np.inf
+
+        if return_eigfuncs:
+            return residuals.reshape(grid.shape), eigfuncs
+        else:
+            return residuals.reshape(grid.shape)
+
+    def _calc_z(self, m):
+        return 1 + 1j * ((2 * np.arange(1, m + 1)) / (m + 1) - 1)
+
+    def _calc_c(self, m, z, eps):
+        m = len(z)
+        sigma = (1.0 / (1 + eps * np.conjugate(z)) - 1.0) / eps
+        c = np.linalg.solve(np.vstack([sigma**i for i in range(m)]), np.eye(m, 1))
+        return c
+
+    def _calc_d(self, m, z):
+        d = np.linalg.solve(np.vstack([z**i for i in range(m)]), np.eye(m, 1))
+        return d
+
+    @warn_experimental_function
+    def spectral_measure(
+        self,
+        observable: np.ndarray,
+        kernel_order: int,
+        smoothing: float,
+        evaluation_points: np.ndarray,
+    ) -> np.ndarray:
+        """Compute the approximate spectral measure corresponding to
+        the koopman operator of the fitted system according to
+        Algorthm 4 in :cite:t:`colbrook-2021`
+        Requires that attribute ``res_threshold`` is set.
+
+        Parameters
+        ----------
+        observable : np.ndarray
+            Observable with respect to which to compute the spectral measure
+            Should be projected into the dictionary space
+            (see eq. 5.13 in :cite:t:`colbrook-2021`)
+        kernel_order : int
+            Order for the filtering kernel
+        smoothing : float
+            Filter parameter of the filtering kernel
+        evaluation_points : np.ndarray
+            Points between -pi and pi on which to evaluate the spectral measure
+
+        Returns
+        -------
+        np.ndarray
+            Discrete value of the spectral measure at the evaluation points
+        """
+        if self.residual_filter is None:
+            raise AttributeError(
+                "Calculating the spectral_measure requires fitting"
+                " the data with res_threshold != None"
+            )
+
+        observable = if1dim_colvec(observable)
+        if observable.shape != (self._G.shape[0], 1):
+            raise ValueError(
+                f"The shape of the projected observable {observable.shape} "
+                f"does not match the observables during fit {(self._G.shape[0], 1)}."
+            )
+        observable /= np.linalg.norm(observable, 2)
+
+        z = self._calc_z(kernel_order)
+        d = self._calc_d(kernel_order, z)
+        c = self._calc_c(kernel_order, z, smoothing)
+
+        S, T, Q, Zstar = scipy.linalg.qz(self._G_dash, self._G)
+        v1 = T @ Zstar @ observable
+        Qstarg = Q.conjugate().T @ observable
+        v2 = T.conjugate().T @ Qstarg
+        v3 = S.conjugate().T @ Qstarg
+
+        nu = np.zeros_like(evaluation_points)
+
+        for k, theta in enumerate(evaluation_points):
+            for j in range(kernel_order):
+                lam = np.exp(1j * theta) * (1 + smoothing * z[j])
+                Ij = scipy.linalg.solve((S - lam * T), v1)
+                nu[k] -= np.real(
+                    c[j] * np.conj(lam) * (Ij.conjugate().T @ v2)
+                    + d[j] * (v3.conjugate().T @ Ij)
+                ) / (2 * np.pi)
+
+        return nu
+
+    def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "DMDStandard":
+        """Fit model.
+
+        Parameters
+        ----------
+        X
+            Training time series data.
+
+        y: None
+            ignored
+
+        U: None
+            ignored (the method does not support control input)
+
+        **fit_params
+
+         - store_system_matrix: bool
+            If True, the model stores either the system or generator matrix in attribute
+            ``system_matrix_`` or ``generator_matrix_`` respectively. The parameter is ignored
+            if ``sys_mode=="matrix"`` (the system matrix is then in attribute ``sys_matrix_``).
+         - sample_weights: np.ndarray
+            Sample weights
+
+        Returns
+        -------
+        DMDStandard
+            self
+        """
+        # TODO: note if rank is set, then the system matrix is only reduced!
+        # TODO: need to validate all parameters properly
+
+        self._validate_datafold_data(
+            X=X,
+            ensure_tsc=True,
+            tsc_kwargs=dict(ensure_const_delta_time=True),
+        )
+        self._validate_and_setup_fit_attrs(X=X)
+
+        store_system_matrix, sample_weights = self._read_fit_params(
+            attrs=[
+                ("store_system_matrix", False),
+                ("sample_weights", None),
+            ],
+            fit_params=fit_params,
+        )
+
+        if self.rank is not None:
+            check_scalar(
+                self.rank, "rank", target_type=int, min_val=1, max_val=X.shape[1] - 1
+            )
+
+        if self.reconstruct_mode not in self._valid_reconstruct_modes:
+            raise ValueError(
+                f"Valid arguments for 'reconstruct_mode' are {self._valid_reconstruct_modes}."
+                f" Got {self.reconstruct_mode=} "
+            )
+
+        if self.rank is None:
+            (
+                system_matrix_,
+                G,
+                G_dash,
+                R,
+                reconstruct,
+            ) = self._compute_full_system_matrix(X, sample_weights=sample_weights)
+        else:
+            (
+                system_matrix_,
+                G,
+                G_dash,
+                R,
+                reconstruct,
+            ) = self._compute_reduced_system_matrix(X, sample_weights=sample_weights)
+
+        if self.is_spectral_mode:
+            (
+                eigenvectors_right_,
+                eigenvalues_,
+                eigenvectors_left_,
+            ) = self._compute_spectral_components(system_matrix_, reconstruct)
+
+            if self.residual_filter is not None:
+                # TODO: by removing spectral components the (reconstructed) system matrix also
+                #  changes -- should this be considered?
+                (
+                    eigenvalues_,
+                    eigenvectors_right_,
+                    eigenvectors_left_,
+                ) = self._remove_spectral_pollution(
+                    eigenvalues_,
+                    eigenvectors_right_,
+                    eigenvectors_left_,
+                    G,
+                    G_dash,
+                    R,
+                )
+
+            if self.approx_generator:
+                # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
+                # Eq. 3.2 and 3.3.
+                eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
+
+            self.setup_spectral_system(
+                eigenvectors_right=eigenvectors_right_,
+                eigenvalues=eigenvalues_,
+                eigenvectors_left=eigenvectors_left_,
+            )
+
+            if store_system_matrix:
+                if self.approx_generator:
+                    self.generator_matrix_ = (
+                        scipy.linalg.logm(system_matrix_) / self.dt_
+                    )
+                else:
+                    self.system_matrix_ = system_matrix_
+
+            if self.compute_pseudospectrum:
+                self._G = G
+                self._G_dash = G_dash
+                self._R = R
+
+        else:  # self.is_matrix_mode()
+            if self.approx_generator:
+                generator_matrix_ = scipy.linalg.logm(system_matrix_) / self.dt_
+                self.setup_matrix_system(system_matrix=generator_matrix_)
+            else:
+                self.setup_matrix_system(system_matrix=system_matrix_)
 
         return self
 
@@ -835,7 +1729,6 @@ class gDMDFull(DMDBase):
 
     Attributes
     ----------
-
     eigenvalues_ : numpy.ndarray
         Eigenvalues of Koopman generator matrix.
 
@@ -852,7 +1745,6 @@ class gDMDFull(DMDBase):
 
     References
     ----------
-
     :cite:`klus-2020`
 
     """
@@ -860,7 +1752,7 @@ class gDMDFull(DMDBase):
     def __init__(
         self,
         *,  # keyword-only
-        sys_mode: str = "spectral",
+        sys_mode: Literal["matrix", "spectral"] = "spectral",
         is_diagonalize: bool = False,
         rcond: Optional[float] = None,
         kwargs_fd: Optional[dict] = None,
@@ -871,7 +1763,7 @@ class gDMDFull(DMDBase):
         self.kwargs_fd = kwargs_fd
 
         super().__init__(
-            sys_type="differential", sys_mode=sys_mode, time_invariant=True
+            sys_type="differential", sys_mode=sys_mode, is_time_invariant=True
         )
 
     def _compute_koopman_generator(self, X: TSCDataFrame, X_grad: TSCDataFrame):
@@ -943,11 +1835,19 @@ class gDMDFull(DMDBase):
                 attribute `generator_matrix_`. The parameter is ignored if system mode
                 is `matrix` (in this case the system matrix is available in
                 ``sys_matrix_``).
+
         Returns
         -------
         gDMDFull
             self
         """
+        # TODO instead of having gDMDFull() rewrite this function:
+        #       * rename to gDMDStandard
+        #       * include a rank=None parameter
+        #       * if rank is not None, then compute low rank Koopman generator in SVD
+        #         coordinates
+        #       * provide a way to steer finite difference method (consider also the Python
+        #         package "derivative", which is used by PySINDy)
 
         self._validate_datafold_data(
             X=X,
@@ -972,7 +1872,7 @@ class gDMDFull(DMDBase):
                 eigenvectors_right_,
                 eigenvalues_,
                 eigenvectors_left_,
-            ) = compute_spectal_components(
+            ) = compute_spectral_components(
                 system_matrix=generator_matrix_, is_diagonalize=self.is_diagonalize
             )
 
@@ -993,6 +1893,7 @@ class gDMDFull(DMDBase):
         return self
 
 
+@DeprecationWarning
 class DMDEco(DMDBase):
     r"""Dynamic Mode Decomposition of time series data with prior singular value
     decomposition.
@@ -1044,7 +1945,6 @@ class DMDEco(DMDBase):
 
     Attributes
     ----------
-
     eigenvalues_ : numpy.ndarray
         All eigenvalues of shape `(svd_rank,)` of the (reduced) Koopman matrix .
 
@@ -1054,7 +1954,6 @@ class DMDEco(DMDBase):
 
     References
     ----------
-
     :cite:`kutz-2016,tu-2014`
     """
 
@@ -1068,7 +1967,9 @@ class DMDEco(DMDBase):
             )
         self.reconstruct_mode = reconstruct_mode
 
-        super().__init__(sys_type="flowmap", sys_mode="spectral", time_invariant=True)
+        super().__init__(
+            sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
+        )
 
     def _compute_internals(self, X: TSCDataFrame):
         # TODO: different orientations are good for different cases:
@@ -1090,8 +1991,8 @@ class DMDEco(DMDBase):
             U.T @ shift_end @ mat_dot_diagmat(V, S_inverse)
         )  # (1.20)
 
-        eigenvalues_, eigenvectors_low_rank = np.linalg.eig(
-            koopman_matrix_low_rank
+        eigenvalues_, eigenvectors_low_rank = sort_eigenpairs(
+            *np.linalg.eig(koopman_matrix_low_rank)
         )  # (1.22)
 
         # As noted in the resource, there is also an alternative way
@@ -1147,18 +2048,16 @@ class DMDEco(DMDBase):
 
 
 class DMDControl(DMDBase):
-    r"""Dynamic Mode Decomposition of time series data with control input to
-    approximate the Koopman operator.
+    r"""Dynamic Mode Decomposition with control input.
 
-    The model computes the system and control matrices :math:`A` and :math:`B` from data
-    (corresponding to mode ``matrix``)
+    The model computes the system and control matrices :math:`K` and :math:`B`
 
     .. math::
-        \mathbf{x}_{k+1} &= A \mathbf{x}_{k} + B \mathbf{u}_k
+        \mathbf{x}_{k+1} = K \mathbf{x}_{k} + B \mathbf{u}_k
 
     where :math:`\mathbf{x}` are the system states and :math:`\mathbf{u}` the control input.
 
-    if the system matrix is further decomposed into spectral terms
+    If the system matrix is further decomposed into spectral terms
     (:math:`A \Psi = \Psi \Lambda`), then the system is described with
 
     .. math::
@@ -1207,7 +2106,7 @@ class DMDControl(DMDBase):
     def __init__(
         self,
         *,  # keyword-only
-        sys_mode: str = "matrix",
+        sys_mode: Literal["matrix", "spectral"] = "matrix",
         rcond: Optional[float] = None,
         **kwargs,
     ):
@@ -1216,7 +2115,7 @@ class DMDControl(DMDBase):
             sys_type="flowmap",
             sys_mode=sys_mode,
             is_controlled=True,
-            time_invariant=True,
+            is_time_invariant=True,
         )
 
     def _compute_koopman_and_control_matrix(
@@ -1231,7 +2130,8 @@ class DMDControl(DMDBase):
             warnings.warn(
                 "There are more observables than snapshots. The current implementation "
                 "favors more snapshots than observables. This may result in a bad "
-                "computational performance."
+                "computational performance.",
+                stacklevel=2,
             )
 
         XU = np.vstack([Xm.T, Um.T])
@@ -1247,8 +2147,8 @@ class DMDControl(DMDBase):
         if rank != G.shape[1]:
             warnings.warn(
                 f"Shift matrix (shape={G.shape}) has not full rank (={rank}), falling "
-                f"back to least squares solution. The sum of residuals is: "
-                f"{np.sum(residual)}"
+                f"back to least squares solution.",
+                stacklevel=2,
             )
         state_cols = Xm.shape[1]
         sys_matrix = MuT.conj().T[:, :state_cols]
@@ -1306,7 +2206,7 @@ class DMDControl(DMDBase):
                 eigenvectors_right_,
                 eigenvalues_,
                 eigenvectors_left_,
-            ) = compute_spectal_components(sys_matrix, is_diagonalize=True)
+            ) = compute_spectral_components(sys_matrix, is_diagonalize=True)
 
             self.setup_spectral_system(
                 eigenvectors_right=eigenvectors_right_,
@@ -1363,7 +2263,7 @@ class gDMDAffine(DMDBase):
         Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
 
     Attributes
-    -------
+    ----------
     sys_matrix_ : np.ndarray
         Approximation of the Koopman operator as the state matrix.
 
@@ -1372,7 +2272,6 @@ class gDMDAffine(DMDBase):
 
     References
     ----------
-
     :cite:`peitz-2020`
     """
 
@@ -1415,8 +2314,9 @@ class gDMDAffine(DMDBase):
         if state_cols > n_snapshots:
             warnings.warn(
                 "There are more observables than snapshots. The current implementation "
-                "favors more snapshots than obserables. This may result in a bad "
-                "computational performance."
+                "is more efficient for the case of more snapshots than observables. "
+                "Implementation effort is required if the performance is too bad.",
+                stacklevel=2,
             )
 
         # column-wise kronecker product
@@ -1441,7 +2341,8 @@ class gDMDAffine(DMDBase):
             warnings.warn(
                 f"Shift matrix ({G.shape=}) has not full rank (={rank=}), falling "
                 f"back to least squares solution. The sum of residuals is: "
-                f"{np.sum(residual)=}"
+                f"{np.sum(residual)=}",
+                stacklevel=2,
             )
 
         sys_matrix = MuT.conj().T[:, :state_cols]
@@ -1477,7 +2378,6 @@ class PyDMDWrapper(DMDBase):
 
     Parameters
     ----------
-
     method
         Choose a method by string.
 
@@ -1509,7 +2409,6 @@ class PyDMDWrapper(DMDBase):
 
     References
     ----------
-
     :cite:`demo-2018`
 
     """
@@ -1543,7 +2442,9 @@ class PyDMDWrapper(DMDBase):
 
         # TODO: pydmd also provides the Koopman operator --> sys_mode="matrix" is also
         #  possible but requires implementation.
-        super().__init__(sys_type="flowmap", sys_mode="spectral", time_invariant=True)
+        super().__init__(
+            sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
+        )
 
     def _setup_pydmd_model(self):
         # TODO: support HankelDMD, SpDMD, ParametricDMD ?
@@ -1620,7 +2521,6 @@ class PyDMDWrapper(DMDBase):
         PyDMDWrapper
             self
         """
-
         self._validate_datafold_data(
             X,
             ensure_tsc=True,
@@ -1655,7 +2555,7 @@ class PyDMDWrapper(DMDBase):
 
 
 class StreamingDMD(DMDBase):
-    r"""Dynamic mode decomposition on streaming data.
+    r"""Dynamic mode decomposition for streaming data.
 
     Parameters
     ----------
@@ -1680,10 +2580,10 @@ class StreamingDMD(DMDBase):
     :cite:`hemati-2014`
 
     This implementation is adapted and extended from
-    `dmdtools <https://github.com/cwrowley/dmdtools>`__ (for the compatible license see the
-    `LICENSE_bundeled <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSES_bundled>`__
-    in datafold).
-    """  # noqa E501
+    `dmdtools <https://github.com/cwrowley/dmdtools>`__ (for a copyright notice with the
+    compatible BSD 3-Clause license see the `LICENSE_bundeled
+    <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSES_bundled>`__ file).
+    """
 
     # TODO: there is also an adaptation for total least squares (only Matlab):
     #   https://github.com/cwrowley/dmdtools/blob/master/matlab/StreamingTDMD.m
@@ -1709,7 +2609,7 @@ class StreamingDMD(DMDBase):
         em = xm.copy()
         ep = xp.copy()
 
-        for i in range(self.ngram):
+        for _i in range(self.ngram):
             dx = self._Qx.T @ em
             dy = self._Qy.T @ ep
 
@@ -1804,7 +2704,6 @@ class StreamingDMD(DMDBase):
             This function is not intended to be used directly. Use only py:meth:`partial_fit`
             for the initial fit and model updates
         """
-
         self._validate_datafold_data(
             X, ensure_tsc=True, tsc_kwargs=dict(ensure_n_timeseries=1)
         )
@@ -1945,7 +2844,6 @@ class StreamingDMD(DMDBase):
             The computed time series predictions, where each time series has shape
             `(n_time_values, n_features)`.
         """
-
         check_is_fitted(self)
         X, _, time_values = self._validate_features_and_time_values(
             X, U=None, time_values=time_values
@@ -1985,7 +2883,6 @@ class OnlineDMD(DMDBase):
 
     Parameters
     ----------
-
     weighting
         Exponential weighing factor in (0, 1] for adaptive learning rates. Smaller values
         allow for more adpative learning but can also result in instabilities as the model
@@ -1999,7 +2896,6 @@ class OnlineDMD(DMDBase):
 
     Attributes
     ----------
-
     timestep_: int
         Counts the number of samples that have been processed.
 
@@ -2024,7 +2920,7 @@ class OnlineDMD(DMDBase):
     `odmd <https://github.com/haozhg/odmd>`__ (for the compatible license see the
     `LICENSE_bundeled <https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSES_bundled>`__
     in datafold).
-    """  # noqa E501
+    """
 
     # TODO for an implementation with control see
     #        https://github.com/VArdulov/online_dmd/blob/master/online_dmd/control.py
@@ -2074,7 +2970,7 @@ class OnlineDMD(DMDBase):
             return evals, right_evec, None
 
     def _basic_initialize(self, X) -> None:
-        """Initialize online DMD with epsilon small (1e-15) ghost snapshot pairs before t=0"""
+        """Initialize online DMD with epsilon small (1e-15) ghost snapshot pairs before t=0."""
         self._validate_parameters()
         self._validate_and_setup_fit_attrs(X)
         n_states = X.shape[1]
@@ -2105,7 +3001,6 @@ class OnlineDMD(DMDBase):
             This function is not intended to be used directly. Use py:meth:`partial_fit` from
             the start (also initial fit).
         """
-
         self._validate_and_setup_fit_attrs(X)
         self._validate_parameters()
         X = self._validate_datafold_data(X, ensure_tsc=True)
@@ -2164,7 +3059,6 @@ class OnlineDMD(DMDBase):
         OnlineDMD
             updated model
         """
-
         # TODO: all the checks etc. cost quite a lot of computational resources, if iterating
         #  on partial_fit sample-by-sample. Maybe this can be relaxed (disable validation with
         #  parameter) or also allow processing NumPy data directly (the user then needs to

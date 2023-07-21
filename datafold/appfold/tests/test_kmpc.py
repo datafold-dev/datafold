@@ -133,7 +133,7 @@ class KMPCTest(unittest.TestCase):
         self.assertIsInstance(U, TSCDataFrame)
 
 
-@pytest.mark.skip(reason="implementation and tests of AffineKMPCTest need an update")
+@pytest.mark.skip(reason="implementation and tests of AffineKMPCTest needs an update")
 class AffineKMPCTest(unittest.TestCase):
     def _execute_mock_test(self, state_size, input_size, n_timesteps, seed=42):
         gen = np.random.default_rng(seed)
