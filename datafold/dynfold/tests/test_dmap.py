@@ -1161,12 +1161,14 @@ class LocalRegressionSelectionTest(unittest.TestCase):
             data = np.hstack([x_direction, y_direction])
             dmap = DiffusionMaps(kernel=GaussianKernel(0.1), n_eigenpairs=10).fit(data)
 
+            # -----------------------------------
+            # Streategy 1: choose by dimension
             for s, kwargs in [
                 ("dim", dict(intrinsic_dim=2)),
                 ("threshold", dict(regress_threshold=0.5)),
             ]:
                 loc_regress_dim = LocalRegressionSelection(
-                    n_subsample=n_subsample, strategy=s, **kwargs
+                    n_subsample=n_subsample, strategy=s, random_state=5, **kwargs
                 )
                 actual = loc_regress_dim.fit_transform(dmap.eigenvectors_)
 
