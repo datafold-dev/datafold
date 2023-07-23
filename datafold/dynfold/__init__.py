@@ -40,7 +40,6 @@ from datafold.dynfold.dmap import DiffusionMaps, LocalRegressionSelection, Rosel
 from datafold.dynfold.dmd import (
     DMDBase,
     DMDControl,
-    DMDEco,
     DMDStandard,
     OnlineDMD,
     PyDMDWrapper,

@@ -9,10 +9,10 @@ pre-commit>=3.0.0,<4.0.0
 pybtex==0.24.0
 pydata-sphinx-theme==0.13.3
 pydmd==0.4.1.post2306
-pytest==7.2.1
+pytest==7.3.2
 qpsolvers==3.4.0
 quadprog~=0.1.11
-requests==2.28.2
+requests==2.31.0
 sphinx>=6.0.0,<7.0.0
 sphinx-autodoc-typehints==1.22
 sphinx-automodapi==0.15.0

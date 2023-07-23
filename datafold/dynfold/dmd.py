@@ -9,7 +9,7 @@ import scipy.linalg
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
-from datafold._decorators import warn_experimental_function
+from datafold._decorators import warn_experimental_class, warn_experimental_function
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.dynfold.dynsystem import LinearDynamicalSystem
 from datafold.pcfold import InitialCondition, TSCDataFrame
@@ -557,392 +557,6 @@ class PretrainedDMD(DMDBase):
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         # TODO: perform validation if dimensions with setup system are correct...
-        return self
-
-
-@DeprecationWarning
-class DMDFull(DMDBase):
-    r"""Full dynamic mode decomposition of time series collection data.
-
-    The model computes a Koopman matrix :math:`K` with
-
-    .. math::
-        K X &= X^{+} \\
-        K &= X^{+} X^{\dagger},
-
-    where :math:`X` is the data with column oriented snapshots, :math:`\dagger`
-    the Moore–Penrose inverse and :math:`+` the future time shifted data.
-
-    The actual decomposition contains the spectral elements of the matrix :math:`K`.
-
-    ...
-
-    Parameters
-    ----------
-    sys_mode
-       Select a mode to evolve the linear system with
-
-       * "spectral" to use spectral components of the system matrix. The evaluation of
-         the linear system is cheap and it provides valuable information about the
-         underlying process. On the downside this mode has numerical issues if the
-         system matrix is badly conditioned.
-       * "matrix" to use system matrix directly. The evaluation of the system is more
-         robust, but the system evaluation is computationally more expensive.
-
-    is_diagonalize
-        If True, also the left eigenvectors are computed to diagonalize the system matrix.
-        This affects of how initial conditions are adapted for the spectral system
-        representation (instead of a least squares :math:`\Psi_r^\dagger x_0` with right
-        eigenvectors it performs :math:`\Psi_l x_0`). The parameter is ignored if
-        ``sys_mode=matrix``.
-
-    approx_generator
-        If True, approximate the generator of the system
-
-        * `mode=spectral` compute (complex) eigenvalues of the
-          Koopman generator :math:`log(\lambda) / \Delta t`, with eigenvalues `\lambda`
-          of the Koopman matrix. Note, that the left and right eigenvectors remain the
-          same.
-        * `mode=matrix` compute generator matrix with
-          :math:`logm(K) / \Delta t`, where :math:`logm` is the matrix logarithm.
-
-        .. warning::
-
-            This operation can fail if the eigenvalues of the matrix :math:`K` are too
-            close to zero or the matrix logarithm is ill-defined because of
-            non-uniqueness. For details see :cite:t:`dietrich-2020` (Eq.
-            3.2. and 3.3. and discussion). Currently, there are no counter measurements
-            implemented to increase numerical robustness (work is needed). Consider
-            also :py:class:`.gDMDFull`, which provides an alternative way to
-            approximate the Koopman generator by using finite differences.
-
-    rcond
-        Cut-off ratio for small singular values
-        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
-
-    res_threshold
-        Residual threshold to filter spurious spectral components. This follows Algorithm 2
-        in :cite:t:`colbrook-2021`. If set, this requires ``sys_mode="spectral``.
-
-    compute_pseudospectrum
-        Flag to indicate whether the method ``pesudospectrum`` is required. If True, then
-        additional (internal) matrices are stored that are required for the computations.
-
-    Attributes
-    ----------
-    eigenvalues_ : numpy.ndarray
-        Eigenvalues of Koopman matrix.
-
-    eigenvectors_right_ : numpy.ndarray
-        All right eigenvectors of Koopman matrix; ordered column-wise.
-
-    eigenvectors_left_ : numpy.ndarray
-        All left eigenvectors of Koopman matrix with ordered row-wise.
-        Only accessible if ``is_diagonalize=True``.
-
-    koopman_matrix_ : numpy.ndarray
-        Koopman matrix obtained from least squares. Only available if
-        ``store_system_matrix=True`` during fit.
-
-    generator_matrix_ : numpy.ndarray
-        Koopman generator matrix obtained from Koopman matrix via matrix-logarithm.
-        Only available if ``store_system_matrix=True`` during fit.
-
-    References
-    ----------
-    * :cite:t:`schmid-2010` - DMD method in the original sense
-    * :cite:t:`rowley-2009` - connects the DMD method to Koopman operator theory
-    * :cite:t:`tu-2014` - generalizes the DMD to temporal snapshot pairs
-    * :cite:t:`williams-2015` - generalizes the approximation to a lifted space
-    * :cite:t:`kutz-2016` - an introductory book for DMD and its connection to the
-    Koopman operator
-    * :cite:t:`colbrook-2021` - residual DMD (ResDMD) and spectral properties of the
-    Koopman operator
-    """
-
-    def __init__(
-        self,
-        *,  # keyword-only
-        sys_mode: Literal["matrix", "spectral"] = "spectral",
-        is_diagonalize: bool = False,
-        approx_generator: bool = False,
-        rcond: Optional[float] = None,
-        res_threshold: Optional[float] = None,
-        compute_pseudospectrum: bool = False,
-    ):
-        self.is_diagonalize = is_diagonalize
-        self.approx_generator = approx_generator
-        self.rcond = rcond
-        self.res_threshold = res_threshold
-        self.compute_pesudospectrum = compute_pseudospectrum
-
-        if res_threshold is not None and sys_mode != "spectral":
-            raise ValueError(
-                f'Residual computation requires sys_mode="spectral". '
-                f"Got {sys_mode=}."
-            )
-
-        self._setup_default_tsc_metric_and_score()
-
-        super().__init__(
-            sys_type="differential" if self.approx_generator else "flowmap",
-            sys_mode=sys_mode,
-            is_time_invariant=True,
-        )
-
-    def _compute_koopman_matrix_components(self, X: TSCDataFrame, sample_weight=None):
-        # It is more suitable to get the shift_start and shift_end in row orientation as
-        # this is closer to the normal least squares parameter definition
-        shift_start_transposed, shift_end_transposed = X.tsc.shift_matrices(
-            snapshot_orientation="row"
-        )
-
-        # The easier to read version is:
-        # koopman_matrix shift_start_transposed = shift_end_transposed
-        # koopman_matrix.T = np.linalg.lstsq(shift_start_transposed,
-        # shift_end_transposed, rcond=1E-14)[0]
-        #
-        # However, it is much more efficient to multiply shift_start from right
-        # K^T (shift_start^T * shift_start) = (shift_end^T * shift_start)
-        # K^T G = G'
-        # This is because (shift_start^T * shift_start) is a smaller matrix and faster
-        # to solve. For further info, see Williams et al. Extended DMD and DMD book,
-        # Kutz et al. (book page 168).
-
-        if shift_start_transposed.shape[1] > shift_start_transposed.shape[0]:
-            warnings.warn(
-                "There are more observables than snapshots. The current implementation "
-                "is more efficient for the case of more snapshots than observables. "
-                "Implementation effort is required if the performance is too bad.",
-                stacklevel=2,
-            )
-
-        # see Eq. (13 a) and (13 b) in `williams_datadriven_2015`
-        if sample_weight is None:
-            # assume uniform sample weights
-            G = shift_start_transposed.T @ shift_start_transposed
-            G = np.multiply(1 / X.shape[0], G, out=G)
-
-            G_dash = shift_start_transposed.T @ shift_end_transposed
-            G_dash = np.multiply(1 / X.shape[0], G_dash, out=G_dash)
-        else:
-            G = shift_start_transposed.T @ diagmat_dot_mat(
-                sample_weight, shift_start_transposed
-            )
-            G_dash = shift_start_transposed.T @ diagmat_dot_mat(
-                sample_weight, shift_end_transposed
-            )
-
-        # TODO: remove!
-        self._G_dash = G_dash
-        self._G = G
-
-        if self.res_threshold is not None:
-            if sample_weight is None:
-                _shiftYTY = shift_end_transposed.T @ shift_end_transposed
-                R = np.multiply(1 / X.shape[0], _shiftYTY, out=_shiftYTY)
-            else:
-                R = shift_end_transposed.T @ diagmat_dot_mat(
-                    sample_weight, shift_end_transposed
-                )
-        else:
-            R = None
-
-        # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
-        # (numerical) solution of the linear system of equations.
-        koopman_matrix, residual, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
-        if rank != G.shape[1]:
-            warnings.warn(
-                f"Shift matrix ({G.shape=}) has not full rank ({rank=}), falling "
-                f"back to least squares solution.",
-                stacklevel=2,
-            )
-
-        # # TODO: START Experimental (test other solvers, with more functionality)
-        # #  ridge_regression, and sparisty promoting least squares solutions could be
-        #    included here
-        # # TODO: clarify if the ridge regression should be done better on lstsq with
-        #     shift matrices (instead of the G, G_dash)
-
-        # TODO: fit_intercept option useful to integrate?
-        # https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RidgeCV.
-        # html#sklearn.linear_model.RidgeCV
-        # from sklearn.linear_model import LinearRegression, Ridge, ridge_regression
-        # from sklearn.linear_model import RidgeCV
-        #
-        # ridge = RidgeCV(alphas=[0.0001, 0.001, 0.01, 0.05, 1],
-        # normalize=False, fit_intercept=False)
-        # ridge.fit(X=shift_start_transposed, y=shift_end_transposed)
-        # koopman_matrix = ridge.coef_.T
-        #
-        # print(f"best alpha value {ridge.alpha_}")
-
-        # koopman_matrix = ridge_regression(
-        #     G, G_dash, alpha=self.alpha, verbose=0, return_intercept=False
-        # )
-        # koopman_matrix = koopman_matrix.T
-        # # TODO: END Experimental
-
-        # koopman_matrix = (
-        #     LinearRegression(fit_intercept=False, normalize=False).fit(G, G_dash).coef_
-        # )
-
-        # The reason why it is transposed:
-        # K * G_k = G_{k+1}
-        # (G_k)^T * K^T = G_{k+1}^T  (therefore the row snapshot orientation at the
-        #                             beginning)
-
-        koopman_matrix = koopman_matrix.conj().T
-
-        if self.res_threshold is None:
-            # free memory and make sure that they are not used again
-            G, G_dash, R = [None] * 3
-
-    def _compute_spectral_components(self, system_matrix):
-        eigenvalues_, eigenvectors_right_ = sort_eigenpairs(
-            *np.linalg.eig(system_matrix)
-        )
-        eigenvectors_right_ /= np.linalg.norm(eigenvectors_right_, axis=0)
-
-        if self.is_diagonalize:
-            # must be computed with the Koopman eigenvalues
-            # (NOT the generator eigenvalues)
-            eigenvectors_left_ = self._compute_left_eigenvectors(
-                system_matrix=system_matrix,
-                eigenvalues=eigenvalues_,
-                eigenvectors_right=eigenvectors_right_,
-            )
-
-        else:
-            eigenvectors_left_ = None
-
-        if self.approx_generator:
-            # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
-            # Eq. 3.2 and 3.3.
-            eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
-
-        return eigenvectors_right_, eigenvalues_, eigenvectors_left_
-
-    def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "DMDFull":
-        """Compute Koopman matrix and if applicable the spectral components.
-
-        Parameters
-        ----------
-        X
-            Training time series data.
-
-        y: None
-            ignored
-
-        U: None
-            ignored (the method does not support control input)
-
-        **fit_params
-
-         - store_system_matrix: bool
-            If True, the model stores the system matrix -- either Koopman
-            matrix or Koopman generator matrix -- in attribute ``koopman_matrix_`` or
-            ``generator_matrix_`` respectively. The parameter is ignored if
-            ``sys_mode=="matrix"`` (the system matrix is then in attribute
-            ``sys_matrix_``).
-         - sample_weights: np.ndarray
-            Sample weights
-
-        Returns
-        -------
-        DMDStandard
-            self
-        """
-        # TODO: doc, note if rank is set, then the system matrix is only a reduced form!
-
-        self._validate_datafold_data(
-            X=X,
-            ensure_tsc=True,
-            tsc_kwargs=dict(ensure_const_delta_time=True),
-        )
-        self._validate_and_setup_fit_attrs(X=X)
-
-        store_system_matrix, sample_weights = self._read_fit_params(
-            attrs=[
-                ("store_system_matrix", False),
-                ("sample_weights", None),
-            ],
-            fit_params=fit_params,
-        )
-
-        if self.rank is None:
-            (
-                koopman_matrix_,
-                G,
-                G_dash,
-                R,
-                reconstruct,
-            ) = self._compute_full_system_matrix(X, sample_weights=sample_weights)
-        else:
-            (
-                koopman_matrix_,
-                G,
-                G_dash,
-                R,
-                reconstruct,
-            ) = self._compute_reduced_system_matrix(X, sample_weights=sample_weights)
-
-        if self.is_spectral_mode:
-            (
-                eigenvectors_right_,
-                eigenvalues_,
-                eigenvectors_left_,
-            ) = self._compute_spectral_components(
-                koopman_matrix_, reconstruct
-            )  # type: ignore
-
-            if self.res_threshold is not None:
-                # TODO: by removing spectral components the (reconstructed) system matrix also
-                #  changes -- should this be considered?
-                (
-                    eigenvalues_,
-                    eigenvectors_right_,
-                    eigenvectors_left_,
-                ) = self._remove_spectral_pollution(
-                    eigenvalues_,
-                    eigenvectors_right_,
-                    eigenvectors_left_,
-                    G,
-                    G_dash,
-                    R,
-                )
-
-            if self.approx_generator:
-                # see e.g.https://arxiv.org/pdf/1907.10807.pdf pdfp. 10
-                # Eq. 3.2 and 3.3.
-                eigenvalues_ = np.log(eigenvalues_.astype(complex)) / self.dt_
-
-            self.setup_spectral_system(
-                eigenvectors_right=eigenvectors_right_,
-                eigenvalues=eigenvalues_,
-                eigenvectors_left=eigenvectors_left_,
-            )
-
-            if store_system_matrix:
-                if self.approx_generator:
-                    self.generator_matrix_ = (
-                        scipy.linalg.logm(koopman_matrix_) / self.dt_
-                    )
-                else:
-                    self.system_matrix_ = koopman_matrix_
-
-            if self.compute_pseudospectrum:
-                self._G = G
-                self._G_dash = G_dash
-                self._R = R
-
-        else:  # self.is_matrix_mode()
-            if self.approx_generator:
-                generator_matrix_ = scipy.linalg.logm(koopman_matrix_) / self.dt_
-                self.setup_matrix_system(system_matrix=generator_matrix_)
-            else:
-                self.setup_matrix_system(system_matrix=koopman_matrix_)
-
         return self
 
 
@@ -1893,160 +1507,6 @@ class gDMDFull(DMDBase):
         return self
 
 
-@DeprecationWarning
-class DMDEco(DMDBase):
-    r"""Dynamic Mode Decomposition of time series data with prior singular value
-    decomposition.
-
-    The singular value decomposition (SVD) reduces the data and the Koopman operator is
-    computed in this reduced space. This DMD model is particularly interesting for high
-    dimensional data (large number of features), for example, solutions of partial
-    differential equations (PDEs) with a fine grid.
-
-    The procedure of ``DMDEco`` is as follows:
-
-    1. Compute the singular value decomposition of the data and use the leading `k`
-    singular values and corresponding vectors in :math:`U` and :math:`V`.
-
-      .. math::
-          X \approx U \Sigma V^*
-
-    2. Compute the Koopman matrix in the SVD coordinates:
-
-      .. math::
-          K = U^T X' V \Sigma^{-1}
-
-    3. Compute all eigenpairs of Koopman matrix:
-
-      .. math::
-          K W_r = W_r \Omega
-
-    4. Reconstruct the (exact) eigendecomposition of :math:`K`
-
-      .. math::
-          \Psi_r = X' V \Sigma^{-1} W
-
-      Alternatively, the eigenvectors can also be reconstructed with
-
-      .. math::
-          \Psi_r = U W ,
-
-      which refers to the 'projected' version (see parameter).
-
-    ...
-
-    Parameters
-    ----------
-    svd_rank : int
-        Number of eigenpairs to keep (largest eigenvalues in magnitude).
-
-    reconstruct_mode : str
-        Either 'exact' (default) or 'projected'.
-
-    Attributes
-    ----------
-    eigenvalues_ : numpy.ndarray
-        All eigenvalues of shape `(svd_rank,)` of the (reduced) Koopman matrix .
-
-    eigenvectors_right_ : numpy.ndarray
-        All right eigenvectors of shape `(svd_rank, svd_rank)` of the reduced Koopman
-        matrix.
-
-    References
-    ----------
-    :cite:`kutz-2016,tu-2014`
-    """
-
-    def __init__(self, svd_rank=10, *, reconstruct_mode: str = "exact"):
-        self._setup_default_tsc_metric_and_score()
-        self.svd_rank = svd_rank
-
-        if reconstruct_mode not in ["exact", "projected"]:
-            raise ValueError(
-                f"reconstruct_mode={reconstruct_mode} must be in {['exact', 'projected']}"
-            )
-        self.reconstruct_mode = reconstruct_mode
-
-        super().__init__(
-            sys_type="flowmap", sys_mode="spectral", is_time_invariant=True
-        )
-
-    def _compute_internals(self, X: TSCDataFrame):
-        # TODO: different orientations are good for different cases:
-        #  1 more snapshots than quantities
-        #  2 more quantities than snapshots
-        #  Currently it is optimized for the case 2.
-
-        shift_start, shift_end = X.tsc.shift_matrices(snapshot_orientation="col")
-        U, S, Vh = np.linalg.svd(shift_start, full_matrices=False)  # (1.18)
-
-        U = U[:, : self.svd_rank]
-        S = S[: self.svd_rank]
-        S_inverse = np.reciprocal(S, out=S)
-
-        V = Vh.conj().T
-        V = V[:, : self.svd_rank]
-
-        koopman_matrix_low_rank = (
-            U.T @ shift_end @ mat_dot_diagmat(V, S_inverse)
-        )  # (1.20)
-
-        eigenvalues_, eigenvectors_low_rank = sort_eigenpairs(
-            *np.linalg.eig(koopman_matrix_low_rank)
-        )  # (1.22)
-
-        # As noted in the resource, there is also an alternative way
-        # self.eigenvectors = U @ W
-
-        if self.reconstruct_mode == "exact":
-            eigenvectors_right_ = (
-                shift_end @ V @ diagmat_dot_mat(S_inverse, eigenvectors_low_rank)
-            )  # (1.23)
-        else:  # self.reconstruct_mode == "projected"
-            eigenvectors_right_ = U @ eigenvectors_low_rank
-
-        return eigenvectors_right_, eigenvalues_, koopman_matrix_low_rank
-
-    def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "DMDEco":
-        """Compute spectral components of Koopman matrix in low dimensional singular
-        value coordinates.
-
-        Parameters
-        ----------
-        X
-            Training time series data.
-
-        U: None
-            ignored (the method does not support control input)
-
-        y
-            ignored
-
-        **fit_params: Dict[str, object]
-            None
-
-        Returns
-        -------
-        DMDEco
-            self
-        """
-        self._validate_datafold_data(
-            X,
-            ensure_tsc=True,
-            tsc_kwargs=dict(ensure_const_delta_time=True),
-        )
-        self._validate_and_setup_fit_attrs(X)
-        self._read_fit_params(attrs=None, fit_params=fit_params)
-
-        eigenvectors_right_, eigenvalues_, koopman_matrix = self._compute_internals(X)
-
-        self.setup_spectral_system(
-            eigenvectors_right=eigenvectors_right_, eigenvalues=eigenvalues_
-        )
-
-        return self
-
-
 class DMDControl(DMDBase):
     r"""Dynamic Mode Decomposition with control input.
 
@@ -2220,6 +1680,7 @@ class DMDControl(DMDBase):
         return self
 
 
+@warn_experimental_class
 class gDMDAffine(DMDBase):
     r"""Dynamic mode decomposition of time series data with control input to
     approximate the Koopman generator for an input affine system.
@@ -2227,6 +1688,7 @@ class gDMDAffine(DMDBase):
     The model computes the system matrix :math:`A` and control tensor :math:`B` with
 
     .. math::
+
         X &= [x^{(1)} \ldots x^{(n)}] \\
         B &= [B_{e_1} \ldots B_{e_q}] \\
         \Psi &= \begin{bmatrix}
@@ -2363,12 +1825,12 @@ class PyDMDWrapper(DMDBase):
     """A wrapper for dynamic mode decompositions models of Python package *PyDMD*.
 
     For further details of the underlying models please go to
-    `PyDMD documentation <https://mathlab.github.io/PyDMD/>`__
+    `PyDMD documentation <https://github.com/PyDMD/PyDMD>`__
 
     .. warning::
 
         The models provided by *PyDMD* can only deal with single time series. See also
-        `github issue #86 <https://github.com/mathLab/PyDMD/issues/86>`__. This means that the
+        `github issue #86 <https://github.com/PyDMD/PyDMD/issues/86>`__. This means that the
         input `X` in `fit` can only consist of one time series.
 
     .. warning::
@@ -2390,7 +1852,8 @@ class PyDMDWrapper(DMDBase):
 
     svd_rank
         The rank of the singular value decomposition.
-            - If `-1`: no truncation is performed (NOTE: the SVD is still performed)
+            - If `-1`: no truncation is performed (NOTE: the SVD is still performed, just no
+              components are discarded).
             - If `0`: compute optimal rank.
             - A positive integer defines the actual rank.
             - A float between 0 and 1 defines the 'energy' of biggest singular value.
@@ -2425,7 +1888,7 @@ class PyDMDWrapper(DMDBase):
     ):
         if not IS_IMPORTED_PYDMD:
             raise ImportError(
-                "The optional Python package 'pydmd' (https://github.com/mathLab/PyDMD) "
+                "The optional Python package 'pydmd' (https://github.com/PyDMD/PyDMD) "
                 "could not be imported. Please check your installation or install "
                 "with 'python -m pip install pydmd'."
             )
@@ -2447,7 +1910,7 @@ class PyDMDWrapper(DMDBase):
         )
 
     def _setup_pydmd_model(self):
-        # TODO: support HankelDMD, SpDMD, ParametricDMD ?
+        # TODO: support other DMD variants?
 
         if self.method == "dmd":
             self.dmd_ = pydmd.DMD(
@@ -2534,7 +1997,7 @@ class PyDMDWrapper(DMDBase):
         if len(X.ids) > 1:
             raise ValueError(
                 "The PyDMD package only works for single coherent time series. See \n "
-                "https://github.com/mathLab/PyDMD/issues/86"
+                "https://github.com/PyDMD/PyDMD/issues/86"
             )
 
         # data is column major
