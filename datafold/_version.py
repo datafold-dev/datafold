@@ -31,18 +31,18 @@ class Version:
     # See also https://semver.org/
 
     # TO UPDATE -- START
-    major_version: int = 1  # making incompatible API changes,
-    minor_version: int = 1  # adding functionality in a backwards-compatible manner
-    patch: int = 6  # for backwards-compatible bug fixes
+    major_version: int = 2  # making incompatible API changes,
+    minor_version: int = 0  # adding functionality in a backwards-compatible manner
+    patch: int = 0  # for backwards-compatible bug fixes
 
     # additional release suffixes
     post: int = 0  # for minor corrections
     rc: int = 0  # for release candidate (e.g. to test upload to PyPI-test)
 
     # Set date of release for longer version numbers.
-    year: int = 2021
-    month: int = 12
-    day: int = 2
+    year: int = 2023
+    month: int = 7
+    day: int = 21
     # TO UPDATE -- END
 
     assert major_version >= 0 and isinstance(major_version, int)
