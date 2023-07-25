@@ -156,7 +156,7 @@ class DMDBase(
 
     @abc.abstractmethod
     def fit(
-        self, X: TimePredictType, *, U: Optional[TSCDataFrame], y=None, **fit_params
+        self, X: TimePredictType, *, U: Optional[TSCDataFrame], P=None, y=None, **fit_params
     ) -> "DMDBase":
         """Abstract method to train DMD model.
 
@@ -169,6 +169,10 @@ class DMDBase(
             Control input (set to ``None`` by default if the subclass does not support
             control input).
 
+        P  
+            ignored 
+                reserved for parameter input
+        
         y
             ignored
               TODO for future devevelopment: This parameter is reserved to specify an

@@ -920,6 +920,7 @@ class EDMD(
         self,
         X: TimePredictType,
         U: Optional[TimePredictType] = None,
+        P: Optional[pd.DataFrame] = None,
         y: Optional[TSCDataFrame] = None,
         **fit_params,
     ) -> "EDMD":
@@ -940,6 +941,9 @@ class EDMD(
         U
             Time series with control states acting on the system. The states are passed to the
             DMD model, at which point the time indices must be identical to the states in `X`.
+
+        P
+            ignored -- reservered for parameters
 
         y
             A different set of target values than the original states to map to with
@@ -1081,6 +1085,7 @@ class EDMD(
         X: InitialConditionType,
         *,
         U: Optional[InitialConditionType] = None,
+        P: Optional[pd.DataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         qois: Optional[Union[pd.Index, list[str]]] = None,
         **predict_params,
@@ -1111,6 +1116,9 @@ class EDMD(
             the control states over the prediction horizon in `U`. Each time series in `U`
             must have the same time values. The time horizon is taken from `U` (i.e.
             ``time_values`` has to be either identical or ``None``).
+        
+        P 
+            ignored -- reserved for parameters
 
         time_values
             The time values to evaluate the model at for each initial condition. The values
@@ -1204,7 +1212,9 @@ class EDMD(
     def fit_predict(
         self,
         X: TSCDataFrame,
+        *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         y=None,
         qois: Optional[Union[pd.Index, list[str]]] = None,
         **fit_params,
@@ -1220,9 +1230,11 @@ class EDMD(
         U
             Control time series passed to the DMD model. At this point the index of `U` must
             be identical to `X_dict`.
+        P
+            ignored -- reserved for parameters
 
-        y: None
-            ignored
+        y
+            TODO: update docs
 
         qois
             A list of feature names of interest to be included in the returned
@@ -1271,7 +1283,15 @@ class EDMD(
         else:
             return super().__getitem__(ind)
 
-    def partial_fit(self, X: TimePredictType, U=None, y=None, **fit_params) -> "EDMD":
+    def partial_fit(
+        self,
+        X: TimePredictType,
+        *,
+        U: Optional[Union[np.ndarray, TSCDataFrame]] = None,
+        P: Optional[pd.DataFrame],
+        y=None,
+        **fit_params,
+    ) -> "EDMD":
         """Incremental fit of the model.
 
         The partial fit call is forwarded to all transformers in the dictionary and the set
@@ -1285,6 +1305,9 @@ class EDMD(
         U
             Currently, there is no implementation that supports both an online/streaming
             setting with control.
+
+        P 
+            ignored -- reserved for parameters
 
         y
             ignored
