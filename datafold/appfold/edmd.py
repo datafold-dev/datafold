@@ -1116,8 +1116,8 @@ class EDMD(
             the control states over the prediction horizon in `U`. Each time series in `U`
             must have the same time values. The time horizon is taken from `U` (i.e.
             ``time_values`` has to be either identical or ``None``).
-        
-        P 
+
+        P
             ignored -- reserved for parameters
 
         time_values
@@ -1306,7 +1306,7 @@ class EDMD(
             Currently, there is no implementation that supports both an online/streaming
             setting with control.
 
-        P 
+        P
             ignored -- reserved for parameters
 
         y
