@@ -5,7 +5,7 @@ WORKDIR /home/
 # install essentials
 RUN apt-get update \
     && apt-get -y --no-install-recommends install git make dialog apt-utils python3.9 \
-    python3.9-venv python3-pip vim \
+    python3.9-venv python3-pip python3.9-tk vim \
     && apt-get autoremove -y \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/* \
