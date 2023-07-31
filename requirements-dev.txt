@@ -14,10 +14,10 @@ pytest==7.3.2
 qpsolvers==3.4.0
 quadprog~=0.1.11
 requests==2.31.0
-sphinx>=6.0.0,<7.0.0
+sphinx>=7.0.0,<8.0.0
 sphinx-autodoc-typehints==1.22
 sphinx-automodapi==0.15.0
 sphinx-copybutton==0.5.2
-sphinx_design==0.4.1
+sphinx_design==0.5.0
 sphinxcontrib-bibtex==2.5.0
 torch>=2.0.0

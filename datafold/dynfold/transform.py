@@ -847,7 +847,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         return X.loc[:, self.feature_names_in_]
 
 
-class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):
+class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
     """
     This is a simple wrapper for sampled neural networks.
 
@@ -879,8 +879,8 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):
         self.nn = nn
 
     def __repr__(self):
-        # TODO: somehow the repr of the original network is quite costly to obtain
-        #    (maybe investigate why)
+        # TODO: somehow the repr of the original implementation is quite costly
+        #    (investigate why and propose a fix)
         return "SWIM NETWORK"
 
     def get_feature_names_out(self, input_features=None):

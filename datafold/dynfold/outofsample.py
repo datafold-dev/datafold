@@ -858,7 +858,6 @@ class LaplacianPyramidsInterpolator(RegressorMixin, MultiOutputMixin, BaseEstima
             if self._LoopCond.NO_TERMINATION in curr_loop_conditions:
                 # prepare for next loop iteration
                 epsilon = epsilon / self.mu
-                current_residual_norm = current_residual_norm
                 target_values = current_residual
 
         return self

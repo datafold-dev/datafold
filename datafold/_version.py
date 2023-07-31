@@ -42,7 +42,7 @@ class Version:
     # Set date of release for longer version numbers.
     year: int = 2023
     month: int = 7
-    day: int = 21
+    day: int = 31
     # TO UPDATE -- END
 
     assert major_version >= 0 and isinstance(major_version, int)
