@@ -33,7 +33,7 @@ See also the `Introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`
 
 ---------------------------------------------------------------------------------
 
-Install the package with ``Python>=3.8``:
+Install the package with ``Python>=3.9``:
 
 .. docu for grid: https://sphinx-design.readthedocs.io/en/furo-theme/grids.html#grid-options
 .. free icons from https://fontawesome.com/

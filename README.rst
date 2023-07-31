@@ -102,7 +102,7 @@ BibTeX:
 How to get it?
 ==============
 
-Installation requires `Python>=3.8 <https://www.python.org/>`__ with
+Installation requires `Python>=3.9 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
 `setuptools <https://setuptools.pypa.io/en/latest/>`__ installed (both packages ship with a
 standard Python installation). The package dependencies
