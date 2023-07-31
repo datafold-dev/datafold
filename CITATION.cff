@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use datafold, please give credit and cite it."
+authors:
+- family-names: "Lehmberg"
+  given-names: "Daniel"
+  orcid: "https://orcid.org/0000-0002-4012-5014"
+- family-names: "Dietrich"
+  given-names: "Felix"
+  orcid: "https://orcid.org/0000-0002-2906-1769"
+- family-names: "Köster"
+  given-names: "Gerta"
+  orcid: "https://orcid.org/0000-0002-3369-6206 "
+- family-names: "Bungartz"
+  given-names: "Hans-Joachim"
+title: "datafold: data-driven models for point clouds and time
+series on manifolds"
+version: 1.0.0
+doi: 10.21105/joss.02283
+date-released: 2020-07-14
+url: "https://gitlab.com/datafold-dev/datafold"

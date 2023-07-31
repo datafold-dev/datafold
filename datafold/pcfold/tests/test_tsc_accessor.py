@@ -10,17 +10,19 @@ from datafold.pcfold.timeseries.accessor import TSCAccessor
 from datafold.pcfold.timeseries.collection import TSCException
 
 
-class TestTscAccessor(unittest.TestCase):
+class TestTSCAccessor(unittest.TestCase):
+    rng = np.random.default_rng(5)
+
     def setUp(self) -> None:
         # The last two elements are used
         idx = pd.MultiIndex.from_arrays(
             [[0, 0, 1, 1, 15, 15, 45, 45, 45], [0, 1, 0, 1, 0, 1, 17, 18, 19]]
         )
         col = ["A", "B"]
-        self.simple_df = pd.DataFrame(np.random.rand(9, 2), index=idx, columns=col)
+        self.simple_df = pd.DataFrame(self.rng.random((9, 2)), index=idx, columns=col)
 
     def test_normalize_time1(self):
-        # NOTE: more tests are included in test_tsc_data_structre/test_is_normalize_time()
+        # NOTE: more tests are included in test_tsc_data_structure/test_is_normalize_time()
         to_convert = TSCDataFrame(self.simple_df)
 
         actual = to_convert.tsc.normalize_time()
@@ -60,13 +62,44 @@ class TestTscAccessor(unittest.TestCase):
 
         pdtest.assert_frame_equal(actual, expected)
 
+    def test_shift_time_per_time_series01(self):
+        simple_df = TSCDataFrame(self.simple_df)
+
+        actual, shift_values = simple_df.tsc.shift_time_per_time_series(
+            return_shift_values=True
+        )
+
+        self.assertIsInstance(actual, TSCDataFrame)
+        self.assertIsInstance(shift_values, pd.Series)
+
+        self.assertTrue(
+            np.all(actual.initial_states().index.get_level_values("time") == 0)
+        )
+
+        actual2 = actual.tsc.shift_time_per_time_series(shift_values=-1 * shift_values)
+
+        pdtest.assert_frame_equal(simple_df, actual2)
+
+    def test_shift_time_per_time_series02(self):
+        simple_df = TSCDataFrame(self.simple_df)
+
+        actual, shift_values = simple_df.tsc.shift_time_per_time_series(
+            return_shift_values=True
+        )
+
+        with self.assertRaises(ValueError):
+            actual.tsc.shift_time_per_time_series(shift_values.iloc[:2])
+
+        with self.assertRaises(TypeError):
+            actual.tsc.shift_time_per_time_series(shift_values.to_numpy())
+
     def test_iter_timevalue_window(self):
         tsc_df = TSCDataFrame.from_single_timeseries(
-            pd.DataFrame(np.random.rand(10, 2), columns=["A", "B"])
+            pd.DataFrame(self.rng.random((10, 2)), columns=["A", "B"])
         )
 
         tsc_df2 = tsc_df.insert_ts(
-            pd.DataFrame(np.random.rand(10, 2), columns=["A", "B"])
+            pd.DataFrame(self.rng.random((10, 2)), columns=["A", "B"])
         )
 
         # tests for one time series
@@ -89,6 +122,38 @@ class TestTscAccessor(unittest.TestCase):
         )
         self.assertEqual(
             len(list(tsc_df2.tsc.iter_timevalue_window(window_size=5, offset=1))), 6
+        )
+
+        # if per_time_series, the list becomes double as long
+        self.assertEqual(
+            len(
+                list(
+                    tsc_df2.tsc.iter_timevalue_window(
+                        window_size=2, offset=2, per_time_series=True
+                    )
+                )
+            ),
+            10,
+        )
+        self.assertEqual(
+            len(
+                list(
+                    tsc_df2.tsc.iter_timevalue_window(
+                        window_size=5, offset=5, per_time_series=True
+                    )
+                )
+            ),
+            4,
+        )
+        self.assertEqual(
+            len(
+                list(
+                    tsc_df2.tsc.iter_timevalue_window(
+                        window_size=5, offset=1, per_time_series=True
+                    )
+                )
+            ),
+            12,
         )
 
     def test_assign_ids_sequential(self):
@@ -123,7 +188,7 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_array_equal(actual_train.time_values(), expected_train_timevalues)
         nptest.assert_array_equal(actual_test.time_values(), expected_test_timevalues)
 
-        #### new case: the index 0 is not included in train or test
+        # new case: the index 0 is not included in train or test
         train_indices = np.array([1, 2])
         test_indices = np.array([3, 4])
 
@@ -186,7 +251,6 @@ class TestTscAccessor(unittest.TestCase):
             X.tsc.assign_ids_train_test(train_indices_invalid, test_indices)
 
     def test_assign_ids_const_delta1(self):
-
         original_idx = pd.MultiIndex.from_arrays(
             [np.ones(8), np.hstack([np.arange(4), np.arange(10, 14)])]
         )
@@ -215,7 +279,6 @@ class TestTscAccessor(unittest.TestCase):
         pdtest.assert_frame_equal(expect, actual)
 
     def test_assign_ids_const_delta2(self):
-
         original_idx = pd.MultiIndex.from_arrays(
             [np.ones(6), np.hstack([np.arange(4), np.arange(10, 14, 2)])]
         )
@@ -237,7 +300,6 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_array_equal(actual.delta_time.to_numpy(), np.array([1, 2]))
 
     def test_assign_ids_const_delta3(self):
-
         original_idx = pd.MultiIndex.from_arrays(
             [np.ones(5), np.array([1, 7, 8, 9, 10])]
         )
@@ -256,7 +318,6 @@ class TestTscAccessor(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_assign_ids_const_delta4(self):
-
         # there is no time series possible with constant time sampling
         original_idx1 = pd.MultiIndex.from_arrays(
             [np.zeros(5), np.array([1, 5, 7, 14, 19])]
@@ -283,7 +344,6 @@ class TestTscAccessor(unittest.TestCase):
         pdtest.assert_frame_equal(actual, expected)
 
     def test_assign_ids_const_delta6(self):
-
         df = pd.DataFrame(
             np.arange(18).reshape(9, 2),
             index=[1, 2, 3, 5, 7, 9, 10, 11, 12],
@@ -300,7 +360,6 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_array_equal(df.to_numpy(), actual.to_numpy())
 
     def test_assign_ids_const_delta7(self):
-
         tsc_df = TSCDataFrame(
             np.arange(6).reshape(3, 2),
             index=pd.MultiIndex.from_arrays([[0, 0, 1], [1, 2, 1]]),
@@ -334,10 +393,7 @@ class TestTscAccessor(unittest.TestCase):
         self.assertTrue(0.25 in dt1.to_numpy() and 0.25 in dt2.to_numpy())
         pdtest.assert_series_equal(dt1, dt2)
 
-    def test_shift_matrices(self):
-        # TODO: potentially do more tests (esp. with uneven number of time series,
-        #  this is a quite important functionality!)
-
+    def test_shift_matrices01(self):
         tc = TSCDataFrame(self.simple_df)
         actual_left, actual_right = tc.tsc.shift_matrices()
 
@@ -365,13 +421,15 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_equal(actual_left, expected_left.T)
         nptest.assert_equal(actual_right, expected_right.T)
 
-    def test_shift_matrices2(self):
+    def test_shift_matrices02(self):
+        # all time series are snapshot pairs (length 2)
+
         simple_df = self.simple_df.copy()
         simple_df = simple_df.drop(labels=[45])
 
-        tc = TSCDataFrame(simple_df)
+        tsc_df = TSCDataFrame(simple_df)
 
-        actual_left, actual_right = tc.tsc.shift_matrices()
+        actual_left, actual_right = tsc_df.tsc.shift_matrices()
 
         original_values = simple_df.to_numpy()
 
@@ -388,10 +446,71 @@ class TestTscAccessor(unittest.TestCase):
         nptest.assert_equal(actual_left, expected_left)
         nptest.assert_equal(actual_right, expected_right)
 
+    def test_shift_matrices03(self):
+        # single time series
+
+        data = np.arange(8).reshape([4, 2])
+        tsc_df = TSCDataFrame.from_array(data)
+
+        actual_left, actual_right = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="row"
+        )
+        actual_left_T, actual_right_T = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="col"
+        )
+
+        expected_left = data[:-1, :]
+        expected_left_T = data[:-1, :].T
+        expected_right = data[1:, :]
+        expected_right_T = data[1:, :].T
+
+        nptest.assert_equal(actual_left, expected_left)
+        nptest.assert_equal(actual_left_T, expected_left_T)
+
+        nptest.assert_equal(actual_right, expected_right)
+        nptest.assert_equal(actual_right_T, expected_right_T)
+
+    def test_shift_matrices04(self):
+        # test validation
+        data = np.arange(8).reshape([4, 2])
+        # uneven time delta
+        tsc_df_okay = TSCDataFrame.from_array(data)
+        tsc_df_uneven = TSCDataFrame.from_array(data, time_values=[0, 0.1, 0.3, 0.5])
+        tsc_df_single = TSCDataFrame.from_array(data[0, :])
+
+        with self.assertRaises(ValueError):
+            tsc_df_okay.tsc.shift_matrices(snapshot_orientation="invalid")
+
+        with self.assertRaises(TSCException):
+            tsc_df_uneven.tsc.shift_matrices()
+
+        with self.assertRaises(TSCException):
+            tsc_df_single.tsc.shift_matrices()
+
+    def test_shift_matrices05(self):
+        # test validation
+        data = pd.DataFrame(np.arange(6).reshape([3, 2]))
+        tsc_df = TSCDataFrame.from_frame_list([data, data])
+
+        actual_left, actual_right = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="row"
+        )
+        actual_left_T, actual_right_T = tsc_df.tsc.shift_matrices(
+            snapshot_orientation="col"
+        )
+
+        expected_left = tsc_df.iloc[[0, 1, 3, 4], :].to_numpy()
+        expected_right = tsc_df.iloc[[1, 2, 4, 5], :].to_numpy()
+
+        nptest.assert_equal(actual_left, expected_left)
+        nptest.assert_equal(actual_right, expected_right)
+        nptest.assert_equal(actual_left_T, expected_left.T)
+        nptest.assert_equal(actual_right_T, expected_right.T)
+
     def test_shift_time1(self):
         tsc_df = TSCDataFrame(self.simple_df).copy()
 
-        tsc_df.tsc.shift_time(5)
+        tsc_df.tsc.shift_time_by_delta(5)
         nptest.assert_array_equal(
             tsc_df.index.get_level_values(1),
             self.simple_df.index.get_level_values(1) + 5,
@@ -402,7 +521,18 @@ class TestTscAccessor(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             # time is not allowed to be negative
-            tsc_df.tsc.shift_time(-5)
+            tsc_df.tsc.shift_time_by_delta(-5)
+
+    def test_drop_last_n_samples(self):
+        tsc_df = TSCDataFrame(self.simple_df)
+
+        actual = tsc_df.tsc.drop_last_n_samples(1)
+        expected = tsc_df.iloc[[0, 2, 4, 6, 7], :]
+
+        pdtest.assert_frame_equal(actual, expected)
+
+        with self.assertRaises(TSCException):
+            tsc_df.tsc.drop_last_n_samples(999)
 
     def test_timederivative(self):
         data = pd.DataFrame(np.arange(20).reshape(10, 2), columns=["A", "B"])
@@ -487,11 +617,42 @@ class TestTscAccessor(unittest.TestCase):
 
         nptest.assert_equal(expected, actual)
 
+    def test_fill_timeseries_with_last_state01(self):
+        tscdf = TSCDataFrame(self.simple_df).loc[[0], :]
 
-if __name__ == "__main__":
-    # test = TestErrorTimeSeries()
-    # test.setUp()
-    # test.test_error_per_timestep3()
-    # exit()
+        n_timesteps = 5
+        actual = tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=n_timesteps)
 
-    unittest.main()
+        self.assertEqual(actual.delta_time, tscdf.delta_time)
+        self.assertEqual(actual.n_timesteps, n_timesteps)
+        self.assertTrue(
+            np.all(actual.iloc[1:, :].to_numpy() == tscdf.iloc[[-1], :].to_numpy())
+        )
+
+    def test_fill_timeseries_with_last_state02(self):
+        tscdf = TSCDataFrame(self.simple_df).loc[[0], :]
+
+        with self.assertRaises(TSCException):
+            tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=1)
+
+        with self.assertRaises(TSCException):
+            tscdf.tsc.fill_timeseries_with_last_state(n_timesteps=2)
+
+    def test_augment_control_input(self):
+        rng = np.random.default_rng(1)
+
+        tscdf = TSCDataFrame.from_array(
+            rng.uniform(size=(3, 2)), feature_names=["x1", "x2"]
+        )
+        control = TSCDataFrame.from_array(
+            rng.uniform(size=(2, 2)), feature_names=["u1", "u2"]
+        )
+
+        expect = np.ones([3, 4]) * np.nan
+        expect[:, :2] = tscdf.to_numpy()
+        expect[1:, 2:] = control.to_numpy()
+        expect = TSCDataFrame.from_array(expect, feature_names=["x1", "x2", "u1", "u2"])
+
+        actual = tscdf.tsc.augment_control_input(U=control)
+
+        pdtest.assert_frame_equal(expect, actual)

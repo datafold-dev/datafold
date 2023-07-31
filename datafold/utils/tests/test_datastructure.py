@@ -6,23 +6,34 @@ import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
 
-from datafold.utils.general import *
+from datafold.utils.general import (
+    if1dim_colvec,
+    if1dim_rowvec,
+    is_df_same_index,
+    is_float,
+    is_integer,
+    series_if_applicable,
+)
 
 
 class TestDataStructureUtils(unittest.TestCase):
+    rng = np.random.default_rng(5)
+
     def setUp(self) -> None:
         self._create_random_series()
         self._create_random_dataframe()
 
     def _create_random_series(self):
-        self.series1 = pd.Series(np.random.rand(10), index=np.arange(10))
+        self.series1 = pd.Series(self.rng.uniform(size=10), index=np.arange(10))
 
     def _create_random_dataframe(self):
         self.df1 = pd.DataFrame(
-            np.random.rand(10, 3), index=np.arange(10), columns=["A", "B", "C"]
+            self.rng.uniform(size=(10, 3)),
+            index=np.arange(10),
+            columns=["A", "B", "C"],
         )
         self.df2 = pd.DataFrame(
-            np.random.rand(10, 1), index=np.arange(10), columns=["A"]
+            self.rng.uniform(size=(10, 1)), index=np.arange(10), columns=["A"]
         )
 
     def test_series_if_applicable1(self):

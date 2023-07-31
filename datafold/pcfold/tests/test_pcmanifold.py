@@ -4,9 +4,8 @@ import pickle
 import unittest
 
 import numpy as np
-import sklearn.datasets
 
-from datafold.pcfold import *
+from datafold.pcfold import PCManifold
 
 
 class TestPCManifold(unittest.TestCase):
@@ -14,7 +13,6 @@ class TestPCManifold(unittest.TestCase):
         pass
 
     def test_pickleable(self):
-
         data = np.array([[1, 2, 3]])
         pcm = PCManifold(data)
 
@@ -26,7 +24,6 @@ class TestPCManifold(unittest.TestCase):
         self.assertTrue(hasattr(unpickled_estimator, "dist_kwargs"))
 
     def test_invalid_input(self):
-
         with self.assertRaises(ValueError):
             PCManifold(np.linspace(0, 10, 20))
 
@@ -53,5 +50,4 @@ class TestPCManifold(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     unittest.main()

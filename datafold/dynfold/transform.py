@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Optional, Union
+from typing import Literal, Union
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, clone
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, IncrementalPCA
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScaler
-from sklearn.utils.validation import check_is_fitted, check_scalar
+from sklearn.utils.validation import NotFittedError, check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
-from datafold.pcfold import MultiquadricKernel, PCManifold, TSCDataFrame
-from datafold.pcfold.kernels import PCManifoldKernel
+from datafold.pcfold import TSCDataFrame
 from datafold.pcfold.timeseries.collection import TSCException
 
 
@@ -25,10 +25,9 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
 
     Parameters
     ----------
-
     sklearn_transformer
-        See `here <https://scikit-learn.org/stable/modules/classes.html#module-sklearn.preprocessing>`_
-        for a list of possible preprocessing algorithms.
+        See `here <https://scikit-learn.org/stable/modules/classes.html#module-sklearn.
+        preprocessing>`__ for a list of possible preprocessing algorithms.
     """
 
     _cls_valid_scale_names = ("min-max", "standard")
@@ -65,6 +64,11 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
                 f"name='{name}' is not known. Choose from {cls._cls_valid_scale_names}"
             )
 
+    def get_feature_names_out(self, input_features=None):
+        return self.sklearn_transformer_fit_.get_feature_names_out(
+            input_features=input_features
+        )
+
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeaturePreprocess":
         """Calls fit of internal transform ``sklearn`` object.
 
@@ -84,21 +88,17 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCFeaturePreprocess
             self
         """
-
         if not hasattr(self.sklearn_transformer, "transform"):
             raise AttributeError("sklearn object has no 'transform' attribute")
-
-        X = self._validate_datafold_data(X)
-        self._setup_feature_attrs_fit(X, features_out="like_features_in")
-
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         self.sklearn_transformer_fit_ = clone(
             estimator=self.sklearn_transformer, safe=True
         )
+        self._validate_datafold_data(X)
 
-        X_intern = self._X_to_numpy(X)
-        self.sklearn_transformer_fit_.fit(X_intern)
+        self.sklearn_transformer_fit_.fit(X)
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -115,20 +115,20 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type and shape as `X`
         """
-
         check_is_fitted(self, "sklearn_transformer_fit_")
 
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        X_intern = self._X_to_numpy(X)
-        values = self.sklearn_transformer_fit_.transform(X_intern)
+        values = self.sklearn_transformer_fit_.transform(X)
         return self._same_type_X(
-            X=X, values=values, feature_names=self.feature_names_out_
+            X=X,
+            values=values,
+            feature_names=self.get_feature_names_out(),
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params):
-        """Calls fit_transform of internal transform ``sklearn`` object..
+        """Calls fit_transform of internal transform ``sklearn`` object.
 
         Parameters
         ----------
@@ -143,16 +143,17 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type and shape as `X`
         """
-
         X = self._validate_datafold_data(X)
-
-        self._setup_feature_attrs_fit(X, features_out="like_features_in")
 
         self.sklearn_transformer_fit_ = clone(self.sklearn_transformer)
         values = self.sklearn_transformer_fit_.fit_transform(X)
 
+        self._setup_feature_attrs_fit(X)
+
         return self._same_type_X(
-            X=X, values=values, feature_names=self.feature_names_out_
+            X=X,
+            values=values,
+            feature_names=self.get_feature_names_out(),
         )
 
     def inverse_transform(self, X: TransformType):
@@ -168,15 +169,71 @@ class TSCFeaturePreprocess(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type and shape as `X`
         """
-
         if not hasattr(self.sklearn_transformer, "inverse_transform"):
             raise AttributeError("sklearn object has no 'inverse_transform' attribute")
 
-        X_intern = self._X_to_numpy(X)
-        values = self.sklearn_transformer_fit_.inverse_transform(X_intern)
+        values = self.sklearn_transformer_fit_.inverse_transform(X)
         return self._same_type_X(
             X=X, values=values, feature_names=self.feature_names_in_
         )
+
+
+class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
+    """A simple class to select features by name or index.
+
+    Parameters
+    ----------
+    features
+
+
+    """
+
+    def __init__(self, features: np.ndarray):
+        self.features = features
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None and not hasattr(self, "feature_names_in_"):
+            return self.features
+        else:
+            return self.features
+
+    def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeatureSelect":
+        """Fit the model.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data of shape `(n_samples, n_features)`.
+
+        y: None
+            ignored
+
+        **fit_params: Dict[str, object]
+            `None`
+        """
+        if (
+            not isinstance(self.features, np.ndarray)
+            or self.features.ndim != 1
+            or self.features.dtype.type is not np.str_
+        ):
+            raise ValueError(
+                "parameter 'features' must be a 1-dim. array with feature names"
+            )
+        self._validate_datafold_data(X, ensure_tsc=True)
+        self._setup_feature_attrs_fit(X, n_features_out=self.features.shape[0])
+
+        try:
+            X.loc[:, self.features]
+        except KeyError:
+            raise ValueError("all features must be contained in X")
+
+        return self
+
+    def transform(self, X):
+        X = self._validate_datafold_data(X, ensure_tsc=True)
+        self._validate_feature_input(X, direction="transform")
+
+        return X.loc[:, self.features]
 
 
 class TSCIdentity(BaseEstimator, TSCTransformerMixin):
@@ -200,6 +257,29 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         self.include_const = include_const
         self.rename_features = rename_features
 
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None and hasattr(self, "feature_names_in_"):
+            features_out = self.feature_names_in_
+        else:
+            features_out = input_features
+
+        if features_out is not None:
+            if self.rename_features:
+                features_out = np.array(
+                    [f"{col}_id" for col in features_out], dtype=object
+                )
+
+            if self.include_const:
+                features_out = np.append(features_out, ["const"])
+
+        return features_out
+
+    def _more_tags(self):
+        if not self.rename_features:
+            return dict(tsc_contains_orig_states=True)
+        else:
+            return dict(tsc_contains_orig_states=False)
+
     def fit(self, X: TransformType, y=None, **fit_params):
         """Passthrough data and set internals for validation.
 
@@ -222,23 +302,20 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        if self._has_feature_names(X):
-            if self.rename_features:
-                features_out = np.asarray([f"{col}_id" for col in X.columns])
-            else:
-                features_out = X.columns
-
-            if self.include_const:
-                features_out = np.append(features_out, ["const"])
-        else:
-            features_out = "like_features_in"
-
-        self._setup_feature_attrs_fit(X, features_out=features_out)
+        self._setup_feature_attrs_fit(
+            X, n_features_out=X.shape[1] + int(self.include_const)
+        )
 
         # Dummy attribute to indicate that fit was called
         self.is_fit_ = True
 
         return self
+
+    def partial_fit(self, X, y=None, **fit_transform):
+        if not hasattr(self, "feature_names_in_"):
+            return self.fit(X, y, **fit_transform)
+        else:
+            return self
 
     def transform(self, X: TransformType) -> TransformType:
         """Passthrough data and validate feature.
@@ -299,6 +376,35 @@ class TSCIdentity(BaseEstimator, TSCTransformerMixin):
         return X
 
 
+class TSCIncrementalPCA(IncrementalPCA, TSCTransformerMixin):  # pragma: no cover
+    # TODO: docu, tests
+
+    def __init__(self, n_components, *, whiten=False, copy=False, batch_size=None):
+        super().__init__(
+            n_components=n_components, whiten=whiten, copy=copy, batch_size=batch_size
+        )
+
+    def get_feature_names_out(self, input_features=None):
+        return np.array([f"pca{i}" for i in range(self.n_components_)], dtype=object)
+
+    def partial_fit(self, X, y=None, check_input=True):
+        super().partial_fit(X, y=y)
+
+        if self.n_samples_seen_ == X.shape[0]:
+            self._setup_feature_attrs_fit(X)
+        return self
+
+    def transform(self, X):
+        check_is_fitted(self)
+        X = self._validate_datafold_data(X)
+
+        self._validate_feature_input(X, direction="transform")
+        pca_data = super(IncrementalPCA, self).transform(X)
+        return self._same_type_X(
+            X, values=pca_data, feature_names=self.get_feature_names_out()
+        )
+
+
 class TSCPrincipalComponent(PCA, TSCTransformerMixin):
     """Compute principal components from data.
 
@@ -306,9 +412,13 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
     input and output of :class:`pandas.DataFrames` and :class:`.TSCDataFrame`. All input
     parameters remain the same. For documentation please visit:
 
-    * `PCA docu <https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html>`_
-    * `PCA user guide <https://scikit-learn.org/stable/modules/decomposition.html#pca>`_
+    * `PCA docu <https://scikit-learn.org/stable/modules/generated/sklearn.
+      decomposition.PCA.html>`__
+    * `PCA user guide <https://scikit-learn.org/stable/modules/decomposition.html#pca>`__
     """
+
+    def get_feature_names_out(self, input_features=None):
+        return np.array([f"pca{i}" for i in range(self.n_components_)], dtype=object)
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "PCA":
         """Compute the principal components from training data.
@@ -329,17 +439,12 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCPrincipalComponent
             self
         """
-
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        # validation happens here:
-        super(TSCPrincipalComponent, self).fit(self._X_to_numpy(X), y=y)
-
-        self._setup_feature_attrs_fit(
-            X, features_out=[f"pca{i}" for i in range(self.n_components_)]
-        )
-
+        # validation happens in super.fit()
+        super().fit(X, y=y)
+        self._setup_feature_attrs_fit(X)
         return self
 
     def transform(self, X: TransformType):
@@ -356,14 +461,14 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_components_)`
         """
-
         check_is_fitted(self)
         X = self._validate_datafold_data(X)
 
         self._validate_feature_input(X, direction="transform")
-        pca_data = super(TSCPrincipalComponent, self).transform(self._X_to_numpy(X))
+        pca_data = super().transform(X)
+
         return self._same_type_X(
-            X, values=pca_data, feature_names=self.feature_names_out_
+            X, values=pca_data, feature_names=self.get_feature_names_out()
         )
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
@@ -382,19 +487,12 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_components_)`
         """
-
         X = self._validate_datafold_data(X)
-
-        pca_values = super(TSCPrincipalComponent, self).fit_transform(
-            self._X_to_numpy(X), y=y
-        )
-
-        self._setup_feature_attrs_fit(
-            X, features_out=[f"pca{i}" for i in range(self.n_components_)]
-        )
+        pca_values = super().fit_transform(X, y=y)
+        self._setup_feature_attrs_fit(X)
 
         return self._same_type_X(
-            X, values=pca_values, feature_names=self.feature_names_out_
+            X, values=pca_values, feature_names=self.get_feature_names_out()
         )
 
     def inverse_transform(self, X: TransformType):
@@ -411,11 +509,9 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_features)`
         """
-
         self._validate_feature_input(X, direction="inverse_transform")
 
-        X_intern = self._X_to_numpy(X)
-        data_orig_space = super(TSCPrincipalComponent, self).inverse_transform(X_intern)
+        data_orig_space = super().inverse_transform(X)
 
         return self._same_type_X(
             X, values=data_orig_space, feature_names=self.feature_names_in_
@@ -427,7 +523,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     Parameters
     ----------
-
     delays
         Number for time delays to embed.
 
@@ -441,11 +536,10 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     kappa
         Weight of exponential factor in delayed coordinates
         :math:`e^{-d \cdot \kappa}(x_{-d})` with :math:`d = 0, \ldots delays` being the
-        delay index. Adapted from :cite:`berry_time-scale_2013`, Eq. 2.1).
+        delay index. Adapted from :cite:t:`berry-2013`, Eq. 2.1).
 
     Attributes
     ----------
-
     delay_indices_ : numpy.ndarray
         Delay indices (backwards in time) assuming a fixed time delta in the time series.
 
@@ -460,11 +554,10 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
     References
     ----------
-
-    * Original paper from Takens :cite:`takens_detecting_1981`
-    * Generalized to multiple observation :cite:`deyle_generalized_2011`
-    * time delay embedding in the context of Koopman operator, e.g.
-      :cite:`arbabi_ergodic_2017` or :cite:`champion_discovery_2019` or
+    * Original paper from :cite:t:`takens-1981`
+    * Generalized to multiple observation in :cite:`deyle-2011`
+    * time delay embedding in the context of Koopman operator theory, e.g.
+      :cite:t:`arbabi-2017` or :cite:t:`champion-2019`.
     """
 
     def __init__(
@@ -475,11 +568,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         self.frequency = frequency
         self.kappa = kappa
 
-    def _validate_parameter(self):
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=True)
 
-        check_scalar(
-            self.lag, name="lag", target_type=(int, np.integer), min_val=0, max_val=None
-        )
+    def _validate_parameter(self):
+        check_scalar(self.lag, name="lag", target_type=(int, np.integer), min_val=0)
 
         # TODO also allow 0 delays? This would only "passthrough",
         #  but makes it is easier in pipelines etc.
@@ -488,7 +581,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="delays",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -496,7 +588,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="delays",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -504,7 +595,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             name="kappa",
             target_type=(int, np.integer, float, np.floating),
             min_val=0.0,
-            max_val=None,
         )
 
         if self.frequency > 1 and self.delays <= 1:
@@ -529,18 +619,23 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         X.columns = X.columns.astype(np.str_)
         return X
 
-    def _expand_all_delay_columns(self, cols):
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            input_features = self.feature_names_in_
+
         def expand():
             delayed_columns = list()
             for delay_idx in self.delay_indices_:
                 # rename columns: [column_name]:d[delay_index]
-                _cur_delay_columns = [f"{col}:d{delay_idx}" for col in cols.astype(str)]
+                _cur_delay_columns = [
+                    f"{col}:d{delay_idx}" for col in input_features.astype(str)
+                ]
                 delayed_columns.append(_cur_delay_columns)
             return delayed_columns
 
         # the name of the original indices is not changed, therefore append the delay
         # indices to
-        columns_names = cols.tolist() + list(itertools.chain(*expand()))
+        columns_names = input_features.tolist() + list(itertools.chain(*expand()))
 
         return pd.Index(
             columns_names,
@@ -593,9 +688,37 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         # save delta time during fit to check that time series collections in
         # transform have the same delta time
         self.delta_time_fit_ = X.delta_time
+        self._setup_feature_attrs_fit(X)
 
-        features_out = self._expand_all_delay_columns(X.columns)
-        self._setup_feature_attrs_fit(X, features_out=features_out)
+        return self
+
+    def partial_fit(
+        self, X: TransformType, y=None, **fit_params
+    ) -> "TSCTakensEmbedding":
+        """# TODO.
+
+        Parameters
+        ----------
+        X
+        y
+        fit_params
+
+        Returns
+        -------
+
+        """
+        try:
+            check_is_fitted(self)
+            # there is no real model update needed, just check if the data still complies with
+            # the data used during the initial fit
+            self._validate_datafold_data(
+                X,
+                ensure_tsc=True,
+                tsc_kwargs=dict(ensure_delta_time=self.delta_time_fit_),
+            )
+        except NotFittedError:
+            # fit the model
+            self.fit(X, y, **fit_params)
 
         return self
 
@@ -622,7 +745,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             (2) all time series must have the minimum number of time samples to obtain
             one sample in the time delay embedding.
         """
-
         X = self._validate_datafold_data(
             X,
             tsc_kwargs={
@@ -636,9 +758,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         X = self._columns_to_type_str(X)
         self._validate_feature_input(X, direction="transform")
 
-        #################################
-        ### Implementation using pandas by using shift()
-        ### This implementation is better readable, and is for many cases similarly
+        # Implementation using pandas by using shift()
+        # This implementation is better readable, and is for many cases similarly
         # fast to the numpy version (below), but has a performance drop for
         # high-dimensions (dim>500)
         # id_groupby = X.groupby(TSCDataFrame.IDX_ID_NAME)
@@ -656,8 +777,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         #     bool_idx = np.logical_not(np.sum(pd.isnull(X), axis=1).astype(np.bool))
         #     X = X.loc[bool_idx]
 
-        # Implementation using numpy functions.
-
+        # Implementation using numpy functions:
         # pre-allocate list
         delayed_timeseries = [pd.DataFrame([])] * len(X.ids)
 
@@ -674,7 +794,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             kappa_vec = None
 
         for idx, (_, df) in enumerate(X.groupby(TSCDataFrame.tsc_id_idx_name)):
-
             # use time series numpy block
             time_series_numpy = df.to_numpy()
 
@@ -699,9 +818,8 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             df = pd.DataFrame(
                 np.hstack([original_data, delayed_data]),
                 index=df.index[max_delay:],
-                columns=self.feature_names_out_,
+                columns=self.get_feature_names_out(self.feature_names_in_),
             )
-
             delayed_timeseries[idx] = df
 
         X = TSCDataFrame(pd.concat(delayed_timeseries, axis=0))
@@ -729,12 +847,206 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         return X.loc[:, self.feature_names_in_]
 
 
+class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
+    """
+    This is a simple wrapper for sampled neural networks.
+
+    Parameters
+    ----------
+    nn
+        A sklearn pipeline that represents the neural network (containing ``Dense``, ``Linear``
+        layers, etc. from the ``swimnetwork`` Python package). Note the pipleline
+        should not be fitted yet.
+
+
+    References
+    ----------
+    See :cite:t:`bolager-2023` for the paper on sampled networks and the
+    gitlab repository `swimnetworks <https://gitlab.com/felix.dietrich/swimnetworks>`__
+
+    To install the package run
+
+    .. code-block::
+
+        pip install git+https://github.com/https://gitlab.com/felix.dietrich/swimnetworks
+
+    """
+
+    def __init__(
+        self,
+        nn: Pipeline,
+    ):
+        self.nn = nn
+
+    def __repr__(self):
+        # TODO: somehow the repr of the original implementation is quite costly
+        #    (investigate why and propose a fix)
+        return "SWIM NETWORK"
+
+    def get_feature_names_out(self, input_features=None):
+        n_features_out = self.nn[-1].weights.shape[1]
+        return [f"w{i}" for i in range(n_features_out)]
+
+    def fit(self, X: TSCDataFrame) -> "TSCSampledNetwork":
+        self._validate_datafold_data(X=X)
+
+        if self.nn[-1].weights is None:
+            Xm, Xp = X.tsc.shift_matrices(snapshot_orientation="row")
+            self.nn = self.nn.fit(Xm, Xp)
+        else:
+            pass
+
+        # must be setup only *after* the network is fitted
+        self._setup_feature_attrs_fit(X)
+        return self
+
+    def transform(self, X: TSCDataFrame):
+        self._validate_feature_input(X=X, direction="transform")
+
+        X_return = self.nn.transform(X.to_numpy())
+        X_return = TSCDataFrame.from_same_indices_as(
+            X, X_return, except_columns=self.get_feature_names_out()
+        )
+
+        return X_return
+
+
+class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
+    def __init__(self, n_features=100, sigma=1):
+        self.n_features = n_features
+        self.sigma = sigma
+
+    def get_feature_names_out(self, input_features=None):
+        sin = [f"sin{i}" for i in range(self.n_features)]
+        cos = [f"cos{i}" for i in range(self.n_features)]
+        return pd.Index(sin + cos)
+
+    def fit(self, X, y=None, **fit_params):
+        self._setup_feature_attrs_fit(X, n_features_out=2 * self.n_features)
+
+        # sample features components
+        self.fourier_components_ = np.zeros([X.shape[1], self.n_features])
+
+        mean = np.zeros(X.shape[1])
+        cov = np.identity(X.shape[1]) / self.sigma**2
+
+        rng = np.random.default_rng(1)
+
+        for d in range(self.n_features):
+            self.fourier_components_[:, d] = rng.multivariate_normal(mean, cov)
+
+        return self
+
+    def partial_fit(self, X, y, **fit_params):
+        if not hasattr(self, "fourier_components_"):
+            return self.fit(X, y, **fit_params)
+        else:
+            return self
+
+    def transform(self, X):
+        mc_samples = np.dot(X.to_numpy(), self.fourier_components_)
+        all_samples = np.zeros([X.shape[0], 2 * self.n_features])
+        all_samples[:, : self.n_features] = np.sin(mc_samples)
+        all_samples[:, self.n_features :] = np.cos(mc_samples)
+
+        return TSCDataFrame.from_same_indices_as(
+            indices_from=X,
+            values=all_samples,
+            except_columns=self.get_feature_names_out(),
+        )
+
+
+class TSCMovingAverage(BaseEstimator, TSCTransformerMixin):
+    """Compute the moving average for each feature of a time series.
+
+    window
+        The window size on which the moving average is computed.
+
+    # TODO: this is not official
+    # TODO: could wrap functionality of https://github.com/cerlymarco/tsmoothie
+    #   here to smooth time series
+    """
+
+    def __init__(self, window: int = 3):
+        self.window = window
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            try:
+                input_features = self.feature_names_in_
+            except AttributeError:
+                raise NotFittedError
+
+        return [f"{n}_ma{self.window}" for n in input_features]
+
+    def fit(self, X: TSCDataFrame, **fit_params):
+        """Fit the model.
+
+        Parameters
+        ----------
+        X
+            Time series collection data
+
+        **fit_params
+            None
+
+        Returns
+        -------
+        self
+        """
+        check_scalar(self.window, "window", target_type=int, min_val=1)
+
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+        self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            ensure_min_samples=self.window,
+            tsc_kwargs=dict(ensure_const_delta_time=True),
+        )
+        self._setup_feature_attrs_fit(X, n_features_out=len(X.columns))
+
+        return self
+
+    def transform(self, X: TSCDataFrame):
+        """Transform time series data.
+
+        Parameters
+        ----------
+        X
+            Time series collection data.
+
+        Returns
+        -------
+        TSCDataFrame
+            The number of samples in each time series reduce according to the ``window``
+            parameter.
+        """
+        self._validate_datafold_data(
+            X,
+            ensure_tsc=True,
+            ensure_min_samples=self.window,
+            tsc_kwargs=dict(ensure_const_delta_time=True),
+        )
+        self._validate_feature_input(X, direction="transform")
+
+        X_new = (
+            pd.DataFrame(X)
+            .groupby(TSCDataFrame.tsc_id_idx_name)
+            .rolling(window=self.window)
+            .mean()
+            .dropna()
+        )
+        X_new = TSCDataFrame(X_new.droplevel(0))
+        X_new.columns = pd.Index(self.get_feature_names_out())
+
+        return X_new
+
+
 class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
     """Represent data in coefficients of radial basis functions.
 
     Parameters
     ----------
-
     kernel
         Radial basis kernel to compute the coefficients with. Defaults to
         :code:`MultiquadricKernel(epsilon=1.0)`.
@@ -743,10 +1055,15 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         Selection of what to take as centers during fit.
 
         * `all_data` - all data points during fit are used as centers
+        * `random` - subsample `n_samples` samples from the dataset and use as
+           centers.
         * `fit_params` - set the center points with keyword arguments during fit
         * `initial_condition` - take the initial condition states as centers.
            Note for this option the data `X` during fit must be of
            type :class:`.TSCDataFrame`.
+
+    n_samples
+        Number of sub-samples to use. Parameter is only considered if `center_type=random`.
 
     exact_distance
         An inexact distance computation increases computational performance at the cost of
@@ -755,7 +1072,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     centers_: numpy.ndarray
         The center points of the radial basis functions.
 
@@ -764,17 +1080,22 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         delayed until `inverse_transform` is called for the first time.
     """
 
-    _cls_valid_center_types = ["all_data", "fit_params", "initial_condition"]
+    _cls_valid_center_types = ["all_data", "random", "fit_params", "initial_condition"]
+    _required_parameters = ["kernel"]
 
     def __init__(
         self,
-        kernel: Optional[PCManifoldKernel] = None,
+        kernel,
         *,  # keyword-only
-        center_type: str = "all_data",
+        center_type: Literal[
+            "all_data", "random", "fit_params", "inital_condition"
+        ] = "all_data",
+        n_samples: int = 100,
         exact_distance=True,
     ):
         self.kernel = kernel
         self.center_type = center_type
+        self.n_samples = n_samples
         self.exact_distance = exact_distance
 
     def _validate_center_type(self, center_type):
@@ -784,8 +1105,8 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 f"{self._cls_valid_center_types} "
             )
 
-    def _get_default_kernel(self):
-        return MultiquadricKernel(epsilon=1.0)
+    def get_feature_names_out(self, feature_names_in=None):
+        return np.array([f"rbf{i}" for i in range(self.centers_.shape[0])])
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCRadialBasis":
         """Set the point centers of the radial basis functions.
@@ -809,7 +1130,6 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         TSCRadialBasis
             self
         """
-
         X = self._validate_datafold_data(X)
         self._validate_center_type(center_type=self.center_type)
         _centers = self._read_fit_params(
@@ -818,11 +1138,26 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if self.center_type == "all_data":
             if _centers is not None:
-                raise ValueError("center points were passed but center_type='all_data'")
+                raise ValueError(
+                    "center points were passed but center_type='all_data'"
+                    "was set during model init"
+                )
 
             self.centers_ = self._X_to_numpy(X)
-        elif self.center_type == "fit_params":
+        elif self.center_type == "random":
+            if self.n_samples > X.shape[0]:
+                raise ValueError(
+                    f"{self.n_samples=} is greater than the number of samples in the "
+                    f"dataset ({X.shape[0]=})"
+                )
 
+            rng = np.random.default_rng(1)  # TODO: possibly make a parameter
+            idx_samples = rng.choice(
+                range(0, X.shape[0]), size=self.n_samples, replace=False
+            )
+            self.centers_ = self._X_to_numpy(X)[idx_samples, :]
+
+        elif self.center_type == "fit_params":
             if _centers is None:
                 raise ValueError("The center points were not provided in 'fit_params'.")
 
@@ -835,8 +1170,8 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
             if self.centers_.ndim != 2 or self.centers_.shape[1] != X.shape[1]:
                 raise ValueError(
-                    "The center points must be a matrix with same point "
-                    "dimension than 'X'."
+                    f"The center points (={self.centers_.shape[1]}) must be a two dimensional "
+                    f"array with the same point dimension in 'X' (={X.shape[1]})."
                 )
         elif self.center_type == "initial_condition":
             if not isinstance(X, TSCDataFrame):
@@ -847,18 +1182,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
                 "center_type was not checked correctly. Please report bug."
             )
 
-        set_kernel = (
-            self.kernel if self.kernel is not None else self._get_default_kernel()
-        )
-
-        self.centers_ = PCManifold(
-            self.centers_,
-            kernel=set_kernel,
-            dist_kwargs=dict(backend="brute", exact_numeric=self.exact_distance),
-        )
-
-        n_centers = self.centers_.shape[0]
-        self._setup_feature_attrs_fit(X, [f"rbf{i}" for i in range(n_centers)])
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -880,10 +1204,10 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
         self._validate_feature_input(X, direction="transform")
 
         X_intern = self._X_to_numpy(X)
-        rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
+        rbf_coeff = self.kernel(self.centers_, X_intern)
 
         return self._same_type_X(
-            X, values=rbf_coeff, feature_names=self.feature_names_out_
+            X, values=rbf_coeff, feature_names=self.get_feature_names_out()
         )
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -909,13 +1233,13 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if self.center_type == "all_data":
             # compute pdist distance matrix, which is often more efficient
-            rbf_coeff = self.centers_.compute_kernel_matrix()
+            rbf_coeff = self.kernel(X)
         else:  # self.center_type in ["initial_condition", "fit_params"]:
-            rbf_coeff = self.centers_.compute_kernel_matrix(Y=X_intern)
+            rbf_coeff = self.kernel(self.centers_, X_intern)
 
         # import matplotlib.pyplot as plt; plt.matshow(rbf_coeff)
         return self._same_type_X(
-            X=X, values=rbf_coeff, feature_names=self.feature_names_out_
+            X=X, values=rbf_coeff, feature_names=self.get_feature_names_out()
         )
 
     def inverse_transform(self, X: TransformType):
@@ -941,7 +1265,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
         if not hasattr(self, "inv_coeff_matrix_"):
             # save inv_coeff_matrix_
-            center_kernel = self.centers_.compute_kernel_matrix()
+            center_kernel = self.kernel(self.centers_)
             self.inv_coeff_matrix_ = np.linalg.lstsq(
                 center_kernel, self.centers_, rcond=None
             )[0]
@@ -961,7 +1285,8 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
     This class adds the parameter `include_first_order` to choose whether to include the
     identity states. For all other parameters please visit the super class
     documentation of
-    `PolynomialFeatures <https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html>`_.
+    `PolynomialFeatures <https://scikit-learn.org/stable/modules/generated/sklearn.
+    preprocessing.PolynomialFeatures.html>`__.
     """
 
     def __init__(
@@ -974,7 +1299,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
     ):
         self.include_first_order = include_first_order
 
-        super(TSCPolynomialFeatures, self).__init__(
+        super().__init__(
             degree=degree,
             interaction_only=interaction_only,
             include_bias=include_bias,
@@ -983,16 +1308,19 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
 
     @property
     def powers_(self):
-        powers = super(TSCPolynomialFeatures, self).powers_
+        powers = super().powers_
         if self.include_first_order:
             return powers
         else:
             return powers[powers.sum(axis=1) != 1, :]
 
+    def _more_tags(self):
+        return dict(tsc_contains_orig_states=self.include_first_order)
+
     def _get_poly_feature_names(self, X, input_features=None):
         # Note: get_feature_names function is already provided by super class
         if self._has_feature_names(X):
-            feature_names = self.get_feature_names(
+            feature_names = self.get_feature_names_out(
                 input_features=X.columns.astype(np.str_)
             )
         else:
@@ -1000,7 +1328,7 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         return feature_names
 
     def _non_id_state_mask(self):
-        powers = super(TSCPolynomialFeatures, self).powers_
+        powers = super().powers_
         return powers.sum(axis=1) != 1
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCPolynomialFeatures":
@@ -1025,14 +1353,17 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        super(TSCPolynomialFeatures, self).fit(X, y=y)
-
-        self._setup_feature_attrs_fit(
-            X,
-            features_out=self._get_poly_feature_names(X),
-        )
+        super().fit(X, y=y)
+        self._setup_feature_attrs_fit(X)
 
         return self
+
+    def partial_fit(self, X: TransformType, y=None, **fit_params):
+        if not hasattr(self, "feature_names_in_"):
+            # is fit already
+            return self.fit(X, y=None, **fit_params)
+        else:
+            return self
 
     def transform(self, X: TransformType) -> TransformType:
         """Transform data to polynomial features.
@@ -1052,13 +1383,17 @@ class TSCPolynomialFeatures(PolynomialFeatures, TSCTransformerMixin):
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        poly_data = super(TSCPolynomialFeatures, self).transform(X)
+        poly_data = super().transform(X)
 
         if not self.include_first_order:
             poly_data = poly_data[:, self._non_id_state_mask()]
 
         poly_data = self._same_type_X(
-            X, values=poly_data, feature_names=self._get_poly_feature_names(X)
+            X,
+            values=poly_data,
+            feature_names=self.get_feature_names_out(
+                input_features=self.feature_names_in_
+            ),
         )
 
         return poly_data
@@ -1093,9 +1428,21 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
     def _not_implemented_numpy_arrays(self, X):
         if isinstance(X, np.ndarray):
             raise NotImplementedError(
-                "Currently not implemented for numpy.ndarray. If this is required please "
+                "Currently not implemented for np.ndarray. If this is required please "
                 "open an issue on Gitlab."
             )
+
+    def get_feature_names_out(self, feature_names_in=None):
+        if feature_names_in is None:
+            feature_names_in = self.feature_names_in_
+
+        return np.array(
+            [
+                f"{feature_name}_lambda{i}"
+                for feature_name in feature_names_in
+                for i in range(len(self.lambdas))
+            ]
+        )
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCApplyLambdas":
         """Set internal feature information.
@@ -1120,13 +1467,7 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X, ensure_tsc=True)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        features_out = [
-            f"{feature_name}_lambda{i}"
-            for feature_name in X.columns
-            for i in range(len(self.lambdas))
-        ]
-
-        self._setup_feature_attrs_fit(X, features_out=features_out)
+        self._setup_feature_attrs_fit(X)
         return self
 
     def transform(self, X: TransformType) -> TransformType:
@@ -1152,7 +1493,6 @@ class TSCApplyLambdas(BaseEstimator, TSCTransformerMixin):
         lambdas_applied = list()
 
         for i, _lambda in enumerate(self.lambdas):
-
             lambda_result = X.apply(func=_lambda, axis=0, raw=True)
             lambda_result.columns = pd.Index(
                 [f"{feature_name}_lambda{i}" for feature_name in X.columns]
@@ -1179,10 +1519,12 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
 
     Parameters
     ----------
-
     spacing: Union[str, float]
         The time difference between samples. If "dt" (str) then the time sampling
         frequency of a :meth:`.TSCDataFrame.delta_time` is used during fit.
+
+    scheme
+        The finite difference scheme to apply, "center", "backward" or "forward".
 
     diff_order
         The derivative order.
@@ -1192,7 +1534,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     spacing_
         The resolved time difference between samples. Equals the parameter
         input if it was of type :class`float`.
@@ -1205,14 +1546,20 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
     def __init__(
         self,
         *,  # keyword-only
-        spacing: Union[str, float] = "dt",
+        spacing: Union[Literal["dt"], float] = "dt",
+        scheme: Literal["backward", "center", "forward"] = "center",
         diff_order: int = 1,
         accuracy: int = 2,
     ):
-
         self.spacing = spacing
+        self.scheme = scheme
         self.diff_order = diff_order
         self.accuracy = accuracy
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            input_features = self.feature_names_in_
+        return [f"{col}_dot" for col in input_features]
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFiniteDifference":
         """Set and validate time spacing between samples.
@@ -1242,7 +1589,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         """
         X = self._validate_datafold_data(
             X,
-            ensure_tsc=False,
+            ensure_tsc=True,
             tsc_kwargs=dict(
                 ensure_delta_time=self.spacing
                 if isinstance(self.spacing, float)
@@ -1252,12 +1599,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
 
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        if self._has_feature_names(X):
-            features_out = [f"{col}_dot" for col in X.columns]
-        else:
-            features_out = X.shape[1]
-
-        self._setup_feature_attrs_fit(X=X, features_out=features_out)
+        self._setup_feature_attrs_fit(X=X)
 
         if self.spacing == "dt":
             if not isinstance(X, TSCDataFrame):
@@ -1270,23 +1612,20 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             if isinstance(self.spacing_, pd.Series) or np.isnan(self.spacing_):
                 raise TSCException.not_const_delta_time(actual_delta_time=self.spacing_)
         else:
+            check_scalar(
+                x=self.spacing,
+                target_type=(float, int),
+                min_val=0,
+                include_boundaries="right",
+            )
             self.spacing_ = self.spacing
-
-            if (
-                isinstance(X, TSCDataFrame)
-                and np.asarray(self.spacing_ != X.delta_time).all()
-            ):
-                raise ValueError(
-                    f"A spacing of {self.spacing} was specified, but the time series "
-                    f"collection has a time delta of {X.delta_time}"
-                )
 
         check_scalar(
             self.spacing_,
             "spacing",
             target_type=(int, np.integer, float, np.floating),
-            min_val=np.finfo(float).eps,
-            max_val=None,
+            min_val=0,
+            include_boundaries="neither",
         )
         self.spacing_ = float(self.spacing_)
 
@@ -1295,7 +1634,6 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             "diff_order",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         check_scalar(
@@ -1303,10 +1641,15 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
             name="accuracy",
             target_type=(int, np.integer),
             min_val=1,
-            max_val=None,
         )
 
         return self
+
+    def partial_fit(self, X: TransformType, y=None, **fit_params) -> TransformType:
+        if not hasattr(self, "feature_names_in_"):
+            return self.fit(X, y, **fit_params)
+        else:
+            return self
 
     def transform(self, X: TransformType) -> TransformType:
         """Compute the finite difference values.
@@ -1336,7 +1679,7 @@ class TSCFiniteDifference(BaseEstimator, TSCTransformerMixin):
         self._validate_feature_input(X=X, direction="transform")
 
         time_derivative = X.tsc.time_derivative(
-            scheme="center",
+            scheme=self.scheme,
             diff_order=self.diff_order,
             accuracy=self.accuracy,
             shift_index=True,

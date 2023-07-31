@@ -33,6 +33,7 @@ from datafold.pcfold.kernels import (
     DmapKernelFixed,
     GaussianKernel,
     InverseMultiquadricKernel,
+    InverseQuadraticKernel,
     MultiquadricKernel,
     PCManifoldKernel,
     QuinticKernel,

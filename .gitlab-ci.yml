@@ -1,19 +1,36 @@
+# It is assumed that the CI pipeline is executed in a docker.
+# Importantly, not the single jobs are executed in a container but the whole gitlab-runner
+# instance. See e.g. https://docs.gitlab.com/runner/install/docker.html
+
+# Use the Makefile in the root folder of datafold to set up a gitlab CI runner docker.
+# The only runner can run anywhere (only tested for Linux) with internet access (on a
+# dedicated server, but also locally along the dev environment). Consider the following
+# make targets
+# * `make build_ci_image` -- to create the docker image (deriving from the gitlab-runner:latest docker image)
+# * `make run_ci_container` -- start the container
+# * `make register_gitlab_runner` -- register the gitlab-runner
+# TODO: make PYTHON an environment variable
+
 stages:
-  - remote_setup
+  - setup
   - test
   - code_analysis
   - deploy
 
+
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   PRE_COMMIT_DIR: "${CI_PROJECT_DIR}/.cache/pre-commit"
-  VENV_DIR: "${CI_PROJECT_DIR}/venv"
+  VENV_DIR: "${CI_PROJECT_DIR}/.venv"
+  PYTHON: "python"
+
 
 cache:
   paths:
     - ${PIP_CACHE_DIR}
     - ${PRE_COMMIT_DIR}
     - ${VENV_DIR}
+
 
 # https://gitlab.com/gitlab-org/gitlab/-/issues/33694#note_335120563
 workflow:
@@ -25,29 +42,17 @@ workflow:
 
 # See keyword reference for the .gitlab-ci.yml file
 # https://docs.gitlab.com/ee/ci/yaml/
-
-
-setup:
-  stage: remote_setup
+setup_dependencies:
+  stage: setup
   script:
-    - virtualenv venv -p ~/Python-3.7.9/python
-    - source venv/bin/activate
-    - python -V
-    - python -m pip install --upgrade pip
-    - python -m pip install --upgrade setuptools
-    - python -m pip install --upgrade twine
-    - python -m pip install -r requirements-dev.txt
-
+    - make install_devdeps
+    - make versions
 
 unittests:
   stage: test
-  before_script:
-    - source venv/bin/activate
-    - python -V
   script:
-    - python -m coverage run -m pytest datafold/
-    - python -m coverage html -d ./coverage/
-    - python -m coverage report
+    - make clean_test
+    - make unittest
   allow_failure: false
   artifacts:
     paths:
@@ -56,58 +61,59 @@ unittests:
     when: on_success
   interruptible: true
 
+
 functional_tests:
-  before_script:
-    - source venv/bin/activate
-    - python -V
   script:
-    - export PYTHONPATH=`pwd`
-    - echo $PYTHONPATH
-    - python -m pytest tutorials/
+    - make tutorialtest
   allow_failure: false
   interruptible: true
 
 
 code_checks:
   stage: code_analysis
-  before_script:
-    - source venv/bin/activate
-    - python -V
   script:
-    - pre-commit run --all
+    - make precommit
   allow_failure: true
   interruptible: true
 
 
-docu_check:
+docu_checks:
   stage: code_analysis
-  before_script:
-    - source venv/bin/activate
-    - python -V
   script:
-    - sphinx-build -W -b html ./doc/source/ ./public/
+    - make clean_docs
+    - make docs OPEN_DOCS_BROWSER=false
   except:
     - master
   allow_failure: true
   interruptible: true
 
 
+docu_checks_urls:
+  stage: code_analysis
+  script:
+    - make docs_linkcheck
+  when: manual # not always ping all urls in the docs for each CI run
+  except:
+    - master
+  allow_failure: true
+  interruptible: true
+
+
+install_check:
+    stage: code_analysis
+    script:
+      - make test_install
+    except:
+      - master
+    allow_failure: false
+    interruptible: true
+
+
 pages:
   stage: deploy
-  before_script:
-    - source venv/bin/activate
-    - python -V
-    # remove all old files to have a clean build
-    - rm -f -r ./public/
-    - rm -f -r ./doc/build/
-    - rm -f ./doc/source/api/*.rst
-    - rm -f ./doc/source/_apidoc/*.rst
   script:
-    # flag to execute all tutorials
-    - export DATAFOLD_NBSPHINX_EXECUTE=always
-    # build docs
-    # - sphinx-apidoc -f -o ./doc/source/_apidoc/ ./datafold/
-    - sphinx-build -b html ./doc/source/ ./public/
+    - make clean_docs
+    - make docs OPEN_DOCS_BROWSER=false DATAFOLD_TUTORIALS_EXECUTE=true OUTPUT_DOCS=./public
   artifacts:
     paths:
     - public
@@ -116,36 +122,29 @@ pages:
     # always update pages if on master
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: always
-    # manual option if push to branches other than master
+    # manual option for dev branches
     - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
       when: manual
       allow_failure: true
 
 
-# For infos of testPyPI see here: https://packaging.python.org/guides/using-testpypi/
+# For infos on testPyPI see https://packaging.python.org/guides/using-testpypi/
 # Note that
-#  "The database for TestPyPI may be periodically pruned, so it is not unusual for user
-#   accounts to be deleted." -- it is best to use the same account and password as for
-#   the real PyPI, so that the TWINE variables (see below) can be re-used
-pypi_upload_test:  # uploads to test.pypi.org to see how everything renders
+# 1) It is required to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
+# 2) The database for TestPyPI may be periodically pruned, so it can happen that user
+#    accounts are deleted on testPyPI.
+# 3) It is best to use the same account and password in testPyPI as for the "true PyPI".
+#    This way the twine variables set up in point 1) can be re-used.
+pypi_upload_test:
   stage: deploy
-  before_script:
-    - source venv/bin/activate
   script:
-    - python setup.py sdist bdist_wheel
-    - python -m twine check dist/*
-    - python -m twine upload --verbose --repository testpypi dist/*
+    - make test_pypi
   when: manual
 
-# Requires to set the variables TWINE_USERNAME and TWINE_PASSWORD in gitlab CI/CD
 pypi_upload:
   stage: deploy
-  before_script:
-    - source venv/bin/activate
   script:
-    - python setup.py sdist bdist_wheel
-    - python -m twine check dist/*
-    - python -m twine upload --verbose dist/*
+    - make pypi
   only:
     - master
   when: manual

@@ -1,6 +1,7 @@
 import sys
 import warnings
-from typing import List, Optional, Tuple, Union
+from copy import deepcopy
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -13,20 +14,23 @@ from sklearn.utils import resample
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold.dynfold.base import TransformType, TSCTransformerMixin
-from datafold.pcfold import DmapKernelFixed, PCManifold, TSCDataFrame
-from datafold.pcfold.eigsolver import NumericalMathError, compute_kernel_eigenpairs
+from datafold.pcfold import DmapKernelFixed, TSCDataFrame
+from datafold.pcfold.eigsolver import (
+    NumericalMathError,
+    compute_kernel_eigenpairs,
+    compute_kernel_svd,
+)
 from datafold.pcfold.kernels import (
-    BaseManifoldKernel,
     DmapKernelVariable,
     GaussianKernel,
     KernelType,
     PCManifoldKernel,
+    RoselandKernel,
     TSCManifoldKernel,
 )
 from datafold.utils.general import (
     df_type_and_indices_from,
     diagmat_dot_mat,
-    if1dim_colvec,
     mat_dot_diagmat,
     random_subsample,
 )
@@ -38,7 +42,6 @@ class _DmapKernelAlgorithms:
 
     See Also
     --------
-
     :class:`.DiffusionMaps`
     :class:`.DiffusionMapsVariable`
     :class:`.GeometricHarmonicsInterpolator`
@@ -46,26 +49,23 @@ class _DmapKernelAlgorithms:
 
     @staticmethod
     def solve_eigenproblem(
+        kernel,
         kernel_matrix: KernelType,
         n_eigenpairs: int,
-        is_symmetric: bool,
-        is_stochastic: bool,
-        basis_change_matrix: Optional[scipy.sparse.dia_matrix],
         index_from: Optional[TSCDataFrame] = None,
-    ) -> Tuple[np.ndarray, Union[np.ndarray, TSCDataFrame]]:
-
+    ) -> tuple[np.ndarray, Union[np.ndarray, TSCDataFrame]]:
         if isinstance(kernel_matrix, pd.DataFrame):
             kernel_matrix = kernel_matrix.to_numpy()
 
         try:
             eigvals, eigvect = compute_kernel_eigenpairs(
+                kernel=kernel,
                 kernel_matrix=kernel_matrix,  # from here on only ndarray
                 n_eigenpairs=n_eigenpairs,
-                is_symmetric=is_symmetric,
-                is_stochastic=is_stochastic,
                 # only normalize after potential basis change
                 normalize_eigenvectors=False,
                 backend="scipy",
+                validate_matrix=False,
             )
 
         except NumericalMathError:
@@ -91,8 +91,8 @@ class _DmapKernelAlgorithms:
             eigvals = np.real(eigvals)
             eigvect = np.real(eigvect)
 
-        if basis_change_matrix is not None:
-            eigvect = basis_change_matrix @ eigvect
+        if kernel.basis_change_matrix_ is not None:
+            eigvect = kernel.basis_change_matrix_ @ eigvect
 
         eigvect /= np.linalg.norm(eigvect, axis=0)[np.newaxis, :]
 
@@ -116,18 +116,17 @@ class _DmapKernelAlgorithms:
         The conjugate relationship is as follows
 
         .. math::
-            A = D^{1/2} K D^{-1/2}
+            A = D^{1/2} K D^{-1/2},
 
-        , where :math:`A` is the symmetric matrix, conjugate to the "true" Markov
-        matrix :math:`K`. To recover :math:`K` the following operation is performed
+        where matrix :math:`A` is the symmetric matrix, conjugate to the "true" stochastic
+        Markov matrix :math:`K`. To recover :math:`K` the following operation is performed
 
         .. math::
             K = D^{-1/2} A D^{1/2}
 
-        Note, that the ``basis_change_matrix``, is already :math:`D^{-1/2}`.
-        See also reference :cite:`rabin_heterogeneous_2012` and function
-        :py:meth:`_conjugate_stochastic_kernel_matrix` in ``kernels.py`` for further
-        infos.
+        Note, that the ``basis_change_matrix`` is already :math:`D^{-1/2}`.
+        See also reference :cite:`rabin-2012` and function
+        :py:meth:`_conjugate_stochastic_kernel_matrix` in ``kernels.py``.
 
         Parameters
         ----------
@@ -142,7 +141,6 @@ class _DmapKernelAlgorithms:
         numpy.ndarray
             Generally non-symmetric matrix of same shape and type as `kernel_matrix`.
         """
-
         if isinstance(kernel_matrix, TSCDataFrame):
             row_idx, col_idx = kernel_matrix.index, kernel_matrix.columns
         else:
@@ -186,12 +184,12 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
     is_stochastic
         If True, the diffusion kernel matrix is normalized (row stochastic). In the
-        standard definition this has to be True.
+        standard definition of diffusion maps the parameter has to be True.
 
     alpha
         The degree of re-normalization between `(0,1)`. Setting ``alpha=1`` corrects
         the sampling density in the data as an artifact of the collection process.
-        Special values are (see :cite:`coifman_diffusion_2006`)
+        Special values are (see :cite:t:`coifman-2006`)
 
         * `alpha=0` Graph Laplacian,
         * `alpha=0.5` Fokker-Plank operator,
@@ -205,29 +203,23 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         conjugate improves numerical stability when solving the eigenvectors, because it
         allows using algorithms designed for (sparse) Hermitian matrices.
 
-    dist_kwargs
-        Keyword arguments passed to the internal distance matrix computation. See
-        :py:meth:`datafold.pcfold.distance.compute_distance_matrix` for parameter
-        arguments.
 
     Attributes
     ----------
-
-    X_fit_: Untion[PCManifold, TSCDataFrame]
-        The training data during fit. The data is required for out-of-sample mappings;
-        the object is equipped with kernel :py:class:`DmapKernelFixed`;
-        ``np.asarray(X_fit_)`` casts the object to a standard numpy array.
+    X_fit_: Union[numpy.ndarray, pandas.DataFrame, TSCDataFrame]
+        The training data `X` passed during `fit`. The data is required for out-of-sample
+        mappings in the Nyström extension.
 
     eigenvalues_ : numpy.ndarray
         The eigenvalues of diffusion kernel matrix in decreasing order.
 
-    eigenvectors_: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+    eigenvectors_: Union[np.ndarray, pd.DataFrame, TSCDataFrame]
         The eigenvectors of the kernel matrix.
 
     target_coords_: numpy.ndarray
         The coordinate indices to map to when transforming the data. The target point
         dimension equals the number of indices included in `target_coords_`. Note that the
-        attributes `eigenvectors_` and `eigenvalues_` sill contain *all* computed
+        attributes `eigenvectors_` and `eigenvalues_` still contain *all* computed
         eigenpairs.
 
     inv_coeff_matrix_: numpy.ndarray
@@ -241,8 +233,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
     References
     ----------
-    :cite:`lafon_diffusion_2004`
-    :cite:`coifman_diffusion_2006`
+    :cite:`lafon-2004,coifman-2006`
     """
 
     _cls_valid_operator_names = (
@@ -261,16 +252,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         is_stochastic: bool = True,
         alpha: float = 1,
         symmetrize_kernel: bool = True,
-        dist_kwargs=None,
     ) -> None:
-
         self.kernel = kernel
         self.n_eigenpairs = n_eigenpairs
         self.time_exponent = time_exponent
         self.is_stochastic = is_stochastic
         self.alpha = alpha
         self.symmetrize_kernel = symmetrize_kernel
-        self.dist_kwargs = dist_kwargs
 
         # mypy
         self.eigenvalues_: np.ndarray
@@ -365,7 +353,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return GaussianKernel(epsilon=1.0)
 
     def _nystrom(self, kernel_cdist, eigvec, eigvals, index_from):
-
         if isinstance(kernel_cdist, pd.DataFrame):
             _kernel_cdist = kernel_cdist.to_numpy()
         else:
@@ -375,7 +362,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         if (np.abs(eigvals) < _magic_tol).any():
             warnings.warn(
                 "Diffusion map eigenvalues are close to zero, which can cause "
-                "numerical instabilities when applying the Nystroem extension."
+                "numerical instabilities when applying the Nystroem extension.",
+                stacklevel=2,
             )
 
         # Nystroem approximation
@@ -387,7 +375,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             approx_eigenvectors = df_type_and_indices_from(
                 index_from,
                 values=approx_eigenvectors,
-                except_columns=[f"ev{i}" for i in range(self.n_eigenpairs)],
+                except_columns=self.get_feature_names_out(),
             )
 
         return approx_eigenvectors
@@ -395,7 +383,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
     def _perform_dmap_embedding(
         self, eigenvectors: Union[np.ndarray, pd.DataFrame]
     ) -> Union[np.ndarray, pd.DataFrame]:
-
         check_scalar(
             self.time_exponent,
             "time_exponent",
@@ -412,41 +399,18 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             dmap_embedding = df_type_and_indices_from(
                 indices_from=eigenvectors,
                 values=dmap_embedding,
-                except_columns=self.feature_names_out_,
+                except_columns=self.get_feature_names_out(),
             )
 
         return dmap_embedding
 
-    def _feature_names(self):
-        if hasattr(self, "target_coords_"):
-            feature_names = pd.Index(
-                [f"dmap{i}" for i in self.target_coords_],
-                name=TSCDataFrame.tsc_feature_col_name,
-            )
-        else:
-            feature_names = pd.Index(
-                [f"dmap{i}" for i in range(self.n_eigenpairs)],
-                name=TSCDataFrame.tsc_feature_col_name,
-            )
-
-        return feature_names
-
-    def _setup_default_dist_kwargs(self):
-        from copy import deepcopy
-
-        self.dist_kwargs_ = deepcopy(self.dist_kwargs) or {}
-        self.dist_kwargs_.setdefault("cut_off", np.inf)
-        self.dist_kwargs_.setdefault("kmin", 0)
-        self.dist_kwargs_.setdefault("backend", "guess_optimal")
-
     def _select_eigenpairs_target_coords(self):
         """Returns either
         * all eigenpairs, or
-        * the ones that were selected during set_target_coords
+        * the ones that were selected during set_target_coords.
 
         It is assumed that the model is already fit.
         """
-
         if hasattr(self, "target_coords_"):
             if isinstance(self.eigenvectors_, pd.DataFrame):
                 eigvec = self.eigenvectors_.iloc[:, self.target_coords_]
@@ -459,7 +423,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return eigvec, eigvals
 
     def set_target_coords(
-        self, indices: Union[np.ndarray, List[int]]
+        self, indices: Union[np.ndarray, list[int]]
     ) -> "DiffusionMaps":
         """Set eigenvector coordinates for parsimonious mapping.
 
@@ -474,7 +438,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         DiffusionMaps
             self
         """
-
         indices = np.asarray(indices)
         indices = np.sort(indices)
 
@@ -490,10 +453,16 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         self.target_coords_ = indices
 
         self.n_features_out_ = len(self.target_coords_)
-        if hasattr(self, "feature_names_out_") and self.feature_names_out_ is not None:
-            self.feature_names_out_ = self._feature_names()
 
         return self
+
+    def get_feature_names_out(self, input_features=None):
+        if hasattr(self, "target_coords_"):
+            feature_names = np.array([f"dmap{i}" for i in self.target_coords_])
+        else:
+            feature_names = np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
+
+        return feature_names
 
     def fit(
         self,
@@ -501,7 +470,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         y=None,
         **fit_params,
     ) -> "DiffusionMaps":
-        """Compute diffusion kernel matrix and its' eigenpairs.
+        """Fit the model by computing the eigenpairs of the diffusion kernel matrix.
 
         Parameters
         ----------
@@ -524,23 +493,25 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         X = self._validate_datafold_data(
             X=X,
-            array_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
-            tsc_kwargs=dict(ensure_min_samples=max(2, self.n_eigenpairs)),
+            ensure_min_samples=max(2, self.n_eigenpairs),
         )
 
-        self._setup_feature_attrs_fit(X, features_out=self._feature_names())
+        self._setup_feature_attrs_fit(X)
 
-        store_kernel_matrix = self._read_fit_params(
-            attrs=[("store_kernel_matrix", False)],
+        store_kernel_matrix, kernel_kwargs = self._read_fit_params(
+            attrs=[("store_kernel_matrix", False), ("kernel_kwargs", {})],
             fit_params=fit_params,
         )
 
-        self._setup_default_dist_kwargs()
-
-        # Note the DmapKernel is a kernel that wraps another kernel to provides the
-        # DMAP specific functionality.
+        # The DmapKernel is a meta-kernel that wraps another (internal) kernel to provide
+        # the specific normalizations in Diffusion Maps.
+        # deepcopy to performed to not mutate the original self.kernel attribute (this is
+        # according to sklearn's rules)
+        # TODO: no default kernel? Or use np.median for default kernel...
         internal_kernel = (
-            self.kernel if self.kernel is not None else self._get_default_kernel()
+            deepcopy(self.kernel)
+            if self.kernel is not None
+            else self._get_default_kernel()
         )
 
         self._dmap_kernel = DmapKernelFixed(
@@ -550,26 +521,8 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             symmetrize_kernel=self.symmetrize_kernel,
         )
 
-        if isinstance(X, TSCDataFrame):
-            self.X_fit_ = TSCDataFrame(
-                X, kernel=self._dmap_kernel, dist_kwargs=self.dist_kwargs_
-            )
-        elif isinstance(X, (np.ndarray, pd.DataFrame)):
-            self.X_fit_ = PCManifold(
-                X,
-                kernel=self._dmap_kernel,
-                dist_kwargs=self.dist_kwargs_,
-            )
-
-        kernel_output = self.X_fit_.compute_kernel_matrix()
-        (
-            kernel_matrix_,
-            self._cdist_kwargs,
-            ret_extra,
-        ) = PCManifoldKernel.read_kernel_output(kernel_output=kernel_output)
-
-        # if key is not present, this is a bug. The value for the key can also be None.
-        basis_change_matrix = ret_extra["basis_change_matrix"]
+        self.X_fit_ = X
+        kernel_matrix_ = self._dmap_kernel(X=X, **kernel_kwargs)
 
         # choose object to copy time information from, if applicable
         if isinstance(kernel_matrix_, TSCDataFrame):
@@ -581,8 +534,9 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             and kernel_matrix_.shape[0] == self.X_fit_.shape[0]
         ):
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
-            # series, then take incides from X_fit_ -- this only works if no samples are
-            # dropped in the kernel computation.
+            # series, then take indexes from X_fit_ -- this only works if no samples are
+            # dropped in the kernel computation (such as in ConeKernel where the time
+            # derivative is computed)
             index_from = self.X_fit_
         else:
             index_from = None
@@ -591,21 +545,16 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             self.eigenvalues_,
             self.eigenvectors_,
         ) = _DmapKernelAlgorithms.solve_eigenproblem(
+            kernel=self._dmap_kernel,
             kernel_matrix=kernel_matrix_,
             n_eigenpairs=self.n_eigenpairs,
-            is_symmetric=self._dmap_kernel.is_symmetric,
-            is_stochastic=self.is_stochastic,
-            basis_change_matrix=basis_change_matrix,
             index_from=index_from,
         )
 
-        # TODO: warning if less self.eigenvalues_ than n_eigenpairs?
-        #  happens if square kernel has less entries than n_eigenpairs
-
-        if self._dmap_kernel.is_symmetric_transform() and store_kernel_matrix:
+        if self._dmap_kernel.is_conjugate and store_kernel_matrix:
             kernel_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
                 kernel_matrix=kernel_matrix_,
-                basis_change_matrix=basis_change_matrix,
+                basis_change_matrix=self._dmap_kernel.basis_change_matrix_,
             )
 
         if store_kernel_matrix:
@@ -614,7 +563,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return self
 
     def transform(self, X: TransformType) -> TransformType:
-
         r"""Embed out-of-sample points with Nyström extension.
 
         From solving the eigenproblem of the diffusion kernel :math:`K`
@@ -632,7 +580,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
 
         Note, that the Nyström mapping can be used for image mappings irrespective of
         whether the computed kernel matrix :math:`K(X,X)` is symmetric.
-        For details on this see :cite:`fernandez_diffusion_2015` (especially equation 5).
+        For details on this see :cite:t:`fernandez-2015` (especially Eq. 5).
 
         Parameters
         ----------
@@ -646,22 +594,19 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         """
         check_is_fitted(self, ("X_fit_", "eigenvalues_", "eigenvectors_"))
 
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=1))
+        X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
-        kernel_output = self.X_fit_.compute_kernel_matrix(X, **self._cdist_kwargs)
-        kernel_matrix_cdist, _, _ = PCManifoldKernel.read_kernel_output(
-            kernel_output=kernel_output
-        )
+        kernel_matrix_cdist = self._dmap_kernel(self.X_fit_, X)
 
-        # choose object to copy time information from, if applicable
+        # choose object to copy time information from
         if isinstance(kernel_matrix_cdist, TSCDataFrame):
             # if possible take time index from kernel_matrix (especially
             # dynamics-adapted kernels can drop samples from X)
             index_from: Optional[TSCDataFrame] = kernel_matrix_cdist
         elif isinstance(X, TSCDataFrame) and kernel_matrix_cdist.shape[0] == X.shape[0]:
             # if kernel is numpy.ndarray or scipy.sparse.csr_matrix, but X_fit_ is a time
-            # series, then take incides from X_fit_ -- this only works if no samples are
+            # series, then take indices from X_fit_ -- this only works if no samples are
             # dropped in the kernel computation.
             index_from = X
         else:
@@ -679,7 +624,7 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         return self._perform_dmap_embedding(eigvec_nystroem)
 
     def fit_transform(self, X: TransformType, y=None, **fit_params) -> TransformType:
-        """Compute diffusion map from data and apply embedding on same data.
+        """Fit model with data and apply embedding on same data.
 
         Parameters
         ----------
@@ -697,15 +642,14 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_eigenpairs)`
         """
-
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
+        X = self._validate_datafold_data(X, ensure_min_samples=2)
         self.fit(X=X, y=y, **fit_params)
 
         eigvec, _ = self._select_eigenpairs_target_coords()
         return self._perform_dmap_embedding(eigvec)
 
     def inverse_transform(self, X: TransformType) -> TransformType:
-        """Pre-image from embedding space back to original (ambient) space.
+        """Perform pre-image by mapping data from embedding space back to ambient space.
 
         .. note::
             Currently, this is only a linear map in a least squares sense. Overwrite
@@ -722,7 +666,6 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape (`n_samples, n_features)`
         """
-
         check_is_fitted(self)
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="inverse_transform")
@@ -741,9 +684,13 @@ class DiffusionMaps(BaseEstimator, TSCTransformerMixin):
             )[0]
 
         X_orig_space = np.asarray(X) @ self.inv_coeff_matrix_
-        return self._same_type_X(
-            X, values=X_orig_space, feature_names=self.feature_names_in_
-        )
+
+        try:
+            feature_names = self.feature_names_in_
+        except AttributeError:
+            feature_names = None
+
+        return self._same_type_X(X, values=X_orig_space, feature_names=feature_names)
 
 
 class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
@@ -751,12 +698,11 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
     .. warning::
         This class is not documented. Contributions are welcome
             * documentation
-            * unit- or functional-testing
+            * unit- or functional-testing.
 
     References
     ----------
-    :cite:`berry_nonparametric_2015`
-    :cite:`berry_variable_2016`
+    :cite:`berry-2015,berry-2016`
 
     """
 
@@ -769,7 +715,6 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
         expected_dim=2,
         beta=-0.5,
         symmetrize_kernel=False,
-        dist_kwargs=None,
     ):
         self.epsilon = epsilon
         self.n_eigenpairs = n_eigenpairs
@@ -788,60 +733,35 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
             symmetrize_kernel=symmetrize_kernel,
         )
         self.alpha = self.dmap_kernel_.alpha  # is computed (depends on beta) in kernel
-        self.dist_kwargs = dist_kwargs
 
     @property
     def peq_est_(self):
         """Estimation of the equilibrium density (p_eq)."""
-
         #  TODO: there are different suggestions,
         #    q_eps_s as noted pdfp. 5,  OR  eq. (2.3) pdfp 4 rho \approx peq^(-1/2)
 
-        nr_samples = self.q_eps_s_.shape[0]
-        return self.q_eps_s_ / (
+        nr_samples = self.dmap_kernel_.q_eps_s_.shape[0]
+        return self.dmap_kernel_.q_eps_s_ / (
             nr_samples * (4 * np.pi * self.epsilon) ** (self.expected_dim / 2)
         )
 
+    def get_feature_names_out(self, input_features=None):
+        return np.array([f"dmap{i}" for i in range(self.n_eigenpairs)])
+
     def fit(self, X: TransformType, y=None, **fit_params):
-
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_samples=2))
-
-        self._setup_feature_attrs_fit(
-            X, features_out=[f"dmap{i}" for i in range(self.n_eigenpairs)]
-        )
-
+        X = self._validate_datafold_data(X, ensure_min_samples=2)
+        self._setup_feature_attrs_fit(X)
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
-        self.dist_kwargs = self.dist_kwargs or {}
-        self.dist_kwargs.setdefault("cut_off", np.inf)
-        self.dist_kwargs.setdefault("kmin", self.nn_bandwidth)
-        self.dist_kwargs.setdefault("backend", "guess_optimal")
-
-        pcm = PCManifold(
-            X,
-            kernel=self.dmap_kernel_,
-            dist_kwargs=self.dist_kwargs,
-        )
-
-        # basis_change_matrix is None if not required
-        (
-            self.operator_matrix_,
-            _basis_change_matrix,
-            self.rho0_,
-            self.rho_,
-            self.q0_,
-            self.q_eps_s_,
-        ) = pcm.compute_kernel_matrix()
+        self.generator_matrix_ = self.dmap_kernel_(X=X)
 
         (
             self.eigenvalues_,
             self.eigenvectors_,
         ) = _DmapKernelAlgorithms.solve_eigenproblem(
-            kernel_matrix=self.operator_matrix_,
+            kernel=self.dmap_kernel_,
+            kernel_matrix=self.generator_matrix_,
             n_eigenpairs=self.n_eigenpairs,
-            is_symmetric=self.dmap_kernel_.is_symmetric,
-            is_stochastic=True,
-            basis_change_matrix=_basis_change_matrix,
         )
 
         # TODO: note here the kernel is actually NOT the kernel but the operator matrix
@@ -849,9 +769,9 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
         #  Maybe think about a way to transform this?
 
         if self.dmap_kernel_.is_symmetric_transform(is_pdist=True):
-            self.operator_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
-                kernel_matrix=self.operator_matrix_,
-                basis_change_matrix=_basis_change_matrix,
+            self.generator_matrix_ = _DmapKernelAlgorithms.unsymmetric_kernel_matrix(
+                kernel_matrix=self.generator_matrix_,
+                basis_change_matrix=self.dmap_kernel_.basis_change_matrix_,
             )
 
         # TODO: transformation to match eigenvalues with true kernel matrix.
@@ -866,7 +786,7 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
         )
 
         self.eigenvectors_ = self._same_type_X(
-            X, values=self.eigenvectors_, feature_names=self.feature_names_out_
+            X, values=self.eigenvectors_, feature_names=self.get_feature_names_out()
         )
 
         return self
@@ -881,15 +801,466 @@ class DiffusionMapsVariable(BaseEstimator, TSCTransformerMixin):  # pragma: no c
 
     def fit_transform(self, X: TransformType, y=None, **fit_params):
         self.fit(X=X, y=y, **fit_params)
-        return self._same_type_X(X, self.eigenvectors_, self.feature_names_out_)
+        return self._same_type_X(X, self.eigenvectors_, self.get_feature_names_out())
+
+
+class Roseland(BaseEstimator, TSCTransformerMixin):
+    """Define a diffusion process on a point cloud by using a landmark set to find meaningful
+    geometric descriptions.
+
+    The model can be used for
+
+    * non-linear dimensionality reduction
+    * spectral clustering
+
+    Parameters
+    ----------
+    kernel
+        The kernel to describe similarity between points. A landmark-set affinity (kernel)
+        matrix is computed using it. The normalized kernel matrix is used to define the
+        diffusion process. Defaults to :py:class:`.GaussianKernel` with bandwidth `epsilon=1`.
+
+    n_svdtriplet
+        The number of singular value decomposition pairs (left singular vector, singular
+        value) to be computed from the normalized landmark-set affinity matrix.
+        The right singular vectors are also computed and their number is governed by
+        ``n_svdpairs``.
+
+    time_exponent
+        The time of the diffusion process (exponent of the singular values in the
+        embedding). The value can be changed after the model is fitted.
+
+    landmarks
+        The landmark set used for computing the landmark-set affinity matrix.
+        The strategy of how to choose the landmarks is determined by the type:
+
+        * a float in the interval (0,1] -- proportion of random set from `X` during
+          :py:meth:`fit`
+        * an integer > 1 -- the number of random samples from `X` during :py:meth:`fit`
+        * a `np.ndarray` containing the final landmark points
+
+    alpha
+        Normalization of the sampling density, indicated by a float in [0,1]. The
+        parameter corresponds to `alpha` in :py:meth:`DiffusionMaps`.
+
+        .. note::
+            The parameter is not covered in the original Roseland paper (corresponding to
+            `alpha=0`). Enabling the additional normalization (`alpha>0`) should therefore
+            be used with care.
+
+    random_state
+        Random seed for the selection of the landmark set. If provided when `Y` is also
+        given, it is ignored. When `Y` is not provided it is used for the subsampling of
+        the landmarks.
+
+    Attributes
+    ----------
+    landmarks_: np.ndarray
+        The final landmark data used. It is required for both in-sample and
+        out-of-sample embeddings.
+
+    svdvalues_ : numpy.ndarray
+        The singular values of the diffusion kernel matrix in decreasing order.
+
+    svdvec_left_: numpy.ndarray
+        The left singular vectors of the kernel matrix.
+
+    svdvec_right_: numpy.ndarray
+        The right singular vectors of the diffusion kernel matrix
+
+    target_coords_: numpy.ndarray
+        The coordinate indices to map to when transforming the data. The target point
+        dimension equals the number of indices included in `target_coords_`. Note that the
+        attributes `svdvalues_`, `svdvec_left_`, and `svdvec_right_` still contain *all*
+        computed `n_svdtriplet`.
+
+    kernel_matrix_ : Union[numpy.ndarray, scipy.sparse.csr_matrix]
+        The computed kernel matrix; the matrix is only stored if
+        ``store_kernel_matrix=True`` is set during :py:meth:`fit`.
+
+    References
+    ----------
+    :cite:`shen-2020`
+    """
+
+    def __init__(
+        self,
+        kernel: Optional[PCManifoldKernel] = None,
+        *,  # keyword-only
+        n_svdtriplet: int = 10,
+        time_exponent: float = 0,
+        landmarks: Union[float, int, np.ndarray] = 0.25,
+        alpha: float = 0,
+        random_state: Optional[int] = None,
+    ) -> None:
+        self.kernel = kernel
+        self.n_svdtriplet = n_svdtriplet
+        self.time_exponent = time_exponent
+        self.landmarks = landmarks
+        self.alpha = alpha
+        self.random_state = random_state
+
+        self.svdvalues_: np.ndarray
+        self.svdvec_left_: np.ndarray
+        self.svdvec_right_: np.ndarray
+
+    def _validate_setting(self, n_samples):
+        if isinstance(self.kernel, TSCManifoldKernel):
+            raise NotImplementedError(
+                "Kernels of type 'TSCManifoldKernel' are not supported yet"
+            )
+
+        check_scalar(
+            self.n_svdtriplet, "n_svdtriplet", target_type=(int, np.integer), min_val=1
+        )
+
+        check_scalar(
+            self.time_exponent,
+            "time_exponent",
+            target_type=(float, int, np.floating, np.integer),
+        )
+
+        if isinstance(self.landmarks, float):
+            check_scalar(
+                self.landmarks,
+                "landmarks",
+                target_type=float,
+                min_val=0.0,
+                max_val=1.0,
+                include_boundaries="right",
+            )
+        elif isinstance(self.landmarks, int):
+            check_scalar(
+                self.landmarks,
+                "landmarks",
+                target_type=int,
+                min_val=1,
+                max_val=n_samples,
+            )
+        elif isinstance(self.landmarks, np.ndarray):
+            pass  # will get checked later
+        else:
+            raise TypeError(
+                f"Type of parameter landmarks (={type(self.landmarks)}) "
+                "is not supported"
+            )
+
+    def _get_default_kernel(self):
+        return GaussianKernel(epsilon=1.0)
+
+    def _subsample_landmarks(self, X: Union[np.ndarray, TSCDataFrame]):
+        """Subsample landmarks from training data `X` when no `landmarks` are
+        provided.
+        """
+        if isinstance(self.landmarks, float):
+            n_landmarks = int(X.shape[0] * self.landmarks)
+        else:  # isinstance(self.landmarks, int):
+            n_landmarks = self.landmarks
+
+        if n_landmarks <= 1:
+            raise ValueError(
+                "The landmark set must contain at least two samples."
+                f"Got {n_landmarks} samples."
+            )
+
+        if n_landmarks == X.shape[0]:
+            landmarks = X.to_numpy() if isinstance(X, TSCDataFrame) else X
+        else:
+            landmarks, _ = random_subsample(
+                X.to_numpy() if isinstance(X, TSCDataFrame) else X,
+                n_landmarks,
+                random_state=self.random_state,
+            )
+
+        return landmarks
+
+    def _compute_kernel_svd(
+        self,
+        kernel_matrix: KernelType,
+        n_svdtriplet: int,
+        normalize_diagonal: Optional[np.ndarray] = None,
+        index_from: Optional[TSCDataFrame] = None,
+    ) -> tuple[np.ndarray, Union[np.ndarray, TSCDataFrame], np.ndarray]:
+        svdvec_left, svdvals, svdvec_right = compute_kernel_svd(
+            kernel_matrix=kernel_matrix, n_svdtriplet=n_svdtriplet
+        )
+
+        if normalize_diagonal is not None:
+            # Change coordinates of the left singular vectors by using the diagonal matrix
+            svdvec_left = diagmat_dot_mat(normalize_diagonal, svdvec_left)
+
+        if index_from is not None:
+            svdvec_left = TSCDataFrame.from_same_indices_as(
+                index_from,
+                svdvec_left,
+                except_columns=[f"sv{i}" for i in range(n_svdtriplet)],
+            )
+
+        # transpose such that the right SVD vectors (typically denoted as V) are row-wise
+        svdvec_right = svdvec_right.T
+        return svdvec_left, svdvals, svdvec_right
+
+    def _select_svdpairs_target_coords(self):
+        """Returns either
+        * all svd-triplets, or
+        * the ones that were selected during set_target_coords.
+
+        It is assumed that the model is already fit.
+        """
+        if hasattr(self, "target_coords_"):
+            svdvec_left = self.svdvec_left_[:, self.target_coords_]
+            svdvec_right = self.svdvec_right_[:, self.target_coords_]
+            svdvals = self.svdvalues_[self.target_coords_]
+        else:
+            svdvec_left, svdvals, svdvec_right = (
+                self.svdvec_left_,
+                self.svdvalues_,
+                self.svdvec_right_,
+            )
+        return svdvec_left, svdvals, svdvec_right
+
+    def _nystrom(self, kernel_cdist, svdvec_right, svdvals, normalize_diagonal):
+        _magic_tol = 1e-14  # tolerance to raise a warning
+
+        if (np.abs(svdvals) < _magic_tol).any():
+            warnings.warn(
+                "Roseland singular values are close to zero, which can cause "
+                "numerical instabilities when applying the Nystroem extension.",
+                stacklevel=2,
+            )
+
+        # Interpolate the svdvec_left with:
+        #    K = U @ S @ V^T
+        # --> U = K @ V @ S^{-1}
+        # Note that transposing V is sufficient for the inverse because the vectors in
+        # SVD are orthonormal
+        svdvec_left_interp = kernel_cdist @ mat_dot_diagmat(
+            svdvec_right, np.reciprocal(svdvals)
+        )
+
+        svdvec_left_interp = diagmat_dot_mat(normalize_diagonal, svdvec_left_interp)
+
+        return svdvec_left_interp
+
+    def _perform_roseland_embedding(
+        self, svdvectors: Union[np.ndarray, pd.DataFrame], svdvalues: np.ndarray
+    ) -> Union[np.ndarray, pd.DataFrame]:
+        check_scalar(
+            self.time_exponent,
+            "time_exponent",
+            target_type=(float, np.floating, int, np.integer),
+        )
+
+        if self.time_exponent == 0:
+            roseland_embedding = svdvectors
+        else:
+            svdvals_time = np.power(svdvalues, 2 * self.time_exponent)
+            roseland_embedding = mat_dot_diagmat(svdvectors, svdvals_time)
+
+        return roseland_embedding
+
+    def get_feature_names_out(self, input_features=None):
+        if hasattr(self, "target_coords_"):
+            feature_names = np.array([f"rose{i}" for i in self.target_coords_])
+        else:
+            feature_names = np.array([f"rose{i}" for i in range(self.n_svdtriplet)])
+
+        return feature_names
+
+    def set_target_coords(self, indices: Union[np.ndarray, list[int]]) -> "Roseland":
+        """Set specific singular vector coordinates for a parsimonious mapping.
+
+        Parameters
+        ----------
+        indices
+            Index values of svdpairs (``svdvalues_`` and ``svdvectors_``) to map
+            new points to.
+
+        Returns
+        -------
+        Roseland
+            self
+        """
+        indices = np.sort(np.asarray(indices))
+
+        if indices.dtype != int:
+            raise TypeError(f"The indices must be integers. Got type {indices.dtype}.")
+
+        if indices[0] < 0 or indices[-1] >= self.n_svdtriplet:
+            raise ValueError(
+                f"Indices {indices} are out of bound. Only integer values "
+                f"in [0, {self.n_svdtriplet}] are allowed."
+            )
+
+        self.target_coords_ = indices
+        self.n_features_out_ = len(self.target_coords_)
+
+        return self
+
+    def fit(
+        self,
+        X: TransformType,
+        y=None,
+        **fit_params,
+    ) -> "Roseland":
+        """Compute the Roseland kernel matrix and its singular vectors and values.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data.
+
+        y: None
+
+        **fit_params: Dict[str, object]
+            - store_kernel_matrix: ``bool``
+                If True, store the kernel matrix in attribute ``kernel_matrix``.
+
+        Returns
+        -------
+        Roseland
+            self
+        """
+        X = self._validate_datafold_data(
+            X=X, ensure_min_samples=max(2, self.n_svdtriplet)
+        )
+
+        store_kernel_matrix = self._read_fit_params(
+            attrs=[("store_kernel_matrix", False)],
+            fit_params=fit_params,
+        )
+
+        self._validate_setting(n_samples=X.shape[0])
+        self._setup_feature_attrs_fit(X)
+
+        if isinstance(self.landmarks, (int, float)):
+            self.landmarks_ = self._subsample_landmarks(X=X)
+        else:
+            self.landmarks_ = self.landmarks.view()
+
+        self.landmarks_ = self._validate_datafold_data(
+            X=self.landmarks_,
+            ensure_np=True,
+            ensure_min_samples=2,
+        )
+
+        if self.kernel is None:
+            self.kernel = self._get_default_kernel()
+
+        self.rose_kernel_ = RoselandKernel(
+            internal_kernel=self.kernel, alpha=self.alpha
+        )
+
+        kernel_matrix = self.rose_kernel_(self.landmarks_, X)
+
+        (
+            self.svdvec_left_,
+            self.svdvalues_,
+            self.svdvec_right_,
+        ) = self._compute_kernel_svd(
+            kernel_matrix=kernel_matrix,
+            n_svdtriplet=self.n_svdtriplet,
+            normalize_diagonal=self.rose_kernel_.normalize_diagonal_,
+            index_from=X if isinstance(X, TSCDataFrame) else None,
+        )
+
+        if store_kernel_matrix:
+            self.kernel_matrix_ = kernel_matrix
+
+        return self
+
+    def transform(self, X: TransformType) -> TransformType:
+        r"""Embed out-of-sample points with the Nyström extension:
+
+        .. math::
+
+            K(Y, X) V \Lambda^{-1} = U_{new}
+
+        where :math:`K(Y, X)` is a component-wise evaluation of the new kernel matrix,
+        :math:`V` the right singular vectors associated with the fitted model,
+        :math:`\Lambda` the singular values of the fitted model, and
+        :math:`U_{new}` the approximated left singular vectors of the (normalized) new
+        kernel matrix.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Out-of-sample points to embed.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            the new coordinates of the points in `X`
+        """
+        check_is_fitted(
+            self, ("landmarks_", "svdvalues_", "svdvec_left_", "svdvec_right_")
+        )
+
+        X = self._validate_datafold_data(X)
+        self._validate_feature_input(X, direction="transform")
+
+        kernel_matrix_cdist = self.rose_kernel_(self.landmarks_, X)
+
+        _, svdvals, svdvec_right = self._select_svdpairs_target_coords()
+
+        svdvec_left_interp = self._nystrom(
+            kernel_matrix_cdist,
+            svdvec_right=svdvec_right,
+            svdvals=svdvals,
+            normalize_diagonal=self.rose_kernel_.normalize_diagonal_,
+        )
+
+        roseland_embedding = self._perform_roseland_embedding(
+            svdvec_left_interp, svdvals
+        )
+
+        if isinstance(X, TSCDataFrame) and kernel_matrix_cdist.shape[0] == X.shape[0]:
+            roseland_embedding = TSCDataFrame.from_same_indices_as(
+                indices_from=X,
+                values=roseland_embedding,
+                except_columns=self.get_feature_names_out(),
+            )
+
+        return roseland_embedding
+
+    def fit_transform(self, X: TransformType, y=None, **fit_params) -> np.ndarray:
+        """Compute Roseland fit from data and apply embedding on the same data.
+
+        Parameters
+        ----------
+        X: TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            Training data.
+
+        y: None
+
+        **fit_params: Dict[str, object]
+            See `fit` method for additional parameter.
+
+        Returns
+        -------
+        TSCDataFrame, pandas.DataFrame, numpy.ndarray
+            the new coordinates of the points in X
+
+        """
+        self.fit(X=X, **fit_params)
+        svdvec_left, svdvals, _ = self._select_svdpairs_target_coords()
+
+        if isinstance(X, TSCDataFrame):
+            svdvec_left = TSCDataFrame.from_same_indices_as(
+                indices_from=X,
+                values=svdvec_left,
+                except_columns=self.get_feature_names_out(),
+            )
+
+        return svdvec_left
 
 
 class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
     """Automatic selection of functional independent geometric harmonic vectors for
     parsimonious data manifold embedding.
 
-    To measure the functional dependency a local regression regression is performed: The
-    larger the residuals between eigenvetor sets the more information they add and are
+    To measure the functional dependency a local regression is performed: The
+    larger the residuals between eigenvector sets the more information they add and are
     therefore more likely to be considered in an embedding.
 
     The kernel used for the local linear regression has a scale of
@@ -932,15 +1303,13 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
     Attributes
     ----------
-
     evec_indices_
 
     residuals_
 
     References
     ----------
-
-    :cite:`dsilva_parsimonious_2018`
+    :cite:`dsilva-2018`
 
     """
 
@@ -958,7 +1327,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         bandwidth_type="median",
         random_state: Optional[int] = None,
     ):
-
         self.strategy = strategy
 
         self.intrinsic_dim = intrinsic_dim
@@ -970,13 +1338,11 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         self.n_subsample = n_subsample
 
     def _validate_parameter(self, num_eigenvectors):
-
         check_scalar(
             self.eps_med_scale,
             name="eps_med_scale",
             target_type=(float, np.floating, int, np.integer),
-            min_val=np.finfo(float).eps,  # exclusive zero
-            max_val=np.inf,
+            min_val=0,
         )
 
         if not np.isinf(self.n_subsample):
@@ -985,7 +1351,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
                 name="n_subsample",
                 target_type=(int, np.integer),
                 min_val=1,
-                max_val=np.inf,
             )
 
         if self.strategy not in self._cls_valid_strategy:
@@ -1005,8 +1370,9 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
                 self.regress_threshold,
                 name="regress_threshold",
                 target_type=(float, np.floating),
-                min_val=np.finfo(float).eps,
-                max_val=1 - np.finfo(float).eps,
+                min_val=0,
+                max_val=1,
+                include_boundaries="neither",
             )
 
         if self.bandwidth_type not in self._cls_valid_bandwidth:
@@ -1123,14 +1489,13 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         # residual according to paper, equation 12  (also used in PCM code)
         residual = np.sqrt(
-            np.sum(np.square((target_eigenvector - estimated_target_values)))
+            np.sum(np.square(target_eigenvector - estimated_target_values))
             / np.sum(np.square(target_eigenvector))
         )
 
         return residual
 
     def _set_indices(self):
-
         # For the strategies numerical values are required. Therefore, set the first
         # residual (nan) here to the invalid value -1. This value makes sure, that
         # the first coordinate is always chosen.
@@ -1154,10 +1519,19 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         # User provides a threshold for the residuals. All eigenfunctions above this value
         # are included to parametrize the manifold.
-        else:  #  self.strategy == "threshold":
+        else:  # self.strategy == "threshold":
             self.evec_indices_ = np.sort(
                 np.where(residuals > self.regress_threshold)[0]
             )
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None and not hasattr(self, "feature_names_in_"):
+            return np.array(self.evec_indices_, dtype=str)
+        else:
+            if input_features is not None:
+                return input_features[self.evec_indices_]
+            else:
+                return self.feature_names_in_[self.evec_indices_]
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "LocalRegressionSelection":
         """Select indices according to strategy.
@@ -1186,7 +1560,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         # Later on not all of these columns are required because of the selection
         # performed.
 
-        X = self._validate_datafold_data(X, array_kwargs=dict(ensure_min_features=2))
+        X = self._validate_datafold_data(X, ensure_min_features=2)
         num_eigenvectors = X.shape[1]
 
         self._validate_parameter(num_eigenvectors)
@@ -1194,8 +1568,9 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         self._read_fit_params(attrs=None, fit_params=fit_params)
 
         if not np.isinf(self.n_subsample):
+            X_numpy = X.to_numpy() if isinstance(X, TSCDataFrame) else X
             eigvec = resample(
-                X,
+                X_numpy,
                 replace=False,
                 n_samples=self.n_subsample,
                 random_state=self.random_state,
@@ -1214,13 +1589,7 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
             )
 
         self._set_indices()
-
-        self._setup_feature_attrs_fit(
-            X,
-            features_out=X.columns[self.evec_indices_]
-            if isinstance(X, pd.DataFrame)
-            else len(self.evec_indices_),
-        )
+        self._setup_feature_attrs_fit(X)
 
         return self
 
@@ -1229,7 +1598,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
 
         Parameters
         ----------
-
         X
             Eigenvectors of shape `(n_samples, n_eigenvectors)` to carry out selection.
 
@@ -1238,7 +1606,6 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         TSCDataFrame, pandas.DataFrame, numpy.ndarray
             same type as `X` of shape `(n_samples, n_evec_indices)`
         """
-
         X = self._validate_datafold_data(X)
         self._validate_feature_input(X, direction="transform")
 
@@ -1246,17 +1613,17 @@ class LocalRegressionSelection(BaseEstimator, TSCTransformerMixin):
         X_selected = self._same_type_X(
             X,
             np.asarray(X)[:, self.evec_indices_],
-            feature_names=self.feature_names_out_,
+            feature_names=self.get_feature_names_out(),
         )
 
         return X_selected
 
     def inverse_transform(self, X: TransformType):
-        """
+        """n/a.
+
         .. warning::
             Not implemented.
         """
-
         # TODO: the inverse_transform should map
         #   \Psi_selected -> \Psi_full
         #  However this is usually not what we are interested in. Instead it is more

@@ -4,7 +4,8 @@ Welcome to datafold
 
 **Version**: |version| **Date**: |today|
 
-.. this toctree defines the order and pages that are set at the top of the page
+.. the toctree below defines the order and pages that are placed at the top of the page of the
+   pydata Sphinx theme
 
 .. toctree::
    :maxdepth: 1
@@ -16,16 +17,14 @@ Welcome to datafold
    contributing
    references
 
-.. see docu for panels: https://sphinx-panels.readthedocs.io/en/latest/
-.. see and select (free) fontawesome icons https://fontawesome.com/
 
 **What is datafold?**
 
-*datafold* is a `Python <https://www.python.org/>`__ package containing operator-theoretic
-models to identify dynamical systems from time series data and infer geometrical
-structures from point clouds. |MIT-license|
+*datafold* is a |python| :octicon:`link-external` package
+containing operator-theoretic models to identify dynamical systems from time series data and
+infer geometrical structures from point clouds. |MIT-license|
 
-.. inline useage of the badge
+.. inline usage of a badge
 .. |MIT-license| image:: https://img.shields.io/badge/license-MIT-blue
    :target: https://gitlab.com/datafold-dev/datafold/-/blob/master/LICENSE
    :alt: license
@@ -34,47 +33,54 @@ See also the `Introduction <https://datafold-dev.gitlab.io/datafold/intro.html>`
 
 ---------------------------------------------------------------------------------
 
-Install the package with ``Python>=3.7``:
+Install the package with ``Python>=3.9``:
+
+.. docu for grid: https://sphinx-design.readthedocs.io/en/furo-theme/grids.html#grid-options
+.. free icons from https://fontawesome.com/
 
 .. code-block::
 
     python -m pip install datafold
 
-.. panels::
+.. grid:: 2 2 2 2
+    :gutter: 5
+    :margin: 1 2 2 5
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++++++++++++++++++++++++
-    :ref:`gettingstarted` | :ref:`tutorialnb`
+            <div class="tutorials"><i class="fas fa-lightbulb fa-7x"></i></i></div>
 
-    ---
+        :ref:`gettingstarted` | :ref:`tutorialnb`
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="documentation"><i class="fas fa-book fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++++
-    :ref:`documentation`
+            <div class="documentation"><i class="fas fa-book fa-7x"></i></i></div>
 
-    ---
+        :ref:`documentation`
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="contribution"><i class="fas fa-laptop-code fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++++
-    :ref:`contribution`
+            <div class="contribution"><i class="fas fa-laptop-code fa-7x"></i></i></div>
 
-    ---
+        :ref:`contribution`
 
-    .. raw:: html
+    .. grid-item-card::
+        :text-align: center
 
-        <div class="references"><i class="fas fa-graduation-cap fa-7x"></i></i></div>
+        .. raw:: html
 
-    +++++++++++++++++
-    :ref:`references`
+            <div class="references"><i class="fas fa-graduation-cap fa-7x"></i></i></div>
+
+        :ref:`references`
 
 
 Software management
@@ -104,20 +110,25 @@ Software management
      - .. image:: https://gitlab.com/datafold-dev/datafold/badges/master/coverage.svg
           :target: https://gitlab.com/datafold-dev/datafold/-/jobs/artifacts/master/file/coverage/index.html?job=unittests
           :alt: coverage report
-   * - Code-related
+   * - Development tools (management, formatting and style)
      - .. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
           :target: https://pre-commit.com/
           :alt: pre-commit
-       .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+       .. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v2.json
+          :target: https://beta.ruff.rs/docs/
+          :alt: ruff
+       .. image:: https://img.shields.io/badge/code%20format-black-000000.svg
           :target: https://black.readthedocs.io/en/stable/
           :alt: python-black
+       .. image:: https://img.shields.io/badge/code%20format-isort-blue.svg
+          :target: https://pycqa.github.io/isort/
 
 
 Cite
 ====
 
 If you use *datafold* in your research, please cite our paper |joss-paper| that we
-published in the *Journal of Open Source Software* (`JOSS <https://joss.theoj.org/>`__).
+published in the *Journal of Open Source Software* (|joss| :octicon:`link-external`).
 
 .. |joss-paper| image:: https://joss.theoj.org/papers/10.21105/joss.02283/status.svg
    :target: https://doi.org/10.21105/joss.02283
@@ -146,35 +157,73 @@ https://doi.org/10.21105/joss.02283
 Software maintainer and affiliation
 ===================================
 
-* **Daniel Lehmberg** (1,2) DL is supported by the German Research Foundation (DFG),
-  grant no. KO 5257/3-1 and thanks the research office (FORWIN) of Munich University of
-  Applied Sciences HM and the center of doctoral studies in informatics (CeDoSIA) of the
-  Technical University of Munich for their support.
+* **Daniel Lehmberg** (|dl-link| :octicon:`link-external`)
 
-* **Felix Dietrich** (`link <https://fd-research.com/>`__) (2) FD thanks the Technical
-  University of Munich for their support.
+  - from 5/2022 postdoctoral researcher at Technical University of Munich (1)
+  - from 3/2018-5/2022 PhD candidate at both Munich University of Applied Scienes (1) and Technical University of
+    Munich (2) with funding from the German Research Foundation (|dfg| :octicon:`link-external`),
+    grant no. KO 5257/3-1.
+
+* **Felix Dietrich** (1, |fd-link| :octicon:`link-external`)
 
 All source code contributors are listed
 `here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
-1. Munich University of Applied Sciences HM
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(1) Technical University of Munich
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Faculty of Computer Science and Mathematics in
-Pedestrian Dynamics Research Group  (`link <http://www.vadere.org/>`__)
+School of Computiation, Information and Technology (CIT) at Chair of Scientific Computing in
+Computer Science (|sccs| :octicon:`link-external`)
+
+.. image:: _static/img/tum_logo.png
+   :height: 75px
+   :width: 150px
+   :target: https://www.tum.de/en/
+
+
+(2) Munich University of Applied Sciences HM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Faculty of Computer Science and Mathematics
+(|cs-hm| :octicon:`link-external`) in Pedestrian Dynamics Research Group
+(|vadere| :octicon:`link-external`)
 
 .. image:: _static/img/hm_logo.png
    :height: 81px
    :width: 300px
    :target: https://www.hm.edu/en/index.en.html
 
-2. Technical University of Munich
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. Links used above -- the external links (outside datafold) open a new tab, which is why the
+.. raw-html directive is used (idea from https://stackoverflow.com/a/11718325)
 
-Chair of Scientific Computing in Computer Science
-(`link <https://www.in.tum.de/en/i05/home/>`__)
+.. |python| raw:: html
 
-.. image:: _static/img/tum_logo.png
-   :height: 75px
-   :width: 150px
-   :target: https://www.tum.de/en/
+   <a href="https://www.python.org/" target="_blank">Python</a>
+
+.. |joss| raw:: html
+
+   <a href="https://joss.theoj.org/" target="_blank">JOSS</a>
+
+.. |cs-hm| raw:: html
+
+   <a href="https://www.cs.hm.edu/en/home/index.en.html" target="_blank">link</a>
+
+.. |sccs| raw:: html
+
+   <a href="https://www.cs.cit.tum.de/en/sccs/home/" target="_blank">link</a>
+
+.. |dfg| raw:: html
+
+   <a href="https://www.dfg.de/en/index.jsp" target="_blank">DFG</a>
+
+.. |vadere| raw:: html
+
+   <a href="http://www.vadere.org/" target="_blank">link</a>
+
+.. |dl-link| raw:: html
+
+   <a href="https://www.cs.cit.tum.de/en/sccs/people/daniel-lehmberg/" target="_blank">link</a>
+
+.. |fd-link| raw:: html
+
+   <a href="https://fd-research.com/" target="_blank">link</a>

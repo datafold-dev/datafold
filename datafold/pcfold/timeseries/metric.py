@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-
 import abc
+from collections.abc import Generator
 from functools import partial
-from typing import Generator, Optional, Tuple, Union
+from typing import Literal, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,12 +14,11 @@ from datafold.pcfold import TSCDataFrame
 from datafold.utils.general import is_df_same_index, is_integer, series_if_applicable
 
 
-class TSCMetric(object):
+class TSCMetric:
     """Compute metrics for time series collection data.
 
     Parameters
     ----------
-
     metrics
 
         * "rmse" - root mean squared error,
@@ -43,8 +41,7 @@ class TSCMetric(object):
 
     References
     ----------
-
-    "rrmse" is taken from :cite:`le_clainche_higher_2017`
+    "rrmse" is taken from :cite:t:`leclainche-2017`
 
     """
 
@@ -52,8 +49,12 @@ class TSCMetric(object):
     _cls_valid_metrics = ["rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2"]
     _cls_valid_scaling = ["id", "min-max", "standard", "l2_normalize"]
 
-    def __init__(self, metric: str, mode: str, scaling: str = "id"):
-
+    def __init__(
+        self,
+        metric: Literal["rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2"],
+        mode: Literal["timeseries", "timestep", "feature"],
+        scaling: Literal["id", "min-max", "standard", "l2_normalize"] = "id",
+    ):
         mode = mode.lower()
         metric = metric.lower()
 
@@ -74,7 +75,6 @@ class TSCMetric(object):
         self.scaling = self._select_scaling(name=scaling)
 
     def _select_scaling(self, name):
-
         if name == "id":
             return None
         elif name == "min-max":
@@ -89,14 +89,13 @@ class TSCMetric(object):
             )
 
     def _scaling(self, y_true: TSCDataFrame, y_pred: TSCDataFrame):
-
         # it is checked before that y_true and y_pred indices/columns are identical
         index, columns = y_true.index, y_true.columns
 
         # first normalize y_true, afterwards (with the same factors from y_true!) y_pred
         if self.scaling is not None:  # is None if scaling is identity
             y_true = self.scaling.fit_transform(y_true)
-            y_pred = self.scaling.transform(y_pred.to_numpy())
+            y_pred = self.scaling.transform(y_pred)
 
             y_true = TSCDataFrame(y_true, index=index, columns=columns)
             y_pred = TSCDataFrame(y_pred, index=index, columns=columns)
@@ -106,7 +105,6 @@ class TSCMetric(object):
     def _l2_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-
         diff = y_true - y_pred
 
         if sample_weight is not None:
@@ -123,7 +121,6 @@ class TSCMetric(object):
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
         """Median absolute error."""
-
         if sample_weight is not None:
             raise ValueError("Median absolute error does not support sample_weight.")
 
@@ -165,8 +162,7 @@ class TSCMetric(object):
     def _rrmse_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
     ):
-        """Metric from :cite:`le_clainche_higher_2017`"""
-
+        """Metric from :cite:`le_clainche_higher_2017`."""
         if multioutput == "uniform_average":
             norm_ = np.sum(np.square(np.linalg.norm(y_true, axis=1)))
         else:  # multioutput == "raw_values":
@@ -190,12 +186,10 @@ class TSCMetric(object):
         """Wrapper for :class:`sklean.metrics.max_error` to allow `sample_weight` and
         `multioutput` arguments (both have not effect).
         """
-
         # fails if y is multioutput
         return metrics.max_error(y_true=y_true, y_pred=y_pred)
 
     def _metric_from_str_input(self, error_metric: str):
-
         error_metric = error_metric.lower()
         from typing import Callable
 
@@ -237,7 +231,6 @@ class TSCMetric(object):
         return scalar_score
 
     def _single_column_name(self, multioutput) -> list:
-
         assert self._is_scalar_multioutput(multioutput)
 
         if isinstance(multioutput, str) and multioutput == "uniform_average":
@@ -256,7 +249,6 @@ class TSCMetric(object):
         sample_weight=None,
         multioutput="uniform_average",
     ) -> Union[pd.Series, pd.DataFrame]:
-
         if sample_weight is not None:
             # same length of time series to have mapping
             # sample_weight -> time step of time series (can be a different time value)
@@ -333,7 +325,6 @@ class TSCMetric(object):
         sample_weight=None,
         multioutput="uniform_average",
     ):
-
         if sample_weight is not None:
             # sample weights -> each time series has a different weight
 
@@ -348,18 +339,18 @@ class TSCMetric(object):
                     f"does not match the number of time series (={y_true.n_timeseries})."
                 )
 
-        time_indices = pd.Index(y_true.time_values(), name="time")
+        time_values = pd.Index(y_true.time_values(), name="time")
 
         if self._is_scalar_multioutput(multioutput=multioutput):
             column = self._single_column_name(multioutput=multioutput)
 
             # Make in both cases a DataFrame and later convert to Series in the scalar
             # case this allows to use .loc[i, :] in the loop
-            metric_per_time = pd.DataFrame(np.nan, index=time_indices, columns=column)
+            metric_per_time = pd.DataFrame(np.nan, index=time_values, columns=column)
 
         else:
             metric_per_time = pd.DataFrame(
-                np.nan, index=time_indices, columns=y_true.columns.to_list()
+                np.nan, index=time_values, columns=y_true.columns.to_list()
             )
 
         metric_per_time.index = metric_per_time.index.set_names(
@@ -367,8 +358,7 @@ class TSCMetric(object):
         )
 
         idx_slice = pd.IndexSlice
-        for t in time_indices:
-
+        for t in time_values:
             y_true_t = pd.DataFrame(y_true.loc[idx_slice[:, t], :])
             y_pred_t = pd.DataFrame(y_pred.loc[idx_slice[:, t], :])
 
@@ -432,7 +422,6 @@ class TSCMetric(object):
             If not all values are finite in `y_true` or `y_pred` or if \
             :class:`TSCDataFrame` properties do not allow for a `sample_weight` argument.
         """
-
         if sample_weight is not None:
             sample_weight = np.asarray(sample_weight)
 
@@ -489,7 +478,7 @@ class TSCMetric(object):
         return metric_result
 
 
-class TSCScoring(object):
+class TSCScoring:
     """Create scoring function from :class:`.TSCMetric`.
 
     Parameters
@@ -554,7 +543,6 @@ class TSCScoring(object):
         :class:`float`
             score
         """
-
         eval_tsc_metric: pd.Series = self.tsc_metric(
             y_true=y_true,
             y_pred=y_pred,
@@ -634,7 +622,7 @@ class TSCKfoldSeries(TSCCrossValidationSplit):
 
     def split(
         self, X: TSCDataFrame, y=None, groups=None
-    ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+    ) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
         """Yields k-folds of training and test indices of time series collection.
 
         Parameters
@@ -714,7 +702,6 @@ class TSCKFoldTime(TSCCrossValidationSplit):
 
     Parameters
     ----------
-
     n_splits
         The number of splits.
     """
@@ -803,7 +790,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
 
     Parameters
     ----------
-
     test_window_length
         The length of a window for samples included in testing.
 
@@ -823,7 +809,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
         window_offset: int = 0,
         train_min_timesteps: Optional[int] = None,
     ):
-
         if not is_integer(test_window_length) or test_window_length <= 0:
             raise ValueError(
                 f"The parameter 'test_window_length={test_window_length}' must be a "
@@ -906,7 +891,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
             offset=self.test_window_length + self.test_offset,
             per_time_series=True,
         ):
-
             train_tsc = indices_tsc.copy().drop(test_tsc.index, axis=0)
 
             # it is important to reassign the ids to keep the same sub-sampling and
@@ -959,7 +943,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
         Returns
         -------
         """
-
         if X is None:
             raise ValueError("'X' must be provided to compute the number of splits.")
 
@@ -997,7 +980,6 @@ class TSCWindowFoldTime(TSCCrossValidationSplit):
         id_name = TSCDataFrame.tsc_id_idx_name
 
         for i, (train_indices, test_indices) in enumerate(self.split(X)):
-
             train_tsc, test_tsc, dropped_samples = X.tsc.assign_ids_train_test(
                 train_indices, test_indices, return_dropped=True
             )

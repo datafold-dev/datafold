@@ -15,7 +15,8 @@ def _warn_if_not_gaussian_kernel(kernel):
     if not isinstance(kernel, GaussianKernel):
         warnings.warn(
             "There is no guarantee that the method works with a kernel other than the "
-            "GaussianKernel"
+            "GaussianKernel",
+            stacklevel=2,
         )
 
 
@@ -50,11 +51,9 @@ def estimate_cutoff(
 
     See Also
     --------
-
     :py:class:`datafold.pcfold.kernels.GaussianKernel`
 
     """
-
     from datafold.utils.general import is_integer
 
     if k <= 1 and not is_integer(k):
@@ -79,7 +78,7 @@ def estimate_cutoff(
             pcm,
             metric="euclidean",
             backend="brute",
-            kmin=k,
+            k=k,
             # for estimation it is okay to be not exact and compute faster
             **dict(exact_numeric=False)
         )
@@ -116,13 +115,15 @@ def estimate_scale(
     **estimate_cutoff_params
         Parameters to handle to method :py:meth:`estimate_cutoff` if ``cut_off is None``.
     """
-
-    _warn_if_not_gaussian_kernel(pcm.kernel)
+    try:
+        _warn_if_not_gaussian_kernel(pcm.kernel)
+    except AttributeError:
+        pass
 
     if cut_off is None:
         cut_off = estimate_cutoff(pcm, **estimate_cutoff_params)
 
     # this formula is derived by solving for epsilon in
     # tol >= exp(-cut_off**2 / epsilon)
-    eps0 = cut_off ** 2 / (-np.log(tol))
+    eps0 = cut_off**2 / (-np.log(tol))
     return float(eps0)

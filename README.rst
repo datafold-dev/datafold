@@ -17,11 +17,6 @@ systems from time series data and to infer geometrical structures in point cloud
 
 The package includes:
 
-* Data structures to handle point clouds on manifolds (``PCManifold``) and time series
-  collections (``TSCDataFrame``). The data structures are used both internally and for
-  model input/outputs. In contrast to solutions found in other projects, such as
-  lists of Numpy arrays, ``TSCDataFrame`` makes it much easier to describe many forms of
-  time series data in a single object.
 * An efficient implementation of the ``DiffusionMaps`` model to infer geometric
   meaningful structures from data, such as the eigenfunctions of the
   Laplace-Beltrami operator. As a distinguishing factor to other implementations, the
@@ -29,17 +24,27 @@ The package includes:
   including the standard Gaussian kernel,
   `continuous k-nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
   `dynamics-adapted cone kernel <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
-* Out-of-sample extensions for the Diffusion Maps model, such as the (auto-tuned)
-  Laplacian Pyramids or Geometric Harmonics to interpolate general function values on a
-  point cloud manifold.
-* An implementation of the (Extended-) Dynamic Mode Decomposition (e.g. model ``DMDFull``
-  or ``EDMD``) as data-driven methods to identify dynamical systems from time series
-  collection data. ``EDMD`` subclasses from the flexible scikit-learn
-  `Pipeline <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html>`__,
-  which allows setting up and transforming time series collection data to a more suitable
-  feature state (cf. Koopman operator theory).
-* ``EDMDCV`` allows model parameters to be optimized with cross-validation splittings that
-  account for the temporal order in time series collections.
+* Implementations and variants of the Dynamic Mode Decomposition as data-driven methods to
+  identify and analyze dynamical systems from time series collection data. This incldues:
+  * ``DMDFull`` or ``DMDEco`` as standard methods of DMD
+  * ``OnlineDMD`` or ``StreamingDMD`` modify the DMD to handle streaming data
+  * ``DMDControl`` augments the DMD to handle additional control input
+  * ``EDMD`` - The Extended-DMD, which allows setting up a highly flexible dictionary to
+  transform time series data and thereby handle nonlinear dynamics within the Koopman
+  operator framework. The EDMD wraps an arbitrary DMD variation for the decomposition.
+  The key advantage of this is, that the ``EDMD`` directly profits from the above
+  functionalities. ``EDMD`` can be used in control or streaming settings. Furthermore it is
+  possible to learn the dictionary directly from data (commonly referred to EDMD-DL)
+* Handling of cross-validation. The method ``EDMDCV``, for example, allows model parameters to
+  be optimized with cross-validation splittings that account for the temporal order in time
+  series data.
+* Methods to perform Model Predictive Control (MPC) with Koopman operator-based methods (
+  mainly the ``EDMD``). *This is currently still under development and experimental*.
+* Regression models for high-dimensional data (often used for out-of-sample extensions for the
+  Diffusion Maps model), such as the (auto-tuned) Laplacian Pyramids or Geometric Harmonics to
+  interpolate general function values on a point cloud manifold.
+* A data structure ``TSCDataFrame`` to handle time series collection data. It simplifies model
+  inputs/outputs and make it easier to describe various forms of time series data.
 
 See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
 For a mathematical thorough introduction, we refer to the `scientific literature
@@ -51,21 +56,22 @@ For a mathematical thorough introduction, we refer to the `scientific literature
     * Code quality varies from "experimental/early stage" to "well-tested". Well tested
       code is listed in the
       `software documentation <https://datafold-dev.gitlab.io/datafold/api.html>`__
-      and are directly accessible through the package levels ``pcfold``, ``dynfold`` or
-      ``appfold`` (e.g. :code:`from datafold.dynfold import ...`). Experimental code is
-      only accessible via "deep imports"
-      (e.g. :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning
-      when using it.
-    * There is no deprecation cycle. Backwards compatibility is indicated by the
-      package version, where we use a `semantic versioning <https://semver.org/>`__
-      policy `[major].[minor].[patch]`, i.e.
+      and are directly accessible through the highest module level (e.g.
+      :code:`from datafold import ...`). Experimental code is
+      only accessible via "deep imports" (e.g.
+      :code:`from datafol.dynfold.outofsample import ...`) and may raise a warning when using
+      it.
+    * The interfaces within *datafold* are not stable. The software is **not** intended for
+      production. Nevertheless, if we break something it is intentional and we hope that such
+      adaptations become less over time.
+    * There is no deprecation cycle. The software uses
+      `semantic versioning <https://semver.org/>`__ policy `[major].[minor].[patch]`, i.e.
 
          * `major` - making incompatible changes in the (documented) API
          * `minor` - adding functionality in a backwards-compatible manner
          * `patch` - backwards-compatible bug fixes
 
       We do not intend to indicate a feature complete milestone with version `1.0`.
-
 
 Cite
 ====
@@ -96,12 +102,12 @@ BibTeX:
 How to get it?
 ==============
 
-Installation requires `Python>=3.7 <https://www.python.org/>`__ with
+Installation requires `Python>=3.9 <https://www.python.org/>`__ with
 `pip <https://pip.pypa.io/en/stable/>`__ and
-`setuptools <https://setuptools.readthedocs.io/en/latest/>`__ installed. Both
-packages usually ship with a standard Python installation. The package dependencies
-install automatically. The main dependencies and their role in *datafold* are listed below
-in "Dependencies".
+`setuptools <https://setuptools.pypa.io/en/latest/>`__ installed (both packages ship with a
+standard Python installation). The package dependencies
+install automatically. The main dependencies and their usage in *datafold* are listed
+in the section "Dependencies" below.
 
 There are two ways to install *datafold*:
 
@@ -131,12 +137,11 @@ To install the package and its dependencies with :code:`pip`, run
         conda install pip
         pip install datafold
 
-
 2. From source
 --------------
 
 This way is recommended if you want to access the latest (but potentially unstable)
-development, run tests or wish to contribute (see section "Contributing" for details).
+development state, run tests or wish to contribute (see section "Contributing" for details).
 Download or git-clone the source code repository.
 
 1. Download the repository
@@ -149,7 +154,7 @@ Download or git-clone the source code repository.
         git clone https://gitlab.com/datafold-dev/datafold.git
 
    b. If you only want access to the source code (current ``master`` branch), download one
-      of the compressed files
+      of the compressed file types
       (`zip <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.zip>`__,
       `tar.gz <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.gz>`__,
       `tar.bz2 <https://gitlab.com/datafold-dev/datafold/-/archive/master/datafold-master.tar.bz2>`__,
@@ -161,14 +166,13 @@ Download or git-clone the source code repository.
 
        python -m pip install .
 
-
 Contributing
 ============
 
 Any contribution (code/tutorials/documentation improvements), question or feedback is
 very welcome. Either use the
 `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-`Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__.
+`Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ us.
 Instructions to set up *datafold* for development can be found
 `here <https://datafold-dev.gitlab.io/datafold/contributing.html>`__.
 
@@ -182,29 +186,25 @@ require additional dependencies which are managed in
 `requirements-dev.txt <https://gitlab.com/datafold-dev/datafold/-/blob/master/requirements-dev.txt>`__.
 
 *datafold* integrates with common packages from the
-`Python scientific computing stack <https://www.scipy.org/about.html>`__:
+`Python scientific computing stack <https://scipy.org/about/>`__:
 
 * `NumPy <https://numpy.org/>`__
-   The data structure ``PCManifold`` subclasses from NumPy's
-   `ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__. The
-   class attaches an kernel object to the data to describe point similarity.
    NumPy is used throughout *datafold* and is the default package for numerical
    data and algorithms.
 
 * `pandas <https://pandas.pydata.org/pandas-docs/stable/index.html>`__
    *datafold* uses pandas'
    `DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__
-   as a base class for ``TSCDataFrame``, which captures time series data and
-   collections thereof. The data structure indexes time, time series ID and
-   one-or-many spatial features. It includes specific time series collection functionality
-   and is compatible with pandas rich functionality.
+   as a base class for ``TSCDataFrame`` to capture various forms of time series data. The data
+   It includes specific time series collection functionality and is mostly compatible with
+   pandas' rich functionality.
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    All *datafold* algorithms that are part of the "machine learning pipeline" align
    to the scikit-learn `API <https://scikit-learn.org/stable/developers/develop.html>`__.
    This is done by deriving the models from
    `BaseEstimator <https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html>`__.
-   and appropriate `MixIns`. *datafold* defines own `MixIns` that align with the
+   and appropriate ``MixIns``. *datafold* defines own ``MixIns`` that align with the
    API in a duck-typing fashion to allow identifying dynamical systems from temporal data
    in ``TSCDataFrame``.
 
@@ -217,7 +217,7 @@ require additional dependencies which are managed in
 How does it compare to other software?
 ======================================
 
-*The selection only includes other Python packages.*
+*Note: This list covers only Python packages.*
 
 * `scikit-learn <https://scikit-learn.org/stable/>`__
    provides algorithms and models along the entire machine learning pipeline, with a
@@ -235,14 +235,15 @@ How does it compare to other software?
    arbitrary many output samples (a time series) for a single input
    (an initial condition).
 
-* `PyDMD <https://mathlab.github.io/PyDMD/build/html/index.html>`__
-   provides many variants of the `Dynamic Mode Decomposition (DMD) <https://en.wikipedia.org/wiki/Dynamic_mode_decomposition>`__.
-   *datafold* provides a wrapper to make models of ``PyDMD`` accessible. However, a
-   limitation of ``PyDMD`` is that it only processes single coherent time series, see
-   `PyDMD issue 86 <https://github.com/mathLab/PyDMD/issues/86>`__. The DMD models that
-   are directly included in *datafold* utilize the functionality of the data
-   structure ``TSCDataFrame`` and can therefore process time
-   series collections - in an extreme case only containing snapshot pairs.
+* `PyDMD <https://github.com/PyDMD/PyDMD>`__
+   provides many variants of the `Dynamic Mode Decomposition (DMD)
+   <https://en.wikipedia.org/wiki/Dynamic_mode_decomposition>`__. *datafold* provides a wrapper
+   to make models of ``PyDMD`` accessible. However, a limitation of ``PyDMD`` is that it only
+   processes single coherent time series, see `PyDMD issue 86
+   <https://github.com/PyDMD/PyDMD/issues/86>`__. The DMD models that are directly included
+   in *datafold* utilize the functionality of the data structure ``TSCDataFrame`` and can
+   therefore process time series collections - in an extreme case only containing snapshot
+   pairs.
 
 * `PySINDy <https://pysindy.readthedocs.io/en/latest/>`__
    specializes on a *sparse* system identification of nonlinear dynamical systems to

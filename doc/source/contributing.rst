@@ -4,8 +4,8 @@
 Contributing
 ============
 
-All code contributors are listed in the
-`contributors file <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
+The maintainers of datafold and code contributors are listed
+`here <https://gitlab.com/datafold-dev/datafold/-/blob/master/CONTRIBUTORS>`__.
 
 Getting in touch
 ----------------
@@ -14,7 +14,7 @@ Any code contribution (bug fixes/tutorials/documentation changes) and feedback i
 welcome. Please open a new issue via
 
 * `issue tracker <https://gitlab.com/datafold-dev/datafold/-/issues>`__ or
-* `Email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you
+* `email <incoming+datafold-dev-datafold-14878376-issue-@incoming.gitlab.com>`__ if you
   have no gitlab account (this opens a confidential issue).
 
 Setting up *datafold* for development
@@ -22,43 +22,109 @@ Setting up *datafold* for development
 
 This section describes all steps to set up *datafold* for code development.
 
+.. note::
+
+    Many tasks of setting up the development environment are also included in the
+    `Makefile <https://gitlab.com/datafold-dev/datafold/-/blob/master/Makefile>`__. Run
+
+    .. code-block:: bash
+
+        make help
+
+    in the shell to view the available targets with a short description.
+
+    .. tab-set::
+
+        .. tab-item:: Linux
+
+            In Linux ``make`` is a standard tool and pre-installed.
+
+        .. tab-item:: Windows
+
+            .. warning::
+
+                The ``make`` targets are not fully tested for Windows. Please file an issue if you
+                encounter problems.
+
+            In Windows the recommended way is to use ``make`` in the
+            `git bash <https://gitforwindows.org/>`__. For this you may
+            `install Chocolatey <https://docs.chocolatey.org/en-us/choco/setup>`__ first
+            (with administrator rights) and then use the ``choco`` software manger tool to install
+            ``make`` with
+
+            .. code-block:: bash
+
+                choco install make
+
+            Chocolatey is also suitable to install non-Python dependencies required for building
+            the *datafold*'s html documentation.
+
+.. note::
+
+    The *datafold* repository also includes a
+    `Dockerfile <https://gitlab.com/datafold-dev/datafold/-/blob/master/Dockerfile>`__ which
+    creates a Docker image suitable for development (e.g. it automatically installs all
+    non-Python dependencies necessary to build the documentation). In Linux run
+
+    .. code-block:: bash
+
+        docker build -t datafold .
+
+    to create the Docker image (possibly requires ``sudo`` rights). To start a new Docker
+    container in the interactive session run
+
+    .. code-block:: bash
+
+       docker run -v `pwd`:/home/datafold-mount -w /home/datafold-mount/ -it --rm --net=host datafold bash
+
+    This mounts the *datafold* repository within the container (all data is shared
+    between the host system and container). To install the dependencies within
+    the container execute:
+
+    .. code-block::
+
+        make install_devdeps
+
+
 Quick set up
 ^^^^^^^^^^^^
 
 The bash script includes all steps that are detailed below.
 
-.. tabbed:: pip
+.. tab-set::
+    .. tab-item:: pip
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-       # Clone repository (replace [NAMESPACE] with your fork or "datafold-dev")
-       git clone git@gitlab.com:[NAMESPACE]/datafold.git
-       cd ./datafold/
+           # Clone repository (replace [NAMESPACE] with your fork or "datafold-dev")
+           git clone git@gitlab.com:[NAMESPACE]/datafold.git
+           cd ./datafold/
 
-       # Recommended: set up virtual environment
-       python -m venv .venv
-       source .venv/bin/activate
-       python -m pip install --upgrade pip
+           # Set up Python virtual environment
+           python -m venv .venv
+           source .venv/bin/activate
+           python -m pip install --upgrade pip
 
-       # Install package and development dependencies
-       python -m pip install -r requirements-dev.txt
+           # Install package and development dependencies
+           python -m pip install -r requirements-dev.txt
 
-       # Install git hooks and code formatting tools
-       pre-commit install
-       pre-commit run --all-files
+           # Install and run git hooks managed by pre-commit
+           python -m pre_commit run --all-files
 
-       # Optional: run tests with coverage and pytest
-       coverage run -m pytest datafold/
-       coverage html -d coverage/
-       coverage report
+           # Run tests with coverage and pytest
+           python -m coverage run -m pytest datafold/
+           python -m coverage html -d coverage/
+           python -m coverage report
 
-       # Optional: test if tutorials run without error
-       pytest tutorials/
+           # Test if tutorials run without error
+           python -m pytest tutorials/
 
-       # Optional: build documentation (writes to "docs/build/")
-       python setup.py build_docs
+           # Build documentation (writes to "docs/build/")
+           # Note that this requires additional third-party dependencies
 
-.. tabbed:: conda
+	       python -m sphinx -M html doc/source/ pages/
+
+    .. tab-item:: conda
 
         **datafold is not available from the conda package manager**. If you run
         Python with Anaconda's package manager, the recommended way is to set up
@@ -84,21 +150,20 @@ The bash script includes all steps that are detailed below.
            # Install package and development dependencies
            pip install -r requirements-dev.txt
 
-           # Install git hooks and code formatting tools
-           pre-commit install
-           pre-commit run --all-files
+           # Install and run git hooks managed by pre-commit
+           python -m pre_commit run --all-files
 
-           # Optional: run tests with coverage and pytest
-           coverage run -m pytest datafold/
-           coverage html -d coverage/
-           coverage report
+           # Run tests with coverage and pytest
+           python -m coverage run -m pytest datafold/
+           python -m coverage html -d coverage/
+           python -m coverage report
 
-           # Optional: test if tutorials run without error
-           pytest tutorials/
+           # Test if tutorials run without error
+           python -m pytest tutorials/
 
-           # Optional: build documentation (writes to "docs/build/")
-           python setup.py build_docs
-
+           # Build documentation (writes to "docs/build/")
+           # Note that this requires additional third-party dependencies
+	       python -m sphinx -M html doc/source/ pages/
 
 Fork and create merge requests to *datafold*
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -113,7 +178,7 @@ Please read and follow the steps of gitlab's
     We set up a "Continuous Integration" (CI) pipeline. However, the worker (a
     `gitlab-runner`) of the *datafold* repository is not available for forked projects
     (for background information see
-    `here <https://docs.gitlab.com/ee/ci/merge_request_pipelines/#important-notes-about-merge-requests-from-forked-projects>`__).
+    `here <https://docs.gitlab.com/ee/ci/pipelines/merge_request_pipelines.html#use-with-forked-projects>`__).
 
 After you have created a fork you can clone the repository with:
 
@@ -129,42 +194,43 @@ Install development dependencies
 The file ``requirements-dev.txt`` in the root directory of the repository contains all
 developing dependencies and is readable with :code:`pip`.
 
-.. tabbed:: pip
+.. tab-set::
+    .. tab-item:: pip
 
-    The recommended (but optional) way is to install all dependencies into a
-    `virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
-    with other installed packages.
+        The recommended (but optional) way is to install all dependencies into a
+        `virtual environment <https://virtualenv.pypa.io/en/stable/>`__. This avoids conflicts
+        with other installed packages.
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-        # Create and activate new virtual environment
-        python -m venv .venv
-        source .venv/bin/activate
-        pip install --upgrade pip
+            # Create and activate new virtual environment
+            python -m venv .venv
+            source .venv/bin/activate
+            pip install --upgrade pip
 
-        # Install package and extra dependencies
-        pip install -r requirements-dev.txt
+            # Install package and extra dependencies
+            pip install -r requirements-dev.txt
 
-    To install the dependencies without a virtual environment only run the last statement.
+        To install the dependencies without a virtual environment only run the last statement.
 
-.. tabbed:: conda
+    .. tab-item:: conda
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-           # Create new conda environment with pip installed
-           conda create -n .venv
-           conda activate .venv
-           conda install pip  # use pip from within the conda environment
+               # Create new conda environment with pip installed
+               conda create -n .venv
+               conda activate .venv
+               conda install pip  # use pip from within the conda environment
 
-           # Install package and extra dependencies
-           pip install -r requirements-dev.txt
+               # Install package and extra dependencies
+               pip install -r requirements-dev.txt
 
-    .. note::
-        While the above procedure works, you may also want to follow the best practices
-        from `Anaconda <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
-        more strictly. In particular, it is recommended to install package dependencies
-        listed in ``requirements-dev.txt`` separately with
-        :code:`conda install package_name`, if the package is hosted on ``conda``.
+        .. note::
+            While the above procedure works, you may also want to follow the best practices
+            from `Anaconda <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-pkgs.html#installing-non-conda-packages>`__
+            more strictly. In particular, it is recommended to install package dependencies
+            listed in ``requirements-dev.txt`` separately with
+            :code:`conda install package_name`, if the package is hosted on ``conda``.
 
 
 Install git pre-commit hooks
@@ -196,7 +262,7 @@ To install the git-hooks locally run from the root directory:
 
 .. code-block:: bash
 
-   pre-commit install
+      python -m pre_commit install
 
 The git-hooks then run automatically prior to each ``git commit``. To format the
 current source code without a commit (e.g. for testing purposes or during development),
@@ -204,7 +270,7 @@ run from the root directory:
 
 .. code-block:: bash
 
-   pre-commit run --all-files
+   python -m pre_commit run --all-files
 
 Run tests
 ^^^^^^^^^
@@ -218,27 +284,29 @@ To execute all unit tests locally run from the root directory:
 
 .. code-block:: bash
 
-    coverage run -m pytest datafold/
-    coverage html -d coverage/
+    python -m coverage run --branch -m pytest datafold/; \
+    python -m coverage html -d ./coverage/; \
+    python -m coverage report;
 
 A html coverage report is then located in the folder ``coverage/``. To test if the
 tutorials run without raising an error run:
 
 .. code-block:: bash
 
-   pytest tutorials/
+    python -m pytest tutorials/;
 
 All tests can also be executed remotely in a
 `Continuous Integration (CI) setup <https://docs.gitlab.com/ee/ci/pipelines/>`__.
-The pipeline runs with every push to the main repository. The CI configuration is located
-in the file
-`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__.
+The pipeline runs with every push to the main *datafold* repository. The CI configuration is
+located in the
+`.gitlab-ci.yml <https://gitlab.com/datafold-dev/datafold/-/blob/master/.gitlab-ci.yml>`__
+file.
 
 Compile and build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The `documentation page <https://datafold-dev.gitlab.io/datafold/index.html>`__ is
-built with `Sphinx <https://www.sphinx-doc.org/en/stable/>`__ and various extensions
+built with `Sphinx <https://www.sphinx-doc.org/en/master/>`__ and various extensions
 (install with ``requirements-dev.txt``). The source code is documented with
 `numpydoc <https://numpydoc.readthedocs.io/en/latest/format.html#overview>`__ style.
 
@@ -249,17 +317,35 @@ development dependencies:
 * `mathjax <https://www.mathjax.org/>`__ to display equations in the browser
 * `graphviz <https://graphviz.org/>`__ to render class dependency graphs
 * `pandoc <https://pandoc.org/index.html>`__ to convert between formats (required by
-  `nbsphinx` Sphinx extension that includes the
+  ``nbsphinx`` Sphinx extension that includes the
   `Jupyter tutorials <https://datafold-dev.gitlab.io/datafold/tutorial_index.html>`__
   to the web page).
 
-On a debian-like platform, install the packages with
+.. tab-set::
 
-.. code-block:: bash
+    .. tab-item:: Linux (Debian-based)
 
-    apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz
+        Install the non-Python software with (preferably with `sudo`)
 
-(This excludes the Latex installation, see available `texlive` packages).
+        .. code-block:: bash
+
+            apt install libjs-mathjax fonts-mathjax dvipng pandoc graphviz texlive-base texlive-latex-extra
+
+    .. tab-item:: Windows
+
+        Install the non-Python software with (preferably with administrator rights in the bash)
+
+        .. code-block:: bash
+
+            choco install pandoc miktex graphviz
+
+    .. tab-item:: make
+
+        Install the non-Python software with (best with administrator rights)
+
+        .. code-block:: bash
+
+            make install_docdeps
 
 To build the documentation run:
 
@@ -267,5 +353,5 @@ To build the documentation run:
 
     python setup.py build_docs --outdir="./public"
 
-The page entry is then located at ``./public/index.html``. To include the executed
-cells of the tutorials, add the flag ``--runtutorials``.
+The page entry is then located at ``./public/index.html``. To execute all cells in the
+tutorials (Jupyter notebooks) add the flag ``--runtutorials``.
