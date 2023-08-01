@@ -114,6 +114,7 @@ pages:
   script:
     - make clean_docs
     - make docs OPEN_DOCS_BROWSER=false DATAFOLD_TUTORIALS_EXECUTE=true OUTPUT_DOCS=./public
+    - mv ./public/html/* ./public/
   artifacts:
     paths:
     - public

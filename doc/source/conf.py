@@ -273,7 +273,7 @@ html_theme = (
 )
 html_logo = "_static/img/datafold_logo_pre.svg"
 
-html_context = {"default_mode": "auto"}  # dark, light
+html_context = {"default_mode": "light"}  # auto, dark, light
 
 html_theme_options = {
     "icon_links": [
