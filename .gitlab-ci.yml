@@ -54,6 +54,7 @@ unittests:
     - make clean_test
     - make unittest
   allow_failure: false
+  coverage: /(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/
   artifacts:
     paths:
       - ./coverage/
@@ -114,6 +115,7 @@ pages:
   script:
     - make clean_docs
     - make docs OPEN_DOCS_BROWSER=false DATAFOLD_TUTORIALS_EXECUTE=true OUTPUT_DOCS=./public
+    # make sure the index.html file is in public/ (otherwise there page shows HTTP/404 error)
     - mv ./public/html/* ./public/
   artifacts:
     paths:
