@@ -328,6 +328,7 @@ class FeedforwardNN(DictLearningMethod):
         #  class that performs this, especially if different sorts of regularization are
         #  implemented.
         factor = 1 / Xtorch.shape[0]
+
         G = factor * (psi_now.T @ psi_now)
         A = factor * (psi_now.T @ psi_next)
 
@@ -483,7 +484,7 @@ class FeedforwardNN(DictLearningMethod):
                 ("X_val", None),
                 ("early_stopping", None),
                 ("lr_scheduler", None),
-                ("record_losses", True),
+                ("record_losses", False),
                 ("with_tqdm", True),
             ],
             fit_params=fit_params,
@@ -533,12 +534,12 @@ class FeedforwardNN(DictLearningMethod):
         else:
             early_stopping = None
 
-        require_val_loss = record_losses or (early_stopping is not None)
+        require_val_loss = (lr_scheduler is not None) or (early_stopping is not None)
 
         if not require_val_loss and is_validation_available:
             warnings.warn(
-                "A validation set (X_val) is provided but no feature that requires "
-                "the data. Computing the loss is skipped.",
+                "Validation set (X_val) is provided but no feature it is not required in the "
+                "current training setting.",
                 stacklevel=1,
             )
 
@@ -697,5 +698,5 @@ class DMDDictLearning(TSCTransformerMixin, TSCPredictMixin):
             is_diagonalize=self.is_diagonalize,
         )
 
-        self.dmd_model = self.dmd_model.fit(X=X_dict, U=None)
+        self.dmd_model = self.dmd_model.fit(X=X_dict, U=None, **fit_params)
         return self
