@@ -12,6 +12,11 @@ repos:
     -   id: requirements-txt-fixer
     -   id: check-yaml
     -   id: check-toml
+    -   id: forbid-submodules
+    -   id: name-tests-test
+        args: ["--pytest-test-first"]
+    -   id: no-commit-to-branch
+        args: ["--branch", "master"]
 
 -   repo: https://github.com/asottile/pyupgrade
     rev: v3.10.1

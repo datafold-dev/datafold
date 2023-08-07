@@ -66,7 +66,7 @@ Jupyter notebook in a web browser, run
 
     jupyter notebook path/to/datafold/tutorial_folder
 
-or use the target in the Makefile (if the gir repository was downloaded):
+or use the target in the Makefile (if the repository was downloaded):
 
 .. code-block:: bash
 
@@ -274,8 +274,9 @@ def init_tutorials():
         "02_pcm_subsampling.ipynb",
         "We show how the ``PCManifold`` data structure can be used to subsample a "
         "manifold point cloud uniformly.",
-        warning="The tutorial generates a large dataset with 10 Mio. samples by default. "
-        "This may have to be reduced, depending on the available computer memory.",
+        warning="The tutorial generates a large dataset with 10 Mio. samples. "
+        "This number may have to be reduced when running locally, depending on the available "
+        "computer memory.",
     )
 
     add_tutorial(
@@ -342,8 +343,8 @@ def init_tutorials():
         "08_gh_oos.ipynb",
         "We showcase the out-of-sample extension for manifold learning "
         "models such as the ``DiffusionMaps`` model. For this we use the "
-        "``GeometricHarmonicsInterpolator`` for forward and ``LaplacianPyramidsInterpolator`` "
-        "for backwards interpolation respectively.",
+        "``GeometricHarmonicsInterpolator`` for out-of-sample and "
+        "``LaplacianPyramidsInterpolator`` for the pre-image mapping respectively.",
     )
 
     add_tutorial(
