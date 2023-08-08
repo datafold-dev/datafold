@@ -14,7 +14,7 @@ from sklearn.metrics import mean_squared_error
 
 from datafold.dynfold import DiffusionMaps, LocalRegressionSelection
 from datafold.dynfold.dmap import DiffusionMapsVariable
-from datafold.dynfold.tests.helper import (
+from datafold.dynfold.tests.test_helper import (
     assert_equal_eigenvectors,
     circle_data,
     cmp_dmap_legacy,

@@ -348,7 +348,21 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "09_edmd_limitcycle.ipynb",
+        "09_dmd_mixed_spatial_signals.ipynb",
+        "We utilize dynamic mode decomposition (DMD) on a linear spatiotemporal system. This "
+        "system is formed by combining two mixed spatiotemporal signals. The example is from "
+        "the DMD book by Kutz et al.",
+        reference={
+            "pykoopman tutorial": (
+                "https://github.com/dynamicslab/pykoopman/blob/master/docs/tutorial_dmd_separating_two_mixed_signals_400d_system.ipynb",  # noqa: E501
+                "ext_link",
+            ),
+            "": (":cite:t:`kutz-2016`", "ref"),
+        },
+    )
+
+    add_tutorial(
+        "10_edmd_limitcycle.ipynb",
         "We generate data from the Hopf system (an ODE system) and compare different "
         "dictionaries of the Extended Dynamic Mode Decomposition (``EDMD``). We also showcase "
         "out-of-sample predictions with a time horizon that exceeds the sampled time series "
@@ -356,7 +370,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "10_dmd_control.ipynb",
+        "11_dmd_control.ipynb",
         "We introduce the dynamic mode decomposition with control. In this tutorial origins "
         "from the PyDMD package. Here we use it to compare the interface and highlight that "
         "the results are identical.",
@@ -369,7 +383,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "11_edmd_control.ipynb",
+        "12_edmd_control.ipynb",
         "This tutorial demonstrates how to use extended dynamic mode decomposition (EDMD) and "
         "a linear quadratic regulator (LQR) for controlling the Van der Pol oscillator in a "
         "closed-loop. The goal is to show how EDMD can be an effective alternative for "
@@ -383,7 +397,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "12_EDMD_with_dictionary_learning.ipynb",
+        "13_EDMD_with_dictionary_learning.ipynb",
         "We demonstrate the EDMD-DL method, with which it is possible to learn the dictionary "
         "(i.e. set of observable functions) from the data. In the tutorial we use an "
         "feedforward artificial network and demonstrate the method for the Duffing system.",
@@ -395,7 +409,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "13_kmpc_flowcontrol.ipynb",
+        "14_kmpc_flowcontrol.ipynb",
         "We take the 1D Burger equation with periodic boundary conditions as an example to "
         "showcase how the Koopman operator can be utilized for model predictive control (MPC) "
         "in flow systems.",
@@ -409,7 +423,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "14_kmpc_motor_engine.ipynb",
+        "15_kmpc_motor_engine.ipynb",
         "This tutorial will demonstrate how to utilize the Extended Dynamic Mode "
         "Decomposition (EDMD) to estimate the Koopman operator in controlled dynamical "
         "systems. The nonlinear behavior of a motor engine model will be transformed into "
@@ -426,7 +440,7 @@ def init_tutorials():
     )
 
     add_tutorial(
-        "15_online_dmd.ipynb",
+        "16_online_dmd.ipynb",
         "This tutorial showcases the online dynamic mode decomposition (``OnlineDMD``) at the "
         "example of a simple 2D time-varying system. The performance of the online DMD is "
         "compared with batch DMD and the analytical solution of the system. Following the "
