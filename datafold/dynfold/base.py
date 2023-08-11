@@ -501,10 +501,9 @@ class TSCPredictMixin(TSCBase):
         dt=None,
     ):
         # comparing time values in floating points is sometimes a bit tricky, because two
-        # effectively equal values have a tiny difference -- this parameter is used within
-        # this function as a tolerance value
+        # effectively equal values have a tiny numerical difference -- this parameter is used
+        # within this function as a tolerance value
         _numerical_tol = 1e-14
-        _numerical_tol = 0
 
         if dt is None:
             try:
@@ -604,7 +603,8 @@ class TSCPredictMixin(TSCBase):
                     if (
                         time_values.shape != req_time_values.shape
                         or not (
-                            np.array(time_values - req_time_values) <= _numerical_tol
+                            np.abs(np.array(time_values - req_time_values))
+                            <= _numerical_tol
                         ).all()
                     ):
                         raise ValueError(

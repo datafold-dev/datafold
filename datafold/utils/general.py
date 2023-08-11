@@ -416,6 +416,8 @@ def diagmat_dot_mat(
 def generate_2d_regular_mesh(
     low=(-1, -1), high=(1, 1), n_xvalues=10, n_yvalues=10, feature_names=None
 ):
+    # TODO: possibly attach this to InitialCondition class (could also be generalized
+    #   to multiple D)
     x_values = np.linspace(low[0], high[0], num=n_xvalues)
     y_values = np.linspace(low[1], high[1], num=n_yvalues)
 
