@@ -883,7 +883,7 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         self,
         nn: Pipeline,
     ):
-        # TODO: can also wrap directly Dense, then it could be added directly to EDMD pipeline
+        # TODO: can also wrap directly Dense, then it could be added directly to EDMD pipeline1
         self.nn = nn
 
     def __repr__(self):
@@ -1161,7 +1161,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
             rng = np.random.default_rng(1)  # TODO: possibly make a parameter
             idx_samples = rng.choice(
-                range(0, X.shape[0]), size=self.n_samples, replace=False
+                range(X.shape[0]), size=self.n_samples, replace=False
             )
             self.centers_ = self._X_to_numpy(X)[idx_samples, :]
 

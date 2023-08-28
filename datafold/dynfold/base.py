@@ -258,7 +258,7 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
             self._check_n_features(X, reset=True)
 
         if not hasattr(self, "feature_names_in_"):
-            if isinstance(X, TSCDataFrame) and type(X.columns[0]) != str:
+            if isinstance(X, TSCDataFrame) and not isinstance(X.columns[0], str):
                 # workaround for datafold to support non-str feature names
                 # sklearn does only support feature names of type str
                 # Note that there is a guarantee for TSCDataFrame that the feature names have

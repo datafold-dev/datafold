@@ -1174,7 +1174,7 @@ class DCMotor(ControllableODE):
         X_all = np.zeros([X_ic.shape[0], n_timesteps, X_ic.shape[1]])
         X_all[:, 0, :] = X_ic
 
-        for i in range(0, n_timesteps - 1):
+        for i in range(n_timesteps - 1):
             # take every i-th element from the time series
             current_control_action = U.iloc[i :: n_timesteps - 1].to_numpy()
 

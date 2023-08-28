@@ -43,7 +43,7 @@ repos:
 
 
 - repo: https://github.com/charliermarsh/ruff-pre-commit
-  rev: 'v0.0.282'
+  rev: 'v0.0.286'
   hooks:
     - id: ruff
     - id: ruff
@@ -60,7 +60,7 @@ repos:
     - id: nbqa-black
       additional_dependencies: [black==23.7.0]
     - id: nbqa-ruff
-      additional_dependencies: [ruff==0.0.282]
+      additional_dependencies: [ruff==0.0.286]
       args: [--ignore=B018, --ignore=W605]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
