@@ -1067,7 +1067,8 @@ class EDMD(
         #      -- solve lstsq
         #  - Koopman modes (spectral)
         #  - inverse transform through pipeline
-        #  - inverse transform with dedicated new fit method --- TODO requires imlementation, all the other cases are covered
+        #  - inverse transform with dedicated new fit method --- TODO requires
+        #    implementation, all the other cases are covered
 
         if not self.use_transform_inverse:
             self._inverse_map = self._compute_inverse_map(X=X, y=y, X_dict=X_dict, U=U)

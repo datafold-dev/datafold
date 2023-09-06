@@ -81,7 +81,8 @@ try:
             The number of hidden layers.
 
         n_dict_elements
-            The number weights on the output, corresponding to the number of dictionary functions.
+            The number weights on the output, corresponding to the number of
+            dictionary functions.
 
         include_id_state
             Whether to incldue the original state. If set to False, then it is advised to set
@@ -89,10 +90,12 @@ try:
             for details).
 
         loss_with_inverse_map
-            Whether to include the reconstruction error from the dictionary to the original state.
+            Whether to include the reconstruction error from the dictionary to the
+            original state.
 
         learning_rate
-            The (initial) learning rate of the network. A scheduler can be set in ``fit_params``.
+            The (initial) learning rate of the network. A scheduler can be set in
+            ``fit_params``.
 
         n_epochs
             The number of epochs to perform. It is possible to set early stopping in
@@ -234,10 +237,10 @@ try:
                 )
 
             # TODO: make sure that different dtypes are used correctly (other than float64)
-            # TODO: checkpoint (with path) best (i.e. lowest validation loss model) also provide
-            #   an option (classmethod?) where model is saved - this can be used to continue /
-            #   restart method (i.e. some init-parameters relating the NN are ignored but training
-            #   is used)
+            # TODO: checkpoint (with path) best (i.e. lowest validation loss model) also
+            #   provide an option (classmethod?) where model is saved - this can be used to
+            #   continue / restart method (i.e. some init-parameters relating the NN are
+            #   ignored but training is used)
             # TODO: test training with GPU - no transfer to GPU at all is implemented yet
             #   (for scaling it to GPU clusters, possibly PyTorch lightning is the best option,
             #   however, this may require re-writing also the PyTorch stuff)
@@ -555,8 +558,8 @@ try:
 
             if not require_val_loss and is_validation_available:
                 warnings.warn(
-                    "Validation set (X_val) is provided but no feature it is not required in the "
-                    "current training setting.",
+                    "Validation set (X_val) is provided but no feature it is not "
+                    "required in the current training setting.",
                     stacklevel=1,
                 )
 
