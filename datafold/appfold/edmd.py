@@ -1061,6 +1061,14 @@ class EDMD(
                 ("dmd", self.dmd_model.dmd_model),
             ]
 
+        # TODO: ways to inverse transform:
+        #  - linear inverse map (matrix)
+        #      -- projection matrix
+        #      -- solve lstsq
+        #  - Koopman modes (spectral)
+        #  - inverse transform through pipeline
+        #  - inverse transform with dedicated new fit method --- TODO requires imlementation, all the other cases are covered
+
         if not self.use_transform_inverse:
             self._inverse_map = self._compute_inverse_map(X=X, y=y, X_dict=X_dict, U=U)
 
@@ -1071,7 +1079,6 @@ class EDMD(
 
                 if self.sort_koopman_triplets:
                     self._sort_koopman_triplets(X_dict_ic=X_dict.initial_states())
-
             else:
                 self._koopman_modes = None
         else:

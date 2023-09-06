@@ -887,8 +887,13 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         n_features_out = self.nn[-1].weights.shape[1]
         return [f"w{i}" for i in range(n_features_out)]
 
-    def fit(self, X: TSCDataFrame) -> "TSCSampledNetwork":
+    def fit(self, X: TSCDataFrame, **fit_params) -> "TSCSampledNetwork":
         self._validate_datafold_data(X=X)
+        self._validate_feature_input(X, direction="transform")
+
+        inverse_nn = self._read_fit_params(
+            [("inverse_nn", None)], fit_params=fit_params
+        )
 
         if self.nn[-1].weights is None:
             Xm, Xp = X.tsc.shift_matrices(snapshot_orientation="row")
@@ -898,6 +903,16 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
 
         # must be setup only *after* the network is fitted
         self._setup_feature_attrs_fit(X)
+
+        if inverse_nn is not None:
+            self.inverse_nn = inverse_nn
+
+            X_target = self.nn()
+            orig_states = X.columns.str.split(":")
+
+            X_np = X.loc[:, orig_states].to_numpy()
+            self.inverse_nn.fit(X_target, X_np)
+
         return self
 
     def transform(self, X: TSCDataFrame):
@@ -909,6 +924,13 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         )
 
         return X_return
+
+    def inverse_transform(self, X: TSCDataFrame):
+        self._validate_feature_input(X, direction="inverse_transform")
+        X_transform = self.inverse_nn(X.to_numpy())
+        X_transform = TSCDataFrame.from_same_indices_as(
+            X, except_columns=self.feature_names_in_
+        )
 
 
 class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
