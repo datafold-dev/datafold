@@ -579,21 +579,28 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.delays,
             name="delays",
-            target_type=(int, np.integer),
+            target_type=int,
             min_val=1,
+        )
+
+        check_scalar(
+            self.lag,
+            name="lag",
+            target_type=int,
+            min_val=0,
         )
 
         check_scalar(
             self.frequency,
             name="delays",
-            target_type=(int, np.integer),
+            target_type=(int),
             min_val=1,
         )
 
         check_scalar(
             self.kappa,
             name="kappa",
-            target_type=(int, np.integer, float, np.floating),
+            target_type=(int, float),
             min_val=0.0,
         )
 
@@ -601,7 +608,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             raise ValueError(
                 f"If frequency (={self.frequency} is larger than 1, "
                 f"then number for delays (={self.delays}) has to be larger "
-                "than 1)."
+                "than 1."
             )
 
     def _setup_delay_indices_array(self):
@@ -802,7 +809,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
             # select the data (row_wise) for each delay block
             # in last iteration "max_delay - delay == 0"
-
             delayed_data = np.hstack(
                 [
                     time_series_numpy[max_delay - delay : -delay, :]
@@ -811,10 +817,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             )
 
             if self.kappa > 0:
-                delayed_data = delayed_data.astype(float)
+                if isinstance(self.kappa, float):
+                    delayed_data = delayed_data.astype(float)
                 delayed_data *= kappa_vec
 
-            # go back to DataFrame, and adapt the index by excluding removed indices
+            # cast back to DataFrame, and adapt the index by excluding removed indices
             df = pd.DataFrame(
                 np.hstack([original_data, delayed_data]),
                 index=df.index[max_delay:],
@@ -876,6 +883,7 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         self,
         nn: Pipeline,
     ):
+        # TODO: can also wrap directly Dense, then it could be added directly to EDMD pipeline1
         self.nn = nn
 
     def __repr__(self):
@@ -1175,7 +1183,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
             rng = np.random.default_rng(1)  # TODO: possibly make a parameter
             idx_samples = rng.choice(
-                range(0, X.shape[0]), size=self.n_samples, replace=False
+                range(X.shape[0]), size=self.n_samples, replace=False
             )
             self.centers_ = self._X_to_numpy(X)[idx_samples, :]
 

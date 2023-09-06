@@ -22,7 +22,7 @@ class TSCMetric:
     metrics
 
         * "rmse" - root mean squared error,
-        * "rrmse" - relative root mean squared error
+        * "rrmse" - relative root mean squared error,
         * "mse" - mean squared error,
         * "mae" - mean absolute error,
         * "max" maximum error,

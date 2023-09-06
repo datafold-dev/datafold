@@ -10,7 +10,7 @@ import scipy.sparse.linalg
 from sklearn.datasets import make_swiss_roll
 
 from datafold.dynfold import Roseland
-from datafold.dynfold.tests.helper import assert_equal_eigenvectors
+from datafold.dynfold.tests.test_helper import assert_equal_eigenvectors
 from datafold.pcfold import GaussianKernel, TSCDataFrame
 from datafold.utils.general import random_subsample
 from datafold.utils.plot import plot_pairwise_eigenvector
