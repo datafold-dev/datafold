@@ -102,7 +102,7 @@ class EDMD(
     r"""Extended Dynamic Mode Decomposition.
 
     The aim of this method is to construct a data-driven model that can approximate the
-    Koopman operator from a collection of time series data, represented by a
+    Koopman operator from a collection of time series, represented by a
     :py:class:`TSCDataFrame`. The method uses a (finite) function basis and may include
     non-linear transformations of the data to enhance the function space (compared to a
     dynamic mode decomposition). The model is similar to :class:`sklearn.pipeline.Pipeline`,
@@ -131,9 +131,9 @@ class EDMD(
         output in `transform`.
 
     dmd_model
-        An model that subclasses :py:class:`.DMDBase`. The model servies as the final
-        estimator in the pipeline. The DMD model either approximates the Koopman
-        operator or generator based on specified time series of the EDMD-dictionary data.at f
+        An model that subclasses :py:class:`.DMDBase`. The model serves as the final
+        estimator in the pipeline. The DMD model can either approximates the Koopman
+        operator or generator.
 
     include_id_state
         If True, the original time series states are added to the EDMD dictionary. The
@@ -160,11 +160,11 @@ class EDMD(
           guarantee that the values are changed during the dictionary transformation.
 
     stepwise_transform
-        Controls whether stepwise (i.e. in every time step of a prediction) the inverse and
-        forward map between original and dictionary space is performed. When enabled this
-        can improve the overall predictive accuracy of model. For performance reasons it can be
-        worthwhile to enable ``diagonalize`` in the DMD method (to avoid a least squares
-        optimization in each timestep).
+        Controls whether to perform stepwise (i.e. in every time step of a prediction) the
+        inverse and forward map between original and dictionary space. When enabled this
+        can improve the overall predictive accuracy of model. For performance reasons it
+        can be worthwhile to enable ``diagonalize`` in the DMD method (to avoid a least
+        squares optimization in each timestep).
 
         .. note::
 
@@ -1669,8 +1669,7 @@ def _fit_and_score_edmd(
     if not isinstance(error_score, numbers.Number) and error_score != "raise":
         raise ValueError(
             "error_score must be the string 'raise' or a numeric value. "
-            "(Hint: if using 'raise', please make sure that it has been "
-            "spelled correctly.)"
+            "(Hint: if using 'raise', make sure that it has been spelled correctly.)"
         )
 
     progress_msg = ""

@@ -18,6 +18,13 @@ repos:
     -   id: no-commit-to-branch
         args: ["--branch", "master"]
 
+#-- https://github.com/Pocco81/auto-save.nvim -   repo: https://gitlab.com/devopshq/gitlab-ci-linter
+#     # Find and use latest tag
+#     # https://gitlab.com/devopshq/gitlab-ci-linter/-/tags
+#     rev: v1.0.5
+#     hooks:
+#     -   id: gitlab-ci-linter
+
 -   repo: https://github.com/asottile/pyupgrade
     rev: v3.10.1
     hooks:
