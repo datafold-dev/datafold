@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.linalg
 from sklearn.base import BaseEstimator
+from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold._decorators import warn_experimental_class, warn_experimental_function
@@ -609,6 +610,22 @@ class DMDStandard(DMDBase):
         .. math::
             \Psi_r = U W
 
+    For the linear regression various backends are used, depending on the regularization
+    setting (``alpha`` and ``l1_ratio``):
+
+    * ``alpha=0``, ``l1_ratio=0``: ``sklearn.linear_model.LinearRegression``
+    * ``alpha>0``, ``l1_ratio=0``: ``sklearn.linear_model.Ridge``
+    * ``alpha=0``, ``l1_ratio>0``: ``sklearn.linear_model.Lasso``
+    * ``alpha>0``, ``l1_ratio>0``: ``sklearn.linear_model.ElasticNet``
+    * if ``X`` is complex-valued: ``scipy.linalg.lstsq``
+      (This is because the scikit-learn classes do not support this input)
+
+    .. note::
+
+        By default all variants for the linear regression do **not** fit the intercept
+        (contrary to the sciki-learn classes). To enable this, set ``fit_intercept=True`` in
+        ``linregress_kwargs``.
+
     ...
 
     Parameters
@@ -657,9 +674,18 @@ class DMDStandard(DMDBase):
             also :py:class:`.gDMDFull`, which provides an alternative way to
             approximate the Koopman generator by using finite differences.
 
-    rcond
-        Cut-off ratio for small singular values
-        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
+    alpha
+        Constant that multiplies with the L2 norm in the linear regression to regularize the
+        optimization. The parameter is passed to the ``cond`` in the scipy backend
+        if the data is complex-valued. The class description for more details.
+
+    l1_ratio
+        Constant that multiplies with the L1 norm in the linear regression to regularize the
+        optimization. The parameter must be zero if the data is complex-valued. The class
+        description for more details.
+
+    linregress_kwargs
+        Keyword arguments passed to the respective linear regression backend.
 
     res_threshold
         Residual threshold to filter spurious spectral components. This follows Algorithm 2
@@ -713,7 +739,9 @@ class DMDStandard(DMDBase):
         reconstruct_mode: Literal["exact", "project"] = "exact",
         diagonalize: bool = False,
         approx_generator: bool = False,
-        rcond: Optional[float] = None,
+        alpha: float = 0.0,
+        l1_ratio: float = 0.0,
+        linregress_kwargs: Optional[dict] = None,
         residual_filter: Optional[float] = None,
         compute_pseudospectrum: bool = False,
     ):
@@ -721,7 +749,9 @@ class DMDStandard(DMDBase):
         self.reconstruct_mode = reconstruct_mode
         self.diagonalize = diagonalize
         self.approx_generator = approx_generator
-        self.rcond = rcond
+        self.alpha = alpha
+        self.l1_ratio = l1_ratio
+        self.linregress_kwargs = linregress_kwargs
         self.residual_filter = residual_filter
         self.compute_pseudospectrum = compute_pseudospectrum
 
@@ -793,27 +823,45 @@ class DMDStandard(DMDBase):
         else:
             R = None
 
-        from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
+        # TODO: this requires first testing, then enable passing the set values
+        self.alpha = 0
+        self.l1_ratio = 0
 
-        alpha = 0
-        l1_ratio = 0
         # TODO: integrate later also CV of each version (depending if user requests it)
+
         # TODO: need to also adapt the text above (note that here no transpose is necessary)
-        if alpha == 0 and l1_ratio == 0:
-            # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
-            # (numerical) solution of the linear system of equations.
-            linregress_model = LinearRegression(fit_intercept=False)
-        elif alpha > 0 and l1_ratio == 0:
-            linregress_model = Ridge(alpha=alpha, fit_intercept=False)
-        elif alpha == 0 and l1_ratio > 0:
-            linregress_model = Lasso(fit_intercept=False)
-        else:  # alpha > 0 and l1_ratio > 0:
-            linregress_model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
+        if np.iscomplexobj(X):
+            if self.l1_ratio != 0:
+                raise ValueError(
+                    f"{self.l1_ratio=} must be zero for complex valued data"
+                )
+            koopman_matrix, _, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
+            koopman_matrix = koopman_matrix.conj().T
+        else:
+            regress_kwargs = (
+                self.linregress_kwargs if not self.linregress_kwargs else {}
+            )
+            regress_kwargs.setdefault("fit_intercept", False)
 
-        linregress_model = linregress_model.fit(G, G_dash)
-        koopman_matrix = linregress_model.coef_
+            # Note: parameter checks are performed within the class (e.g. only positive values)
+            if self.alpha == 0 and self.l1_ratio == 0:
+                # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
+                # (numerical) solution of the linear system of equations.
+                linregress_model = LinearRegression(**regress_kwargs)
+            elif self.alpha > 0 and self.l1_ratio == 0:
+                linregress_model = Ridge(alpha=self.alpha, **regress_kwargs)
+            elif self.alpha == 0 and self.l1_ratio > 0:
+                linregress_model = Lasso(l1_ratio=self.l1_ratio, **regress_kwargs)
+            else:  # alpha > 0 and l1_ratio > 0:
+                linregress_model = ElasticNet(
+                    alpha=self.alpha, l1_ratio=self.l1_ratio, **regress_kwargs
+                )
 
-        if linregress_model.rank_ != G.shape[1]:
+            linregress_model = linregress_model.fit(G, G_dash)
+            koopman_matrix = linregress_model.coef_
+            rank = linregress_model.rank_
+
+        if rank != G.shape[1]:
             warnings.warn(
                 f"Shift matrix ({G.shape=}) has not full rank ({linregress_model.rank_=}), "
                 f"falling back to least squares solution.",
@@ -824,9 +872,9 @@ class DMDStandard(DMDBase):
             # free memory and to make sure that they are not used again
             G, G_dash, R = [None] * 3
 
-        reconstruct = None  # not required for the case with rank = None
+        reconstruct = None  # not required for the case with SVD rank is None
 
-        # TODO: return NamedTuple
+        # TODO: return NamedTuple for easier code readability
         return koopman_matrix, G, G_dash, R, reconstruct
 
     def _compute_reduced_system_matrix(self, X, sample_weights):
@@ -2603,3 +2651,102 @@ class OnlineDMD(DMDBase):
             )
 
         return self
+
+
+class ParametricDMD(DMDBase):
+    """Only implements the partitioned version for now"""
+
+    class LinearMatrixInterp:
+        def fit(self, p: np.ndarray, target_matrices: list[np.ndarray]) -> np.ndarray:
+            self.n_features = target_matrices[0].shape[0]
+            sys_matrices = np.zeros([len(p), self.n_features**2])
+
+            for i in target_matrices:
+                sys_matrix_flat = np.reshape(
+                    target_matrices,
+                    (self.n_features**2),
+                )
+                sys_matrices[i] = sys_matrix_flat
+
+            from scipy.interpolate import interp1d
+
+            self.interp_ = interp1d(
+                p,
+                target_matrices,
+                axis=0,
+                kind="linear",
+                copy=True,
+                bounds_error=True,
+                assume_sorted=False,
+            )
+
+        def predict(self, p) -> np.ndarray:
+            return self.interp_(p).reshape((self.n_features, self.n_features))
+
+    def __init__(self):
+        super().__init__(sys_mode="matrix", sys_type="flowmap")
+
+    def fit(
+        self,
+        X: TimePredictType,
+        *,
+        UNone,
+        P=None,
+        y=None,
+        **fit_params,
+    ) -> "ParametricDMD":
+        # TODO: validation
+        # - check that the Ids in P correspond to the ones in X
+        # - check for now that the parameters are unique
+
+        if (P.index.to_numpy() != X.ids.to_numpy()).all():
+            # TODO make a more informative error
+            raise ValueError("ids did not match between P and X")
+
+        if len(np.unique(P.to_numpy())) != len(P):
+            raise ValueError(
+                "the parameter values have to be unique -- implementation notice"
+            )
+
+        # per parameter fit a DMD model
+        dmd_methods = dict()
+
+        for i, _ in P.to_dict().items():
+            dmd_methods[i] = DMDStandard(sys_mode="matrix").fit(X)
+
+        # need to fit some interpolation method for these dmd methods
+
+        self.interpolation_ = self.LinearMatrixInterp()
+        self.interpolation_.fit(P.to_numpy(), [dm.system_matrix_ for dm in dmd_methods])
+
+        return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.Series],
+        time_values: Optional[np.ndarray] = None,
+        **predict_params,
+    ) -> TSCDataFrame:
+        # For now each initial condition is computed separately
+        # If required in a future implementation ICs with the same parameter could be grouped
+        # so save the re-interpolation in this case
+
+        X_result = []
+
+        for _, p in P.to_dict().item():
+            system_matrix = self.interpolation(p).reshape(
+                self.n_features_in_, self.n_features_in_
+            )
+
+            # switching to a new definition of parametric system
+            self.setup_sys_matrix(system_matrix)
+
+            _X = super().predict(X, U=U, time_values=time_values, **predict_params)
+            X_result.append(_X)
+
+        X_result = pd.concat(X_result, axis=0)
+
+        return X_result
