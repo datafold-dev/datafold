@@ -834,7 +834,7 @@ class LinearDynamicalSystem:
         return self
 
     def setup_matrix_system(
-        self, system_matrix, *, control_matrix=None
+        self, system_matrix, *, control_matrix=None, reset=False
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with system matrix.
 
@@ -852,7 +852,7 @@ class LinearDynamicalSystem:
         LinearDynamicalSystem
             self
         """
-        if self.is_linear_system_setup():
+        if not reset and self.is_linear_system_setup():
             raise RuntimeError("Linear system is already setup.")
 
         is_matrix(system_matrix, "system_matrix")

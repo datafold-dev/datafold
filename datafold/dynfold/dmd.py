@@ -835,7 +835,7 @@ class DMDStandard(DMDBase):
                 raise ValueError(
                     f"{self.l1_ratio=} must be zero for complex valued data"
                 )
-            koopman_matrix, _, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.rcond)
+            koopman_matrix, _, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.alpha)
             koopman_matrix = koopman_matrix.conj().T
         else:
             regress_kwargs = (
@@ -863,7 +863,7 @@ class DMDStandard(DMDBase):
 
         if rank != G.shape[1]:
             warnings.warn(
-                f"Shift matrix ({G.shape=}) has not full rank ({linregress_model.rank_=}), "
+                f"Shift matrix ({G.shape=}) has not full {rank=}, "
                 f"falling back to least squares solution.",
                 stacklevel=2,
             )
@@ -2661,9 +2661,9 @@ class ParametricDMD(DMDBase):
             self.n_features = target_matrices[0].shape[0]
             sys_matrices = np.zeros([len(p), self.n_features**2])
 
-            for i in target_matrices:
+            for i, mat in enumerate(target_matrices):
                 sys_matrix_flat = np.reshape(
-                    target_matrices,
+                    mat,
                     (self.n_features**2),
                 )
                 sys_matrices[i] = sys_matrix_flat
@@ -2690,7 +2690,7 @@ class ParametricDMD(DMDBase):
         self,
         X: TimePredictType,
         *,
-        UNone,
+        U=None,
         P=None,
         y=None,
         **fit_params,
@@ -2699,9 +2699,11 @@ class ParametricDMD(DMDBase):
         # - check that the Ids in P correspond to the ones in X
         # - check for now that the parameters are unique
 
+        self._validate_and_setup_fit_attrs(X=X)
+
         if (P.index.to_numpy() != X.ids.to_numpy()).all():
             # TODO make a more informative error
-            raise ValueError("ids did not match between P and X")
+            raise ValueError("ids do not match between P and X")
 
         if len(np.unique(P.to_numpy())) != len(P):
             raise ValueError(
@@ -2717,7 +2719,9 @@ class ParametricDMD(DMDBase):
         # need to fit some interpolation method for these dmd methods
 
         self.interpolation_ = self.LinearMatrixInterp()
-        self.interpolation_.fit(P.to_numpy(), [dm.system_matrix_ for dm in dmd_methods])
+        self.interpolation_.fit(
+            P.to_numpy(), [dm.sys_matrix_ for _, dm in dmd_methods.items()]
+        )
 
         return self
 
@@ -2734,18 +2738,23 @@ class ParametricDMD(DMDBase):
         # If required in a future implementation ICs with the same parameter could be grouped
         # so save the re-interpolation in this case
 
+        # TODO: need validation here
+
         X_result = []
 
-        for _, p in P.to_dict().item():
-            system_matrix = self.interpolation(p).reshape(
+        for i, p in P.to_dict().items():
+            system_matrix = self.interpolation_.predict(p).reshape(
                 self.n_features_in_, self.n_features_in_
             )
 
             # switching to a new definition of parametric system
-            self.setup_sys_matrix(system_matrix)
+            # TODO: this is only a workaround -- at best the parametric part is integrated
+            #  into the LinearDynSystem
+            self.setup_matrix_system(system_matrix, reset=True)
 
-            _X = super().predict(X, U=U, time_values=time_values, **predict_params)
-            X_result.append(_X)
+            X_ic_p = X.loc[[i], :]
+            Xp = super().predict(X_ic_p, U=U, time_values=time_values, **predict_params)
+            X_result.append(Xp)
 
         X_result = pd.concat(X_result, axis=0)
 
