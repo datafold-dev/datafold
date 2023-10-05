@@ -192,10 +192,12 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         self.features = features
 
     def get_feature_names_out(self, input_features=None):
-        if input_features is None and not hasattr(self, "feature_names_in_"):
+        if self.features.dtype == np.str_:
             return self.features
+        elif self.features.dtype == np.int_:
+            return self.feature_names_in_[self.features]
         else:
-            return self.features
+            raise ValueError(f"{self.features.dtype=} is not supported")
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeatureSelect":
         """Fit the model.
@@ -211,19 +213,14 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         **fit_params: Dict[str, object]
             `None`
         """
-        if (
-            not isinstance(self.features, np.ndarray)
-            or self.features.ndim != 1
-            or self.features.dtype.type is not np.str_
-        ):
-            raise ValueError(
-                "parameter 'features' must be a 1-dim. array with feature names"
-            )
-        self._validate_datafold_data(X, ensure_tsc=True)
+        if not isinstance(self.features, np.ndarray) or self.features.ndim != 1:
+            raise ValueError(f"{type(self.features)=} must be np.ndarray with one dim.")
+
+        # self._validate_datafold_data(X, ensure_tsc=True)
         self._setup_feature_attrs_fit(X, n_features_out=self.features.shape[0])
 
         try:
-            X.loc[:, self.features]
+            X.loc[:, self.get_feature_names_out()]
         except KeyError:
             raise ValueError("all features must be contained in X")
 
@@ -233,7 +230,7 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X, ensure_tsc=True)
         self._validate_feature_input(X, direction="transform")
 
-        return X.loc[:, self.features]
+        return X.loc[:, self.get_feature_names_out()]
 
 
 class TSCIdentity(BaseEstimator, TSCTransformerMixin):

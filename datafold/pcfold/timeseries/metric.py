@@ -27,6 +27,7 @@ class TSCMetric:
         * "mae" - mean absolute error,
         * "max" maximum error,
         * "l2" - Eucledian norm
+        * "linf" - L-infinity norm
 
     mode
         compute metric per "timeseries", "timestep" or "feature"
@@ -46,12 +47,24 @@ class TSCMetric:
     """
 
     _cls_valid_modes = ["timeseries", "timestep", "feature"]
-    _cls_valid_metrics = ["rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2"]
+    _cls_valid_metrics = [
+        "rmse",
+        "rrmse",
+        "mse",
+        "mape",
+        "mae",
+        "medae",
+        "max",
+        "l2",
+        "linf",
+    ]
     _cls_valid_scaling = ["id", "min-max", "standard", "l2_normalize"]
 
     def __init__(
         self,
-        metric: Literal["rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2"],
+        metric: Literal[
+            "rmse", "rrmse", "mse", "mape", "mae", "medae", "max", "l2", "linf"
+        ],
         mode: Literal["timeseries", "timestep", "feature"],
         scaling: Literal["id", "min-max", "standard", "l2_normalize"] = "id",
     ):
@@ -102,20 +115,25 @@ class TSCMetric:
 
         return y_true, y_pred
 
-    def _l2_metric(
-        self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
+    def _norm_metric(
+        self,
+        y_true,
+        y_pred,
+        sample_weight=None,
+        multioutput="uniform_average",
+        order=None,
     ):
         diff = y_true - y_pred
 
         if sample_weight is not None:
             diff = sample_weight[:, np.newaxis] * diff
 
-        l2_norm = np.linalg.norm(diff, axis=0)
+        norm = np.linalg.norm(diff, ord=order, axis=0)
 
         if multioutput == "uniform_average":
-            l2_norm = np.mean(l2_norm)
+            norm = np.mean(norm)
 
-        return l2_norm
+        return norm
 
     def _medae_metric(
         self, y_true, y_pred, sample_weight=None, multioutput="uniform_average"
@@ -209,7 +227,9 @@ class TSCMetric:
         elif error_metric == "max":
             error_metric_handle = self._max_error
         elif error_metric == "l2":
-            error_metric_handle = self._l2_metric
+            error_metric_handle = partial(self._norm_metric, order=None)
+        elif error_metric == "linf":
+            error_metric_handle = partial(self._norm_metric, order=np.inf)
         else:
             raise ValueError(f"Metric {error_metric} not known. Please report bug.")
 
