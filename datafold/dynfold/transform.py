@@ -934,8 +934,9 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         self._validate_feature_input(X, direction="inverse_transform")
         X_transform = self.inverse_nn(X.to_numpy())
         X_transform = TSCDataFrame.from_same_indices_as(
-            X, except_columns=self.feature_names_in_
+            X_transform, X, except_columns=self.feature_names_in_
         )
+        return X_transform
 
 
 class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
@@ -950,6 +951,8 @@ class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
 
     def fit(self, X, y=None, **fit_params):
         self._setup_feature_attrs_fit(X, n_features_out=2 * self.n_features)
+
+        self._read_fit_params(None, **fit_params)
 
         # sample features components
         self.fourier_components_ = np.zeros([X.shape[1], self.n_features])

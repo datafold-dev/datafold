@@ -728,5 +728,5 @@ class DMDDictLearning(TSCTransformerMixin, TSCPredictMixin):
             is_diagonalize=self.is_diagonalize,
         )
 
-        self.dmd_model = self.dmd_model.fit(X=X_dict, U=None, **fit_params)
+        self.dmd_model = self.dmd_model.fit(X=X_dict, U=None)
         return self
