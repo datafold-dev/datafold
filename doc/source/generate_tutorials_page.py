@@ -286,7 +286,7 @@ def init_tutorials():
         "parameters automatically with an optimization routine.",
         reference={
             "scikit-learn tutorial": (
-                "https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py",  # noqa: E501
+                "https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py",
                 "ext_link",
             )
         },
@@ -312,7 +312,7 @@ def init_tutorials():
         "S-curved point cloud manifold and to cluster data from handwritten digit.",
         reference={
             "scikit-learn tutorial 1": (
-                "https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py",  # noqa: E501
+                "https://scikit-learn.org/stable/auto_examples/manifold/plot_compare_methods.html#sphx-glr-auto-examples-manifold-plot-compare-methods-py",
                 "ext_link",
             ),
             "scikit-learn tutorial 2": (
@@ -354,7 +354,7 @@ def init_tutorials():
         "the DMD book by Kutz et al.",
         reference={
             "pykoopman tutorial": (
-                "https://github.com/dynamicslab/pykoopman/blob/master/docs/tutorial_dmd_separating_two_mixed_signals_400d_system.ipynb",  # noqa: E501
+                "https://github.com/dynamicslab/pykoopman/blob/master/docs/tutorial_dmd_separating_two_mixed_signals_400d_system.ipynb",
                 "ext_link",
             ),
             "": (":cite:t:`kutz-2016`", "ref"),
@@ -376,7 +376,7 @@ def init_tutorials():
         "the results are identical.",
         reference={
             "Original PyDMD tutorial": (
-                "https://github.com/mathLab/PyDMD/blob/master/tutorials/tutorial7/tutorial-7-dmdc.ipynb",  # noqa: E501
+                "https://github.com/mathLab/PyDMD/blob/master/tutorials/tutorial7/tutorial-7-dmdc.ipynb",
                 "ext_link",
             )
         },

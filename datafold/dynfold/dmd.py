@@ -838,9 +838,7 @@ class DMDStandard(DMDBase):
             koopman_matrix, _, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.alpha)
             koopman_matrix = koopman_matrix.conj().T
         else:
-            regress_kwargs = (
-                self.linregress_kwargs if not self.linregress_kwargs else {}
-            )
+            regress_kwargs = self.linregress_kwargs or {}
             regress_kwargs.setdefault("fit_intercept", False)
 
             # Note: parameter checks are performed within the class (e.g. only positive values)
@@ -1675,7 +1673,7 @@ class DMDControl(DMDBase):
 
         return sys_matrix, control_matrix
 
-    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params) -> "DMDControl":  # type: ignore[override] # noqa
+    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params) -> "DMDControl":  # type: ignore[override]
         """Fit model to compute a system and control matrix.
 
         Parameters

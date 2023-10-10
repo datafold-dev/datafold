@@ -590,6 +590,49 @@ class DMDTest(unittest.TestCase):
 
         assert id(dmd) != id(dmd2)
 
+    def test_regression_regularize(self):
+        dmd = DMDStandard()
+        # the idea is that with tiny regularization it goes into the different routines but
+        # should not differ much from the unregularized version
+        dmdlasso = DMDStandard(l1_ratio=1e-15)
+        dmdridge = DMDStandard(alpha=1e-15)
+        dmdelastic = DMDStandard(l1_ratio=1e-15, alpha=1e-15)
+
+        X = self._create_random_tsc(dim=4, n_samples=100)
+
+        expected = dmd.fit(X)
+        actual_lasso = dmdlasso.fit(X)
+        actual_ridge = dmdridge.fit(X)
+        actual_elastic = dmdelastic.fit(X)
+
+        assert_equal_eigenvectors(
+            expected.eigenvectors_right_, actual_lasso.eigenvectors_right_
+        )
+        assert_equal_eigenvectors(
+            expected.eigenvectors_right_, actual_ridge.eigenvectors_right_
+        )
+        assert_equal_eigenvectors(
+            expected.eigenvectors_right_, actual_elastic.eigenvectors_right_
+        )
+
+    def test_equal_real_complex(self):
+        X_real = self._create_random_tsc(dim=4, n_samples=100)
+        X_complex = X_real.copy().astype(np.complex_)
+
+        dmd_real = DMDStandard()
+        dmd_complex = DMDStandard()
+
+        expected = dmd_real.fit_predict(X_real)
+        actual = dmd_complex.fit_predict(X_complex)
+
+        pdtest.assert_frame_equal(expected, actual.astype(float))
+        nptest.assert_allclose(
+            dmd_real.eigenvalues_, dmd_complex.eigenvalues_, rtol=1e-15, atol=1e-15
+        )
+        assert_equal_eigenvectors(
+            dmd_real.eigenvectors_right_, dmd_complex.eigenvectors_right_
+        )
+
     def test_dmd_eigenpairs(self):
         # From
         # http://www.astronomia.edu.uy/progs/algebra/Linear_Algebra,_4th_Edition__(2009)Lipschutz-Lipson.pdf # noqa
