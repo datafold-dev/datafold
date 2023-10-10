@@ -500,11 +500,6 @@ class TSCPredictMixin(TSCBase):
         U: Optional[Union[TSCDataFrame, np.ndarray]],
         dt=None,
     ):
-        # comparing time values in floating points is sometimes a bit tricky, because two
-        # effectively equal values have a tiny numerical difference -- this parameter is used
-        # within this function as a tolerance value
-        _numerical_tol = 1e-14
-
         if dt is None:
             try:
                 dt = self.dt_
@@ -535,6 +530,15 @@ class TSCPredictMixin(TSCBase):
                     reference = np.datetime64(datetime.now())
                 else:
                     reference = 0
+
+        # comparing time values in floating points is tricky, because what should be equal
+        # mathematically has tiny numerical difference -- this parameter is used
+        # within this function as a tolerance value
+        if isinstance(reference, (int, np.int_, np.datetime64)):
+            # no tol required for interger and interger-based datetime
+            _numerical_tol = 0
+        else:
+            _numerical_tol = 1e-14
 
         if time_values is None:
             if is_controlled:
