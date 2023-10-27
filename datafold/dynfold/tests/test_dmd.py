@@ -3,12 +3,12 @@
 import unittest
 from unittest import mock
 
-import pytest
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as nptest
 import pandas as pd
 import pandas.testing as pdtest
+import pytest
 import scipy.linalg
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d

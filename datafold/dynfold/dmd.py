@@ -1033,7 +1033,11 @@ class DMDStandard(DMDBase):
             )
 
         import warnings
-        warnings.warn("This is an experimental function and is not thoroughly tested.", stacklevel=1)
+
+        warnings.warn(
+            "This is an experimental function and is not thoroughly tested.",
+            stacklevel=1,
+        )
 
         zs = grid.ravel()
         n_samples = zs.shape[0]
@@ -1075,7 +1079,7 @@ class DMDStandard(DMDBase):
                 # eigenvalues are tricky to find numerically stable
                 # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh # noqa
                 # TODO: could improve by finding good starting vector from
-                # previous computations? // v0=eigvec if i > 1 else None) # noqa
+                # previous computations? // v0=eigvec if i > 1 else None)
                 eigval, eigvec = scipy.sparse.linalg.eigs(
                     SQ @ num @ SQ, k=1, sigma=0, which="LM", return_eigenvectors=True
                 )
