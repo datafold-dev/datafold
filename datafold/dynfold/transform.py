@@ -192,10 +192,12 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         self.features = features
 
     def get_feature_names_out(self, input_features=None):
-        if input_features is None and not hasattr(self, "feature_names_in_"):
+        if self.features.dtype == np.str_:
             return self.features
+        elif self.features.dtype == np.int_:
+            return self.feature_names_in_[self.features]
         else:
-            return self.features
+            raise ValueError(f"{self.features.dtype=} is not supported")
 
     def fit(self, X: TransformType, y=None, **fit_params) -> "TSCFeatureSelect":
         """Fit the model.
@@ -211,19 +213,14 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         **fit_params: Dict[str, object]
             `None`
         """
-        if (
-            not isinstance(self.features, np.ndarray)
-            or self.features.ndim != 1
-            or self.features.dtype.type is not np.str_
-        ):
-            raise ValueError(
-                "parameter 'features' must be a 1-dim. array with feature names"
-            )
-        self._validate_datafold_data(X, ensure_tsc=True)
+        if not isinstance(self.features, np.ndarray) or self.features.ndim != 1:
+            raise ValueError(f"{type(self.features)=} must be np.ndarray with one dim.")
+
+        # self._validate_datafold_data(X, ensure_tsc=True)
         self._setup_feature_attrs_fit(X, n_features_out=self.features.shape[0])
 
         try:
-            X.loc[:, self.features]
+            X.loc[:, self.get_feature_names_out()]
         except KeyError:
             raise ValueError("all features must be contained in X")
 
@@ -233,7 +230,7 @@ class TSCFeatureSelect(BaseEstimator, TSCTransformerMixin):
         X = self._validate_datafold_data(X, ensure_tsc=True)
         self._validate_feature_input(X, direction="transform")
 
-        return X.loc[:, self.features]
+        return X.loc[:, self.get_feature_names_out()]
 
 
 class TSCIdentity(BaseEstimator, TSCTransformerMixin):
@@ -579,21 +576,28 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
         check_scalar(
             self.delays,
             name="delays",
-            target_type=(int, np.integer),
+            target_type=int,
             min_val=1,
+        )
+
+        check_scalar(
+            self.lag,
+            name="lag",
+            target_type=int,
+            min_val=0,
         )
 
         check_scalar(
             self.frequency,
             name="delays",
-            target_type=(int, np.integer),
+            target_type=(int),
             min_val=1,
         )
 
         check_scalar(
             self.kappa,
             name="kappa",
-            target_type=(int, np.integer, float, np.floating),
+            target_type=(int, float),
             min_val=0.0,
         )
 
@@ -601,7 +605,7 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             raise ValueError(
                 f"If frequency (={self.frequency} is larger than 1, "
                 f"then number for delays (={self.delays}) has to be larger "
-                "than 1)."
+                "than 1."
             )
 
     def _setup_delay_indices_array(self):
@@ -802,7 +806,6 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
 
             # select the data (row_wise) for each delay block
             # in last iteration "max_delay - delay == 0"
-
             delayed_data = np.hstack(
                 [
                     time_series_numpy[max_delay - delay : -delay, :]
@@ -811,10 +814,11 @@ class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
             )
 
             if self.kappa > 0:
-                delayed_data = delayed_data.astype(float)
+                if isinstance(self.kappa, float):
+                    delayed_data = delayed_data.astype(float)
                 delayed_data *= kappa_vec
 
-            # go back to DataFrame, and adapt the index by excluding removed indices
+            # cast back to DataFrame, and adapt the index by excluding removed indices
             df = pd.DataFrame(
                 np.hstack([original_data, delayed_data]),
                 index=df.index[max_delay:],
@@ -876,6 +880,7 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         self,
         nn: Pipeline,
     ):
+        # TODO: can also wrap directly Dense, then it could be added directly to EDMD pipeline1
         self.nn = nn
 
     def __repr__(self):
@@ -887,8 +892,13 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         n_features_out = self.nn[-1].weights.shape[1]
         return [f"w{i}" for i in range(n_features_out)]
 
-    def fit(self, X: TSCDataFrame) -> "TSCSampledNetwork":
+    def fit(self, X: TSCDataFrame, **fit_params) -> "TSCSampledNetwork":
         self._validate_datafold_data(X=X)
+        self._validate_feature_input(X, direction="transform")
+
+        inverse_nn = self._read_fit_params(
+            [("inverse_nn", None)], fit_params=fit_params
+        )
 
         if self.nn[-1].weights is None:
             Xm, Xp = X.tsc.shift_matrices(snapshot_orientation="row")
@@ -898,6 +908,16 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
 
         # must be setup only *after* the network is fitted
         self._setup_feature_attrs_fit(X)
+
+        if inverse_nn is not None:
+            self.inverse_nn = inverse_nn
+
+            X_target = self.nn()
+            orig_states = X.columns.str.split(":")
+
+            X_np = X.loc[:, orig_states].to_numpy()
+            self.inverse_nn.fit(X_target, X_np)
+
         return self
 
     def transform(self, X: TSCDataFrame):
@@ -909,6 +929,14 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         )
 
         return X_return
+
+    def inverse_transform(self, X: TSCDataFrame):
+        self._validate_feature_input(X, direction="inverse_transform")
+        X_transform = self.inverse_nn(X.to_numpy())
+        X_transform = TSCDataFrame.from_same_indices_as(
+            X_transform, X, except_columns=self.feature_names_in_
+        )
+        return X_transform
 
 
 class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
@@ -923,6 +951,8 @@ class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
 
     def fit(self, X, y=None, **fit_params):
         self._setup_feature_attrs_fit(X, n_features_out=2 * self.n_features)
+
+        self._read_fit_params(None, **fit_params)
 
         # sample features components
         self.fourier_components_ = np.zeros([X.shape[1], self.n_features])
@@ -1153,7 +1183,7 @@ class TSCRadialBasis(BaseEstimator, TSCTransformerMixin):
 
             rng = np.random.default_rng(1)  # TODO: possibly make a parameter
             idx_samples = rng.choice(
-                range(0, X.shape[0]), size=self.n_samples, replace=False
+                range(X.shape[0]), size=self.n_samples, replace=False
             )
             self.centers_ = self._X_to_numpy(X)[idx_samples, :]
 

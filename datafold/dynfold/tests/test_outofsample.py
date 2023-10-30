@@ -19,7 +19,7 @@ from datafold.dynfold.outofsample import (
     LaplacianPyramidsInterpolator,
     MultiScaleGeometricHarmonicsInterpolator,
 )
-from datafold.dynfold.tests.helper import (
+from datafold.dynfold.tests.test_helper import (
     assert_equal_eigenvectors,
     make_points,
     make_strip,

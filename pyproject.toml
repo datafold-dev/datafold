@@ -12,7 +12,11 @@ exclude = '''
     | \.git          # root of the project
     | \.hg
     | \.mypy_cache
+    | \\datafold.egg-info
     | \.idea
+    | \.vscode
+    | \.ruff_cache
+    | \.run
     | \.venv
     | \__pycache__
     | \.pytest_cache
@@ -101,6 +105,8 @@ ignore = [
   # "E203",  # not yet implemented
   # module level import not at top of file
   "E402",
+  # tailing whitespace (already included in autoformatters in black and pre-commit hook)
+  "W291",
   # do not assign a lambda expression, use a def
   "E731",
   # controversial
