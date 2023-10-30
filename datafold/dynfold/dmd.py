@@ -739,6 +739,22 @@ class DMDStandard(DMDBase):
             is_time_invariant=True,
         )
 
+    def _validate_parameters(self):
+        if self.rank is not None:
+            check_scalar(
+                self.rank,
+                "rank",
+                target_type=int,
+                min_val=1,
+                max_val=self.n_features_in_,
+            )
+
+            if self.diagonalize:
+                raise NotImplementedError(
+                    f"Currently diagonalization ({self.diagonalize=}) is not "
+                    f"supported for reduced ranks ({self.rank=}."
+                )
+
     def _compute_full_system_matrix(self, X: TSCDataFrame, sample_weights=None):
         # It is more suitable to get the shift_start and shift_end in row orientation as
         # this is closer to the common least squares A K = B
@@ -1218,6 +1234,7 @@ class DMDStandard(DMDBase):
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._validate_and_setup_fit_attrs(X=X)
+        self._validate_parameters()
 
         store_system_matrix, sample_weights = self._read_fit_params(
             attrs=[
