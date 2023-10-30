@@ -464,6 +464,24 @@ class TSCDataFrame(pd.DataFrame):
         data = data.sort_index(axis=0, level=0)
         return cls(data)
 
+    def to_tensor(self) -> np.ndarray:
+        """Transforms the current time series collection to a three dimensional tensor.
+
+        The target time series data is of shape `(n_timeseries, n_timesteps, n_feature)`.
+
+        Note that currently all time series have to have the same time value. If
+        required, this can be extended to fill in missing values.
+
+        Returns
+        -------
+        np.ndarray
+            tensor with time series data
+        """
+        self.tsc.check_equal_timevalues()
+        return self.to_numpy().reshape(
+            (self.n_timeseries, self.n_timesteps, self.shape[1])
+        )
+
     @classmethod
     def from_shift_matrices(
         cls,
@@ -749,30 +767,29 @@ class TSCDataFrame(pd.DataFrame):
 
         return cls(pd.concat(tsc_list, axis=0))
 
-    def to_darts(self):
-        from datafold.utils.general import is_integer
+    @classmethod
+    def from_csv(cls, filepath, **kwargs) -> "TSCDataFrame":
+        """Initialize time series collection from csv file.
 
-        try:
-            from darts.timeseries import TimeSeries
-        except ImportError as e:
-            raise e("could not find package darts")
+        Parameters
+        ----------
+        filepath
+            The file path to the csv file.
 
-        if self.n_timeseries == 1:
-            delta_time = self.delta_time
+        **kwargs
+            keyword arguments handled to
+            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`__
 
-            if is_integer(delta_time):
-                start, end = self.time_values()[[0, -1]]
-                times = pd.RangeIndex(start, end + delta_time, delta_time)
-            elif self.is_datetime_index():
-                times = self.index
-
-            return TimeSeries.from_times_and_values(
-                times=times,
-                values=self.to_numpy(),
-                columns=self.columns.to_numpy(),
-            )
-        else:
-            raise NotImplementedError("todo")
+        Returns
+        -------
+        TSCDataFrame
+            new instance
+        """
+        # NOTE: Overwrites the super class method (which is deprecated since version 0.21
+        # Here the csv is read from a csv file that was a
+        # TSCDataFrame, i.e. tscdf.to_csv("filename.csv") and therefore should be valid.
+        df = pd.read_csv(filepath, index_col=[0, 1], header=[0], **kwargs)
+        return cls(df)
 
     def to_csv(self, *args, **kwargs) -> Optional[str]:
         """Write object to a comma-separated values (csv) file.
@@ -797,29 +814,28 @@ class TSCDataFrame(pd.DataFrame):
         """
         return pd.DataFrame(self).to_csv(*args, **kwargs)
 
-    @classmethod
-    def from_csv(cls, filepath, **kwargs) -> "TSCDataFrame":
-        """Initialize time series collection from csv file.
+    def to_darts(self):
+        try:
+            from darts.timeseries import TimeSeries
+        except ImportError as e:
+            raise e("Could not find package darts. Check if it is correctly installed")
 
-        Parameters
-        ----------
-        filepath
-            The file path to the csv file.
+        if self.n_timeseries == 1:
+            delta_time = self.delta_time
 
-        **kwargs
-            keyword arguments handled to
-            `pandas.read_csv <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html>`__
+            if is_integer(delta_time):
+                start, end = self.time_values()[[0, -1]]
+                times = pd.RangeIndex(start, end + delta_time, delta_time)
+            elif self.is_datetime_index():
+                times = self.index
 
-        Returns
-        -------
-        TSCDataFrame
-            new instance
-        """
-        # NOTE: Overwrites the super class method (which is deprecated since version 0.21
-        # Here the csv is read from a csv file that was a
-        # TSCDataFrame, i.e. tscdf.to_csv("filename.csv") and therefore should be valid.
-        df = pd.read_csv(filepath, index_col=[0, 1], header=[0], **kwargs)
-        return cls(df)
+            return TimeSeries.from_times_and_values(
+                times=times,
+                values=self.to_numpy(),
+                columns=self.columns.to_numpy(),
+            )
+        else:
+            raise NotImplementedError("todo")
 
     @property
     def _constructor(self):
