@@ -749,13 +749,38 @@ class TSCDataFrame(pd.DataFrame):
 
         return cls(pd.concat(tsc_list, axis=0))
 
+    def to_darts(self):
+        from datafold.utils.general import is_integer
+
+        try:
+            from darts.timeseries import TimeSeries
+        except ImportError as e:
+            raise e("could not find package darts")
+
+        if self.n_timeseries == 1:
+            delta_time = self.delta_time
+
+            if is_integer(delta_time):
+                start, end = self.time_values()[[0, -1]]
+                times = pd.RangeIndex(start, end + delta_time, delta_time)
+            elif self.is_datetime_index():
+                times = self.index
+
+            return TimeSeries.from_times_and_values(
+                times=times,
+                values=self.to_numpy(),
+                columns=self.columns.to_numpy(),
+            )
+        else:
+            raise NotImplementedError("todo")
+
     def to_csv(self, *args, **kwargs) -> Optional[str]:
         """Write object to a comma-separated values (csv) file.
 
-        Internaly, the method casts the object (self) to pd.Dataframe before the csv is
-        written. The reason is that for larger files it could be observed that the
-        internals of ``to_csv`` could lead to invalid TSCDataFrame objects (which
-        raise an error).
+        Internally, the method casts the object (self) to pd.Dataframe before
+        the csv is written. The reason is that for larger files it could be
+        observed that the internals of ``to_csv`` could lead to invalid
+        TSCDataFrame objects (which raise an error).
 
         Parameters
         ----------

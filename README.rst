@@ -17,34 +17,34 @@ systems from time series data and to infer geometrical structures in point cloud
 
 The package includes:
 
+* Implementations and variants of the Dynamic Mode Decomposition as data-driven methods to
+  identify and analyze dynamical systems from time series collection data. This incldues:
+
+  * ``DMDFull`` or ``DMDEco`` as standard methods of DMD
+  * ``OnlineDMD`` or ``StreamingDMD`` modify the DMD to handle streaming data
+  * ``DMDControl`` augments the DMD to handle additional control input
+  * ``EDMD`` - The Extended-DMD, which allows setting up a highly flexible dictionary to
+    decompose and embed time series data and thereby handle nonlinear dynamics within the
+    Koopman operator framework. ``EDMD`` wraps an arbitrary DMD variation for the decomposition.
+    The key advantage of this is, that the ``EDMD`` directly profits from the above
+    functionalities. ``EDMD`` can be used in control or streaming settings. Furthermore, the
+    dictionary can also be learnt from the data, corresponding to the EDMD-DL.
 * An efficient implementation of the ``DiffusionMaps`` model to infer geometric
-  meaningful structures from data, such as the eigenfunctions of the
+  meaningful structures from (time series) data, such as the eigenfunctions of the
   Laplace-Beltrami operator. As a distinguishing factor to other implementations, the
   model can handle a sparse kernel matrix and allows setting an arbitrary kernel,
   including the standard Gaussian kernel,
   `continuous k-nearest neighbor kernel <https://arxiv.org/abs/1606.02353>`__, or
   `dynamics-adapted cone kernel <https://cims.nyu.edu/~dimitris/files/Giannakis15_cone_kernels.pdf>`__.
-* Implementations and variants of the Dynamic Mode Decomposition as data-driven methods to
-  identify and analyze dynamical systems from time series collection data. This incldues:
-  * ``DMDFull`` or ``DMDEco`` as standard methods of DMD
-  * ``OnlineDMD`` or ``StreamingDMD`` modify the DMD to handle streaming data
-  * ``DMDControl`` augments the DMD to handle additional control input
-  * ``EDMD`` - The Extended-DMD, which allows setting up a highly flexible dictionary to
-  transform time series data and thereby handle nonlinear dynamics within the Koopman
-  operator framework. The EDMD wraps an arbitrary DMD variation for the decomposition.
-  The key advantage of this is, that the ``EDMD`` directly profits from the above
-  functionalities. ``EDMD`` can be used in control or streaming settings. Furthermore it is
-  possible to learn the dictionary directly from data (commonly referred to EDMD-DL)
-* Handling of cross-validation. The method ``EDMDCV``, for example, allows model parameters to
-  be optimized with cross-validation splittings that account for the temporal order in time
-  series data.
+* Cross-validation. The method ``EDMDCV`` allows model parameters to be optimized with
+  cross-validation splittings that account for the temporal order in time series data.
 * Methods to perform Model Predictive Control (MPC) with Koopman operator-based methods (
-  mainly the ``EDMD``). *This is currently still under development and experimental*.
-* Regression models for high-dimensional data (often used for out-of-sample extensions for the
-  Diffusion Maps model), such as the (auto-tuned) Laplacian Pyramids or Geometric Harmonics to
-  interpolate general function values on a point cloud manifold.
-* A data structure ``TSCDataFrame`` to handle time series collection data. It simplifies model
-  inputs/outputs and make it easier to describe various forms of time series data.
+  mainly the ``EDMD``).
+* Regression models for high-dimensional data, which are commonly used for out-of-sample
+  extensions for the Diffusion Maps model. This includes the (auto-tuned) Laplacian Pyramids
+  or Geometric Harmonics to interpolate general function values on a point cloud manifold.
+* A data structure ``TSCDataFrame`` to handle time series collection (TSC) data. It simplifies
+  model inputs/output and make it easier to describe various forms of time series data.
 
 See also `this introduction page <https://datafold-dev.gitlab.io/datafold/intro.html>`__.
 For a mathematical thorough introduction, we refer to the `scientific literature

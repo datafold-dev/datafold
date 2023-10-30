@@ -739,6 +739,22 @@ class DMDStandard(DMDBase):
             is_time_invariant=True,
         )
 
+    def _validate_parameters(self):
+        if self.rank is not None:
+            check_scalar(
+                self.rank,
+                "rank",
+                target_type=int,
+                min_val=1,
+                max_val=self.n_features_in_,
+            )
+
+            if self.diagonalize:
+                raise NotImplementedError(
+                    f"Currently diagonalization ({self.diagonalize=}) is not "
+                    f"supported for reduced ranks ({self.rank=}."
+                )
+
     def _compute_full_system_matrix(self, X: TSCDataFrame, sample_weights=None):
         # It is more suitable to get the shift_start and shift_end in row orientation as
         # this is closer to the common least squares A K = B
@@ -1032,6 +1048,13 @@ class DMDStandard(DMDBase):
                 f"res_threshold is not None (got {self.residual_filter=}."
             )
 
+        import warnings
+
+        warnings.warn(
+            "This is an experimental function and is not thoroughly tested.",
+            stacklevel=1,
+        )
+
         zs = grid.ravel()
         n_samples = zs.shape[0]
 
@@ -1053,7 +1076,7 @@ class DMDStandard(DMDBase):
             eigfuncs = None
 
         for i in range(n_samples):
-            print(f"{i}/{n_samples}")
+            # print(f"{i}/{n_samples}")
 
             z = zs[i]
             try:
@@ -1067,10 +1090,12 @@ class DMDStandard(DMDBase):
                     + np.square(np.abs(z)) * self._G
                 )
 
-                # TODO: the original code only computes the smallest eigenvalue in magnitude. # noqa
-                #   check shift-invere mode as the smallest eigenvalues are tricky to find numerically stable # noqa
-                #   https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh # noqa
-                # TODO: could improve by finding good starting vector from previous computations? // v0=eigvec if i > 1 else None) # noqa
+                # TODO: the original code only computes the smallest eigenvalue
+                # in magnitude. Check shift-invere mode as the smallest
+                # eigenvalues are tricky to find numerically stable
+                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh # noqa
+                # TODO: could improve by finding good starting vector from
+                # previous computations? // v0=eigvec if i > 1 else None)
                 eigval, eigvec = scipy.sparse.linalg.eigs(
                     SQ @ num @ SQ, k=1, sigma=0, which="LM", return_eigenvectors=True
                 )
@@ -1209,6 +1234,7 @@ class DMDStandard(DMDBase):
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._validate_and_setup_fit_attrs(X=X)
+        self._validate_parameters()
 
         store_system_matrix, sample_weights = self._read_fit_params(
             attrs=[
@@ -1226,7 +1252,7 @@ class DMDStandard(DMDBase):
         if self.reconstruct_mode not in self._valid_reconstruct_modes:
             raise ValueError(
                 f"Valid arguments for 'reconstruct_mode' are {self._valid_reconstruct_modes}."
-                f" Got {self.reconstruct_mode=} "
+                f" Got {self.reconstruct_mode=}."
             )
 
         if self.rank is None:

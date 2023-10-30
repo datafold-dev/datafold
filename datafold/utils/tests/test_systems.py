@@ -195,27 +195,27 @@ class TestSystems(unittest.TestCase):
     def test_duffing01(self, plot=False):
         # setting parameters, because default leads to error (requires smaller time step size)
 
-        X1, U1 = Duffing(alpha=1, beta=-1).predict(
+        X1, _ = Duffing(alpha=1, beta=-1).predict(
             np.array([1, 2]), U=np.zeros((999, 1))
         )
-        X2, U2 = Duffing(alpha=1, beta=-1).predict(
+        X2, _ = Duffing(alpha=1, beta=-1).predict(
             np.array([1, 2]), U=np.zeros((999, 1)), time_values=np.arange(0, 10, 0.01)
         )
 
         U = TSCDataFrame.from_array(
             np.zeros((999, 1)), time_values=np.arange(0, 10 - 0.01, 0.01)
         )
-        X3, U3 = Duffing(alpha=1, beta=-1).predict(
+        X3, _ = Duffing(alpha=1, beta=-1).predict(
             np.array([1, 2]), U=U, time_values=np.arange(0, 10, 0.01)
         )
-        X4, U4 = Duffing(alpha=1, beta=-1).predict(np.array([1, 2]), U=U)
+        X4, _ = Duffing(alpha=1, beta=-1).predict(np.array([1, 2]), U=U)
 
         pdtest.assert_frame_equal(X1, X2)
         pdtest.assert_frame_equal(X1, X3)
         pdtest.assert_frame_equal(X1, X4)
 
         if plot:
-            f, ax = plt.subplots()
+            _, ax = plt.subplots()
             ax.plot(X1["x1"].to_numpy(), X2["x2"].to_numpy())
             plt.show()
 

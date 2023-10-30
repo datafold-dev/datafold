@@ -122,7 +122,7 @@ The bash script includes all steps that are detailed below.
            # Build documentation (writes to "docs/build/")
            # Note that this requires additional third-party dependencies
 
-	       python -m sphinx -M html doc/source/ pages/
+	   python -m sphinx -M html doc/source/ pages/
 
     .. tab-item:: conda
 
@@ -163,7 +163,7 @@ The bash script includes all steps that are detailed below.
 
            # Build documentation (writes to "docs/build/")
            # Note that this requires additional third-party dependencies
-	       python -m sphinx -M html doc/source/ pages/
+	   python -m sphinx -M html doc/source/ pages/
 
 Fork and create merge requests to *datafold*
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

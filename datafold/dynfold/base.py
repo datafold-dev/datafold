@@ -258,7 +258,7 @@ class TSCTransformerMixin(TSCBase, TransformerMixin):
             self._check_n_features(X, reset=True)
 
         if not hasattr(self, "feature_names_in_"):
-            if isinstance(X, TSCDataFrame) and type(X.columns[0]) != str:
+            if isinstance(X, TSCDataFrame) and not isinstance(X.columns[0], str):
                 # workaround for datafold to support non-str feature names
                 # sklearn does only support feature names of type str
                 # Note that there is a guarantee for TSCDataFrame that the feature names have
@@ -500,12 +500,6 @@ class TSCPredictMixin(TSCBase):
         U: Optional[Union[TSCDataFrame, np.ndarray]],
         dt=None,
     ):
-        # comparing time values in floating points is sometimes a bit tricky, because two
-        # effectively equal values have a tiny difference -- this parameter is used within
-        # this function as a tolerance value
-        _numerical_tol = 1e-14
-        _numerical_tol = 0
-
         if dt is None:
             try:
                 dt = self.dt_
@@ -536,6 +530,15 @@ class TSCPredictMixin(TSCBase):
                     reference = np.datetime64(datetime.now())
                 else:
                     reference = 0
+
+        # comparing time values in floating points is tricky, because what should be equal
+        # mathematically has tiny numerical difference -- this parameter is used
+        # within this function as a tolerance value
+        if isinstance(reference, (int, np.int_, np.datetime64)):
+            # no tol required for interger and interger-based datetime
+            _numerical_tol = 0
+        else:
+            _numerical_tol = 1e-14
 
         if time_values is None:
             if is_controlled:
@@ -604,7 +607,8 @@ class TSCPredictMixin(TSCBase):
                     if (
                         time_values.shape != req_time_values.shape
                         or not (
-                            np.array(time_values - req_time_values) <= _numerical_tol
+                            np.abs(np.array(time_values - req_time_values))
+                            <= _numerical_tol
                         ).all()
                     ):
                         raise ValueError(

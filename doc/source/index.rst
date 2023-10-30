@@ -160,8 +160,8 @@ Software maintainer and affiliation
 * **Daniel Lehmberg** (|dl-link| :octicon:`link-external`)
 
   - from 5/2022 postdoctoral researcher at Technical University of Munich (1)
-  - from 3/2018-5/2022 PhD candidate at both Munich University of Applied Scienes (1) and Technical University of
-    Munich (2) with funding from the German Research Foundation (|dfg| :octicon:`link-external`),
+  - from 3/2018-5/2022 PhD candidate at both Munich University of Applied Scienes (2) and Technical University of
+    Munich (1) with funding from the German Research Foundation (|dfg| :octicon:`link-external`),
     grant no. KO 5257/3-1.
 
 * **Felix Dietrich** (1, |fd-link| :octicon:`link-external`)
