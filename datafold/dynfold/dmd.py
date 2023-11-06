@@ -416,6 +416,7 @@ class DMDBase(
         X: TSCDataFrame,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         qois: Optional[Union[np.ndarray, pd.Index, list[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct time series collection.
@@ -769,6 +770,22 @@ class DMDStandard(DMDBase):
             is_time_invariant=True,
         )
 
+    def _validate_parameters(self):
+        if self.rank is not None:
+            check_scalar(
+                self.rank,
+                "rank",
+                target_type=int,
+                min_val=1,
+                max_val=self.n_features_in_,
+            )
+
+            if self.diagonalize:
+                raise NotImplementedError(
+                    f"Currently diagonalization ({self.diagonalize=}) is not "
+                    f"supported for reduced ranks ({self.rank=}."
+                )
+
     def _compute_full_system_matrix(self, X: TSCDataFrame, sample_weights=None):
         # It is more suitable to get the shift_start and shift_end in row orientation as
         # this is closer to the common least squares A K = B
@@ -1078,6 +1095,13 @@ class DMDStandard(DMDBase):
                 f"res_threshold is not None (got {self.residual_filter=}."
             )
 
+        import warnings
+
+        warnings.warn(
+            "This is an experimental function and is not thoroughly tested.",
+            stacklevel=1,
+        )
+
         zs = grid.ravel()
         n_samples = zs.shape[0]
 
@@ -1099,7 +1123,7 @@ class DMDStandard(DMDBase):
             eigfuncs = None
 
         for i in range(n_samples):
-            print(f"{i}/{n_samples}")
+            # print(f"{i}/{n_samples}")
 
             z = zs[i]
             try:
@@ -1113,10 +1137,12 @@ class DMDStandard(DMDBase):
                     + np.square(np.abs(z)) * self._G
                 )
 
-                # TODO: the original code only computes the smallest eigenvalue in magnitude. # noqa
-                #   check shift-invere mode as the smallest eigenvalues are tricky to find numerically stable # noqa
-                #   https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh # noqa
-                # TODO: could improve by finding good starting vector from previous computations? // v0=eigvec if i > 1 else None) # noqa
+                # TODO: the original code only computes the smallest eigenvalue
+                # in magnitude. Check shift-invere mode as the smallest
+                # eigenvalues are tricky to find numerically stable
+                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh # noqa
+                # TODO: could improve by finding good starting vector from
+                # previous computations? // v0=eigvec if i > 1 else None)
                 eigval, eigvec = scipy.sparse.linalg.eigs(
                     SQ @ num @ SQ, k=1, sigma=0, which="LM", return_eigenvectors=True
                 )
@@ -1255,6 +1281,7 @@ class DMDStandard(DMDBase):
             tsc_kwargs=dict(ensure_const_delta_time=True),
         )
         self._validate_and_setup_fit_attrs(X=X)
+        self._validate_parameters()
 
         store_system_matrix, sample_weights = self._read_fit_params(
             attrs=[
@@ -1272,7 +1299,7 @@ class DMDStandard(DMDBase):
         if self.reconstruct_mode not in self._valid_reconstruct_modes:
             raise ValueError(
                 f"Valid arguments for 'reconstruct_mode' are {self._valid_reconstruct_modes}."
-                f" Got {self.reconstruct_mode=} "
+                f" Got {self.reconstruct_mode=}."
             )
 
         if self.rank is None:
@@ -2651,8 +2678,13 @@ class OnlineDMD(DMDBase):
         return self
 
 
+@warn_experimental_class
 class ParametricDMD(DMDBase):
-    """Only implements the partitioned version for now"""
+    """Only implements the partitioned version for now.
+
+    #TODO: include documention and references
+
+    """
 
     class LinearMatrixInterp:
         def fit(self, p: np.ndarray, target_matrices: list[np.ndarray]) -> np.ndarray:
@@ -2708,11 +2740,22 @@ class ParametricDMD(DMDBase):
                 "the parameter values have to be unique -- implementation notice"
             )
 
+        from datafold.dynfold.transform import TSCSingularValueDecomp
+
+        self.n_components = 20
+        self.n_features_in_ = self.n_components
+        self.svd = TSCSingularValueDecomp(n_components=self.n_components)
+        X_pca = self.svd.fit_transform(X)
+
         # per parameter fit a DMD model
         dmd_methods = dict()
 
-        for i, _ in P.to_dict().items():
-            dmd_methods[i] = DMDStandard(sys_mode="matrix").fit(X)
+        for i in range(P.shape[0]):
+            idd = P.index[i]
+            X_param = X_pca.loc[[idd], :]
+            dmd_methods[i] = DMDStandard(sys_mode="matrix").fit(X_param)
+
+        self.feature_names_in_ = dmd_methods[i].feature_names_in_
 
         # need to fit some interpolation method for these dmd methods
 
@@ -2742,7 +2785,7 @@ class ParametricDMD(DMDBase):
 
         for i, p in P.to_dict().items():
             system_matrix = self.interpolation_.predict(p).reshape(
-                self.n_features_in_, self.n_features_in_
+                self.n_components, self.n_components
             )
 
             # switching to a new definition of parametric system
@@ -2750,9 +2793,11 @@ class ParametricDMD(DMDBase):
             #  into the LinearDynSystem
             self.setup_matrix_system(system_matrix, reset=True)
 
-            X_ic_p = X.loc[[i], :]
+            X_ic_p = self.svd.transform(X.loc[[i], :])
+
             Xp = super().predict(X_ic_p, U=U, time_values=time_values, **predict_params)
-            X_result.append(Xp)
+            Xp_orig = self.svd.inverse_transform(Xp)
+            X_result.append(Xp_orig)
 
         X_result = pd.concat(X_result, axis=0)
 

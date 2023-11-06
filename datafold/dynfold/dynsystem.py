@@ -177,13 +177,33 @@ class SystemSolveStrategy:
             * If :code:`time_values / time_delta` are `[0, 1, 2, ...]`, within the loop the
               system matrix can be iteratively updated
         """
-        for idx, time in enumerate(time_values):
-            # TODO: this is really expensive -- can also store intermediate
-            #  results and only add the incremental fraction?
-            time_series_tensor[:, idx, :] = np.real(
-                scipy.linalg.fractional_matrix_power(sys_matrix, time / time_delta)
-                @ initial_conditions
-            ).T
+
+        # tolerance at which to decide wether we can use the same matrix for a single time step
+        # TODO: this could even be more improved, if we check if the steps are equidistant -
+        #  in this way we can compute fractional_matrix_power once and use it for the time
+        #  stepping (contributions welcome!)
+
+        TOL = 1e-13
+        is_equal_time_steps = np.all(
+            np.abs(time_values - time_delta * np.arange(len(time_values))) < TOL
+        )
+
+        if is_equal_time_steps:
+            time_series_tensor[:, 0, :] = initial_conditions.T
+
+            for idx in range(1, len(time_values)):
+                time_series_tensor[:, idx, :] = np.real(
+                    sys_matrix @ time_series_tensor[:, idx - 1, :].T
+                ).T
+        else:
+            # NOTE: this is quite expensive as it uses fractional_matrix_power
+            # however it is also capable to interpolate between the original
+            # time sampling rate
+            for idx, time in enumerate(time_values):
+                time_series_tensor[:, idx, :] = np.real(
+                    scipy.linalg.fractional_matrix_power(sys_matrix, time / time_delta)
+                    @ initial_conditions
+                ).T
 
         return time_series_tensor
 

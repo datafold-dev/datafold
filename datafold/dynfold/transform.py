@@ -515,6 +515,84 @@ class TSCPrincipalComponent(PCA, TSCTransformerMixin):
         )
 
 
+class TSCSingularValueDecomp(BaseEstimator, TSCTransformerMixin):
+    """Linear dimension reduction using Scipy's SVD function.
+
+    This is mainly used for complex data at the moment.
+    """
+
+    def __init__(self, n_components):
+        self.n_components = n_components
+
+    def get_feature_names_out(self, input_features=None):
+        return [f"svd{i}" for i in range(self.n_components)]
+
+    def fit(self, X, y=None, **fit_params):
+        X = self._validate_datafold_data(X)
+        self._setup_feature_attrs_fit(X)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+
+        from scipy.linalg import svd
+
+        _, _, self.Vh = svd(
+            X.to_numpy(),
+            full_matrices=False,
+            compute_uv=True,
+            check_finite=False,
+            lapack_driver="gesdd",
+        )
+
+        self.Vh = self.Vh[: self.n_components, :]
+
+        return self
+
+    def fit_transform(self, X, y=None, **fit_params):
+        X = self._validate_datafold_data(X)
+        self._setup_feature_attrs_fit(X)
+        self._read_fit_params(attrs=None, fit_params=fit_params)
+
+        from scipy.linalg import svd
+
+        U, S, self.Vh = svd(
+            X.to_numpy(),
+            full_matrices=False,
+            compute_uv=True,
+            check_finite=False,
+            lapack_driver="gesdd",
+        )
+
+        U = U[:, : self.n_components]
+        S = S[: self.n_components]
+        self.Vh = self.Vh[: self.n_components, :]
+
+        from datafold.utils.general import mat_dot_diagmat
+
+        X_red = mat_dot_diagmat(U, S)
+
+        X_red = TSCDataFrame.from_same_indices_as(
+            X, X_red, except_columns=self.get_feature_names_out()
+        )
+
+        return X_red
+
+    def transform(self, X):
+        X_red = X.to_numpy() @ self.Vh.conj().T
+
+        X_red = TSCDataFrame.from_same_indices_as(
+            X, X_red, except_columns=self.get_feature_names_out()
+        )
+
+        return X_red
+
+    def inverse_transform(self, X):
+        X_orig = X.to_numpy() @ self.Vh
+        X_orig = TSCDataFrame.from_same_indices_as(
+            X, X_orig, except_columns=self.feature_names_in_
+        )
+
+        return X_orig
+
+
 class TSCTakensEmbedding(BaseEstimator, TSCTransformerMixin):
     r"""Perform Takens time delay embedding on time series collection data.
 
@@ -951,9 +1029,7 @@ class FourierRBF(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
 
     def fit(self, X, y=None, **fit_params):
         self._setup_feature_attrs_fit(X, n_features_out=2 * self.n_features)
-
         self._read_fit_params(None, **fit_params)
-
         # sample features components
         self.fourier_components_ = np.zeros([X.shape[1], self.n_features])
 

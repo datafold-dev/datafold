@@ -1,7 +1,7 @@
 findiff==0.10.0
 matplotlib>=3.2.0
 numexpr>=2.8.0,<3.0.0
-numpy>=1.24.0,<1.26.0
+numpy>=1.25.0,<1.27.0
 pandas>=2.0.0
 scikit-learn~=1.2.1
 scipy>=1.10.0,<1.12
