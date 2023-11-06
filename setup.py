@@ -60,6 +60,12 @@ def get_long_description():
     return long_description
 
 
+project_urls = {
+    "Bug Tracker": "https://gitlab.com/datafold-dev/datafold/-/issues",
+    "Documentation": "https://datafold-dev.gitlab.io/datafold/",
+    "Source Code": "https://gitlab.com/datafold-dev/datafold",
+}
+
 setup(
     name="datafold",
     author=author,
@@ -69,6 +75,7 @@ setup(
     long_description=get_long_description(),
     license="MIT",
     url="https://datafold-dev.gitlab.io/datafold",
+    project_urls=project_urls,
     download_url="https://pypi.org/project/datafold/",
     keywords=[
         "mathematics, machine learning, dynamical system, data-driven, time series, "
@@ -83,10 +90,12 @@ setup(
     # classifiers from list: https://pypi.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Intended Audience :: Science/Research",
+        "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Scientific/Engineering",
+        "Topic :: Software Development",
     ],
     # see https://stackoverflow.com/a/14159430
     # Both a MANIFEST.in and package_data is required such that an "bdist" or "sdist"

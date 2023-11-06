@@ -33,7 +33,7 @@ class Version:
     # TO UPDATE -- START
     major_version: int = 2  # making incompatible API changes,
     minor_version: int = 0  # adding functionality in a backwards-compatible manner
-    patch: int = 0  # for backwards-compatible bug fixes
+    patch: int = 1  # for backwards-compatible bug fixes
 
     # additional release suffixes
     post: int = 0  # for minor corrections
@@ -41,8 +41,8 @@ class Version:
 
     # Set date of release for longer version numbers.
     year: int = 2023
-    month: int = 7
-    day: int = 31
+    month: int = 9
+    day: int = 30
     # TO UPDATE -- END
 
     assert major_version >= 0 and isinstance(major_version, int)

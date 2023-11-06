@@ -21,6 +21,7 @@ from datafold.dynfold.transform import (
     TSCRadialBasis,
     TSCTakensEmbedding,
     TSCTransformerMixin,
+    TSCSingularValueDecomp
 )
 from datafold.pcfold.kernels import MultiquadricKernel
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
@@ -376,6 +377,25 @@ class TestTSCTransform(unittest.TestCase):
             pca.inverse_transform(data).to_numpy(),
             pca_sklearn.inverse_transform(data_sklearn),
         )
+
+
+    def test_svd_transform01(self):
+
+        for _type in [np.float_, np.complex_]:
+            tscdf = TSCDataFrame(self.simple_df).astype(_type)
+
+            if _type == np.complex_:
+                random_imag = np.random.default_rng(1).uniform(size=tscdf.shape)
+                tscdf = tscdf + 1j * random_imag
+
+            svd = TSCSingularValueDecomp(2)
+
+            svd.fit(tscdf)
+
+            transformed = svd.transform(tscdf)
+            inverse_transform = svd.inverse_transform(transformed)
+
+            pdtest.assert_frame_equal(tscdf, inverse_transform)
 
     def test_takens_embedding00(self):
         simple_df = self.takens_df_short.drop("B", axis=1)
