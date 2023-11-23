@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from functools import partial
 from numbers import Number
-from typing import Optional, Union, Literal
+from typing import Literal, Optional, Union
 
 import matplotlib.colors as mclrs
 import numpy as np
@@ -495,7 +495,7 @@ class TSCDataFrame(pd.DataFrame):
         )
 
         if orientation == "col":
-            tensor = tensor.swapaxes(1,2)
+            tensor = tensor.swapaxes(1, 2)
 
         return tensor
 

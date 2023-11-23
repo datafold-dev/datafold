@@ -19,9 +19,9 @@ from datafold.dynfold.transform import (
     TSCPolynomialFeatures,
     TSCPrincipalComponent,
     TSCRadialBasis,
+    TSCSingularValueDecomp,
     TSCTakensEmbedding,
     TSCTransformerMixin,
-    TSCSingularValueDecomp
 )
 from datafold.pcfold.kernels import MultiquadricKernel
 from datafold.pcfold.timeseries.collection import TSCDataFrame, TSCException
@@ -378,9 +378,7 @@ class TestTSCTransform(unittest.TestCase):
             pca_sklearn.inverse_transform(data_sklearn),
         )
 
-
     def test_svd_transform01(self):
-
         for _type in [np.float_, np.complex_]:
             tscdf = TSCDataFrame(self.simple_df).astype(_type)
 
