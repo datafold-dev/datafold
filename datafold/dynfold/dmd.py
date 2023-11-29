@@ -160,9 +160,9 @@ class DMDBase(
         self,
         X: TimePredictType,
         *,
-        U: Optional[TSCDataFrame],
-        P=None,
-        y=None,
+        U: Optional[TSCDataFrame]=None,
+        P: Optional[pd.DataFrame]=None,
+        y: Optional[TSCDataFrame]=None,
         **fit_params,
     ) -> "DMDBase":
         """Abstract method to train DMD model.
@@ -177,8 +177,8 @@ class DMDBase(
             control input).
 
         P
-            ignored
-                reserved for parameter input
+            Parameter input. The index must be time series ID that match with
+            with the IDs in ``X``. The columns contain the parameters.
 
         y
             ignored
@@ -239,6 +239,8 @@ class DMDBase(
                 states=initial_states_origspace
             )
 
+        # TODO: since is_time_invariant is an attribute of the linear dynamical
+        #  system, this should be moved there.
         if self.is_time_invariant:
             shift = np.min(time_values)
         else:
@@ -246,7 +248,6 @@ class DMDBase(
             # starts with time=5, some positive value) then normalize the time_samples
             # with this shift. The linear system handles the shifted time start as time
             # zero.
-            # shift = self.time_interval_[0]
             raise NotImplementedError(
                 "'time_invariant = False' is currently not supported"
             )
@@ -587,8 +588,8 @@ class DMDStandard(DMDBase):
 
     The actual decomposition contains the spectral elements of the matrix :math:`K`.
 
-    If the parameter ``rank`` is set, then an economic DMD is computed. For this the data
-    :math:`X` is first represented in a singular value decomposition
+    If the parameter ``rank`` is set, then an the data is decomposed with a SVD
+    (also sometimes referred to as "economic DMD"):
 
       .. math::
           X \approx U_k \Sigma_k V_k^*
@@ -1293,7 +1294,7 @@ class DMDStandard(DMDBase):
 
         if self.rank is not None:
             check_scalar(
-                self.rank, "rank", target_type=int, min_val=1, max_val=X.shape[1] - 1
+                self.rank, "rank", target_type=int, min_val=1, max_val=X.shape[1]
             )
 
         if self.reconstruct_mode not in self._valid_reconstruct_modes:
@@ -2678,43 +2679,18 @@ class OnlineDMD(DMDBase):
         return self
 
 
+
 @warn_experimental_class
-class ParametricDMD(DMDBase):
+class PartitionedDMD(DMDBase):
     """Only implements the partitioned version for now.
 
     #TODO: include documention and references
 
     """
 
-    class LinearMatrixInterp:
-        def fit(self, p: np.ndarray, target_matrices: list[np.ndarray]) -> np.ndarray:
-            self.n_features = target_matrices[0].shape[0]
-            sys_matrices = np.zeros([len(p), self.n_features**2])
-
-            for i, mat in enumerate(target_matrices):
-                sys_matrix_flat = np.reshape(
-                    mat,
-                    (self.n_features**2),
-                )
-                sys_matrices[i] = sys_matrix_flat
-
-            from scipy.interpolate import interp1d
-
-            self.interp_ = interp1d(
-                p,
-                target_matrices,
-                axis=0,
-                kind="linear",
-                copy=True,
-                bounds_error=True,
-                assume_sorted=False,
-            )
-
-        def predict(self, p) -> np.ndarray:
-            return self.interp_(p).reshape((self.n_features, self.n_features))
-
     def __init__(self):
         super().__init__(sys_mode="matrix", sys_type="flowmap")
+        self.n_components = 20
 
     def fit(
         self,
@@ -2724,10 +2700,13 @@ class ParametricDMD(DMDBase):
         P=None,
         y=None,
         **fit_params,
-    ) -> "ParametricDMD":
+    ) -> "PartitionedDMD":
         # TODO: validation
         # - check that the Ids in P correspond to the ones in X
         # - check for now that the parameters are unique
+
+        if U is not None:
+            raise NotImplementedError("Control input U is not supported")
 
         self._validate_and_setup_fit_attrs(X=X)
 
@@ -2742,106 +2721,6 @@ class ParametricDMD(DMDBase):
 
         from datafold.dynfold.transform import TSCSingularValueDecomp
 
-        self.n_components = 20
-        self.n_features_in_ = self.n_components
-        self.svd = TSCSingularValueDecomp(n_components=self.n_components)
-        X_pca = self.svd.fit_transform(X)
-
-        # per parameter fit a DMD model
-        dmd_methods = dict()
-
-        for i in range(P.shape[0]):
-            idd = P.index[i]
-            X_param = X_pca.loc[[idd], :]
-            dmd_methods[i] = DMDStandard(sys_mode="matrix").fit(X_param)
-
-        self.feature_names_in_ = dmd_methods[i].feature_names_in_
-
-        # need to fit some interpolation method for these dmd methods
-
-        self.interpolation_ = self.LinearMatrixInterp()
-        self.interpolation_.fit(
-            P.to_numpy(), [dm.sys_matrix_ for _, dm in dmd_methods.items()]
-        )
-
-        return self
-
-    def predict(
-        self,
-        X: InitialConditionType,
-        *,
-        U: Optional[TSCDataFrame] = None,
-        P: Optional[pd.Series],
-        time_values: Optional[np.ndarray] = None,
-        **predict_params,
-    ) -> TSCDataFrame:
-        # For now each initial condition is computed separately
-        # If required in a future implementation ICs with the same parameter could be grouped
-        # so save the re-interpolation in this case
-
-        # TODO: need validation here
-
-        X_result = []
-
-        for i, p in P.to_dict().items():
-            system_matrix = self.interpolation_.predict(p).reshape(
-                self.n_components, self.n_components
-            )
-
-            # switching to a new definition of parametric system
-            # TODO: this is only a workaround -- at best the parametric part is integrated
-            #  into the LinearDynSystem
-            self.setup_matrix_system(system_matrix, reset=True)
-
-            X_ic_p = self.svd.transform(X.loc[[i], :])
-
-            Xp = super().predict(X_ic_p, U=U, time_values=time_values, **predict_params)
-            Xp_orig = self.svd.inverse_transform(Xp)
-            X_result.append(Xp_orig)
-
-        X_result = pd.concat(X_result, axis=0)
-
-        return X_result
-
-
-@warn_experimental_class
-class ParametricDMD2(DMDBase):
-    """Only implements the partitioned version for now.
-
-    #TODO: include documention and references
-
-    """
-
-    def __init__(self):
-        super().__init__(sys_mode="matrix", sys_type="flowmap")
-
-    def fit(
-        self,
-        X: TimePredictType,
-        *,
-        U=None,
-        P=None,
-        y=None,
-        **fit_params,
-    ) -> "ParametricDMD":
-        # TODO: validation
-        # - check that the Ids in P correspond to the ones in X
-        # - check for now that the parameters are unique
-
-        self._validate_and_setup_fit_attrs(X=X)
-
-        if (P.index.to_numpy() != X.ids.to_numpy()).all():
-            # TODO make a more informative error
-            raise ValueError("ids do not match between P and X")
-
-        if len(np.unique(P.to_numpy())) != len(P):
-            raise ValueError(
-                "the parameter values have to be unique -- implementation notice"
-            )
-
-        from datafold.dynfold.transform import TSCSingularValueDecomp
-
-        self.n_components = 20
         self.svd = TSCSingularValueDecomp(n_components=self.n_components)
         X_pca = self.svd.fit_transform(X)
 
@@ -2851,7 +2730,9 @@ class ParametricDMD2(DMDBase):
         for i in range(P.shape[0]):
             idd = P.index[i]
             X_param = X_pca.loc[[idd], :]
-            self.dmd_methods[i] = DMDStandard(sys_mode="matrix").fit(X_param)
+            self.dmd_methods[i] = DMDStandard(rank=self.n_components).fit(X_param)
+
+        self.training_parameters = P
 
         return self
 
@@ -2868,44 +2749,50 @@ class ParametricDMD2(DMDBase):
         # If required in a future implementation ICs with the same parameter could be grouped
         # so save the re-interpolation in this case
 
-        if len(P) != 1:
-            raise NotImplementedError("Currently only a single parameter is possible")
-
-        if X.shape[0] != 1:
-            raise NotImplementedError(
-                "Currently only a single time series is implemented"
-            )
-
-        X_dmds = []
-
-        for i in len(self.dmd_methods):
-            X_ic_svd = self.svd.transform(X)
-            X_dmds.append(self.dmd_methods[i].predict(X_ic_svd))
-
-        X_dmds = TSCDataFrame.from_frame_list(X_dmds)
-
         from scipy.interpolate import RBFInterpolator
 
-        X_ret = TSCDataFrame.from_array(
-            np.zeros([len(time_values), self.n_features_in_]),
-            time_values=time_values,
-            feature_names=self.feature_names_in_,
-        )
+        X_all = []
 
-        for i in range(len(time_values)):
-            t = time_values[i]
-            states = X_dmds.iloc[pd.IndexSlice[:, i], :]
-            # TODO: check other options used in pydmd
-            interp = RBFInterpolator(
-                self.training_parameters, states.to_numpy(), kernel="gaussian"
+        for i, _id in enumerate(X.ids):
+
+            X_dmds = []
+
+            X_current = X.loc[[_id]]
+
+            for di in range(len(self.dmd_methods)):
+                X_ic_svd = self.svd.transform(X_current)
+                X_dmds.append(
+                    self.dmd_methods[di].predict(X_ic_svd, time_values=time_values)
+                )
+
+            X_dmds = TSCDataFrame.from_frame_list(X_dmds)
+
+            X_ret = TSCDataFrame.from_array(
+                np.zeros([len(time_values), self.n_features_in_]),
+                time_values=time_values,
+                feature_names=self.feature_names_in_,
+                ts_id= _id
             )
 
-            interp_state_svd = interp(P)
-            interp_state_svd = TSCDataFrame.from_array(
-                interp_state_svd,
-                time_values=np.array([time_values[i]]),
-            )
-            interp_state = self.svd.inverse_transform(interp_state_svd)
-            X_ret.loc[pd.IndexSlice[:, t]] = interp_state
+            for j in range(len(time_values)):
+                t = time_values[j]
+                states = X_dmds.loc[pd.IndexSlice[:, t], :]
+                # TODO: check other options used in pydmd
 
-        return X_ret
+                interp = RBFInterpolator(
+                    self.training_parameters.to_numpy()[:, np.newaxis],
+                    states.to_numpy(),
+                    kernel="thin_plate_spline",
+                )
+
+                interp_state_svd = interp(P.iloc[[i]].to_numpy()[:, np.newaxis])
+                interp_state_svd = TSCDataFrame.from_array(
+                    interp_state_svd,
+                    time_values=np.array([t]),
+                )
+                interp_state = self.svd.inverse_transform(interp_state_svd)
+                X_ret.iloc[j, :] = interp_state.to_numpy()
+
+            X_all.append(X_ret)
+
+        return pd.concat(X_all, axis=0)

@@ -243,8 +243,15 @@ class SystemSolveStrategy:
         """
         _eigenvalues = eigenvalues.astype(complex)
 
+        # TODO: that the target values can be complex valued is only considered here for now,
+        #  this should be done cosistent in all functions
+        if time_series_tensor.dtype == np.complex_:
+            post_func = lambda x: x
+        else:
+            post_func = lambda x: np.real(x)
+
         for idx, time in enumerate(time_values):
-            time_series_tensor[:, idx, :] = np.real(
+            time_series_tensor[:, idx, :] = post_func(
                 sys_matrix
                 @ diagmat_dot_mat(
                     np.float_power(_eigenvalues, time / time_delta),
@@ -988,10 +995,16 @@ class LinearDynamicalSystem:
             feature_names_out=feature_names_out,
         )
 
+        if initial_conditions.dtype == np.complex_:
+            ret_dtype = complex
+        else:
+            ret_dtype = float
+
         time_series_tensor = allocate_time_series_tensor(
             n_time_series=initial_conditions.shape[1],
             n_timesteps=time_values.shape[0],
             n_feature=n_features,
+            dtype=ret_dtype
         )
 
         # write the predicted states in time_series_tensor

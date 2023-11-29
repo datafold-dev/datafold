@@ -2006,7 +2006,7 @@ class InitialCondition:
             )
 
 
-def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
+def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature, dtype=float):
     """Allocate a time series tensor that complies with
     :py:meth:`TSCDataFrame.from_tensor()`.
 
@@ -2037,4 +2037,4 @@ def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
     :py:meth:`TSCDataFrame.from_tensor`
 
     """
-    return np.zeros([n_time_series, n_timesteps, n_feature], order="C", dtype=float)
+    return np.zeros([n_time_series, n_timesteps, n_feature], order="C", dtype=dtype)
