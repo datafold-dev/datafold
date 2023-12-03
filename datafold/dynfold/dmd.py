@@ -6,6 +6,7 @@ from typing import Literal, Optional, Union
 import numpy as np
 import pandas as pd
 import scipy.linalg
+from scipy.interpolate import RBFInterpolator
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
 from sklearn.utils.validation import check_is_fitted, check_scalar
@@ -160,9 +161,9 @@ class DMDBase(
         self,
         X: TimePredictType,
         *,
-        U: Optional[TSCDataFrame]=None,
-        P: Optional[pd.DataFrame]=None,
-        y: Optional[TSCDataFrame]=None,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
+        y: Optional[TSCDataFrame] = None,
         **fit_params,
     ) -> "DMDBase":
         """Abstract method to train DMD model.
@@ -308,7 +309,8 @@ class DMDBase(
         self,
         X: InitialConditionType,
         *,
-        U: Optional[TSCDataFrame] = None,  # type: ignore
+        U=None,  # type: ignore
+        P=None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:  # type: ignore
@@ -458,19 +460,23 @@ class DMDBase(
         ):
             if U is not None:
                 U_ic = U.loc[pd.IndexSlice[X_ic.ids, :], :]
+                time_values = None  # use time information from U_ic instead
             else:
                 U_ic = None
 
-            # use time_values from U_ic if available, else set time_values
-            X_ts = self.predict(
-                X=X_ic, U=U_ic, time_values=time_values if U is None else None
-            )
+            X_ts = self.predict(X=X_ic, U=U_ic, P=P, time_values=time_values)
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)
 
     def fit_predict(
-        self, X: TSCDataFrame, *, U: Optional[TSCDataFrame] = None, y=None, **fit_params
+        self,
+        X: TSCDataFrame,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
+        y=None,
+        **fit_params,
     ) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
 
@@ -478,6 +484,13 @@ class DMDBase(
         ----------
         X
             Training time series data.
+
+        U
+            Control input for each time series
+
+        P
+            Parameter for each time series
+
         y
             ignored
 
@@ -486,13 +499,14 @@ class DMDBase(
         TSCDataFrame
             same shape as input `X`
         """
-        return self.fit(X, U=U, **fit_params).reconstruct(X, U=U)
+        return self.fit(X, U=U, P=P, **fit_params).reconstruct(X, U=U, P=P)
 
     def score(
         self,
         X: TSCDataFrame,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         y=None,
         sample_weight=None,
     ) -> float:
@@ -523,7 +537,7 @@ class DMDBase(
         """
         self._check_attributes_set_up(check_attributes=["_score_eval"])
 
-        X_est_ts = self.reconstruct(X, U=U)  # does all the validation checks
+        X_est_ts = self.reconstruct(X, U=U, P=P)  # does all the validation checks
         return self._score_eval(X, X_est_ts, sample_weight)
 
 
@@ -564,7 +578,13 @@ class PretrainedDMD(DMDBase):
         return dmd
 
     def fit(
-        self, X: TSCDataFrame, *, U: Optional[TSCDataFrame] = None, y=None, **fit_params
+        self,
+        X: TSCDataFrame,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
+        y: Optional[TSCDataFrame] = None,
+        **fit_params,
     ) -> "PretrainedDMD":
         self._validate_and_setup_fit_attrs(X, U=None)
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -841,12 +861,11 @@ class DMDStandard(DMDBase):
         else:
             R = None
 
-        # TODO: this requires first testing, then enable passing the set values
+        # TODO: this requires first testing, then enable passing the values
         self.alpha = 0
         self.l1_ratio = 0
 
         # TODO: integrate later also CV of each version (depending if user requests it)
-
         # TODO: need to also adapt the text above (note that here no transpose is necessary)
         if np.iscomplexobj(X):
             if self.l1_ratio != 0:
@@ -1005,19 +1024,6 @@ class DMDStandard(DMDBase):
                 eigenvectors_left = eigenvectors_left[sortidx, :]
 
         return eigenvalues, eigenvectors_right, eigenvectors_left
-
-        # TODO: remove
-        # if np.sqrt(np.real(res_squared)) <= self.res_threshold:
-        #     new_vals.append(eval)
-        #     new_rvecs.append(if1dim_colvec(g))
-        #     if not (eigenvectors_left is None):
-        #         new_lvecs.append(if1dim_rowvec(lvec))
-        #
-        # return (
-        #     np.array(new_vals),
-        #     (np.hstack(new_rvecs) if len(new_rvecs) else np.empty((0, 0))),
-        #     (None if eigenvectors_left is None else np.vstack(new_lvecs)),
-        # )
 
     def _compute_left_eigenvectors(
         self, system_matrix, eigenvalues, eigenvectors_right
@@ -1245,7 +1251,9 @@ class DMDStandard(DMDBase):
 
         return nu
 
-    def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "DMDStandard":
+    def fit(
+        self, X: TimePredictType, *, U=None, P=None, y=None, **fit_params
+    ) -> "DMDStandard":
         """Fit model.
 
         Parameters
@@ -1259,12 +1267,16 @@ class DMDStandard(DMDBase):
         U: None
             ignored (the method does not support control input)
 
+        P: None
+            ignored (the method does not support parameter input)
+
         **fit_params
 
          - store_system_matrix: bool
-            If True, the model stores either the system or generator matrix in attribute
-            ``system_matrix_`` or ``generator_matrix_`` respectively. The parameter is ignored
-            if ``sys_mode=="matrix"`` (the system matrix is then in attribute ``sys_matrix_``).
+            If True, the model stores either the system or generator matrix in
+            attribute ``system_matrix_`` or ``generator_matrix_`` respectively.
+            The parameter is ignored if ``sys_mode=="matrix"`` (the system
+            matrix is then in attribute ``sys_matrix_``).
          - sample_weights: np.ndarray
             Sample weights
 
@@ -1328,8 +1340,8 @@ class DMDStandard(DMDBase):
             ) = self._compute_spectral_components(system_matrix_, reconstruct)
 
             if self.residual_filter is not None:
-                # TODO: by removing spectral components the (reconstructed) system matrix also
-                #  changes -- should this be considered?
+                # TODO: by removing spectral components the (reconstructed)
+                # system matrix also changes -- should this be considered?
                 (
                     eigenvalues_,
                     eigenvectors_right_,
@@ -1512,7 +1524,9 @@ class gDMDFull(DMDBase):
 
         return ret_kwargs
 
-    def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "gDMDFull":
+    def fit(
+        self, X: TimePredictType, *, U=None, P=None, y=None, **fit_params
+    ) -> "gDMDFull":
         """Compute Koopman generator matrix and spectral components.
 
         Parameters
@@ -1522,6 +1536,9 @@ class gDMDFull(DMDBase):
 
         U: None
             ignored (the method does not support control input)
+
+        U: None
+            ignored (the method does not support parameter input)
 
         y: None
             ignored
@@ -1701,7 +1718,7 @@ class DMDControl(DMDBase):
 
         return sys_matrix, control_matrix
 
-    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params) -> "DMDControl":  # type: ignore[override]
+    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, P=None, y=None, **fit_params) -> "DMDControl":  # type: ignore[override]
         """Fit model to compute a system and control matrix.
 
         Parameters
@@ -1710,9 +1727,13 @@ class DMDControl(DMDBase):
             System state time series
 
         U: TSCDataFrame
-            Control input. Each control input must have a matching system state in ``X``
-            (same ID and time value) for all but the last state (i.e. all time series have one
-            timestep less than the time series in ``X``).
+            Control input. Each control input must have a matching system state
+            in ``X`` (same ID and time value) for all but the last state (i.e.
+            all time series have one timestep less than the time series in
+            ``X``).
+
+        P: None
+            ignored (the method does not support parameter input)
 
         y: None
             ignored
@@ -2044,6 +2065,7 @@ class PyDMDWrapper(DMDBase):
         X: TimePredictType,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         y=None,
         **fit_params,
     ) -> "PyDMDWrapper":
@@ -2056,6 +2078,10 @@ class PyDMDWrapper(DMDBase):
 
         U
             Control input time series. Only available for models that support control.
+
+        P: None
+            ignored (the wrapper does not support parameter input)
+            # TODO for partitioned/monolithic DMD
 
         y: None
             ignored
@@ -2244,10 +2270,13 @@ class StreamingDMD(DMDBase):
         self._pod_compression()
         self._update_sys_matrix(Xm, Xp)
 
-    def fit(self, X: TimePredictType, y=None, **fit_params) -> "DMDBase":
+    def fit(
+        self, X: TimePredictType, U=None, P=None, y=None, **fit_params
+    ) -> "DMDBase":
         """Initial fit of the model (used within :py:meth`partial_fit`).
 
         .. note::
+
             This function is not intended to be used directly. Use only py:meth:`partial_fit`
             for the initial fit and model updates
         """
@@ -2371,6 +2400,7 @@ class StreamingDMD(DMDBase):
         X: TimePredictType,
         *,
         U=None,
+        P=None,
         time_values=None,
         **predict_params,
     ):
@@ -2540,7 +2570,7 @@ class OnlineDMD(DMDBase):
         else:
             return True
 
-    def fit(self, X, y=None, **fit_params):
+    def fit(self, X, *, U=None, P=None, y=None, **fit_params):
         """Initialize the model with the first time series data in a batch.
 
         .. note::
@@ -2679,60 +2709,97 @@ class OnlineDMD(DMDBase):
         return self
 
 
-
 @warn_experimental_class
 class PartitionedDMD(DMDBase):
-    """Only implements the partitioned version for now.
-
-    #TODO: include documention and references
+    """
+    Parametric dynamic mode decomposition with partitioned approach.
 
     """
 
-    def __init__(self):
+    def __init__(self, n_components: int = 2, dmd_kwargs: Optional[dict] = None):
         super().__init__(sys_mode="matrix", sys_type="flowmap")
-        self.n_components = 20
+        self.n_components = n_components
+        self.dmd_kwargs = dmd_kwargs
 
     def fit(
         self,
         X: TimePredictType,
         *,
-        U=None,
-        P=None,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[TSCDataFrame] = None,
         y=None,
         **fit_params,
     ) -> "PartitionedDMD":
-        # TODO: validation
-        # - check that the Ids in P correspond to the ones in X
-        # - check for now that the parameters are unique
+        """Fit the model.
+
+        Parameters
+        ----------
+
+        X:
+            Training time series data.
+
+        U:
+            ignored (control input is not supported)
+
+        P:
+            Parameters for each time series in ``X``.
+
+        y:
+            ignored
+
+        Returns
+        -------
+        self
+        """
+
+        check_scalar(
+            self.n_components,
+            name="n_components",
+            target_type=int,
+            min_val=1,
+            max_val=X.shape[1],
+        )
 
         if U is not None:
             raise NotImplementedError("Control input U is not supported")
 
-        self._validate_and_setup_fit_attrs(X=X)
-
         if (P.index.to_numpy() != X.ids.to_numpy()).all():
-            # TODO make a more informative error
-            raise ValueError("ids do not match between P and X")
+            raise ValueError(
+                "The IDs between training data ``X`` and"
+                "parameters ``P`` have to match"
+            )
+
+        if np.any(P.duplicated()):
+            raise NotImplementedError(
+                "Currently the parameters in 'P' have to be unique"
+            )
 
         if len(np.unique(P.to_numpy())) != len(P):
             raise ValueError(
                 "the parameter values have to be unique -- implementation notice"
             )
 
+        self._validate_and_setup_fit_attrs(X=X)
+
         from datafold.dynfold.transform import TSCSingularValueDecomp
 
-        self.svd = TSCSingularValueDecomp(n_components=self.n_components)
-        X_pca = self.svd.fit_transform(X)
+        self.svd_ = TSCSingularValueDecomp(n_components=self.n_components)
+        X_svd = self.svd_.fit_transform(X)
 
-        # fit a DMD model per parameter
-        self.dmd_methods = dict()
+        # a separate DMD model per parameter
+        self.dmd_methods: dict[int, DMDBase] = dict()
+
+        for _id in X.ids:
+            X_param = X_svd.loc[[_id], :]
 
         for i in range(P.shape[0]):
             idd = P.index[i]
-            X_param = X_pca.loc[[idd], :]
-            self.dmd_methods[i] = DMDStandard(rank=self.n_components).fit(X_param)
+            X_param = X_svd.loc[[idd], :]
 
-        self.training_parameters = P
+            # TODO: if needed this can be any DMD model later
+            self.dmd_methods[i] = DMDStandard(**self.dmd_kwargs or {}).fit(X_param)
+
+        self.training_parameters_ = P
 
         return self
 
@@ -2740,59 +2807,72 @@ class PartitionedDMD(DMDBase):
         self,
         X: InitialConditionType,
         *,
-        U: Optional[TSCDataFrame] = None,
-        P: Optional[pd.Series],
+        P: pd.DataFrame,
+        U=None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:
-        # For now each initial condition is computed separately
-        # If required in a future implementation ICs with the same parameter could be grouped
-        # so save the re-interpolation in this case
+        """Predict future states based on initial conditions.
 
-        from scipy.interpolate import RBFInterpolator
+        Parameters
+        ----------
 
-        X_all = []
+        X:
+            initial condition
+
+        U:
+            ignored (control input is not supported)
+
+        P:
+            Parameters which are interpolated from the partitioned DMD.
+
+        Returns
+        -------
+        TSCDataFrame
+            Predicted time series.
+        """
+
+        # Note: validation in svd_ and DMD methods in self.dmd_methods
+
+        X_ic_svd = self.svd_.transform(X)
+
+        X_dmds = dict()
+        for p, dmd in self.dmd_methods.items():
+            pred = dmd.predict(X_ic_svd, time_values=time_values)
+            X_dmds[p] = pred
+
+        # TODO: could improve performance by converting pred to tensors and operate on these
+        #  (pandas indexing is still a larger factor in profiling)
+
+        X_svd_tensor = np.zeros([X.shape[0], len(time_values), self.n_components])
 
         for i, _id in enumerate(X.ids):
+            # each prediction (initial condition) is computed separately
 
-            X_dmds = []
-
-            X_current = X.loc[[_id]]
-
-            for di in range(len(self.dmd_methods)):
-                X_ic_svd = self.svd.transform(X_current)
-                X_dmds.append(
-                    self.dmd_methods[di].predict(X_ic_svd, time_values=time_values)
-                )
-
-            X_dmds = TSCDataFrame.from_frame_list(X_dmds)
-
-            X_ret = TSCDataFrame.from_array(
-                np.zeros([len(time_values), self.n_features_in_]),
-                time_values=time_values,
-                feature_names=self.feature_names_in_,
-                ts_id= _id
+            X_id_tensor = np.stack(
+                [X_dmd.loc[[_id], :].to_numpy() for X_dmd in X_dmds.values()], axis=0
             )
 
-            for j in range(len(time_values)):
-                t = time_values[j]
-                states = X_dmds.loc[pd.IndexSlice[:, t], :]
-                # TODO: check other options used in pydmd
+            current_parameter = P.loc[[_id], :].to_numpy()
+
+            for j in range(X_id_tensor.shape[1]):
+                time_slice = X_id_tensor[:, j, :]
 
                 interp = RBFInterpolator(
-                    self.training_parameters.to_numpy()[:, np.newaxis],
-                    states.to_numpy(),
+                    self.training_parameters_.to_numpy(),
+                    time_slice,
                     kernel="thin_plate_spline",
                 )
 
-                interp_state_svd = interp(P.iloc[[i]].to_numpy()[:, np.newaxis])
-                interp_state_svd = TSCDataFrame.from_array(
-                    interp_state_svd,
-                    time_values=np.array([t]),
-                )
-                interp_state = self.svd.inverse_transform(interp_state_svd)
-                X_ret.iloc[j, :] = interp_state.to_numpy()
+                X_svd_tensor[i, j, :] = interp(current_parameter)
 
-            X_all.append(X_ret)
+        X_svd = TSCDataFrame.from_tensor(
+            X_svd_tensor,
+            time_series_ids=X.ids,
+            feature_names=self.svd_.get_feature_names_out(),
+            time_values=time_values,
+        )
 
-        return pd.concat(X_all, axis=0)
+        X_ret = self.svd_.inverse_transform(X_svd)
+
+        return X_ret

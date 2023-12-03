@@ -709,7 +709,13 @@ class EDMD(
             self.steps[step_idx] = (name, fitted_transformer)
         return X
 
-    def _reconstruct(self, X: TSCDataFrame, U: Optional[TSCDataFrame], qois):
+    def _reconstruct(
+        self,
+        X: TSCDataFrame,
+        U: Optional[TSCDataFrame],
+        P: Optional[pd.DataFrame],
+        qois,
+    ):
         X_reconstruct = []
 
         if self.dmd_model.is_time_invariant and not X.is_datetime_index():
@@ -729,15 +735,24 @@ class EDMD(
             else:
                 U_select = None
 
+            if P is not None:
+                P_select = P.loc[X_ic.ids, :]
+            else:
+                P_select = None
+
             if self.stepwise_transform:
                 X_est_ts = self._predict_stepwise_transform(
-                    X=X_ic, U=U_select, time_values=time_values, qois=qois
+                    X=X_ic, U=U_select, P=P_select, time_values=time_values, qois=qois
                 )
             else:
                 # transform initial condition to EDMD-dictionary space
                 X_dict_ic = self.transform(X_ic)
                 X_est_ts = self._predict_dict_ic(
-                    X_dict=X_dict_ic, U=U_select, time_values=time_values, qois=qois
+                    X_dict=X_dict_ic,
+                    U=U_select,
+                    P=P_select,
+                    time_values=time_values,
+                    qois=qois,
                 )
 
             X_reconstruct.append(X_est_ts)
@@ -772,7 +787,7 @@ class EDMD(
         return X_reconstruct
 
     def _predict_dict_ic(
-        self, X_dict: TSCDataFrame, U, time_values, qois
+        self, X_dict: TSCDataFrame, U, P, time_values, qois
     ) -> TSCDataFrame:
         """Prediction with initial condition in dictionary states.
 
@@ -820,6 +835,7 @@ class EDMD(
 
                 dmd_params = dict(
                     U=U,
+                    P=P,
                     time_values=time_values,
                     modes=modes,
                     feature_columns=feature_columns,
@@ -834,7 +850,7 @@ class EDMD(
                 # system.
 
                 # computes system in EDMD-dictionary space
-                dmd_params = dict(U=U, time_values=time_values)
+                dmd_params = dict(U=U, P=P, time_values=time_values)
                 dmd_params = {k: v for k, v in dmd_params.items() if v is not None}
 
                 X_ts = self.dmd_model.predict(X_dict, **dmd_params)
@@ -857,7 +873,7 @@ class EDMD(
 
         else:
             # predict all EDMD-dictionary time series
-            X_ts = self.dmd_model.predict(X_dict, time_values=time_values)
+            X_ts = self.dmd_model.predict(X_dict, U=U, P=P, time_values=time_values)
 
             # transform from EDMD-dictionary space by pipeline inverse_transform
             X_ts = self.inverse_transform(X_ts)
@@ -865,19 +881,23 @@ class EDMD(
 
         return X_ts
 
-    def _predict_stepwise_transform(self, X: TSCDataFrame, U, time_values, qois):
+    def _predict_stepwise_transform(self, X: TSCDataFrame, U, P, time_values, qois):
         if self.is_state_transition_map_ and not self.id_state_in_transition_map_:
             raise ValueError(
-                "It is not possible tp perform stepwise transform predictions with "
+                "It is not possible to perform stepwise transform predictions with "
                 "state transition map that does not include the original full-state."
             )
         elif self.is_state_transition_map_:
             raise NotImplementedError(
                 "stepwise transform with state transition map is not implemented yet"
             )
-            extract_id_columns = self.feature_names_in_
         else:
             extract_id_columns = None
+
+        if P is not None:
+            raise NotImplementedError(
+                "Parametric EDMD with stepwise transform is not implemented yet"
+            )
 
         X = X.tsc.expand_time_values(time_values=time_values[1:])
         all_time_values = X.time_values()
@@ -944,7 +964,9 @@ class EDMD(
             DMD model, at which point the time indices must be identical to the states in `X`.
 
         P
-            ignored -- reservered for parameters
+            Parameter for each time series in ``X``. Currently, this input is
+            ignored for the dictionary and only passed to the internal DMD
+            method.
 
         y
             A different set of target values than the original states to map to with
@@ -994,6 +1016,7 @@ class EDMD(
             self.is_partial_fit_ = False
 
         self.is_controlled_ = U is not None
+        self.is_parametric_ = P is not None
         self.is_dict_learning_ = isinstance(self.dmd_model, DMDDictLearning)
 
         # 1) first get the EDMD fit_params, 2) validate the fit_params for the pipeline,
@@ -1045,10 +1068,8 @@ class EDMD(
             U = U.loc[inters_keys, :]  # type: ignore
 
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
-            if self.is_controlled_:
-                self.dmd_model.fit(X=X_dict, U=U, y=y, **dmd_fit_params)
-            else:
-                self.dmd_model.fit(X=X_dict, y=y, **dmd_fit_params)
+            # note that DMD models do not support y input yet
+            self.dmd_model.fit(X=X_dict, U=U, P=P, y=y, **dmd_fit_params)
 
         if self.is_dict_learning_:
             # apply final transformation based on trained dictionary
@@ -1209,12 +1230,12 @@ class EDMD(
 
         if self.stepwise_transform:
             X_ts = self._predict_stepwise_transform(
-                X=X, U=U, time_values=time_values, qois=qois
+                X=X, U=U, P=P, time_values=time_values, qois=qois
             )
         else:
             X_dict = self.transform(X)
             X_ts = self._predict_dict_ic(
-                X_dict=X_dict, U=U, time_values=time_values, qois=qois
+                X_dict=X_dict, U=U, P=P, time_values=time_values, qois=qois
             )
         return X_ts
 
@@ -1267,7 +1288,9 @@ class EDMD(
             Time series collection restrictions in **X**: (1) time delta must be constant
             (2) all values must be finite (no `NaN` or `inf`)
         """
-        return self.fit(X=X, U=U, y=y, **fit_params).reconstruct(X=X, U=U, qois=qois)
+        return self.fit(X=X, U=U, P=P, y=y, **fit_params).reconstruct(
+            X=X, U=U, P=P, qois=qois
+        )
 
     def __getitem__(self, ind):
         # Overwrite the super class to distinguish the
@@ -1316,10 +1339,10 @@ class EDMD(
             setting with control.
 
         P
-            ignored -- reserved for parameters
+            Currently, there is no implementation that supports parametric learning.
 
         y
-            ignored
+            Currently, no transfer learning is not supported.
 
         fit_params
             Parameters passed to the ``fit`` method of each step, where
@@ -1347,6 +1370,11 @@ class EDMD(
             raise NotImplementedError(
                 "Currently there are no DMD models that that support both streaming "
                 "and control."
+            )
+        if P is not None:
+            raise NotImplementedError(
+                "Currently there are no DMD models that support both streaming "
+                "and parametric learning"
             )
 
         self.is_controlled_ = False
@@ -1495,6 +1523,7 @@ class EDMD(
         X: TSCDataFrame,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         qois: Optional[Union[pd.Index, list[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct existing time series collection.
@@ -1548,7 +1577,7 @@ class EDMD(
         self._validate_feature_names(X=X, U=U)
         self._validate_qois(qois=qois, valid_feature_names=self.feature_names_pred_)
 
-        return self._reconstruct(X=X, U=U, qois=qois)
+        return self._reconstruct(X=X, U=U, P=P, qois=qois)
 
     def inverse_transform(self, X: TransformType) -> TransformType:
         """Perform inverse dictionary transformations on dictionary time series.

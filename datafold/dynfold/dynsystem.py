@@ -1004,7 +1004,7 @@ class LinearDynamicalSystem:
             n_time_series=initial_conditions.shape[1],
             n_timesteps=time_values.shape[0],
             n_feature=n_features,
-            dtype=ret_dtype
+            dtype=ret_dtype,
         )
 
         # write the predicted states in time_series_tensor
