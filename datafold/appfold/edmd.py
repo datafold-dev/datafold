@@ -433,6 +433,20 @@ class EDMD(
         # TODO: should TSCPredictMixin include feature names for prediction?
         return self._feature_names_pred
 
+    @property
+    def n_parameter_in_(self):
+        if self.is_parametric_:
+            return self.dmd_model.n_parameter_in_
+        else:
+            return None
+
+    @property
+    def parameter_names_in_(self):
+        if self.is_parametric_:
+            return self.dmd_model.parameter_names_in_
+        else:
+            return None
+
     def _validate_dictionary(self) -> bool:
         """Validates that all elements in the EDMD dictionary.
 
@@ -1564,12 +1578,13 @@ class EDMD(
               not validated)
 
         """
+        # TODO: support y!
+
         check_is_fitted(self)
 
         X = self._validate_datafold_data(
             X,
             ensure_tsc=True,
-            #
             tsc_kwargs={"ensure_min_timesteps": self.n_samples_ic_ + 1}
             # Note: no const_delta_time required here. The required const samples for
             # time series initial conditions is included in the predict method.
@@ -1618,6 +1633,7 @@ class EDMD(
         self,
         X: TSCDataFrame,
         U=None,
+        P=None,
         y=None,
         sample_weight: Optional[np.ndarray] = None,
     ):
@@ -1629,8 +1645,14 @@ class EDMD(
             The time series collection to reconstruct. The first ``n_samples_ic_`` of
             each time series must fulfill the requirements of an initial condition.
 
+        U
+            Control input per time series in X.
+
+        P
+            Parameter input per time series in X.
+
         y: None
-            ignored
+            ignored - not supported yet (implementation required)
 
         sample_weight
             If not None, this argument is passed as ``sample_weight`` keyword
@@ -1651,7 +1673,7 @@ class EDMD(
         self._check_attributes_set_up(check_attributes=["_score_eval"])
 
         # does all the checks:
-        X_reconstruct = self.reconstruct(X=X, U=U)
+        X_reconstruct = self.reconstruct(X=X, U=U, P=P)
 
         if self.n_samples_ic_ > 1:
             # Note that during `reconstruct` samples can be discarded (e.g. when

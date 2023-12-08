@@ -1666,9 +1666,7 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
-        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).head(
-            n=n_samples
-        )
+        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, level=0).head(n=n_samples)
 
     def final_states(self, n_samples: int = 1) -> "TSCDataFrame":
         """Get the final states of each time series in the collection.
@@ -1696,9 +1694,7 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
-        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).tail(
-            n=n_samples
-        )
+        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, level=0).tail(n=n_samples)
 
     def plot(self, **kwargs):
         """Plots time series.
@@ -1914,7 +1910,7 @@ class InitialCondition:
             )
 
         for (_, _, _), df in time_series_table.groupby(
-            by=["start", "end", "delta_time"], axis=0
+            by=["start", "end", "delta_time"],
         ):
             grouped_ids = df.index
             grouped_tsc: TSCDataFrame = X.loc[grouped_ids, :]

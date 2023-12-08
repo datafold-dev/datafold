@@ -454,6 +454,20 @@ def init_tutorials():
             "": (":cite:t:`zhang-2019`", "ref"),
         },
     )
+
+    add_tutorial(
+        "17_parametric_dmd.ipynb",
+        "We explore the partitioned Dynamic Mode Decomposition (DMD), which can "
+        "handle *parameterized* systems. The tutorial showcases its application "
+        "in forecasting future outputs for various parameters.",
+        reference={
+            "Original PyDMD tutoria": (
+                "https://github.com/PyDMD/PyDMD/blob/master/tutorials/tutorial10/tutorial-10-paramdmd.ipynb",
+                "ext_link",
+            ),
+            "": (":cite:t:`andreuzzi-2023`", "ref"),
+        },
+    )
     #  The notebook is taken from the original work by "Zhang and Rowley, 2019; see the
     #  notebook for reference.
 

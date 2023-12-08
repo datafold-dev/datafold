@@ -19,6 +19,7 @@ from datafold.dynfold.dmd import (
     DMDStandard,
     LinearDynamicalSystem,
     OnlineDMD,
+    PartitionedDMD,
     PyDMDWrapper,
     StreamingDMD,
     gDMDAffine,
@@ -1562,3 +1563,77 @@ class gDMDAffineTest(unittest.TestCase):
         actual = dmd.fit_predict(X, U=U)
 
         pdtest.assert_frame_equal(actual, expected, rtol=0.01, atol=0.05)
+
+
+class PartitionedDMDTest(unittest.TestCase):
+    @staticmethod
+    def sample_parametrized_linear_system(n_time_steps=10, n_param=10):
+        from datafold.dynfold.dynsystem import LinearDynamicalSystem
+
+        rng = np.random.default_rng(1)
+
+        dim = 10
+
+        x0 = rng.uniform(-0.1, 0.1, size=(dim, 1))
+        system_matrix = rng.uniform(-0.1, 0.1, size=(dim, dim))
+        time_values = np.arange(n_time_steps)
+
+        P = np.linspace(1, 10, n_param)
+
+        X_ret = []
+
+        for i, p in enumerate(P):
+            system_matrix_p = system_matrix * p
+            system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+            system.setup_matrix_system(system_matrix=system_matrix_p)
+
+            pred = system.evolve_system(
+                initial_conditions=x0,
+                time_values=time_values,
+                time_delta=1,
+                time_series_ids=np.array([i]),
+            )
+            X_ret.append(pred)
+
+        X_ret = pd.concat(X_ret, axis=0)
+        P = pd.DataFrame(P, X_ret.ids, columns=["param"])
+        return X_ret, P
+
+    def test_simple_system(self, plot=False):
+        X_train, P_train = self.sample_parametrized_linear_system()
+        X_test, P_test = self.sample_parametrized_linear_system(
+            n_time_steps=10, n_param=3
+        )
+
+        dmd = PartitionedDMD()
+        dmd.fit(X_train, P=P_train)
+
+        self.assertEqual(dmd.n_parameter_in_, 1)
+        self.assertEqual(dmd.parameter_names_in_, P_test.columns.to_numpy())
+
+        predict1 = dmd.reconstruct(X_train, P=P_train)
+        predict2 = dmd.predict(
+            X_train.initial_states(), P=P_train, time_values=X_train.time_values()
+        )
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        predict1 = dmd.reconstruct(X_test, P=P_test)
+        predict2 = dmd.predict(
+            X_test.initial_states(), P=P_test, time_values=X_test.time_values()
+        )
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        score_train = dmd.score(X_train, P=P_train)
+        score_test = dmd.score(X_test, P=P_test)
+
+        # adapt if necessary
+        self.assertEqual(score_train, -1.588012178254962e-14)
+        self.assertEqual(score_test, -3.9624773664083636e-05)
+
+        if plot:
+            ax = X_test.plot()
+            predict1.plot(c="blue", ax=ax, linestyle="--")
+
+            plt.show()

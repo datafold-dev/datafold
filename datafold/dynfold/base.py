@@ -436,6 +436,7 @@ class TSCPredictMixin(TSCBase):
         self: Union[BaseEstimator, "TSCPredictMixin"],
         X: TSCDataFrame,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
     ):
         if not isinstance(X, TSCDataFrame):
             raise TypeError(
@@ -443,10 +444,16 @@ class TSCPredictMixin(TSCBase):
             )
 
         is_controlled = U is not None
+        is_parametric = P is not None
 
-        if is_controlled and not isinstance(X, TSCDataFrame):
+        if is_controlled and not isinstance(U, TSCDataFrame):
             raise TypeError(
                 f"Only TSCDataFrame can be used for control data (got {type(U)=})."
+            )
+
+        if is_parametric and not isinstance(P, pd.DataFrame):
+            raise TypeError(
+                f"Only pd.DataFrame can be used for parameter input (got {type(P)=})."
             )
 
         self.n_features_in_ = X.shape[1]
@@ -455,6 +462,20 @@ class TSCPredictMixin(TSCBase):
         if is_controlled:
             self.n_control_in_ = U.shape[1]  # type: ignore
             self.control_names_in_ = U.columns  # type: ignore
+
+        if is_parametric:
+            if P.columns.duplicated():
+                raise ValueError(
+                    "Parameter input P must not contain duplicate column names"
+                )
+
+            if np.any(P.index != X.ids):
+                raise ValueError(
+                    "The index in parameter input 'P' must match the IDs in 'X'"
+                )
+
+            self.n_parameter_in_ = P.shape[1]  # type: ignore
+            self.parameter_names_in_ = P.columns  # type: ignore
 
         time_values = X.time_values()
         time_values = self._validate_time_values_format(time_values=time_values)
@@ -694,6 +715,7 @@ class TSCPredictMixin(TSCBase):
         self: Union[BaseEstimator, "TSCPredictMixin"],
         X: TSCDataFrame,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
     ):
         if not self._has_feature_names(X):
             raise TypeError(
@@ -725,7 +747,7 @@ class TSCPredictMixin(TSCBase):
                 )
             except AssertionError:
                 raise ValueError(
-                    f"model was fit with feature names\n{self.control_names_in_.tolist()}\n"
+                    f"model was fit with control names\n{self.control_names_in_.tolist()}\n"
                     f"but got\n{U.columns.tolist()}"
                 )
 
@@ -733,6 +755,24 @@ class TSCPredictMixin(TSCBase):
                 raise ValueError(
                     f"The number of set control states ({self.n_control_in_=}) does not fit "
                     f"the current number in the control input {U.shape[1]=}."
+                )
+
+        if P is not None:
+            try:
+                nptest.assert_array_equal(
+                    np.asarray(P.columns), np.asarray(self.parameter_names_in_)
+                )
+            except AssertionError:
+                raise ValueError(
+                    f"model was fit with parameter "
+                    f"names\n{self.parameter_names_in_.tolist()}\n"
+                    f"but got\n{P.columns.tolist()}"
+                )
+
+            if self.n_parameter_in_ != P.shape[1]:
+                raise ValueError(
+                    f"The number of set parameters ({self.n_parameter_in_=}) does not fit "
+                    f"the current number in the control input {P.shape[1]=}."
                 )
 
     def _validate_qois(self, qois, valid_feature_names) -> np.ndarray:
@@ -763,12 +803,13 @@ class TSCPredictMixin(TSCBase):
         self,
         X: TSCDataFrame,
         U: Optional[TSCDataFrame],
+        P: Optional[pd.DataFrame],
         time_values: Optional[np.ndarray],
     ):
-        self._validate_feature_names(X=X, U=U)
+        self._validate_feature_names(X=X, U=U, P=P)
         self._validate_time_values_format(time_values=time_values)
 
-        return X, U, time_values
+        return X, U, P, time_values
 
     def predict(
         self,

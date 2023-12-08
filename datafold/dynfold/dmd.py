@@ -14,8 +14,10 @@ from sklearn.utils.validation import check_is_fitted, check_scalar
 from datafold._decorators import warn_experimental_class, warn_experimental_function
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
 from datafold.dynfold.dynsystem import LinearDynamicalSystem
+from datafold.dynfold.transform import TSCSingularValueDecomp
 from datafold.pcfold import InitialCondition, TSCDataFrame
 from datafold.utils.general import (
+    determine_system_dtype,
     diagmat_dot_mat,
     if1dim_colvec,
     mat_dot_diagmat,
@@ -394,8 +396,8 @@ class DMDBase(
 
             InitialCondition.validate_control(X_ic=X, U=U)
 
-        X, U, time_values = self._validate_features_and_time_values(
-            X=X, U=U, time_values=time_values
+        X, U, P, time_values = self._validate_features_and_time_values(
+            X=X, U=U, P=P, time_values=time_values
         )
 
         post_map, user_set_modes, feature_columns = self._read_predict_params(
@@ -2422,8 +2424,8 @@ class StreamingDMD(DMDBase):
             `(n_time_values, n_features)`.
         """
         check_is_fitted(self)
-        X, _, time_values = self._validate_features_and_time_values(
-            X, U=None, time_values=time_values
+        X, _, _, time_values = self._validate_features_and_time_values(
+            X, U=None, P=P, time_values=time_values
         )
 
         post_map, user_set_modes, feature_columns = self._read_predict_params(
@@ -2716,8 +2718,11 @@ class PartitionedDMD(DMDBase):
 
     """
 
-    def __init__(self, n_components: int = 2, dmd_kwargs: Optional[dict] = None):
+    def __init__(
+        self, n_components: Optional[int] = None, dmd_kwargs: Optional[dict] = None
+    ):
         super().__init__(sys_mode="matrix", sys_type="flowmap")
+        self._setup_default_tsc_metric_and_score()
         self.n_components = n_components
         self.dmd_kwargs = dmd_kwargs
 
@@ -2734,17 +2739,16 @@ class PartitionedDMD(DMDBase):
 
         Parameters
         ----------
-
-        X:
+        X
             Training time series data.
 
-        U:
+        U
             ignored (control input is not supported)
 
-        P:
+        P
             Parameters for each time series in ``X``.
 
-        y:
+        y
             ignored
 
         Returns
@@ -2752,21 +2756,25 @@ class PartitionedDMD(DMDBase):
         self
         """
 
-        check_scalar(
-            self.n_components,
-            name="n_components",
-            target_type=int,
-            min_val=1,
-            max_val=X.shape[1],
-        )
+        if self.n_components is not None:
+            check_scalar(
+                self.n_components,
+                name="n_components",
+                target_type=int,
+                min_val=1,
+                max_val=X.shape[1],
+            )
 
         if U is not None:
             raise NotImplementedError("Control input U is not supported")
 
+        if P is None:
+            raise ValueError("Method requires parameter input P.")
+
         if (P.index.to_numpy() != X.ids.to_numpy()).all():
             raise ValueError(
-                "The IDs between training data ``X`` and"
-                "parameters ``P`` have to match"
+                "The IDs between training data ``X`` and parameters ``P`` "
+                "have to match"
             )
 
         if np.any(P.duplicated()):
@@ -2779,11 +2787,18 @@ class PartitionedDMD(DMDBase):
                 "the parameter values have to be unique -- implementation notice"
             )
 
-        self._validate_and_setup_fit_attrs(X=X)
+        self._validate_datafold_data(X=X, ensure_tsc=True)
+        self._validate_and_setup_fit_attrs(X=X, U=U, P=P)
 
-        from datafold.dynfold.transform import TSCSingularValueDecomp
+        # training parameter need to be saved for interpolation in fit
+        self.training_parameters_ = P
 
-        self.svd_ = TSCSingularValueDecomp(n_components=self.n_components)
+        if self.n_components is None:
+            n_components = X.shape[1]
+        else:
+            n_components = self.n_components
+
+        self.svd_ = TSCSingularValueDecomp(n_components=n_components)
         X_svd = self.svd_.fit_transform(X)
 
         # a separate DMD model per parameter
@@ -2798,8 +2813,6 @@ class PartitionedDMD(DMDBase):
 
             # TODO: if needed this can be any DMD model later
             self.dmd_methods[i] = DMDStandard(**self.dmd_kwargs or {}).fit(X_param)
-
-        self.training_parameters_ = P
 
         return self
 
@@ -2834,6 +2847,28 @@ class PartitionedDMD(DMDBase):
 
         # Note: validation in svd_ and DMD methods in self.dmd_methods
 
+        check_is_fitted(self)
+
+        time_values = self._validate_and_set_time_values_predict(
+            time_values=time_values, X=X, U=U
+        )
+
+        if isinstance(X, np.ndarray):
+            # work internally only with DataFrames
+            X = InitialCondition.from_array(
+                X,
+                time_value=time_values[0],
+                feature_names=self.feature_names_in_,
+                ts_ids=U.ids if isinstance(U, TSCDataFrame) else None,
+            )
+        else:
+            # for DMD the number of samples per initial condition is always 1
+            InitialCondition.validate(X, n_samples_ic=1)
+
+        X, U, P, time_values = self._validate_features_and_time_values(
+            X=X, U=U, P=P, time_values=time_values
+        )
+
         X_ic_svd = self.svd_.transform(X)
 
         X_dmds = dict()
@@ -2844,7 +2879,10 @@ class PartitionedDMD(DMDBase):
         # TODO: could improve performance by converting pred to tensors and operate on these
         #  (pandas indexing is still a larger factor in profiling)
 
-        X_svd_tensor = np.zeros([X.shape[0], len(time_values), self.n_components])
+        X_svd_tensor = np.zeros(
+            [X.shape[0], len(time_values), self.svd_.n_features_out_],
+            dtype=determine_system_dtype(X.to_numpy()),
+        )
 
         for i, _id in enumerate(X.ids):
             # each prediction (initial condition) is computed separately

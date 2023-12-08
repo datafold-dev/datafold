@@ -24,6 +24,7 @@ from datafold import (
     DMDStandard,
     EDMDWindowPrediction,
     OnlineDMD,
+    PartitionedDMD,
     StreamingDMD,
     TSCColumnTransformer,
     TSCDataFrame,
@@ -1173,6 +1174,7 @@ class EDMDTest(unittest.TestCase):
         n_latent_states = X_tsc.shape[1] * (n_delays + 1)
 
         edmd.fit(X=X_tsc, U=U_tsc)
+
         actual_transform = edmd.transform(X_tsc)
 
         n_final = comb(n_latent_states, n_degrees) + 2 * n_latent_states
@@ -1197,6 +1199,9 @@ class EDMDTest(unittest.TestCase):
             rtol=0,
         )
         pdtest.assert_frame_equal(actual_predict, actual_predict2)
+
+        self.assertEqual(edmd.n_control_in_, U.shape[1])
+        self.assertEqual(edmd.control_names_in_, U.columns)
 
     def test_edmdcontrol_id(self):
         ic = np.array([0, 0, np.pi, 0])
@@ -1315,6 +1320,48 @@ class EDMDTest(unittest.TestCase):
         expected = dmdc.fit_predict(X_tsc, U=U_tsc)
         actual = edmdid.fit_predict(X_tsc, U=U_tsc)
         pdtest.assert_frame_equal(expected, actual)
+
+    def test_edmd_parametric_pipeline(self, plot=False):
+        from datafold.dynfold.tests.test_dmd import PartitionedDMDTest
+
+        X_train, P_train = PartitionedDMDTest.sample_parametrized_linear_system()
+        X_test, P_test = PartitionedDMDTest.sample_parametrized_linear_system(
+            n_time_steps=10, n_param=3
+        )
+
+        edmd = EDMD(dict_steps=[("id", TSCIdentity())], dmd_model=PartitionedDMD())
+
+        edmd.fit(X_train, P=P_train)
+
+        self.assertEqual(edmd.n_parameter_in_, 1)
+        self.assertEqual(edmd.parameter_names_in_, P_test.columns.to_numpy())
+
+        predict1 = edmd.reconstruct(X_train, P=P_train)
+        predict2 = edmd.predict(
+            X_train.initial_states(), P=P_train, time_values=X_train.time_values()
+        )
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        predict1 = edmd.reconstruct(X_test, P=P_test)
+        predict2 = edmd.predict(
+            X_test.initial_states(), P=P_test, time_values=X_test.time_values()
+        )
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        score_train = edmd.score(X_train, P=P_train)
+        score_test = edmd.score(X_test, P=P_test)
+
+        # adapt if necessary
+        self.assertEqual(score_train, -1.588012178254962e-14)
+        self.assertEqual(score_test, -3.9624773664083636e-05)
+
+        if plot:
+            ax = X_test.plot()
+            predict1.plot(c="blue", ax=ax, linestyle="--")
+
+            plt.show()
 
 
 class EDMDPredictionTest(unittest.TestCase):

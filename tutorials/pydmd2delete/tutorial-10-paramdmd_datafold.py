@@ -11,7 +11,7 @@ import pandas as pd
 from datafold import EDMD, TSCDataFrame, TSCIdentity
 from datafold.dynfold.dmd import PartitionedDMD
 
-warnings.filterwarnings("ignore")
+# warnings.filterwarnings("ignore")
 
 
 def f1(x, t):
@@ -45,10 +45,7 @@ plt.yticks([], [])
 
 
 training_snapshots = np.stack([f(x=xgrid, t=tgrid, mu=p) for p in training_params])
-
-
 X_train_d = TSCDataFrame.from_tensor(training_snapshots, time_values=t)
-# TODO: make this a pd.DataFrame (to support later multiple parameters)
 P_train_d = pd.DataFrame(training_params, index=X_train_d.ids)
 
 
@@ -114,8 +111,7 @@ profiler.enable()
 X_reconstruct = pdmd.reconstruct(X_train_d, P=P_train_d)
 profiler.disable()
 
-profiler.print_stats(sort="cumulative")
-exit()
+# profiler.print_stats(sort="cumulative")
 
 # TODO: include this in a test for partitioned DMD (for a single time series)
 # X_reconstruct_test = dfdmd.reconstruct(X_train_d.loc[[0], :], P=P_train_d.loc[[0], :])
@@ -204,6 +200,5 @@ visualize_multiple(
     labels_func=labels_func,
     title="ground truth",
 )
-
 
 plt.show()

@@ -102,6 +102,17 @@ def is_integer(n: object) -> bool:
     )
 
 
+def determine_system_dtype(array):
+    """Function that determines the dtype for prediction type.
+
+    The dtype defaults to float, unless it is complex.
+    """
+    if array.dtype == np.complex_:
+        return complex
+    else:
+        return float
+
+
 def is_float(n: object) -> bool:
     """Checks if `n` is a floating scalar.
 
