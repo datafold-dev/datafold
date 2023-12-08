@@ -1329,33 +1329,48 @@ class EDMDTest(unittest.TestCase):
             n_time_steps=10, n_param=3
         )
 
-        edmd = EDMD(dict_steps=[("id", TSCIdentity())], dmd_model=PartitionedDMD())
+        edmd_standard = EDMD(
+            dict_steps=[("id", TSCIdentity())],
+            dmd_model=PartitionedDMD(),
+            stepwise_transform=False,
+        )
 
-        edmd.fit(X_train, P=P_train)
+        edmd_stepwise = EDMD(
+            dict_steps=[("id", TSCIdentity())],
+            dmd_model=PartitionedDMD(),
+            stepwise_transform=True,
+        )
 
-        self.assertEqual(edmd.n_parameter_in_, 1)
-        self.assertEqual(edmd.parameter_names_in_, P_test.columns.to_numpy())
+        edmd_standard.fit(X_train, P=P_train)
 
-        predict1 = edmd.reconstruct(X_train, P=P_train)
-        predict2 = edmd.predict(
+        self.assertEqual(edmd_standard.n_parameter_in_, 1)
+        self.assertEqual(edmd_standard.parameter_names_in_, P_test.columns.to_numpy())
+
+        predict1 = edmd_standard.reconstruct(X_train, P=P_train)
+        predict2 = edmd_standard.predict(
             X_train.initial_states(), P=P_train, time_values=X_train.time_values()
         )
 
         pdtest.assert_frame_equal(predict1, predict2)
 
-        predict1 = edmd.reconstruct(X_test, P=P_test)
-        predict2 = edmd.predict(
+        predict1 = edmd_standard.reconstruct(X_test, P=P_test)
+        predict2 = edmd_standard.predict(
             X_test.initial_states(), P=P_test, time_values=X_test.time_values()
         )
 
         pdtest.assert_frame_equal(predict1, predict2)
 
-        score_train = edmd.score(X_train, P=P_train)
-        score_test = edmd.score(X_test, P=P_test)
+        score_train = edmd_standard.score(X_train, P=P_train)
+        score_test = edmd_standard.score(X_test, P=P_test)
 
         # adapt if necessary
         self.assertEqual(score_train, -1.588012178254962e-14)
         self.assertEqual(score_test, -3.9624773664083636e-05)
+
+        edmd_stepwise.fit(X_train, P=P_train)
+        score_test = edmd_stepwise.score(X_test, P=P_test)
+
+        self.assertEqual(score_test, -3.8959354094662754e-13)
 
         if plot:
             ax = X_test.plot()

@@ -464,6 +464,9 @@ class TSCPredictMixin(TSCBase):
             self.control_names_in_ = U.columns  # type: ignore
 
         if is_parametric:
+            if not isinstance(P, pd.DataFrame):
+                raise TypeError("Parameter input P must be of type pd.DataFrame")
+
             if P.columns.duplicated():
                 raise ValueError(
                     "Parameter input P must not contain duplicate column names"
@@ -816,6 +819,7 @@ class TSCPredictMixin(TSCBase):
         X: InitialConditionType,
         *,
         U: Optional[Union[np.ndarray, TSCDataFrame, Callable]] = None,
+        P: Optional[pd.DataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:

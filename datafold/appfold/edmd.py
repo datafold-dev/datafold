@@ -908,10 +908,10 @@ class EDMD(
         else:
             extract_id_columns = None
 
-        if P is not None:
-            raise NotImplementedError(
-                "Parametric EDMD with stepwise transform is not implemented yet"
-            )
+        # if P is not None:
+        #     raise NotImplementedError(
+        #         "Parametric EDMD with stepwise transform is not implemented yet"
+        #     )
 
         X = X.tsc.expand_time_values(time_values=time_values[1:])
         all_time_values = X.time_values()
@@ -928,10 +928,14 @@ class EDMD(
             else:
                 _U_current = None
 
+            if P is not None:
+                _P_current = P.loc[_X_current.ids, :]
+
             _X_dict = self.transform(_X_current)
             _X_predict = self._predict_dict_ic(
                 _X_dict,
                 U=_U_current,
+                P=_P_current,
                 time_values=all_time_values[i - 1 : i + 1],
                 qois=None,
             )
@@ -2182,6 +2186,7 @@ class EDMDWindowPrediction:
         offset: int,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         y=None,
         qois=None,
         return_windows: bool = False,
@@ -2233,11 +2238,17 @@ class EDMDWindowPrediction:
             )
 
         is_controlled = edmd.is_controlled_
+        is_parametric = edmd.is_parametric_
 
         if is_controlled and U is None:
             raise ValueError(
                 f"The EDMD model was fit with control input "
                 f"({edmd.is_controlled_=}), but no control input was provided ({U=})"
+            )
+
+        if is_parametric:
+            raise NotImplementedError(
+                "Parametric is not yet implemented. Code contributions welcome!"
             )
 
         X = edmd._validate_datafold_data(
@@ -2334,7 +2345,7 @@ class EDMDWindowPrediction:
             U_windows, index_final_windows_U = None, None
 
         # finally reconstruct the data
-        X_reconstruct = edmd._reconstruct(X=X_windows, U=U_windows, qois=qois)
+        X_reconstruct = edmd._reconstruct(X=X_windows, U=U_windows, P=P, qois=qois)
 
         # recover true index:
         X_reconstruct.index = index_final_reconstruct_X

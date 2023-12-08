@@ -1,7 +1,7 @@
 import abc
 import copy
 import warnings
-from typing import Literal, Optional, Union
+from typing import Callable, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -311,8 +311,8 @@ class DMDBase(
         self,
         X: InitialConditionType,
         *,
-        U=None,  # type: ignore
-        P=None,
+        U: Optional[TSCDataFrame] = None,  # type: ignore
+        P: Optional[pd.DataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:  # type: ignore
@@ -1720,7 +1720,7 @@ class DMDControl(DMDBase):
 
         return sys_matrix, control_matrix
 
-    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, P=None, y=None, **fit_params) -> "DMDControl":  # type: ignore[override]
+    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, P=None, y=None, **fit_params) -> "DMDControl":  # type: ignore[override] # noqa
         """Fit model to compute a system and control matrix.
 
         Parameters
@@ -2820,8 +2820,8 @@ class PartitionedDMD(DMDBase):
         self,
         X: InitialConditionType,
         *,
-        P: pd.DataFrame,
-        U=None,
+        U: Optional[TSCDataFrame] = None,  # type: ignore[override]
+        P: Optional[pd.DataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:

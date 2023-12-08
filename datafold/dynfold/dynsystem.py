@@ -1,3 +1,4 @@
+import warnings
 from typing import Literal, Optional, Union
 
 import numpy as np
@@ -9,6 +10,7 @@ from scipy.interpolate import interp1d
 
 from datafold.pcfold import TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (
+    determine_system_dtype,
     diagmat_dot_mat,
     if1dim_colvec,
     is_matrix,
@@ -995,16 +997,20 @@ class LinearDynamicalSystem:
             feature_names_out=feature_names_out,
         )
 
-        if initial_conditions.dtype == np.complex_:
-            ret_dtype = complex
-        else:
-            ret_dtype = float
+        dtype = determine_system_dtype(initial_conditions)
+
+        if dtype == complex:
+            warnings.warn(
+                "Complex data is not well supported yet. Use with care and "
+                "improvements are welcome!",
+                stacklevel=1,
+            )
 
         time_series_tensor = allocate_time_series_tensor(
             n_time_series=initial_conditions.shape[1],
             n_timesteps=time_values.shape[0],
             n_feature=n_features,
-            dtype=ret_dtype,
+            dtype=dtype,
         )
 
         # write the predicted states in time_series_tensor
