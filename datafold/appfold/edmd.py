@@ -930,6 +930,8 @@ class EDMD(
 
             if P is not None:
                 _P_current = P.loc[_X_current.ids, :]
+            else:
+                _P_current = None
 
             _X_dict = self.transform(_X_current)
             _X_predict = self._predict_dict_ic(

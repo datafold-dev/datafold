@@ -1,7 +1,7 @@
 import abc
 import copy
 import warnings
-from typing import Callable, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -13,11 +13,10 @@ from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold._decorators import warn_experimental_class, warn_experimental_function
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
-from datafold.dynfold.dynsystem import LinearDynamicalSystem
+from datafold.dynfold.dynsystem import LinearDynamicalSystem, determine_system_dtype
 from datafold.dynfold.transform import TSCSingularValueDecomp
 from datafold.pcfold import InitialCondition, TSCDataFrame
 from datafold.utils.general import (
-    determine_system_dtype,
     diagmat_dot_mat,
     if1dim_colvec,
     mat_dot_diagmat,
@@ -1366,6 +1365,7 @@ class DMDStandard(DMDBase):
                 eigenvectors_right=eigenvectors_right_,
                 eigenvalues=eigenvalues_,
                 eigenvectors_left=eigenvectors_left_,
+                dtype=determine_system_dtype(X),
             )
 
             if store_system_matrix:
@@ -2572,6 +2572,20 @@ class OnlineDMD(DMDBase):
         else:
             return True
 
+    def _update_dynsystem(self) -> None:
+        if self.ready_:
+            (
+                self.eigenvalues_,
+                self.eigenvectors_right_,
+                self.eigenvectors_left_,
+            ) = self._compute_spectral_components()
+
+            self.setup_spectral_system(
+                eigenvectors_right=self.eigenvectors_right_,
+                eigenvalues=self.eigenvalues_,
+                eigenvectors_left=self.eigenvectors_left_,
+            )
+
     def fit(self, X, *, U=None, P=None, y=None, **fit_params):
         """Initialize the model with the first time series data in a batch.
 
@@ -2607,12 +2621,7 @@ class OnlineDMD(DMDBase):
 
         self.timestep_ = p
 
-        if self.ready_:
-            (
-                self.eigenvalues_,
-                self.eigenvectors_right_,
-                self.eigenvectors_left_,
-            ) = self._compute_spectral_components()
+        self._update_dynsystem()
 
         return self
 
@@ -2695,23 +2704,11 @@ class OnlineDMD(DMDBase):
             # time step + 1
             self.timestep_ += 1
 
-        if self.ready_:
-            (
-                eigenvalues,
-                eigenvectors_right,
-                eigenvectors_left,
-            ) = self._compute_spectral_components()
-
-            self.setup_spectral_system(
-                eigenvectors_right=eigenvectors_right,
-                eigenvalues=eigenvalues,
-                eigenvectors_left=eigenvectors_left,
-            )
+        self._update_dynsystem()
 
         return self
 
 
-@warn_experimental_class
 class PartitionedDMD(DMDBase):
     """
     Parametric dynamic mode decomposition with partitioned approach.
@@ -2881,7 +2878,7 @@ class PartitionedDMD(DMDBase):
 
         X_svd_tensor = np.zeros(
             [X.shape[0], len(time_values), self.svd_.n_features_out_],
-            dtype=determine_system_dtype(X.to_numpy()),
+            dtype=self.dmd_methods[0].sys_dtype_,
         )
 
         for i, _id in enumerate(X.ids):

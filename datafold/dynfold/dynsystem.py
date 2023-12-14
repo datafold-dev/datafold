@@ -1,4 +1,3 @@
-import warnings
 from typing import Literal, Optional, Union
 
 import numpy as np
@@ -10,13 +9,26 @@ from scipy.interpolate import interp1d
 
 from datafold.pcfold import TSCDataFrame, allocate_time_series_tensor
 from datafold.utils.general import (
-    determine_system_dtype,
     diagmat_dot_mat,
     if1dim_colvec,
     is_matrix,
     is_scalar,
     is_vector,
 )
+
+
+def determine_system_dtype(data):
+    """Function that determines the dtype for prediction type.
+
+    The dtype defaults to float, unless it is complex.
+    """
+    if isinstance(data, pd.DataFrame):
+        data = data.to_numpy()
+
+    if data.dtype == np.complex_:
+        return complex
+    else:
+        return float
 
 
 class SystemSolveStrategy:
@@ -437,6 +449,11 @@ class LinearDynamicalSystem:
         * "matrix" (i.e. :math:`A` or :math:`\mathcal{A}` are given)
         * "spectral" (i.e. eigenpairs of :math:`A` or :math:`\mathcal{A}` are given)
 
+    is_complex
+        Whether the original data is complex. If False (default), complex values in spectral
+        system forms are cast to float, with the assumption that this only includes numerical
+        noise (imaginary parts in machine precision).
+
     is_controlled:
         Whether the system is controlled. If set to True a control matrix must be passed to
         setup_matrix_system (currently there is no implementation for spectral systems)
@@ -460,6 +477,7 @@ class LinearDynamicalSystem:
 
     def __init__(
         self,
+        *,
         sys_type: Literal["differential", "flowmap"],
         sys_mode: Literal["matrix", "spectral"],
         is_controlled: bool = False,
@@ -806,12 +824,13 @@ class LinearDynamicalSystem:
 
         return states
 
-    def setup_spectral_system(  # TODO: is there a better way to accomplish this?
+    def setup_spectral_system(
         self,
         eigenvectors_right: np.ndarray,
         eigenvalues: np.ndarray,
         eigenvectors_left: Optional[np.ndarray] = None,
         control_matrix: Optional[np.ndarray] = None,
+        dtype=float,
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with spectral components of system matrix.
 
@@ -833,6 +852,12 @@ class LinearDynamicalSystem:
         control_matrix
             An additional control matrix (note that currently the control matrix is not
             described in spectral components.
+
+        dtype
+            The dtype of the original time series. Can be either
+            * 'float' - the complex values from the spectral representation are
+              cast to float (assuming the complex part is only numerical noise)
+            * 'complex' - the complex dtype is maintained and returned
 
         Returns
         -------
@@ -860,6 +885,8 @@ class LinearDynamicalSystem:
 
         self.control_matrix_ = control_matrix
 
+        self.sys_dtype_ = dtype
+
         return self
 
     def setup_matrix_system(
@@ -886,6 +913,8 @@ class LinearDynamicalSystem:
 
         is_matrix(system_matrix, "system_matrix")
         self.sys_matrix_ = system_matrix
+
+        self.sys_dtype_ = determine_system_dtype(system_matrix)
 
         if self.is_controlled:
             self.control_matrix_ = control_matrix
@@ -997,20 +1026,11 @@ class LinearDynamicalSystem:
             feature_names_out=feature_names_out,
         )
 
-        dtype = determine_system_dtype(initial_conditions)
-
-        if dtype == complex:
-            warnings.warn(
-                "Complex data is not well supported yet. Use with care and "
-                "improvements are welcome!",
-                stacklevel=1,
-            )
-
         time_series_tensor = allocate_time_series_tensor(
             n_time_series=initial_conditions.shape[1],
             n_timesteps=time_values.shape[0],
             n_feature=n_features,
-            dtype=dtype,
+            dtype=self.sys_dtype_,
         )
 
         # write the predicted states in time_series_tensor
