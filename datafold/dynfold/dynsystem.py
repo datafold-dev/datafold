@@ -851,10 +851,11 @@ class LinearDynamicalSystem:
 
         control_matrix
             An additional control matrix (note that currently the control matrix is not
-            described in spectral components.
+            described in spectral components).
 
         dtype
             The dtype of the original time series. Can be either
+
             * 'float' - the complex values from the spectral representation are
               cast to float (assuming the complex part is only numerical noise)
             * 'complex' - the complex dtype is maintained and returned
