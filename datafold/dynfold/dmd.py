@@ -6,12 +6,15 @@ from typing import Literal, Optional, Union
 import numpy as np
 import pandas as pd
 import scipy.linalg
+from scipy.interpolate import RBFInterpolator
 from sklearn.base import BaseEstimator
+from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
 from sklearn.utils.validation import check_is_fitted, check_scalar
 
 from datafold._decorators import warn_experimental_class, warn_experimental_function
 from datafold.dynfold.base import InitialConditionType, TimePredictType, TSCPredictMixin
-from datafold.dynfold.dynsystem import LinearDynamicalSystem
+from datafold.dynfold.dynsystem import LinearDynamicalSystem, determine_system_dtype
+from datafold.dynfold.transform import TSCSingularValueDecomp
 from datafold.pcfold import InitialCondition, TSCDataFrame
 from datafold.utils.general import (
     diagmat_dot_mat,
@@ -159,9 +162,9 @@ class DMDBase(
         self,
         X: TimePredictType,
         *,
-        U: Optional[TSCDataFrame],
-        P=None,
-        y=None,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
+        y: Optional[TSCDataFrame] = None,
         **fit_params,
     ) -> "DMDBase":
         """Abstract method to train DMD model.
@@ -176,8 +179,8 @@ class DMDBase(
             control input).
 
         P
-            ignored
-                reserved for parameter input
+            Parameter input. The index must be time series ID that match with
+            with the IDs in ``X``. The columns contain the parameters.
 
         y
             ignored
@@ -238,6 +241,8 @@ class DMDBase(
                 states=initial_states_origspace
             )
 
+        # TODO: since is_time_invariant is an attribute of the linear dynamical
+        #  system, this should be moved there.
         if self.is_time_invariant:
             shift = np.min(time_values)
         else:
@@ -245,7 +250,6 @@ class DMDBase(
             # starts with time=5, some positive value) then normalize the time_samples
             # with this shift. The linear system handles the shifted time start as time
             # zero.
-            # shift = self.time_interval_[0]
             raise NotImplementedError(
                 "'time_invariant = False' is currently not supported"
             )
@@ -307,6 +311,7 @@ class DMDBase(
         X: InitialConditionType,
         *,
         U: Optional[TSCDataFrame] = None,  # type: ignore
+        P: Optional[pd.DataFrame] = None,
         time_values: Optional[np.ndarray] = None,
         **predict_params,
     ) -> TSCDataFrame:  # type: ignore
@@ -390,8 +395,8 @@ class DMDBase(
 
             InitialCondition.validate_control(X_ic=X, U=U)
 
-        X, U, time_values = self._validate_features_and_time_values(
-            X=X, U=U, time_values=time_values
+        X, U, P, time_values = self._validate_features_and_time_values(
+            X=X, U=U, P=P, time_values=time_values
         )
 
         post_map, user_set_modes, feature_columns = self._read_predict_params(
@@ -415,6 +420,7 @@ class DMDBase(
         X: TSCDataFrame,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         qois: Optional[Union[np.ndarray, pd.Index, list[str]]] = None,
     ) -> TSCDataFrame:
         """Reconstruct time series collection.
@@ -455,19 +461,23 @@ class DMDBase(
         ):
             if U is not None:
                 U_ic = U.loc[pd.IndexSlice[X_ic.ids, :], :]
+                time_values = None  # use time information from U_ic instead
             else:
                 U_ic = None
 
-            # use time_values from U_ic if available, else set time_values
-            X_ts = self.predict(
-                X=X_ic, U=U_ic, time_values=time_values if U is None else None
-            )
+            X_ts = self.predict(X=X_ic, U=U_ic, P=P, time_values=time_values)
             X_reconstruct_ts.append(X_ts)
 
         return pd.concat(X_reconstruct_ts, axis=0)
 
     def fit_predict(
-        self, X: TSCDataFrame, *, U: Optional[TSCDataFrame] = None, y=None, **fit_params
+        self,
+        X: TSCDataFrame,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
+        y=None,
+        **fit_params,
     ) -> TSCDataFrame:
         """Fit model and reconstruct the time series data.
 
@@ -475,6 +485,13 @@ class DMDBase(
         ----------
         X
             Training time series data.
+
+        U
+            Control input for each time series
+
+        P
+            Parameter for each time series
+
         y
             ignored
 
@@ -483,13 +500,14 @@ class DMDBase(
         TSCDataFrame
             same shape as input `X`
         """
-        return self.fit(X, U=U, **fit_params).reconstruct(X, U=U)
+        return self.fit(X, U=U, P=P, **fit_params).reconstruct(X, U=U, P=P)
 
     def score(
         self,
         X: TSCDataFrame,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         y=None,
         sample_weight=None,
     ) -> float:
@@ -520,7 +538,7 @@ class DMDBase(
         """
         self._check_attributes_set_up(check_attributes=["_score_eval"])
 
-        X_est_ts = self.reconstruct(X, U=U)  # does all the validation checks
+        X_est_ts = self.reconstruct(X, U=U, P=P)  # does all the validation checks
         return self._score_eval(X, X_est_ts, sample_weight)
 
 
@@ -561,7 +579,13 @@ class PretrainedDMD(DMDBase):
         return dmd
 
     def fit(
-        self, X: TSCDataFrame, *, U: Optional[TSCDataFrame] = None, y=None, **fit_params
+        self,
+        X: TSCDataFrame,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
+        y: Optional[TSCDataFrame] = None,
+        **fit_params,
     ) -> "PretrainedDMD":
         self._validate_and_setup_fit_attrs(X, U=None)
         self._read_fit_params(attrs=None, fit_params=fit_params)
@@ -585,8 +609,8 @@ class DMDStandard(DMDBase):
 
     The actual decomposition contains the spectral elements of the matrix :math:`K`.
 
-    If the parameter ``rank`` is set, then an economic DMD is computed. For this the data
-    :math:`X` is first represented in a singular value decomposition
+    If the parameter ``rank`` is set, then an the data is decomposed with a SVD
+    (also sometimes referred to as "economic DMD"):
 
       .. math::
           X \approx U_k \Sigma_k V_k^*
@@ -608,6 +632,22 @@ class DMDStandard(DMDBase):
     2. ``reconstruct_mode="projected"``
         .. math::
             \Psi_r = U W
+
+    For the linear regression various backends are used, depending on the regularization
+    setting (``alpha`` and ``l1_ratio``):
+
+    * ``alpha=0``, ``l1_ratio=0``: ``sklearn.linear_model.LinearRegression``
+    * ``alpha>0``, ``l1_ratio=0``: ``sklearn.linear_model.Ridge``
+    * ``alpha=0``, ``l1_ratio>0``: ``sklearn.linear_model.Lasso``
+    * ``alpha>0``, ``l1_ratio>0``: ``sklearn.linear_model.ElasticNet``
+    * if ``X`` is complex-valued: ``scipy.linalg.lstsq``
+      (This is because the scikit-learn classes do not support this input)
+
+    .. note::
+
+        By default all variants for the linear regression do **not** fit the intercept
+        (contrary to the sciki-learn classes). To enable this, set ``fit_intercept=True`` in
+        ``linregress_kwargs``.
 
     ...
 
@@ -657,9 +697,18 @@ class DMDStandard(DMDBase):
             also :py:class:`.gDMDFull`, which provides an alternative way to
             approximate the Koopman generator by using finite differences.
 
-    rcond
-        Cut-off ratio for small singular values
-        Passed to `rcond` of py:method:`numpy.linalg.lstsq`.
+    alpha
+        Constant that multiplies with the L2 norm in the linear regression to regularize the
+        optimization. The parameter is passed to the ``cond`` in the scipy backend
+        if the data is complex-valued. The class description for more details.
+
+    l1_ratio
+        Constant that multiplies with the L1 norm in the linear regression to regularize the
+        optimization. The parameter must be zero if the data is complex-valued. The class
+        description for more details.
+
+    linregress_kwargs
+        Keyword arguments passed to the respective linear regression backend.
 
     res_threshold
         Residual threshold to filter spurious spectral components. This follows Algorithm 2
@@ -713,7 +762,9 @@ class DMDStandard(DMDBase):
         reconstruct_mode: Literal["exact", "project"] = "exact",
         diagonalize: bool = False,
         approx_generator: bool = False,
-        rcond: Optional[float] = None,
+        alpha: float = 0.0,
+        l1_ratio: float = 0.0,
+        linregress_kwargs: Optional[dict] = None,
         residual_filter: Optional[float] = None,
         compute_pseudospectrum: bool = False,
     ):
@@ -721,7 +772,9 @@ class DMDStandard(DMDBase):
         self.reconstruct_mode = reconstruct_mode
         self.diagonalize = diagonalize
         self.approx_generator = approx_generator
-        self.rcond = rcond
+        self.alpha = alpha
+        self.l1_ratio = l1_ratio
+        self.linregress_kwargs = linregress_kwargs
         self.residual_filter = residual_filter
         self.compute_pseudospectrum = compute_pseudospectrum
 
@@ -809,29 +862,44 @@ class DMDStandard(DMDBase):
         else:
             R = None
 
-        from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
+        # TODO: this requires first testing, then enable passing the values
+        self.alpha = 0
+        self.l1_ratio = 0
 
-        alpha = 0
-        l1_ratio = 0
         # TODO: integrate later also CV of each version (depending if user requests it)
         # TODO: need to also adapt the text above (note that here no transpose is necessary)
-        if alpha == 0 and l1_ratio == 0:
-            # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
-            # (numerical) solution of the linear system of equations.
-            linregress_model = LinearRegression(fit_intercept=False)
-        elif alpha > 0 and l1_ratio == 0:
-            linregress_model = Ridge(alpha=alpha, fit_intercept=False)
-        elif alpha == 0 and l1_ratio > 0:
-            linregress_model = Lasso(fit_intercept=False)
-        else:  # alpha > 0 and l1_ratio > 0:
-            linregress_model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
+        if np.iscomplexobj(X):
+            if self.l1_ratio != 0:
+                raise ValueError(
+                    f"{self.l1_ratio=} must be zero for complex valued data"
+                )
+            koopman_matrix, _, rank, _ = np.linalg.lstsq(G, G_dash, rcond=self.alpha)
+            koopman_matrix = koopman_matrix.conj().T
+        else:
+            regress_kwargs = self.linregress_kwargs or {}
+            regress_kwargs.setdefault("fit_intercept", False)
 
-        linregress_model = linregress_model.fit(G, G_dash)
-        koopman_matrix = linregress_model.coef_
+            # Note: parameter checks are performed within the class (e.g. only positive values)
+            if self.alpha == 0 and self.l1_ratio == 0:
+                # If the matrix is square and of full rank, then 'koopman_matrix' is the exact
+                # (numerical) solution of the linear system of equations.
+                linregress_model = LinearRegression(**regress_kwargs)
+            elif self.alpha > 0 and self.l1_ratio == 0:
+                linregress_model = Ridge(alpha=self.alpha, **regress_kwargs)
+            elif self.alpha == 0 and self.l1_ratio > 0:
+                linregress_model = Lasso(l1_ratio=self.l1_ratio, **regress_kwargs)
+            else:  # alpha > 0 and l1_ratio > 0:
+                linregress_model = ElasticNet(
+                    alpha=self.alpha, l1_ratio=self.l1_ratio, **regress_kwargs
+                )
 
-        if linregress_model.rank_ != G.shape[1]:
+            linregress_model = linregress_model.fit(G, G_dash)
+            koopman_matrix = linregress_model.coef_
+            rank = linregress_model.rank_
+
+        if rank != G.shape[1]:
             warnings.warn(
-                f"Shift matrix ({G.shape=}) has not full rank ({linregress_model.rank_=}), "
+                f"Shift matrix ({G.shape=}) has not full {rank=}, "
                 f"falling back to least squares solution.",
                 stacklevel=2,
             )
@@ -840,9 +908,9 @@ class DMDStandard(DMDBase):
             # free memory and to make sure that they are not used again
             G, G_dash, R = [None] * 3
 
-        reconstruct = None  # not required for the case with rank = None
+        reconstruct = None  # not required for the case with SVD rank is None
 
-        # TODO: return NamedTuple
+        # TODO: return NamedTuple for easier code readability
         return koopman_matrix, G, G_dash, R, reconstruct
 
     def _compute_reduced_system_matrix(self, X, sample_weights):
@@ -957,19 +1025,6 @@ class DMDStandard(DMDBase):
                 eigenvectors_left = eigenvectors_left[sortidx, :]
 
         return eigenvalues, eigenvectors_right, eigenvectors_left
-
-        # TODO: remove
-        # if np.sqrt(np.real(res_squared)) <= self.res_threshold:
-        #     new_vals.append(eval)
-        #     new_rvecs.append(if1dim_colvec(g))
-        #     if not (eigenvectors_left is None):
-        #         new_lvecs.append(if1dim_rowvec(lvec))
-        #
-        # return (
-        #     np.array(new_vals),
-        #     (np.hstack(new_rvecs) if len(new_rvecs) else np.empty((0, 0))),
-        #     (None if eigenvectors_left is None else np.vstack(new_lvecs)),
-        # )
 
     def _compute_left_eigenvectors(
         self, system_matrix, eigenvalues, eigenvectors_right
@@ -1197,7 +1252,9 @@ class DMDStandard(DMDBase):
 
         return nu
 
-    def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "DMDStandard":
+    def fit(
+        self, X: TimePredictType, *, U=None, P=None, y=None, **fit_params
+    ) -> "DMDStandard":
         """Fit model.
 
         Parameters
@@ -1211,12 +1268,16 @@ class DMDStandard(DMDBase):
         U: None
             ignored (the method does not support control input)
 
+        P: None
+            ignored (the method does not support parameter input)
+
         **fit_params
 
          - store_system_matrix: bool
-            If True, the model stores either the system or generator matrix in attribute
-            ``system_matrix_`` or ``generator_matrix_`` respectively. The parameter is ignored
-            if ``sys_mode=="matrix"`` (the system matrix is then in attribute ``sys_matrix_``).
+            If True, the model stores either the system or generator matrix in
+            attribute ``system_matrix_`` or ``generator_matrix_`` respectively.
+            The parameter is ignored if ``sys_mode=="matrix"`` (the system
+            matrix is then in attribute ``sys_matrix_``).
          - sample_weights: np.ndarray
             Sample weights
 
@@ -1246,7 +1307,7 @@ class DMDStandard(DMDBase):
 
         if self.rank is not None:
             check_scalar(
-                self.rank, "rank", target_type=int, min_val=1, max_val=X.shape[1] - 1
+                self.rank, "rank", target_type=int, min_val=1, max_val=X.shape[1]
             )
 
         if self.reconstruct_mode not in self._valid_reconstruct_modes:
@@ -1280,8 +1341,8 @@ class DMDStandard(DMDBase):
             ) = self._compute_spectral_components(system_matrix_, reconstruct)
 
             if self.residual_filter is not None:
-                # TODO: by removing spectral components the (reconstructed) system matrix also
-                #  changes -- should this be considered?
+                # TODO: by removing spectral components the (reconstructed)
+                # system matrix also changes -- should this be considered?
                 (
                     eigenvalues_,
                     eigenvectors_right_,
@@ -1304,6 +1365,7 @@ class DMDStandard(DMDBase):
                 eigenvectors_right=eigenvectors_right_,
                 eigenvalues=eigenvalues_,
                 eigenvectors_left=eigenvectors_left_,
+                dtype=determine_system_dtype(X),
             )
 
             if store_system_matrix:
@@ -1464,7 +1526,9 @@ class gDMDFull(DMDBase):
 
         return ret_kwargs
 
-    def fit(self, X: TimePredictType, *, U=None, y=None, **fit_params) -> "gDMDFull":
+    def fit(
+        self, X: TimePredictType, *, U=None, P=None, y=None, **fit_params
+    ) -> "gDMDFull":
         """Compute Koopman generator matrix and spectral components.
 
         Parameters
@@ -1474,6 +1538,9 @@ class gDMDFull(DMDBase):
 
         U: None
             ignored (the method does not support control input)
+
+        U: None
+            ignored (the method does not support parameter input)
 
         y: None
             ignored
@@ -1653,7 +1720,7 @@ class DMDControl(DMDBase):
 
         return sys_matrix, control_matrix
 
-    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, y=None, **fit_params) -> "DMDControl":  # type: ignore[override] # noqa
+    def fit(self, X: TSCDataFrame, *, U: TSCDataFrame, P=None, y=None, **fit_params) -> "DMDControl":  # type: ignore[override] # noqa
         """Fit model to compute a system and control matrix.
 
         Parameters
@@ -1662,9 +1729,13 @@ class DMDControl(DMDBase):
             System state time series
 
         U: TSCDataFrame
-            Control input. Each control input must have a matching system state in ``X``
-            (same ID and time value) for all but the last state (i.e. all time series have one
-            timestep less than the time series in ``X``).
+            Control input. Each control input must have a matching system state
+            in ``X`` (same ID and time value) for all but the last state (i.e.
+            all time series have one timestep less than the time series in
+            ``X``).
+
+        P: None
+            ignored (the method does not support parameter input)
 
         y: None
             ignored
@@ -1996,6 +2067,7 @@ class PyDMDWrapper(DMDBase):
         X: TimePredictType,
         *,
         U: Optional[TSCDataFrame] = None,
+        P: Optional[pd.DataFrame] = None,
         y=None,
         **fit_params,
     ) -> "PyDMDWrapper":
@@ -2008,6 +2080,10 @@ class PyDMDWrapper(DMDBase):
 
         U
             Control input time series. Only available for models that support control.
+
+        P: None
+            ignored (the wrapper does not support parameter input)
+            # TODO for partitioned/monolithic DMD
 
         y: None
             ignored
@@ -2196,10 +2272,13 @@ class StreamingDMD(DMDBase):
         self._pod_compression()
         self._update_sys_matrix(Xm, Xp)
 
-    def fit(self, X: TimePredictType, y=None, **fit_params) -> "DMDBase":
+    def fit(
+        self, X: TimePredictType, U=None, P=None, y=None, **fit_params
+    ) -> "DMDBase":
         """Initial fit of the model (used within :py:meth`partial_fit`).
 
         .. note::
+
             This function is not intended to be used directly. Use only py:meth:`partial_fit`
             for the initial fit and model updates
         """
@@ -2323,6 +2402,7 @@ class StreamingDMD(DMDBase):
         X: TimePredictType,
         *,
         U=None,
+        P=None,
         time_values=None,
         **predict_params,
     ):
@@ -2344,8 +2424,8 @@ class StreamingDMD(DMDBase):
             `(n_time_values, n_features)`.
         """
         check_is_fitted(self)
-        X, _, time_values = self._validate_features_and_time_values(
-            X, U=None, time_values=time_values
+        X, _, _, time_values = self._validate_features_and_time_values(
+            X, U=None, P=P, time_values=time_values
         )
 
         post_map, user_set_modes, feature_columns = self._read_predict_params(
@@ -2492,7 +2572,21 @@ class OnlineDMD(DMDBase):
         else:
             return True
 
-    def fit(self, X, y=None, **fit_params):
+    def _update_dynsystem(self) -> None:
+        if self.ready_:
+            (
+                self.eigenvalues_,
+                self.eigenvectors_right_,
+                self.eigenvectors_left_,
+            ) = self._compute_spectral_components()
+
+            self.setup_spectral_system(
+                eigenvectors_right=self.eigenvectors_right_,
+                eigenvalues=self.eigenvalues_,
+                eigenvectors_left=self.eigenvectors_left_,
+            )
+
+    def fit(self, X, *, U=None, P=None, y=None, **fit_params):
         """Initialize the model with the first time series data in a batch.
 
         .. note::
@@ -2527,12 +2621,7 @@ class OnlineDMD(DMDBase):
 
         self.timestep_ = p
 
-        if self.ready_:
-            (
-                self.eigenvalues_,
-                self.eigenvectors_right_,
-                self.eigenvectors_left_,
-            ) = self._compute_spectral_components()
+        self._update_dynsystem()
 
         return self
 
@@ -2615,17 +2704,234 @@ class OnlineDMD(DMDBase):
             # time step + 1
             self.timestep_ += 1
 
-        if self.ready_:
-            (
-                eigenvalues,
-                eigenvectors_right,
-                eigenvectors_left,
-            ) = self._compute_spectral_components()
-
-            self.setup_spectral_system(
-                eigenvectors_right=eigenvectors_right,
-                eigenvalues=eigenvalues,
-                eigenvectors_left=eigenvectors_left,
-            )
+        self._update_dynsystem()
 
         return self
+
+
+class PartitionedDMD(DMDBase):
+    """
+    Parametric dynamic mode decomposition with partitioned approach.
+
+    Parameter
+    ---------
+
+    n_components
+        The number of components for the leading components of the singular
+        value decomposition performed on the data.
+
+    dmd_kwargs
+        Keyword arguments passed to the internal :py:class:`DMDStandard`
+        methods for each parameter.
+
+    """
+
+    def __init__(
+        self, n_components: Optional[int] = None, dmd_kwargs: Optional[dict] = None
+    ):
+        super().__init__(sys_mode="matrix", sys_type="flowmap")
+        self._setup_default_tsc_metric_and_score()
+        self.n_components = n_components
+        self.dmd_kwargs = dmd_kwargs
+
+    def fit(
+        self,
+        X: TimePredictType,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[TSCDataFrame] = None,
+        y=None,
+        **fit_params,
+    ) -> "PartitionedDMD":
+        """Fit the model.
+
+        Parameters
+        ----------
+        X
+            Training time series data.
+
+        U
+            ignored (control input is not supported)
+
+        P
+            Parameters for each time series in ``X``.
+
+        y
+            ignored
+
+        Returns
+        -------
+        trained model
+
+
+        References
+        ----------
+
+        * original paper :cite:`andreuzzi-2023`
+        * alternative implementation in :cite:`demo-2018`
+        """
+
+        if self.n_components is not None:
+            check_scalar(
+                self.n_components,
+                name="n_components",
+                target_type=int,
+                min_val=1,
+                max_val=X.shape[1],
+            )
+
+        if U is not None:
+            raise NotImplementedError("Control input U is not supported")
+
+        if P is None:
+            raise ValueError("Method requires parameter input P.")
+
+        if (P.index.to_numpy() != X.ids.to_numpy()).all():
+            raise ValueError(
+                "The IDs between training data ``X`` and parameters ``P`` "
+                "have to match"
+            )
+
+        if np.any(P.duplicated()):
+            raise NotImplementedError(
+                "Currently the parameters in 'P' have to be unique"
+            )
+
+        if len(np.unique(P.to_numpy())) != len(P):
+            raise ValueError("the parameter values have to be unique")
+
+        if P.shape[1] > 1:
+            warnings.warn(
+                "Currently the case of more than one parameter is not tested",
+                stacklevel=1,
+            )
+
+        self._validate_datafold_data(X=X, ensure_tsc=True)
+        self._validate_and_setup_fit_attrs(X=X, U=U, P=P)
+
+        # training parameter need to be saved for interpolation in fit
+        self.training_parameters_ = P
+
+        if self.n_components is None:
+            n_components = X.shape[1]
+        else:
+            n_components = self.n_components
+
+        self.svd_ = TSCSingularValueDecomp(n_components=n_components)
+        X_svd = self.svd_.fit_transform(X)
+
+        # a separate DMD model per parameter
+        self.dmd_methods: dict[int, DMDBase] = dict()
+
+        for _id in X.ids:
+            X_param = X_svd.loc[[_id], :]
+
+        for i in range(P.shape[0]):
+            idd = P.index[i]
+            X_param = X_svd.loc[[idd], :]
+
+            # TODO: if needed this can be any DMD model
+            self.dmd_methods[i] = DMDStandard(**self.dmd_kwargs or {}).fit(X_param)
+
+        return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        *,
+        U: Optional[TSCDataFrame] = None,  # type: ignore[override]
+        P: Optional[pd.DataFrame] = None,
+        time_values: Optional[np.ndarray] = None,
+        **predict_params,
+    ) -> TSCDataFrame:
+        """Predict future states based on initial conditions.
+
+        Parameters
+        ----------
+
+        X:
+            initial condition
+
+        U:
+            ignored (control input is not supported)
+
+        P:
+            Parameters which are interpolated from the partitioned DMD.
+
+        Returns
+        -------
+        TSCDataFrame
+            Predicted time series.
+        """
+
+        # Note: validation in svd_ and DMD methods in self.dmd_methods
+
+        check_is_fitted(self)
+
+        time_values = self._validate_and_set_time_values_predict(
+            time_values=time_values,
+            X=X,
+            U=U,
+        )
+
+        if isinstance(X, np.ndarray):
+            # work internally only with DataFrames
+            X = InitialCondition.from_array(
+                X,
+                time_value=time_values[0],
+                feature_names=self.feature_names_in_,
+                ts_ids=U.ids if isinstance(U, TSCDataFrame) else None,
+            )
+        else:
+            # for DMD the number of samples per initial condition is always 1
+            InitialCondition.validate(X, n_samples_ic=1)
+
+        X, U, P, time_values = self._validate_features_and_time_values(
+            X=X, U=U, P=P, time_values=time_values
+        )
+
+        X_ic_svd = self.svd_.transform(X)
+
+        X_dmds = dict()
+        for p, dmd in self.dmd_methods.items():
+            pred = dmd.predict(X_ic_svd, time_values=time_values)
+            X_dmds[p] = pred
+
+        # TODO: could improve performance by converting pred to tensors and operate on these
+        #  (pandas indexing is still a larger factor in profiling)
+
+        X_svd_tensor = np.zeros(
+            [X.shape[0], len(time_values), self.svd_.n_features_out_],
+            dtype=self.dmd_methods[0].sys_dtype_,
+        )
+
+        for i, _id in enumerate(X.ids):
+            # each prediction (initial condition) is computed separately
+
+            X_id_tensor = np.stack(
+                [X_dmd.loc[[_id], :].to_numpy() for X_dmd in X_dmds.values()], axis=0
+            )
+
+            current_parameter = P.loc[[_id], :].to_numpy()
+
+            for j in range(X_id_tensor.shape[1]):
+                time_slice = X_id_tensor[:, j, :]
+
+                interp = RBFInterpolator(
+                    self.training_parameters_.to_numpy(),
+                    time_slice,
+                    kernel="thin_plate_spline",
+                )
+
+                X_svd_tensor[i, j, :] = interp(current_parameter)
+
+        X_svd = TSCDataFrame.from_tensor(
+            X_svd_tensor,
+            time_series_ids=X.ids,
+            feature_names=self.svd_.get_feature_names_out(),
+            time_values=time_values,
+        )
+
+        X_ret = self.svd_.inverse_transform(X_svd)
+
+        return X_ret

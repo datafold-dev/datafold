@@ -17,6 +17,20 @@ from datafold.utils.general import (
 )
 
 
+def determine_system_dtype(data):
+    """Function that determines the dtype for prediction type.
+
+    The dtype defaults to float, unless it is complex.
+    """
+    if isinstance(data, pd.DataFrame):
+        data = data.to_numpy()
+
+    if data.dtype == np.complex_:
+        return complex
+    else:
+        return float
+
+
 class SystemSolveStrategy:
     """Collection of linear dynamical system solvers."""
 
@@ -177,13 +191,33 @@ class SystemSolveStrategy:
             * If :code:`time_values / time_delta` are `[0, 1, 2, ...]`, within the loop the
               system matrix can be iteratively updated
         """
-        for idx, time in enumerate(time_values):
-            # TODO: this is really expensive -- can also store intermediate
-            #  results and only add the incremental fraction?
-            time_series_tensor[:, idx, :] = np.real(
-                scipy.linalg.fractional_matrix_power(sys_matrix, time / time_delta)
-                @ initial_conditions
-            ).T
+
+        # tolerance at which to decide wether we can use the same matrix for a single time step
+        # TODO: this could even be more improved, if we check if the steps are equidistant -
+        #  in this way we can compute fractional_matrix_power once and use it for the time
+        #  stepping (contributions welcome!)
+
+        TOL = 1e-13
+        is_equal_time_steps = np.all(
+            np.abs(time_values - time_delta * np.arange(len(time_values))) < TOL
+        )
+
+        if is_equal_time_steps:
+            time_series_tensor[:, 0, :] = initial_conditions.T
+
+            for idx in range(1, len(time_values)):
+                time_series_tensor[:, idx, :] = np.real(
+                    sys_matrix @ time_series_tensor[:, idx - 1, :].T
+                ).T
+        else:
+            # NOTE: this is quite expensive as it uses fractional_matrix_power
+            # however it is also capable to interpolate between the original
+            # time sampling rate
+            for idx, time in enumerate(time_values):
+                time_series_tensor[:, idx, :] = np.real(
+                    scipy.linalg.fractional_matrix_power(sys_matrix, time / time_delta)
+                    @ initial_conditions
+                ).T
 
         return time_series_tensor
 
@@ -223,8 +257,15 @@ class SystemSolveStrategy:
         """
         _eigenvalues = eigenvalues.astype(complex)
 
+        # TODO: that the target values can be complex valued is only considered here for now,
+        #  this should be done cosistent in all functions
+        if time_series_tensor.dtype == np.complex_:
+            post_func = lambda x: x
+        else:
+            post_func = lambda x: np.real(x)
+
         for idx, time in enumerate(time_values):
-            time_series_tensor[:, idx, :] = np.real(
+            time_series_tensor[:, idx, :] = post_func(
                 sys_matrix
                 @ diagmat_dot_mat(
                     np.float_power(_eigenvalues, time / time_delta),
@@ -408,6 +449,11 @@ class LinearDynamicalSystem:
         * "matrix" (i.e. :math:`A` or :math:`\mathcal{A}` are given)
         * "spectral" (i.e. eigenpairs of :math:`A` or :math:`\mathcal{A}` are given)
 
+    is_complex
+        Whether the original data is complex. If False (default), complex values in spectral
+        system forms are cast to float, with the assumption that this only includes numerical
+        noise (imaginary parts in machine precision).
+
     is_controlled:
         Whether the system is controlled. If set to True a control matrix must be passed to
         setup_matrix_system (currently there is no implementation for spectral systems)
@@ -431,6 +477,7 @@ class LinearDynamicalSystem:
 
     def __init__(
         self,
+        *,
         sys_type: Literal["differential", "flowmap"],
         sys_mode: Literal["matrix", "spectral"],
         is_controlled: bool = False,
@@ -777,12 +824,13 @@ class LinearDynamicalSystem:
 
         return states
 
-    def setup_spectral_system(  # TODO: is there a better way to accomplish this?
+    def setup_spectral_system(
         self,
         eigenvectors_right: np.ndarray,
         eigenvalues: np.ndarray,
         eigenvectors_left: Optional[np.ndarray] = None,
         control_matrix: Optional[np.ndarray] = None,
+        dtype=float,
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with spectral components of system matrix.
 
@@ -803,7 +851,14 @@ class LinearDynamicalSystem:
 
         control_matrix
             An additional control matrix (note that currently the control matrix is not
-            described in spectral components.
+            described in spectral components).
+
+        dtype
+            The dtype of the original time series. Can be either
+
+            * 'float' - the complex values from the spectral representation are
+              cast to float (assuming the complex part is only numerical noise)
+            * 'complex' - the complex dtype is maintained and returned
 
         Returns
         -------
@@ -831,10 +886,12 @@ class LinearDynamicalSystem:
 
         self.control_matrix_ = control_matrix
 
+        self.sys_dtype_ = dtype
+
         return self
 
     def setup_matrix_system(
-        self, system_matrix, *, control_matrix=None
+        self, system_matrix, *, control_matrix=None, reset=False
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with system matrix.
 
@@ -852,11 +909,13 @@ class LinearDynamicalSystem:
         LinearDynamicalSystem
             self
         """
-        if self.is_linear_system_setup():
+        if not reset and self.is_linear_system_setup():
             raise RuntimeError("Linear system is already setup.")
 
         is_matrix(system_matrix, "system_matrix")
         self.sys_matrix_ = system_matrix
+
+        self.sys_dtype_ = determine_system_dtype(system_matrix)
 
         if self.is_controlled:
             self.control_matrix_ = control_matrix
@@ -972,6 +1031,7 @@ class LinearDynamicalSystem:
             n_time_series=initial_conditions.shape[1],
             n_timesteps=time_values.shape[0],
             n_feature=n_features,
+            dtype=self.sys_dtype_,
         )
 
         # write the predicted states in time_series_tensor

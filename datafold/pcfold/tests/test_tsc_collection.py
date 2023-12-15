@@ -780,6 +780,15 @@ class TestTSCDataFrame(unittest.TestCase):
         # Test 3 - the number of iterations has to match
         self.assertEqual(counter, len(self.simple_df.index.levels[0]))
 
+    def test_to_tensor(self):
+        # (n_timeseries, n_timesteps, n_feature)
+        expected = np.random.default_rng(1).uniform(size=(10, 100, 2))
+
+        tscdf = TSCDataFrame.from_tensor(expected)
+        actual = tscdf.to_tensor()
+
+        nptest.assert_array_equal(expected, actual)
+
     def test_timeseries_initial_states(self):
         actual = TSCDataFrame(self.simple_df).initial_states()
 
