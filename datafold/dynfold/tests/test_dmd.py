@@ -19,6 +19,7 @@ from datafold.dynfold.dmd import (
     DMDStandard,
     LinearDynamicalSystem,
     OnlineDMD,
+    PartitionedDMD,
     PyDMDWrapper,
     StreamingDMD,
     gDMDAffine,
@@ -133,6 +134,72 @@ class LinearDynamicalSystemTest(unittest.TestCase):
 
         # errors can be introduced by the least square solution
         nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-8, rtol=1e-13)
+
+    def test_dtype_float_spectral(self):
+        rng = np.random.default_rng(1)
+
+        size = 50
+        time_values = np.array([0, 1, 2])
+
+        real_system_matrix = rng.uniform(-1, 1, size=(size, size))
+        ic_real = rng.uniform(-1, 1, size=(size, 1))
+
+        eigval, eigvec = np.linalg.eig(real_system_matrix)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="spectral")
+        spectral_system.setup_spectral_system(
+            eigenvectors_right=eigvec, eigenvalues=eigval, dtype=float
+        )
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_real, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, float)
+        self.assertEqual(actual.to_numpy().dtype, float)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+        spectral_system.setup_matrix_system(system_matrix=real_system_matrix)
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_real, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, float)
+        self.assertEqual(actual.to_numpy().dtype, float)
+
+    def test_dtype_complex_spectral(self):
+        rng = np.random.default_rng(1)
+
+        size = 50
+        time_values = np.array([0, 1, 2])
+
+        real_system_matrix = rng.uniform(-1, 1, size=(size, size))
+        ic_real = rng.uniform(-1, 1, size=(size, 1))
+        complex_system_matrix = (
+            real_system_matrix + rng.uniform(-1, 1, size=(50, 50)) * 1j
+        )
+        ic_complex = ic_real + rng.uniform(-1, 1, size=(size, 1)) * 1j
+
+        eigval, eigvec = np.linalg.eig(complex_system_matrix)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="spectral")
+        spectral_system.setup_spectral_system(
+            eigenvectors_right=eigvec, eigenvalues=eigval, dtype=complex
+        )
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_complex, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, complex)
+        self.assertEqual(actual.to_numpy().dtype, complex)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+        spectral_system.setup_matrix_system(system_matrix=complex_system_matrix)
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_complex, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, complex)
+        self.assertEqual(actual.to_numpy().dtype, complex)
 
     def test_time_values(self):
         time_values = np.random.default_rng(1).uniform(size=100) * 100
@@ -282,7 +349,9 @@ class ControlledLinearDynamicalSystemTest(unittest.TestCase):
 
     def test_controlled_system(self):
         actual = (
-            LinearDynamicalSystem("flowmap", "matrix", is_controlled=True)
+            LinearDynamicalSystem(
+                sys_type="flowmap", sys_mode="matrix", is_controlled=True
+            )
             .setup_matrix_system(self.A, control_matrix=self.B)
             .evolve_system(
                 self.x0,
@@ -590,6 +659,49 @@ class DMDTest(unittest.TestCase):
         dmd2 = clone(dmd)
 
         assert id(dmd) != id(dmd2)
+
+    def test_regression_regularize(self):
+        dmd = DMDStandard()
+        # the idea is that with tiny regularization it goes into the different routines but
+        # should not differ much from the unregularized version
+        dmdlasso = DMDStandard(l1_ratio=1e-15)
+        dmdridge = DMDStandard(alpha=1e-15)
+        dmdelastic = DMDStandard(l1_ratio=1e-15, alpha=1e-15)
+
+        X = self._create_random_tsc(dim=4, n_samples=100)
+
+        expected = dmd.fit(X)
+        actual_lasso = dmdlasso.fit(X)
+        actual_ridge = dmdridge.fit(X)
+        actual_elastic = dmdelastic.fit(X)
+
+        assert_equal_eigenvectors(
+            expected.eigenvectors_right_, actual_lasso.eigenvectors_right_
+        )
+        assert_equal_eigenvectors(
+            expected.eigenvectors_right_, actual_ridge.eigenvectors_right_
+        )
+        assert_equal_eigenvectors(
+            expected.eigenvectors_right_, actual_elastic.eigenvectors_right_
+        )
+
+    def test_equal_real_complex(self):
+        X_real = self._create_random_tsc(dim=4, n_samples=100)
+        X_complex = X_real.copy().astype(np.complex_)
+
+        dmd_real = DMDStandard()
+        dmd_complex = DMDStandard()
+
+        expected = dmd_real.fit_predict(X_real)
+        actual = dmd_complex.fit_predict(X_complex)
+
+        pdtest.assert_frame_equal(expected, actual.astype(float))
+        nptest.assert_allclose(
+            dmd_real.eigenvalues_, dmd_complex.eigenvalues_, rtol=1e-15, atol=1e-15
+        )
+        assert_equal_eigenvectors(
+            dmd_real.eigenvectors_right_, dmd_complex.eigenvectors_right_
+        )
 
     def test_dmd_eigenpairs(self):
         # From
@@ -1519,3 +1631,79 @@ class gDMDAffineTest(unittest.TestCase):
         actual = dmd.fit_predict(X, U=U)
 
         pdtest.assert_frame_equal(actual, expected, rtol=0.01, atol=0.05)
+
+
+class PartitionedDMDTest(unittest.TestCase):
+    @staticmethod
+    def sample_parametrized_linear_system(n_time_steps=10, n_param=10):
+        from datafold.dynfold.dynsystem import LinearDynamicalSystem
+
+        rng = np.random.default_rng(1)
+
+        dim = 10
+
+        x0 = rng.uniform(-0.1, 0.1, size=(dim, 1))
+        system_matrix = rng.uniform(-0.1, 0.1, size=(dim, dim))
+        time_values = np.arange(n_time_steps)
+
+        P = np.linspace(1, 10, n_param)
+
+        X_ret = []
+
+        for i, p in enumerate(P):
+            system_matrix_p = system_matrix * p
+            system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+            system.setup_matrix_system(system_matrix=system_matrix_p)
+
+            pred = system.evolve_system(
+                initial_conditions=x0,
+                time_values=time_values,
+                time_delta=1,
+                time_series_ids=np.array([i]),
+            )
+            X_ret.append(pred)
+
+        X_ret = pd.concat(X_ret, axis=0)
+        P = pd.DataFrame(P, X_ret.ids, columns=["param"])
+        return X_ret, P
+
+    def test_simple_system(self, plot=False):
+        X_train, P_train = self.sample_parametrized_linear_system()
+        X_test, P_test = self.sample_parametrized_linear_system(
+            n_time_steps=10, n_param=3
+        )
+
+        dmd = PartitionedDMD()
+        dmd.fit(X_train, P=P_train)
+
+        self.assertEqual(dmd.n_parameter_in_, 1)
+        self.assertEqual(dmd.parameter_names_in_, P_test.columns.to_numpy())
+
+        predict1 = dmd.reconstruct(X_train, P=P_train)
+        predict2 = dmd.predict(
+            X_train.initial_states(), P=P_train, time_values=X_train.time_values()
+        )
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        predict1 = dmd.reconstruct(X_test, P=P_test)
+        predict2 = dmd.predict(
+            X_test.initial_states(), P=P_test, time_values=X_test.time_values()
+        )
+
+        self.assertEqual(predict1.to_numpy().dtype, float)
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        score_train = dmd.score(X_train, P=P_train)
+        score_test = dmd.score(X_test, P=P_test)
+
+        # adapt if necessary
+        self.assertLessEqual(score_train, -1.588011326124275e-14)
+        self.assertLessEqual(score_test, -3.9624773664083636e-05)
+
+        if plot:
+            ax = X_test.plot()
+            predict1.plot(c="blue", ax=ax, linestyle="--")
+
+            plt.show()

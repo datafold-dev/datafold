@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from functools import partial
 from numbers import Number
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import matplotlib.colors as mclrs
 import numpy as np
@@ -464,7 +464,7 @@ class TSCDataFrame(pd.DataFrame):
         data = data.sort_index(axis=0, level=0)
         return cls(data)
 
-    def to_tensor(self) -> np.ndarray:
+    def to_tensor(self, orientation: Literal["row", "col"] = "row") -> np.ndarray:
         """Transforms the current time series collection to a three dimensional tensor.
 
         The target time series data is of shape `(n_timeseries, n_timesteps, n_feature)`.
@@ -472,15 +472,31 @@ class TSCDataFrame(pd.DataFrame):
         Note that currently all time series have to have the same time value. If
         required, this can be extended to fill in missing values.
 
+        Parameters
+        ----------
+        orientation
+
         Returns
         -------
         np.ndarray
             tensor with time series data
         """
         self.tsc.check_equal_timevalues()
-        return self.to_numpy().reshape(
+
+        possible_orientation = ["row", "col"]
+        if orientation not in possible_orientation:
+            raise ValueError(
+                f"Invalid value in {orientation=}. Select from {possible_orientation}."
+            )
+
+        tensor = self.to_numpy().reshape(
             (self.n_timeseries, self.n_timesteps, self.shape[1])
         )
+
+        if orientation == "col":
+            tensor = tensor.swapaxes(1, 2)
+
+        return tensor
 
     @classmethod
     def from_shift_matrices(
@@ -1649,9 +1665,7 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
-        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).head(
-            n=n_samples
-        )
+        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, level=0).head(n=n_samples)
 
     def final_states(self, n_samples: int = 1) -> "TSCDataFrame":
         """Get the final states of each time series in the collection.
@@ -1679,9 +1693,7 @@ class TSCDataFrame(pd.DataFrame):
             )
 
         self.tsc.check_required_min_timesteps(required_min_timesteps=n_samples)
-        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, axis=0, level=0).tail(
-            n=n_samples
-        )
+        return self.groupby(by=TSCDataFrame.tsc_id_idx_name, level=0).tail(n=n_samples)
 
     def plot(self, **kwargs):
         """Plots time series.
@@ -1897,7 +1909,7 @@ class InitialCondition:
             )
 
         for (_, _, _), df in time_series_table.groupby(
-            by=["start", "end", "delta_time"], axis=0
+            by=["start", "end", "delta_time"],
         ):
             grouped_ids = df.index
             grouped_tsc: TSCDataFrame = X.loc[grouped_ids, :]
@@ -1989,7 +2001,7 @@ class InitialCondition:
             )
 
 
-def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
+def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature, dtype=float):
     """Allocate a time series tensor that complies with
     :py:meth:`TSCDataFrame.from_tensor()`.
 
@@ -2020,4 +2032,4 @@ def allocate_time_series_tensor(n_time_series, n_timesteps, n_feature):
     :py:meth:`TSCDataFrame.from_tensor`
 
     """
-    return np.zeros([n_time_series, n_timesteps, n_feature], order="C", dtype=float)
+    return np.zeros([n_time_series, n_timesteps, n_feature], order="C", dtype=dtype)
