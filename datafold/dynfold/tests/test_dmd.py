@@ -135,6 +135,72 @@ class LinearDynamicalSystemTest(unittest.TestCase):
         # errors can be introduced by the least square solution
         nptest.assert_allclose(actual.to_numpy(), expected, atol=1e-8, rtol=1e-13)
 
+    def test_dtype_float_spectral(self):
+        rng = np.random.default_rng(1)
+
+        size = 50
+        time_values = np.array([0, 1, 2])
+
+        real_system_matrix = rng.uniform(-1, 1, size=(size, size))
+        ic_real = rng.uniform(-1, 1, size=(size, 1))
+
+        eigval, eigvec = np.linalg.eig(real_system_matrix)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="spectral")
+        spectral_system.setup_spectral_system(
+            eigenvectors_right=eigvec, eigenvalues=eigval, dtype=float
+        )
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_real, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, float)
+        self.assertEqual(actual.to_numpy().dtype, float)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+        spectral_system.setup_matrix_system(system_matrix=real_system_matrix)
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_real, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, float)
+        self.assertEqual(actual.to_numpy().dtype, float)
+
+    def test_dtype_complex_spectral(self):
+        rng = np.random.default_rng(1)
+
+        size = 50
+        time_values = np.array([0, 1, 2])
+
+        real_system_matrix = rng.uniform(-1, 1, size=(size, size))
+        ic_real = rng.uniform(-1, 1, size=(size, 1))
+        complex_system_matrix = (
+            real_system_matrix + rng.uniform(-1, 1, size=(50, 50)) * 1j
+        )
+        ic_complex = ic_real + rng.uniform(-1, 1, size=(size, 1)) * 1j
+
+        eigval, eigvec = np.linalg.eig(complex_system_matrix)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="spectral")
+        spectral_system.setup_spectral_system(
+            eigenvectors_right=eigvec, eigenvalues=eigval, dtype=complex
+        )
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_complex, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, complex)
+        self.assertEqual(actual.to_numpy().dtype, complex)
+
+        spectral_system = LinearDynamicalSystem(sys_type="flowmap", sys_mode="matrix")
+        spectral_system.setup_matrix_system(system_matrix=complex_system_matrix)
+        actual = spectral_system.evolve_system(
+            initial_conditions=ic_complex, time_values=time_values, time_delta=1
+        )
+
+        self.assertEqual(spectral_system.sys_dtype_, complex)
+        self.assertEqual(actual.to_numpy().dtype, complex)
+
     def test_time_values(self):
         time_values = np.random.default_rng(1).uniform(size=100) * 100
 

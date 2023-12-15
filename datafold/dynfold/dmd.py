@@ -2713,6 +2713,17 @@ class PartitionedDMD(DMDBase):
     """
     Parametric dynamic mode decomposition with partitioned approach.
 
+    Parameter
+    ---------
+
+    n_components
+        The number of components for the leading components of the singular
+        value decomposition performed on the data.
+
+    dmd_kwargs
+        Keyword arguments passed to the internal :py:class:`DMDStandard`
+        methods for each parameter.
+
     """
 
     def __init__(
@@ -2750,7 +2761,7 @@ class PartitionedDMD(DMDBase):
 
         Returns
         -------
-        self
+        trained model
         """
 
         if self.n_components is not None:
@@ -2780,8 +2791,12 @@ class PartitionedDMD(DMDBase):
             )
 
         if len(np.unique(P.to_numpy())) != len(P):
-            raise ValueError(
-                "the parameter values have to be unique -- implementation notice"
+            raise ValueError("the parameter values have to be unique")
+
+        if P.shape[1] > 1:
+            warnings.warn(
+                "Currently the case of more than one parameter is not tested",
+                stacklevel=1,
             )
 
         self._validate_datafold_data(X=X, ensure_tsc=True)
@@ -2808,7 +2823,7 @@ class PartitionedDMD(DMDBase):
             idd = P.index[i]
             X_param = X_svd.loc[[idd], :]
 
-            # TODO: if needed this can be any DMD model later
+            # TODO: if needed this can be any DMD model
             self.dmd_methods[i] = DMDStandard(**self.dmd_kwargs or {}).fit(X_param)
 
         return self
@@ -2847,7 +2862,9 @@ class PartitionedDMD(DMDBase):
         check_is_fitted(self)
 
         time_values = self._validate_and_set_time_values_predict(
-            time_values=time_values, X=X, U=U
+            time_values=time_values,
+            X=X,
+            U=U,
         )
 
         if isinstance(X, np.ndarray):
