@@ -2769,6 +2769,7 @@ class PartitionedDMD(DMDBase):
 
         * original paper :cite:`andreuzzi-2023`
         * alternative implementation in :cite:`demo-2018`
+
         """
 
         if self.n_components is not None:

@@ -963,7 +963,7 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
 
     def __repr__(self):
         # TODO: somehow the repr of the original implementation is quite costly
-        #    (investigate why and propose a fix)
+        #    (investigate why and propose a fix in the upstream repo)
         return "SWIM NETWORK"
 
     def get_feature_names_out(self, input_features=None):
@@ -972,7 +972,6 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
 
     def fit(self, X: TSCDataFrame, **fit_params) -> "TSCSampledNetwork":
         self._validate_datafold_data(X=X)
-        self._validate_feature_input(X, direction="transform")
 
         inverse_nn = self._read_fit_params(
             [("inverse_nn", None)], fit_params=fit_params
