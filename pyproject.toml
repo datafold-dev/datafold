@@ -133,6 +133,7 @@ ignore = [
 ]
 
 exclude = [
+  "tutorials/pydmd2delete/",
   ".mypy_cache/",
   ".pytest_cache/",
   ".venv/",

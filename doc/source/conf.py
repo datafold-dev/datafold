@@ -284,6 +284,12 @@ html_theme_options = {
             "type": "fontawesome",
         },
         {
+            "name": "Github",
+            "url": "https://gitlab.com/datafold-dev/datafold/",
+            "icon": "fab fa-github",
+            "type": "fontawesome",
+        },
+        {
             "name": "PyPI",
             "url": "https://pypi.org/project/datafold/",
             "icon": "fab fa-python",

@@ -35,6 +35,7 @@ List
     tutorial_14_kmpc_flowcontrol
     tutorial_15_kmpc_motor_engine
     tutorial_16_online_dmd
+    tutorial_17_parametric_dmd
 
 
 * ``01_datastructures.ipynb`` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/01_datastructures.ipynb?inline=false>`__, `doc <https://datafold-dev.gitlab.io/datafold/tutorial_01_datastructures.html>`__)
@@ -101,6 +102,10 @@ List
     This tutorial showcases the online dynamic mode decomposition (``OnlineDMD``) at the example of a simple 2D time-varying system. The performance of the online DMD is compared with batch DMD and the analytical solution of the system. Following the online update scheme the model is updated once new data becomes available, which is particularly useful in time-varying systems.
 
     **References**: `Original demo <https://github.com/haozhg/odmd/blob/master/demo/demo_online.ipynb>`__ :octicon:`link-external` |  :cite:t:`zhang-2019`
+* ``17_parametric_dmd.ipynb`` (`download <https://gitlab.com/datafold-dev/datafold/-/raw/master/tutorials/17_parametric_dmd.ipynb?inline=false>`__, `doc <https://datafold-dev.gitlab.io/datafold/tutorial_17_parametric_dmd.html>`__)
+    We explore the partitioned Dynamic Mode Decomposition (DMD), which can handle *parameterized* systems. The tutorial showcases its application in forecasting future outputs for various parameters.
+
+    **References**: `Original PyDMD tutoria <https://github.com/PyDMD/PyDMD/blob/master/tutorials/tutorial10/tutorial-10-paramdmd.ipynb>`__ :octicon:`link-external` |  :cite:t:`andreuzzi-2023`
 
 
 

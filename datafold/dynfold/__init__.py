@@ -42,6 +42,7 @@ from datafold.dynfold.dmd import (
     DMDControl,
     DMDStandard,
     OnlineDMD,
+    PartitionedDMD,
     PyDMDWrapper,
     StreamingDMD,
     gDMDAffine,

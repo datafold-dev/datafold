@@ -694,7 +694,7 @@ class DMDDictLearning(TSCTransformerMixin, TSCPredictMixin):
         self.dmd_model: DMDBase
 
     def fit(
-        self, X: TSCDataFrame, *, y=None, U=None, **fit_params
+        self, X: TSCDataFrame, *, U=None, P=None, y=None, **fit_params
     ) -> "DMDDictLearning":
         """Train dictionary functions and perform dynamic mode decomposition.
 
@@ -703,12 +703,16 @@ class DMDDictLearning(TSCTransformerMixin, TSCPredictMixin):
         X
             Training time series.
 
+        U
+            ignored (this could be extended to account for control input)
+
+        P
+            ignored (this could be extended to account for parameter input)
+
         y
             ignored (this could be extended to account for different set of observables
             to reconstruct to)
 
-        U
-            ignored (this could be extended to account for control input)
 
         Returns
         -------
