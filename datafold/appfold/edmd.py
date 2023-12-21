@@ -1355,14 +1355,15 @@ class EDMD(
             The new batch of training time series.
 
         U
-            Currently, there is no implementation that supports both an online/streaming
-            setting with control.
+            Currently, there is no implementation that supports both an online
+            setting and control (contributions welcome!)
 
         P
-            Currently, there is no implementation that supports parametric learning.
+            Currently, there is no implementation that supports both an online
+            setting and parameter input (contributions welcome!)
 
         y
-            Currently, no transfer learning is not supported.
+            Currently, transfer learning is not supported.
 
         fit_params
             Parameters passed to the ``fit`` method of each step, where
@@ -2250,7 +2251,7 @@ class EDMDWindowPrediction:
 
         if is_parametric:
             raise NotImplementedError(
-                "Parametric is not yet implemented. Code contributions welcome!"
+                "Parametric input is not yet implemented. Code contributions welcome!"
             )
 
         X = edmd._validate_datafold_data(
