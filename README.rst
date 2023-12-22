@@ -20,9 +20,10 @@ The package includes:
 * Implementations and variants of the Dynamic Mode Decomposition as data-driven methods to
   identify and analyze dynamical systems from time series collection data. This incldues:
 
-  * ``DMDFull`` or ``DMDEco`` as standard methods of DMD
+  * ``DMDStandard`` for the standard method
   * ``OnlineDMD`` or ``StreamingDMD`` modify the DMD to handle streaming data
   * ``DMDControl`` augments the DMD to handle additional control input
+  * ``PartitionedDMD`` as a parametric DMD definition
   * ``EDMD`` - The Extended-DMD, which allows setting up a highly flexible dictionary to
     decompose and embed time series data and thereby handle nonlinear dynamics within the
     Koopman operator framework. ``EDMD`` wraps an arbitrary DMD variation for the decomposition.
