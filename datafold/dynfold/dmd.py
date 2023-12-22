@@ -2797,9 +2797,6 @@ class PartitionedDMD(DMDBase):
                 "Currently the parameters in 'P' have to be unique"
             )
 
-        if len(np.unique(P.to_numpy())) != len(P):
-            raise ValueError("the parameter values have to be unique")
-
         if P.shape[1] > 1:
             warnings.warn(
                 "Currently the case of more than one parameter is not tested",
@@ -2830,7 +2827,7 @@ class PartitionedDMD(DMDBase):
             idd = P.index[i]
             X_param = X_svd.loc[[idd], :]
 
-            # TODO: if needed this can be any DMD model
+            # TODO: if needed this could be any DMD model
             self.dmd_methods[i] = DMDStandard(**self.dmd_kwargs or {}).fit(X_param)
 
         return self
@@ -2917,6 +2914,7 @@ class PartitionedDMD(DMDBase):
             for j in range(X_id_tensor.shape[1]):
                 time_slice = X_id_tensor[:, j, :]
 
+                # TODO: interpolation could be parametrized:
                 interp = RBFInterpolator(
                     self.training_parameters_.to_numpy(),
                     time_slice,
@@ -2933,5 +2931,71 @@ class PartitionedDMD(DMDBase):
         )
 
         X_ret = self.svd_.inverse_transform(X_svd)
+
+        return X_ret
+
+
+class ParametricDMD(DMDBase):
+    def __init__(self):
+        pass
+
+    def fit(
+        self,
+        X: TimePredictType,
+        *,
+        U: Optional[TSCDataFrame] = None,
+        P: Optional[TSCDataFrame] = None,
+        y=None,
+        **fit_params,
+    ) -> "ParametricDMD":
+        # TODO: validation
+
+        dmd_methods = []
+        for tsc_df in P.groupby(P.columns, axis=1):
+            parameter = tsc_df.iloc[0, :].to_numpy()
+            dmd = DMDStandard().fit(tsc_df)
+            dmd_methods.append((parameter, dmd.sys_matrix_))
+
+        params, sys_matrices = zip(*dmd_methods)
+
+        params = np.row_stack(params)
+        sys_matrices = np.stack(sys_matrices, axis=0)
+
+        # TODO: could also try to use SWIM here as another option
+        self.param_map_ = RBFInterpolator(
+            params, sys_matrices, kernel="thin_plate_spline"
+        )
+
+        # from datafold import TSCSampledNetwork
+        #
+        # self.param_map_ = TSCSampledNetwork()
+        # self.param_map_.fit(param, sys_matrices)
+
+        return self
+
+    def predict(
+        self,
+        X: InitialConditionType,
+        *,
+        U: Optional[TSCDataFrame] = None,  # type: ignore[override]
+        P: Optional[pd.DataFrame] = None,
+        time_values: Optional[np.ndarray] = None,
+        **predict_params,
+    ) -> TSCDataFrame:
+        # TODO: validation
+
+        X_ret = []
+        for param in P.groupby(P.columns, axis=0):
+            X_ic = X.loc[pd.IndexSlice[P.index, :], :]
+            K_interp = self.param_map_(param.to_numpy())
+
+            dmd_interp = PretrainedDMD.from_available_system_matrix(
+                sys_type="flowmmap", sys_mode="spectral", system_matrix=K_interp
+            )
+
+            X_result_dmd = dmd_interp.predict(X_ic, time_values=time_values)
+            X_ret.append(X_result_dmd)
+
+        X_ret = pd.concat(X_ret, axis=0)
 
         return X_ret

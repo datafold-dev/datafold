@@ -958,7 +958,7 @@ class TSCSampledNetwork(BaseEstimator, TSCTransformerMixin):  # pragma: no cover
         self,
         nn: Pipeline,
     ):
-        # TODO: can also wrap directly Dense, then it could be added directly to EDMD pipeline1
+        # TODO: can also wrap directly Dense, then it could be added directly to EDMD pipeline
         self.nn = nn
 
     def __repr__(self):
