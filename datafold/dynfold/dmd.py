@@ -587,9 +587,8 @@ class PretrainedDMD(DMDBase):
         y: Optional[TSCDataFrame] = None,
         **fit_params,
     ) -> "PretrainedDMD":
-        self._validate_and_setup_fit_attrs(X, U=None)
-        self._read_fit_params(attrs=None, fit_params=fit_params)
-
+        dt = self._read_fit_params([("dt", None)], fit_params)
+        self._validate_and_setup_fit_attrs(X, U=U, P=P, dt=dt)
         # TODO: perform validation if dimensions with setup system are correct...
         return self
 
@@ -2937,7 +2936,8 @@ class PartitionedDMD(DMDBase):
 
 class ParametricDMD(DMDBase):
     def __init__(self):
-        pass
+        super().__init__(sys_type="flowmap", sys_mode="matrix")
+        self._setup_default_tsc_metric_and_score()
 
     def fit(
         self,
@@ -2948,28 +2948,41 @@ class ParametricDMD(DMDBase):
         y=None,
         **fit_params,
     ) -> "ParametricDMD":
-        # TODO: validation
+        self._validate_datafold_data(X=X, ensure_tsc=True)
+        self._validate_and_setup_fit_attrs(X=X, U=U, P=P)
+
+        assert P is not None
 
         dmd_methods = []
-        for tsc_df in P.groupby(P.columns, axis=1):
-            parameter = tsc_df.iloc[0, :].to_numpy()
-            dmd = DMDStandard().fit(tsc_df)
+
+        # iterate trhough identical parameters
+        for parameter, tsc_df in P.groupby(P.columns.tolist(), axis=0):
+            X_current = X.loc[pd.IndexSlice[tsc_df.index, :], :]
+            dmd = DMDStandard(sys_mode="matrix").fit(X_current)
+            # append system matrix to later interpolate it
             dmd_methods.append((parameter, dmd.sys_matrix_))
 
         params, sys_matrices = zip(*dmd_methods)
 
         params = np.row_stack(params)
-        sys_matrices = np.stack(sys_matrices, axis=0)
+        self.sys_matrices = np.stack(sys_matrices, axis=0)
 
         # TODO: could also try to use SWIM here as another option
+
         self.param_map_ = RBFInterpolator(
             params, sys_matrices, kernel="thin_plate_spline"
         )
 
-        # from datafold import TSCSampledNetwork
+        # from swimnetworks import (Dense, Linear)
+        # from sklearn.pipeline import Pipeline
         #
-        # self.param_map_ = TSCSampledNetwork()
-        # self.param_map_.fit(param, sys_matrices)
+        # steps = [
+        #     ("hidden-1", Dense(layer_width=512, activation='tanh',
+        #     parameter_sampler='tanh', random_seed=1)),
+        #     ("linear", Linear(regularization_scale=1e-7)),
+        # ]
+        # self.param_map_ = Pipeline(steps=steps)
+        # self.param_map_.fit(np.unique(P.to_numpy())[:, np.newaxis], np.eye(3))
 
         return self
 
@@ -2983,15 +2996,35 @@ class ParametricDMD(DMDBase):
         **predict_params,
     ) -> TSCDataFrame:
         # TODO: validation
+        time_values = self._validate_and_set_time_values_predict(
+            time_values=time_values,
+            X=X,
+            U=U,
+        )
+
+        assert P is not None
 
         X_ret = []
-        for param in P.groupby(P.columns, axis=0):
-            X_ic = X.loc[pd.IndexSlice[P.index, :], :]
-            K_interp = self.param_map_(param.to_numpy())
+        for parameter, tsc_df in P.groupby(P.columns.tolist(), axis=0):
+            X_ic = X.loc[pd.IndexSlice[tsc_df.index, :], :]
+
+            # parameter has to be a 2-dim array
+            parameter = np.array(parameter)[:, np.newaxis]
+            K_interp = self.param_map_(parameter)[0, :, :]
+
+            # self.param_map_(parameter)
+            # self.sys_matrices
+            # weights = self.param_map_.predict(parameter)[0]
+            # K_interp = np.average(self.sys_matrices, weights=weights, axis=0)
 
             dmd_interp = PretrainedDMD.from_available_system_matrix(
-                sys_type="flowmmap", sys_mode="spectral", system_matrix=K_interp
+                sys_type="flowmap",
+                sys_mode="matrix",
+                system_matrix=K_interp,
+                is_diagonalize=False,
             )
+            # required to set feature names etc.
+            dmd_interp.fit(X_ic, dt=self.dt_)
 
             X_result_dmd = dmd_interp.predict(X_ic, time_values=time_values)
             X_ret.append(X_result_dmd)

@@ -517,6 +517,7 @@ class EDMD(
             self._inverse_map_control: np.ndarray = matrix[X_dict.shape[1] :, :]
             return matrix[: X_dict.shape[1], :]
         else:
+            # TODO: make the condition parametrizable!
             return scipy.linalg.lstsq(X_dict, X, cond=None)[0]
 
     def _compute_inverse_map(

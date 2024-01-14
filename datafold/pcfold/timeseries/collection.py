@@ -505,7 +505,7 @@ class TSCDataFrame(pd.DataFrame):
         right_matrix,
         *,
         time_values=(0, 1),
-        snapshot_orientation: str = "col",
+        snapshot_orientation: Literal["col", "row"] = "col",
         columns: Optional[Union[pd.Index, list]] = None,
     ) -> "TSCDataFrame":
         """Create ``TSCDataFrame`` from shift matrices.

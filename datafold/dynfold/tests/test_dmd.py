@@ -1667,7 +1667,7 @@ class PartitionedDMDTest(unittest.TestCase):
         P = pd.DataFrame(P, X_ret.ids, columns=["param"])
         return X_ret, P
 
-    def test_simple_system(self, plot=False):
+    def test_simple_system_partitioned_dmd(self, plot=False):
         X_train, P_train = self.sample_parametrized_linear_system()
         X_test, P_test = self.sample_parametrized_linear_system(
             n_time_steps=10, n_param=3
@@ -1701,6 +1701,49 @@ class PartitionedDMDTest(unittest.TestCase):
         # adapt if necessary
         self.assertLessEqual(score_train, -1.588011326124275e-14)
         self.assertLessEqual(score_test, -3.9624773664083636e-05)
+
+        if plot:
+            ax = X_test.plot()
+            predict1.plot(c="blue", ax=ax, linestyle="--")
+
+            plt.show()
+
+    def test_simple_system_parametric_dmd(self, plot=False):
+        X_train, P_train = self.sample_parametrized_linear_system()
+        X_test, P_test = self.sample_parametrized_linear_system(
+            n_time_steps=10, n_param=3
+        )
+
+        from datafold.dynfold.dmd import ParametricDMD
+
+        dmd = ParametricDMD()
+        dmd.fit(X_train, P=P_train)
+
+        self.assertEqual(dmd.n_parameter_in_, 1)
+        self.assertEqual(dmd.parameter_names_in_, P_test.columns.to_numpy())
+
+        predict1 = dmd.reconstruct(X_train, P=P_train)
+        predict2 = dmd.predict(
+            X_train.initial_states(), P=P_train, time_values=X_train.time_values()
+        )
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        predict1 = dmd.reconstruct(X_test, P=P_test)
+        predict2 = dmd.predict(
+            X_test.initial_states(), P=P_test, time_values=X_test.time_values()
+        )
+
+        self.assertEqual(predict1.to_numpy().dtype, float)
+
+        pdtest.assert_frame_equal(predict1, predict2)
+
+        score_train = dmd.score(X_train, P=P_train)
+        score_test = dmd.score(X_test, P=P_test)
+
+        # adapt if necessary
+        self.assertLessEqual(score_train, -2.6874688591913052e-12)
+        self.assertLessEqual(score_test, -5.8935595694529696e-12)
 
         if plot:
             ax = X_test.plot()

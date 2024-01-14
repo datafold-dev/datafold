@@ -198,16 +198,39 @@ class SystemSolveStrategy:
         #  stepping (contributions welcome!)
 
         TOL = 1e-13
-        is_equal_time_steps = np.all(
+
+        is_equal_time_steps_original = np.all(
             np.abs(time_values - time_delta * np.arange(len(time_values))) < TOL
         )
 
-        if is_equal_time_steps:
+        time_values_diff = np.diff(time_values)
+        is_equal_time_sampling = (
+            np.abs(time_values_diff[0] - time_values_diff[-1]) < TOL
+        )
+
+        if is_equal_time_steps_original:
+            # the original system matrix can be used, because the time values use the same
+            # time sampling
             time_series_tensor[:, 0, :] = initial_conditions.T
 
             for idx in range(1, len(time_values)):
                 time_series_tensor[:, idx, :] = np.real(
                     sys_matrix @ time_series_tensor[:, idx - 1, :].T
+                ).T
+
+        elif is_equal_time_sampling:
+            # all time samples are equally sampled, so it is possible to compute the
+            # fractional matrix only once (and not for every time step)
+
+            time_series_tensor[:, 0, :] = initial_conditions.T
+            dt_time_values = np.mean(time_values_diff)
+            system_matrix_adapt = scipy.linalg.fractional_matrix_power(
+                sys_matrix, dt_time_values / time_delta
+            )
+
+            for idx in range(1, len(time_values)):
+                time_series_tensor[:, idx, :] = np.real(
+                    system_matrix_adapt @ time_series_tensor[:, idx - 1, :].T
                 ).T
         else:
             # NOTE: this is quite expensive as it uses fractional_matrix_power
@@ -448,11 +471,6 @@ class LinearDynamicalSystem:
 
         * "matrix" (i.e. :math:`A` or :math:`\mathcal{A}` are given)
         * "spectral" (i.e. eigenpairs of :math:`A` or :math:`\mathcal{A}` are given)
-
-    is_complex
-        Whether the original data is complex. If False (default), complex values in spectral
-        system forms are cast to float, with the assumption that this only includes numerical
-        noise (imaginary parts in machine precision).
 
     is_controlled:
         Whether the system is controlled. If set to True a control matrix must be passed to

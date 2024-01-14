@@ -437,6 +437,7 @@ class TSCPredictMixin(TSCBase):
         X: TSCDataFrame,
         U: Optional[TSCDataFrame] = None,
         P: Optional[pd.DataFrame] = None,
+        dt: Optional[float] = None,
     ):
         if not isinstance(X, TSCDataFrame):
             raise TypeError(
@@ -499,13 +500,16 @@ class TSCPredictMixin(TSCBase):
                 "control input in `U` (i.e. corresponding ID and time value)."
             )
 
-        self.dt_ = X.delta_time
+        if dt is None:
+            self.dt_ = X.delta_time
+        else:
+            self.dt_ = dt
 
         if isinstance(self.dt_, pd.Series) or np.isnan(self.dt_):
             # Series if dt_ is not the same for all time series in the data.
             raise NotImplementedError(
                 "Currently, all algorithms assume a constant time "
-                f"delta. Got {X.time_delta=}."
+                f"delta. Got {X.delta_time=}."
             )
 
         # TODO: check this closer why are there 5 decimals required?
@@ -529,7 +533,7 @@ class TSCPredictMixin(TSCBase):
                 dt = self.dt_
             except AttributeError:
                 raise NotFittedError(
-                    "The time sampling dt needs to be either"
+                    "The time sampling dt needs to be either "
                     "passed by argument or in attribute self.dt_."
                 )
 
