@@ -1,6 +1,7 @@
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Union, Callable, Tuple
 
 import numpy as np
+from numpy.matrixlib import matrix
 import pandas as pd
 import scipy.linalg
 from pandas.api.types import is_datetime64_dtype, is_timedelta64_dtype
@@ -391,7 +392,7 @@ class SystemSolveStrategy:
 
     @staticmethod
     def select_strategy(
-        *, system_type, system_mode, is_time_invariant, is_controlled, is_control_affine
+        *, system_type, system_mode, is_time_invariant, is_controlled, is_control_affine, is_parametric
     ):
         """Selects the solver for the linear dynamical system based on the given system
         parameters.
@@ -444,6 +445,13 @@ class SystemSolveStrategy:
             and is_control_affine
         ):
             return SystemSolveStrategy.differential_matrix_controlled_affine
+        elif (
+            system_type == "flowmap"
+            and system_mode == "matrix"
+            and is_parametric
+            ):
+            # TODO: implement
+            return SystemSolveStrategy.flowmap_parametric
         else:
             raise ValueError(
                 "No strategy found to solve the specified linear dynamical system\n"
@@ -500,12 +508,14 @@ class LinearDynamicalSystem:
         sys_mode: Literal["matrix", "spectral"],
         is_controlled: bool = False,
         is_control_affine: bool = False,
+        is_parametric: bool = False,
         is_time_invariant: bool = True,
     ):
         self.sys_type = sys_type
         self.sys_mode = sys_mode
         self.is_controlled = is_controlled
         self.is_control_affine = is_control_affine
+        self.is_parametric = is_parametric
         self.is_time_invariant = is_time_invariant
 
         self._check_system_type()
@@ -662,6 +672,7 @@ class LinearDynamicalSystem:
         initial_conditions: np.ndarray,
         sys_matrix: Optional[np.ndarray],
         control_input: Optional[np.ndarray],
+        parameter_input: Optional[Tuple[Callable, np.ndarry]],
         time_values: np.ndarray,
         time_delta: Optional[Union[float, int]],
         time_series_ids,
@@ -676,9 +687,6 @@ class LinearDynamicalSystem:
             initial_conditions, state_length
         )
 
-        # TIME VALUES
-        time_values = self._check_time_values(time_values)
-
         # CONTROL_INPUT
         if self.is_controlled:
             control_input = self._check_control_input(
@@ -686,6 +694,20 @@ class LinearDynamicalSystem:
                 n_time_values=len(time_values),
                 n_initial_condition=initial_conditions.shape[1],
             )
+
+        # PARAMETER INPUT
+        if parameter_input is not None:
+            if not isinstance(parameter_input, np.ndarray):
+                raise TypeError("")
+
+            if parameter_input.shape[0] != initial_conditions.shape[1]:
+                raise ValueError(
+                      "For every initial condition a parameter input "
+                      "must be provided"
+                )
+
+        # TIME VALUES
+        time_values = self._check_time_values(time_values)
 
         # TIME DELTA
         time_delta = self._check_time_delta(time_delta)
@@ -705,6 +727,7 @@ class LinearDynamicalSystem:
             initial_conditions,
             sys_matrix,
             control_input,
+            parameter_input,
             time_values,
             time_delta,
             n_features,
@@ -888,7 +911,14 @@ class LinearDynamicalSystem:
                 f"With '{self.sys_mode=}' this function is not supported."
             )
 
+        if self.is_parametic:
+            raise NotImplementedError(
+                f"Currently {self.is_parametric=} is not "
+                "supported for spectral system types."
+            )
+
         is_matrix(eigenvectors_right, name="eigenvectors_right")
+
 
         if eigenvectors_left is not None:
             is_matrix(eigenvectors_right, name="eigenvectors_left")
@@ -909,7 +939,7 @@ class LinearDynamicalSystem:
         return self
 
     def setup_matrix_system(
-        self, system_matrix, *, control_matrix=None, reset=False
+        self, system_matrix, *, control_matrix=None, sys_dtype=None, reset=False
     ) -> "LinearDynamicalSystem":
         r"""Set up linear system with system matrix.
 
@@ -930,10 +960,22 @@ class LinearDynamicalSystem:
         if not reset and self.is_linear_system_setup():
             raise RuntimeError("Linear system is already setup.")
 
-        is_matrix(system_matrix, "system_matrix")
-        self.sys_matrix_ = system_matrix
+        if self.is_parametric:
+            if not isinstance(system_matrix, callable):
+                raise TypeError("")
+            if control_matrix is not None:
+                raise NotImplementedError("")
 
-        self.sys_dtype_ = determine_system_dtype(system_matrix)
+            if sys_dtype is None:
+                raise ValueError("sys_dtype needs to be provided for parametric case")
+        else:
+            is_matrix(system_matrix, "system_matrix")
+            if sys_dtype is None:
+                self.sys_dtype_ = determine_system_dtype(system_matrix)
+            else:
+                self.sys_dtype_ = sys_dtype
+
+        self.sys_matrix_ = system_matrix
 
         if self.is_controlled:
             self.control_matrix_ = control_matrix
@@ -976,6 +1018,8 @@ class LinearDynamicalSystem:
         *,
         time_values: Union[np.ndarray, float, int, list],
         control_input: Optional[np.ndarray] = None,
+        parameter_map: Optional[Callable] = None,
+        parameter_input: Optional[np.ndarray] = None,
         overwrite_sys_matrix: Optional[np.ndarray] = None,
         time_delta: Optional[float] = None,
         time_series_ids: Optional[np.ndarray] = None,
@@ -1029,6 +1073,7 @@ class LinearDynamicalSystem:
             initial_conditions,
             sys_matrix,
             control_input,
+            parameter_input,
             time_values,
             time_delta,
             n_features,
@@ -1039,6 +1084,7 @@ class LinearDynamicalSystem:
             initial_conditions=initial_conditions,
             sys_matrix=overwrite_sys_matrix,
             control_input=control_input,
+            parameter_input=parameter_input,
             time_values=time_values,
             time_delta=time_delta,
             time_series_ids=time_series_ids,
